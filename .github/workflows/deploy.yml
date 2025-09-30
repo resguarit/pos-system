@@ -24,8 +24,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        path: .
       
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -40,6 +38,7 @@ jobs:
         npm install @rollup/rollup-linux-x64-gnu --save-optional
         npm install @swc/core-linux-x64-gnu --save-optional
         npm install lightningcss-linux-x64-gnu --save-optional
+        npm install @tailwindcss/oxide-linux-x64-gnu --save-optional
         
     - name: Run tests
       run: |
@@ -76,8 +75,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        path: .
       
     - name: Deploy to VPS
       uses: appleboy/ssh-action@v1.0.3
