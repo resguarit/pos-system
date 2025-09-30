@@ -22,6 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         cd apps/frontend
+        rm -rf node_modules package-lock.json
         npm install
         
     - name: Run tests
