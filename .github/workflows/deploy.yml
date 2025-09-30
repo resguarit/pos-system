@@ -53,6 +53,7 @@ jobs:
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.VPS_HOST }}
+        port: ${{ secrets.VPS_PORT }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
@@ -76,6 +77,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
+        port: ${{ secrets.VPS_PORT }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         script: |

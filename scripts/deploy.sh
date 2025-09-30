@@ -30,10 +30,11 @@ print_error() {
 }
 
 # Configuration
-VPS_HOST="${VPS_HOST:-}"
-VPS_USERNAME="${VPS_USERNAME:-}"
-FRONTEND_DEPLOY_PATH="${FRONTEND_DEPLOY_PATH:-/var/www/html}"
-BACKEND_DEPLOY_PATH="${BACKEND_DEPLOY_PATH:-/var/www/pos-backend}"
+VPS_HOST="${VPS_HOST:-149.50.138.145}"
+VPS_PORT="${VPS_PORT:-5507}"
+VPS_USERNAME="${VPS_USERNAME:-root}"
+FRONTEND_DEPLOY_PATH="${FRONTEND_DEPLOY_PATH:-/home/heroedelwhisky.com.ar/public_html}"
+BACKEND_DEPLOY_PATH="${BACKEND_DEPLOY_PATH:-/home/api.heroedelwhisky.com.ar/public_html}"
 
 # Function to check if command exists
 command_exists() {
@@ -86,7 +87,7 @@ deploy_frontend() {
     
     # Deploy to VPS
     print_status "Uploading frontend to VPS..."
-    rsync -avz --delete apps/frontend/dist/ "$VPS_USERNAME@$VPS_HOST:$FRONTEND_DEPLOY_PATH/"
+    rsync -avz --delete -e "ssh -p $VPS_PORT" apps/frontend/dist/ "$VPS_USERNAME@$VPS_HOST:$FRONTEND_DEPLOY_PATH/"
     
     print_success "Frontend deployed successfully"
 }
@@ -97,11 +98,11 @@ deploy_backend() {
     
     # Deploy to VPS
     print_status "Uploading backend to VPS..."
-    rsync -avz --delete --exclude='vendor/' --exclude='node_modules/' --exclude='.git/' apps/backend/ "$VPS_USERNAME@$VPS_HOST:$BACKEND_DEPLOY_PATH/"
+    rsync -avz --delete --exclude='vendor/' --exclude='node_modules/' --exclude='.git/' -e "ssh -p $VPS_PORT" apps/backend/ "$VPS_USERNAME@$VPS_HOST:$BACKEND_DEPLOY_PATH/"
     
     # Run deployment commands on VPS
     print_status "Running deployment commands on VPS..."
-    ssh "$VPS_USERNAME@$VPS_HOST" << EOF
+    ssh -p "$VPS_PORT" "$VPS_USERNAME@$VPS_HOST" << EOF
         cd $BACKEND_DEPLOY_PATH
         composer install --no-dev --optimize-autoloader
         php artisan config:cache
@@ -137,13 +138,16 @@ show_help() {
     echo "  help        Show this help message"
     echo ""
     echo "Environment Variables:"
-    echo "  VPS_HOST              VPS hostname or IP"
-    echo "  VPS_USERNAME          VPS username"
-    echo "  FRONTEND_DEPLOY_PATH  Frontend deployment path (default: /var/www/html)"
-    echo "  BACKEND_DEPLOY_PATH   Backend deployment path (default: /var/www/pos-backend)"
+    echo "  VPS_HOST              VPS hostname or IP (default: 149.50.138.145)"
+    echo "  VPS_PORT              VPS SSH port (default: 5507)"
+    echo "  VPS_USERNAME          VPS username (default: root)"
+    echo "  FRONTEND_DEPLOY_PATH  Frontend deployment path (default: /home/heroedelwhisky.com.ar/public_html)"
+    echo "  BACKEND_DEPLOY_PATH   Backend deployment path (default: /home/api.heroedelwhisky.com.ar/public_html)"
     echo ""
     echo "Example:"
-    echo "  VPS_HOST=192.168.1.100 VPS_USERNAME=deploy $0 all"
+    echo "  $0 all  # Deploy to both sites"
+    echo "  $0 frontend  # Deploy only frontend to heroedelwhisky.com.ar"
+    echo "  $0 backend   # Deploy only backend to api.heroedelwhisky.com.ar"
     echo ""
 }
 
