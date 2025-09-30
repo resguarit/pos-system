@@ -1,0 +1,1156 @@
+<?php
+namespace App\Services;
+
+use App\Interfaces\SaleServiceInterface;
+use App\Services\CashMovementService;
+use App\Services\CurrentAccountService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use App\Models\SaleHeader;
+use App\Models\Product;
+use App\Models\SaleItem;
+use App\Models\SaleIva;
+use App\Models\PaymentMethod;
+use App\Models\ReceiptType;
+use Carbon\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Pagination\LengthAwarePaginator;
+
+class SaleService implements SaleServiceInterface
+{
+    /**
+     * Prepara los items de venta calculando precios unitarios, descuentos, base e IVA.
+     * Descuentos: por ítem antes de IVA. Montos con hasta 2 decimales.
+     */
+    private function mergeAndPrepareSaleItems(array $itemsData): array
+    {
+        $preparedItems = [];
+
+        foreach ($itemsData as $item) {
+            $product = Product::with('iva')->find($item['product_id']);
+            if (!$product) {
+                throw new \Exception("Producto con ID {$item['product_id']} no encontrado");
+            }
+
+            $unitPrice = (float) ($item['unit_price'] ?? $product->sale_price);
+            $quantity = (float) $item['quantity'];
+            $ivaRate = $product->iva ? (float) $product->iva->rate : 0.0;
+
+            // Base bruta
+            $itemSubtotalBase = (float) ($unitPrice * $quantity); // sin redondear todavía
+
+            // Descuento por ítem (opcional)
+            $discountType = $item['discount_type'] ?? null; // 'percent' | 'amount' | null
+            $discountValue = isset($item['discount_value']) ? (float) $item['discount_value'] : null; // number
+            $itemDiscountAmount = 0.0;
+            if ($discountType && $discountValue !== null) {
+                if ($discountType === 'percent') {
+                    $itemDiscountAmount = round(($itemSubtotalBase) * ($discountValue / 100.0), 2);
+                } else {
+                    $itemDiscountAmount = round($discountValue, 2);
+                }
+                // Cap al subtotal base
+                if ($itemDiscountAmount > $itemSubtotalBase) {
+                    $itemDiscountAmount = round($itemSubtotalBase, 2);
+                }
+            }
+
+            // Base neta antes de IVA
+            $netBase = round($itemSubtotalBase - $itemDiscountAmount, 2);
+            if ($netBase < 0) { $netBase = 0.0; }
+
+            // IVA sobre base neta
+            $itemIva = round($netBase * ($ivaRate / 100.0), 2);
+            $itemTotal = round($netBase + $itemIva, 2);
+
+            $preparedItems[] = [
+                'product_id' => $product->id,
+                'quantity' => $quantity,
+                'unit_price' => round($unitPrice, 2),
+                'discount_type' => $discountType,
+                'discount_value' => $discountValue,
+                'discount_amount' => $itemDiscountAmount, // solo descuento explícito del ítem
+                'iva_rate' => $ivaRate,
+                'iva_id' => $product->iva ? $product->iva->id : null,
+                // Guardamos la base neta como item_subtotal
+                'item_subtotal' => $netBase,
+                'item_iva' => $itemIva,
+                'item_total' => $itemTotal,
+                // Auxiliares no persistidos, útiles para cálculos posteriores
+                '_net_base' => $netBase,
+            ];
+        }
+
+        return $preparedItems;
+    }
+
+    public function createSale(array $data, bool $registerMovement = true): SaleHeader
+    {
+        // Se usa una transacción para garantizar que si algo falla, no se guarde nada.
+        return DB::transaction(function () use ($data, $registerMovement) {
+            // 1) Items y limpieza
+            $itemsData = $data['items'];
+            unset($data['items']);
+
+            // 2) Preparar ítems (con descuento por ítem aplicado antes de IVA)
+            $preparedItems = $this->mergeAndPrepareSaleItems($itemsData);
+
+            // 2.1) Subtotal neto antes de descuento global (suma de bases netas por ítem)
+            $subtotalNetBeforeGlobal = 0.0;
+            foreach ($preparedItems as $pi) { $subtotalNetBeforeGlobal = round($subtotalNetBeforeGlobal + (float) ($pi['_net_base'] ?? ($pi['item_subtotal'] ?? 0.0)), 2); }
+
+            // 2.2) Descuento global (opcional) antes de IVA: percent|amount sobre el subtotal neto
+            $globalDiscountType = $data['discount_type'] ?? null; // 'percent'|'amount'|null
+            $globalDiscountValue = isset($data['discount_value']) ? (float) $data['discount_value'] : null; // number
+            $globalDiscountAmount = 0.0;
+            if ($globalDiscountType && $globalDiscountValue !== null && $subtotalNetBeforeGlobal > 0) {
+                if ($globalDiscountType === 'percent') {
+                    $globalDiscountAmount = round($subtotalNetBeforeGlobal * ($globalDiscountValue / 100.0), 2);
+                } else { // amount
+                    $globalDiscountAmount = round($globalDiscountValue, 2);
+                }
+                if ($globalDiscountAmount > $subtotalNetBeforeGlobal) {
+                    $globalDiscountAmount = round($subtotalNetBeforeGlobal, 2);
+                }
+            }
+
+            // 2.3) Distribuir el descuento global proporcionalmente por ítem para recalcular IVA
+            if ($globalDiscountAmount > 0 && $subtotalNetBeforeGlobal > 0) {
+                $allocated = 0.0;
+                $count = count($preparedItems);
+                foreach ($preparedItems as $idx => &$item) {
+                    $netBase = (float) ($item['_net_base'] ?? ($item['item_subtotal'] ?? 0.0));
+                    $proportion = $netBase > 0 ? ($netBase / $subtotalNetBeforeGlobal) : 0.0;
+                    $share = ($idx === $count - 1)
+                        ? round($globalDiscountAmount - $allocated, 2)
+                        : round($globalDiscountAmount * $proportion, 2);
+                    if ($share < 0) { $share = 0.0; }
+                    $allocated = round($allocated + $share, 2);
+
+                    $adjNetBase = round(max(0.0, $netBase - $share), 2);
+
+                    // Recalcular IVA y totales con base ajustada (descuento ya aplicado)
+                    $rate = (float) ($item['iva_rate'] ?? 0.0);
+                    $item['item_subtotal'] = $adjNetBase; // base neta final antes de IVA
+                    $item['item_iva'] = round($adjNetBase * ($rate / 100.0), 2);
+                    $item['item_total'] = round($item['item_subtotal'] + $item['item_iva'], 2);
+                    $item['_net_base'] = $adjNetBase; // actualizar auxiliar
+                }
+                unset($item);
+            } else {
+                // Alinear item_subtotal (ya es neta) y recalcular IVA por consistencia
+                foreach ($preparedItems as &$item) {
+                    $netBase = round((float) ($item['_net_base'] ?? ($item['item_subtotal'] ?? 0.0)), 2);
+                    $item['item_subtotal'] = $netBase;
+                    $item['item_iva'] = round($netBase * (((float)($item['iva_rate'] ?? 0.0)) / 100.0), 2);
+                    $item['item_total'] = round($item['item_subtotal'] + $item['item_iva'], 2);
+                    $item['_net_base'] = $netBase;
+                }
+                unset($item);
+            }
+
+            // 3) Totales y desglose de IVA por tasa
+            $subtotalNetFinal = 0.0; // suma bases netas finales (con descuentos)
+            $totalIvaAmount = 0.0;
+            $ivaTotals = [];
+            foreach ($preparedItems as $item) {
+                $subtotalNetFinal = round($subtotalNetFinal + (float) $item['item_subtotal'], 2);
+                $totalIvaAmount = round($totalIvaAmount + (float) $item['item_iva'], 2);
+                if (!empty($item['iva_id'])) {
+                    $rateKey = (string) ($item['iva_rate'] ?? 0);
+                    if (!isset($ivaTotals[$rateKey])) {
+                        $ivaTotals[$rateKey] = [
+                            'iva_id'      => $item['iva_id'],
+                            'iva_rate'    => $item['iva_rate'],
+                            'base_amount' => 0.0,
+                            'iva_amount'  => 0.0,
+                        ];
+                    }
+                    $ivaTotals[$rateKey]['base_amount'] = round($ivaTotals[$rateKey]['base_amount'] + (float) $item['item_subtotal'], 2);
+                    $ivaTotals[$rateKey]['iva_amount']  = round($ivaTotals[$rateKey]['iva_amount'] + (float) $item['item_iva'], 2);
+                }
+            }
+
+            // Subtotal bruto sin descuentos (para mostrar descuentos por separado)
+            $subtotalGrossBeforeDiscounts = 0.0;
+            foreach ($preparedItems as $item) {
+                $lineGross = round(((float) ($item['unit_price'] ?? 0)) * ((float) ($item['quantity'] ?? 0)), 2);
+                $subtotalGrossBeforeDiscounts = round($subtotalGrossBeforeDiscounts + $lineGross, 2);
+            }
+
+            // Total de descuentos por ítem (solo explícitos) y total aplicado (ítems + global)
+            $sumPerItemDiscounts = 0.0;
+            foreach ($preparedItems as $item) {
+                $sumPerItemDiscounts = round($sumPerItemDiscounts + (float) ($item['discount_amount'] ?? 0.0), 2);
+            }
+            $totalDiscountApplied = round($sumPerItemDiscounts + (float) $globalDiscountAmount, 2);
+
+            $iibb = round((float) ($data['iibb'] ?? 0.0), 2);
+            $internalTax = round((float) ($data['internal_tax'] ?? 0.0), 2);
+
+            // Total = Subtotal (sin descuentos) - Descuentos + IVA + impuestos internos/IIBB
+            $finalTotal = round((($subtotalGrossBeforeDiscounts - $totalDiscountApplied) + $totalIvaAmount + $iibb + $internalTax), 2);
+
+            // 4) Asignar campos en cabecera
+            $data['subtotal'] = $subtotalGrossBeforeDiscounts; // persistir subtotal SIN descuentos
+            $data['total_iva_amount'] = $totalIvaAmount;
+            $data['discount_type'] = $globalDiscountType; // tipo de descuento global
+            $data['discount_value'] = $globalDiscountValue; // valor de descuento global
+            $data['discount_amount'] = $totalDiscountApplied; // total aplicado (ítems + global)
+            $data['total'] = $finalTotal;
+            $data['date'] = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::now();
+
+            // 5) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
+            $lastSale = SaleHeader::where('branch_id', $data['branch_id'])
+                ->where('receipt_type_id', $data['receipt_type_id'])
+                ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
+                ->first();
+            $nextReceiptNumber = $lastSale ? ((int)$lastSale->receipt_number) + 1 : 1;
+            $data['receipt_number'] = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+
+            // 6) Crear cabecera
+            $saleHeader = SaleHeader::create($data);
+
+            // 7) Crear ítems
+            foreach ($preparedItems as $item) {
+                $payload = $item;
+                unset($payload['_net_base']);
+                $payload['sale_header_id'] = $saleHeader->id;
+                SaleItem::create($payload);
+            }
+
+            // 8) Crear desglose de IVA por tasa
+            foreach ($ivaTotals as $total) {
+                $total['sale_header_id'] = $saleHeader->id;
+                SaleIva::create($total);
+            }
+
+            // 8.1) Reducir stock (solo si no es presupuesto)
+            $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
+            if (!$receiptType || $receiptType->afip_code !== '016') {
+                $branchId = $data['branch_id'];
+                $stockService = app(\App\Services\StockService::class);
+                $stockAlreadyReduced = \Illuminate\Support\Facades\Cache::get("stock_reduced_sale_{$saleHeader->id}");
+                if (!$stockAlreadyReduced) {
+                    \Illuminate\Support\Facades\Cache::put("stock_reduced_sale_{$saleHeader->id}", true, 300);
+                    foreach ($preparedItems as $item) {
+                        $stockService->reduceStockByProductAndBranch($item['product_id'], $branchId, $item['quantity']);
+                    }
+                }
+            }
+
+            // 9) Registrar movimientos
+            if ($registerMovement) {
+                $this->registerSaleMovement($saleHeader, $data);
+            }
+
+            // 10) Devolver con relaciones
+            return $saleHeader->fresh(['items', 'saleIvas']);
+        });
+    }
+
+    /**
+     * Registra el movimiento de caja basándose en los pagos de la venta
+     */
+    public function registerSaleMovementFromPayments(SaleHeader $sale, ?int $cashRegisterId = null): void
+    {
+        // Cargar los pagos de la venta
+        $sale->load('salePayments.paymentMethod', 'receiptType');
+
+        // Si el comprobante es 'Presupuesto', no registrar movimiento de caja ni cuenta corriente
+        if ($sale->receiptType && (
+            ($sale->receiptType->description ?? $sale->receiptType->name ?? null) === 'Presupuesto'
+        )) {
+            return;
+        }
+
+        // Determinar si es venta a crédito
+        // Una venta es a crédito si no tiene pagos asociados (se factura a cuenta corriente)
+        $isCreditSale = $sale->salePayments->isEmpty();
+
+        if ($isCreditSale) {
+            // Venta a crédito - registrar en cuenta corriente
+            $this->registerCurrentAccountMovement($sale);
+        } else {
+            // Venta con pagos inmediatos (efectivo, tarjetas, etc.) - registrar en caja
+            if (!$cashRegisterId) {
+                throw new \Exception('No se encontró una caja abierta para registrar la venta.');
+            }
+            $this->registerCashMovement($sale, $cashRegisterId);
+        }
+    }
+
+    /**
+     * Registra el movimiento de caja o cuenta corriente según el método de pago
+     */
+    private function registerSaleMovement(SaleHeader $sale, array $data): void
+    {
+        $cashRegisterId = $data['current_cash_register_id'] ?? null;
+        $isCreditSale = $data['is_credit_sale'] ?? false;
+
+        // Si es venta a crédito explícita, registrar en cuenta corriente
+        if ($isCreditSale) {
+            $this->registerCurrentAccountMovement($sale);
+        } else {
+            // Para ventas con pago inmediato, registrar en caja
+            // (esto incluye efectivo, tarjetas, transferencias, etc.)
+            $this->registerCashMovement($sale, $cashRegisterId);
+        }
+    }
+
+    /**
+     * Registra movimiento de caja para venta en efectivo
+     */
+    private function registerCashMovement(SaleHeader $sale, ?int $cashRegisterId): void
+    {
+        if (!$cashRegisterId) {
+            throw new \Exception('No se encontró una caja abierta para registrar la venta.');
+        }
+
+        try {
+            $cashMovementService = app(CashMovementService::class);
+
+            // Resolver nombre de cliente correctamente
+            $customerName = '';
+            if ($sale->customer && $sale->customer->person) {
+                $customerName = trim(($sale->customer->person->first_name ?? '') . ' ' . ($sale->customer->person->last_name ?? ''));
+            } elseif ($sale->customer && $sale->customer->business_name) {
+                $customerName = $sale->customer->business_name;
+            } else {
+                $customerName = 'Consumidor Final';
+            }
+
+            $baseDescription = "Venta #{$sale->receipt_number}";
+            if ($customerName) {
+                $baseDescription .= " - Cliente: {$customerName}";
+            }
+
+            // Intentar registrar por cada pago si existen pagos asociados
+            $sale->loadMissing('salePayments.paymentMethod');
+            if ($sale->relationLoaded('salePayments') && $sale->salePayments && $sale->salePayments->count() > 0) {
+                foreach ($sale->salePayments as $payment) {
+                    $paymentMethod = $payment->paymentMethod; // puede ser null si no está vinculado
+                    $movementType = $this->resolveMovementTypeForPaymentMethod($paymentMethod);
+
+                    // Fallback final si no se encontró tipo específico: crear/obtener "Venta en efectivo"
+                    if (!$movementType) {
+                        $movementType = \App\Models\MovementType::firstOrCreate(
+                            ['name' => 'Venta en efectivo', 'operation_type' => 'entrada'],
+                            [
+                                'description' => 'Ingreso por venta en efectivo',
+                                'is_cash_movement' => true,
+                                'is_current_account_movement' => false,
+                                'active' => true,
+                            ]
+                        );
+                    }
+
+                    // Descripción sin el método de pago
+                    $description = $baseDescription;
+
+                    $cashMovementService->createMovement([
+                        'cash_register_id' => $cashRegisterId,
+                        'movement_type_id' => $movementType ? $movementType->id : null,
+                        'payment_method_id' => $paymentMethod ? $paymentMethod->id : null, // Agregar payment_method_id
+                        'reference_type'   => 'sale',
+                        'reference_id'     => $sale->id,
+                        'amount'           => $payment->amount ?? $sale->total, // usar monto del pago
+                        'description'      => $description,
+                        'user_id'          => $sale->user_id,
+                    ]);
+                }
+            } else {
+                // Fallback: si no hay pagos cargados, mantener comportamiento actual (un único movimiento)
+                // Buscar método de pago "Efectivo" por defecto
+                $defaultPaymentMethod = \App\Models\PaymentMethod::where('name', 'Efectivo')
+                    ->where('is_active', true)
+                    ->first();
+                
+                $movementType = \App\Models\MovementType::firstOrCreate(
+                    ['name' => 'Venta en efectivo', 'operation_type' => 'entrada'],
+                    [
+                        'description' => 'Ingreso por venta en efectivo',
+                        'is_cash_movement' => true,
+                        'is_current_account_movement' => false,
+                        'active' => true,
+                    ]
+                );
+
+                $cashMovementService->createMovement([
+                    'cash_register_id' => $cashRegisterId,
+                    'movement_type_id' => $movementType->id,
+                    'payment_method_id' => $defaultPaymentMethod ? $defaultPaymentMethod->id : null, // Agregar payment_method_id por defecto
+                    'reference_type'   => 'sale',
+                    'reference_id'     => $sale->id,
+                    'amount'           => $sale->total,
+                    'description'      => $baseDescription,
+                    'user_id'          => $sale->user_id,
+                ]);
+            }
+        } catch (\Exception $e) {
+            throw new \Exception('Error al registrar movimiento de caja: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Registra movimiento en cuenta corriente para venta a crédito
+     */
+    private function registerCurrentAccountMovement(SaleHeader $sale): void
+    {
+        if (!$sale->customer_id) {
+            throw new \Exception('No se puede registrar venta a crédito sin cliente.');
+        }
+
+        try {
+            $currentAccountService = app(CurrentAccountService::class);
+            
+            // Buscar el tipo de movimiento para venta a crédito
+            $movementType = \App\Models\MovementType::where('name', 'Venta a crédito')
+                ->where('operation_type', 'entrada')
+                ->where('is_current_account_movement', true)
+                ->where('active', true)
+                ->first();
+
+            if (!$movementType) {
+                throw new \Exception('Tipo de movimiento "Venta a crédito" no encontrado.');
+            }
+
+            // Buscar o crear cuenta corriente del cliente
+            $currentAccount = \App\Models\CurrentAccount::firstOrCreate(
+                ['customer_id' => $sale->customer_id],
+                [
+                    'credit_limit' => 0,
+                    'current_balance' => 0,
+                    'status' => 'active'
+                ]
+            );
+
+            $currentAccountService->create([
+                'current_account_id' => $currentAccount->id,
+                'movement_type_id' => $movementType->id,
+                'amount' => $sale->total,
+                'description' => "Venta a crédito #{$sale->receipt_number}",
+                'reference' => $sale->receipt_number,
+                'sale_id' => $sale->id,
+                'metadata' => [
+                    'sale_id' => $sale->id,
+                    'receipt_number' => $sale->receipt_number,
+                    'payment_method' => 'credito'
+                ]
+            ]);
+        } catch (\Exception $e) {
+            throw new \Exception('Error al registrar movimiento de cuenta corriente: ' . $e->getMessage());
+        }
+    }
+    
+    
+    public function getAllSales(Request $request): SupportCollection
+    {
+        $query = SaleHeader::with([
+            'receiptType',
+            'branch',
+            'customer.person',
+            'user.person',
+            'saleFiscalCondition',
+            'saleDocumentType',
+            'items.product',
+            'saleIvas',
+        ]);
+        
+        // Manejar filtro por sucursales (array o valor único)
+        if ($request->has('branch_id')) {
+            $branchIds = $request->input('branch_id');
+            if (is_array($branchIds)) {
+                // Solo aplicar filtro si el array no está vacío
+                if (count($branchIds) > 0) {
+                    $query->whereIn('branch_id', $branchIds);
+                }
+            } else {
+                $query->where('branch_id', $branchIds);
+            }
+        }
+        
+        $from = $request->input('from_date') ?? $request->input('from');
+        $to = $request->input('to_date') ?? $request->input('to');
+        if ($from) {
+            $query->whereDate('date', '>=', Carbon::parse($from)->startOfDay());
+        }
+        if ($to) {
+            $query->whereDate('date', '<=', Carbon::parse($to)->endOfDay());
+        }
+        $sales = $query->orderByDesc('date')->get();
+        return $sales->map(function ($sale) {
+            $customerName = '';
+            if ($sale->customer && $sale->customer->person) {
+                $customerName = trim($sale->customer->person->first_name . ' ' . $sale->customer->person->last_name);
+            } elseif ($sale->customer && $sale->customer->business_name) {
+                $customerName = $sale->customer->business_name;
+            } else {
+                $customerName = 'N/A';
+            }
+            
+            // Preparar información del vendedor
+            $sellerName = '';
+            if ($sale->user && $sale->user->person) {
+                $sellerName = trim($sale->user->person->first_name . ' ' . $sale->user->person->last_name);
+            } elseif ($sale->user && $sale->user->username) {
+                $sellerName = $sale->user->username;
+            } else {
+                $sellerName = 'N/A';
+            }
+            
+            $receiptTypeName = $sale->receiptType ? $sale->receiptType->description : 'N/A';
+            $receiptTypeCode = $sale->receiptType ? $sale->receiptType->afip_code ?? '' : '';
+            $receiptNumber = $sale->receipt_number ?? '';
+            $items = $sale->items->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'quantity' => $item->quantity,
+                    'product' => $item->product,
+                    'unit_price' => $item->unit_price,
+                    'iva_rate' => $item->iva_rate,
+                    'item_subtotal' => $item->item_subtotal,
+                    'item_iva' => $item->item_iva,
+                    'item_total' => $item->item_total,
+                ];
+            });
+            $itemsCount = $items->count();
+            $dateIso = $sale->date ? Carbon::parse($sale->date)->format('Y-m-d H:i:s') : '';
+            $dateDisplay = $sale->date ? Carbon::parse($sale->date)->format('d/m/Y H:i') : '';
+            return [
+                'id' => $sale->id,
+                'date' => $dateIso,
+                'date_display' => $dateDisplay,
+                'receipt_type_id' => $sale->receipt_type_id,
+                'receipt_type' => $receiptTypeName,
+                'receipt_type_code' => $receiptTypeCode,
+                'receipt_number' => $receiptNumber,
+                'customer' => $customerName,
+                'customer_id' => $sale->customer_id,
+                'seller' => $sellerName,
+                'seller_id' => $sale->user_id,
+                'items_count' => $itemsCount,
+                'cae' => $sale->cae,
+                'cae_expiration_date' => $sale->cae_expiration_date ? Carbon::parse($sale->cae_expiration_date)->format('Y-m-d') : '',
+                'subtotal' => (float) $sale->subtotal,
+                'total' => (float) $sale->total,
+                'total_iva_amount' => (float) $sale->total_iva_amount,
+                'status' => $sale->status ?? ($sale->receiptType && strtoupper($sale->receiptType->code) === 'PRE' ? 'Presupuesto' : 'Completada'),
+                'branch' => $sale->branch ? $sale->branch->description : '',
+                'items' => $items,
+            ];
+        });
+    }
+
+    public function getSaleById(int $id): ?SaleHeader
+    {
+        return SaleHeader::with([
+            'receiptType',
+            'branch',
+            'customer.person',
+            'user.person',
+            'saleFiscalCondition',
+            'saleDocumentType',
+            'items.product.iva',
+            'saleIvas.iva',
+            // Include payments and their methods for detailed view
+            'salePayments.paymentMethod',
+        ])->find($id);
+    }
+
+    public function calculateTotalsForSaleHeader($saleHeader) {
+        $subtotal = 0;
+        $totalIva = 0;
+        $items = $saleHeader->items()->with('product.iva')->get();
+
+        foreach ($items as $item) {
+            $unitPrice = $item->unit_price;
+            $ivaRate = $item->iva_rate;
+            $itemSubtotal = $unitPrice * $item->quantity;
+            $itemIva = $itemSubtotal * ($ivaRate / 100);
+            $subtotal += $itemSubtotal;
+            $totalIva += $itemIva;
+        }
+        $saleHeader->subtotal = $subtotal;
+        $saleHeader->total_iva_amount = $totalIva;
+        $saleHeader->total = $subtotal + $totalIva;
+        $saleHeader->save();
+    }
+    
+    public function updateSale(int $id, array $data): ?SaleHeader
+    {
+        $sale = SaleHeader::find($id);
+        if (!$sale) { return null; }
+
+        $itemsData = $data['items'] ?? null;
+        unset($data['items']);
+
+        if (isset($data['date'])) { $data['date'] = Carbon::parse($data['date']); }
+
+        $sale->update($data);
+
+        if ($itemsData !== null) {
+            $sale->items()->delete();
+            $sale->saleIvas()->delete();
+            
+            $this->calculateTotalsForSaleHeader($sale->fresh('items'));
+        }
+
+        return $sale->fresh([
+            'receiptType', 'branch', 'customer.person', 'user',
+            'saleFiscalCondition', 'saleDocumentType', 'items.product.iva', 'saleIvas.iva'
+        ]);
+    }
+    
+    public function deleteSale(int $id): bool
+    {
+        $sale = SaleHeader::find($id);
+        if ($sale) {
+            return $sale->delete();
+        }
+        return false;
+    }
+
+    public function getSalesTotalByBranchAndDate(int $branchId, string $from, string $to): float
+    {
+        $sales = SaleHeader::with('receiptType')
+            ->where('branch_id', $branchId)
+            ->whereDate('date', '>=', Carbon::parse($from)->startOfDay())
+            ->whereDate('date', '<=', Carbon::parse($to)->endOfDay())
+            ->get();
+            
+        return (float) $sales->filter(function ($sale) {
+            return !$this->isBudgetSale($sale);
+        })->sum('total');
+    }
+
+    /**
+     * Helper method to check if a sale is a budget (presupuesto)
+     */
+    private function isBudgetSale($sale): bool
+    {
+        return $sale->receiptType && $sale->receiptType->afip_code === '016';
+    }
+
+    public function getSalesSummary(Request $request): array
+    {
+        $branchIds = $request->input('branch_id');
+        $fromInput = $request->input('from_date') ?? $request->input('from');
+        $toInput = $request->input('to_date') ?? $request->input('to');
+
+        $query = SaleHeader::with('receiptType');
+
+        // Manejar filtro por sucursales (array o valor único)
+        if ($branchIds) {
+            if (is_array($branchIds)) {
+                // Solo aplicar filtro si el array no está vacío
+                if (count($branchIds) > 0) {
+                    $query->whereIn('branch_id', $branchIds);
+                }
+            } else {
+                $query->where('branch_id', $branchIds);
+            }
+        }
+        if ($fromInput && $toInput) {
+            $from = Carbon::parse($fromInput)->startOfDay();
+            $to = Carbon::parse($toInput)->endOfDay();
+            $query->whereBetween('date', [$from, $to]);
+        } elseif ($fromInput) {
+            $from = Carbon::parse($fromInput)->startOfDay();
+            $query->where('date', '>=', $from);
+        } elseif ($toInput) {
+            $to = Carbon::parse($toInput)->endOfDay();
+            $query->where('date', '<=', $to);
+        }
+
+        $allSalesInPeriod = $query->get();
+
+        $financialSales = $allSalesInPeriod->filter(function ($sale) {
+            return !$this->isBudgetSale($sale);
+        });
+
+        $sales_count = $financialSales->count();
+        $grand_total_amount = $financialSales->sum('total');
+        $grand_total_iva = $financialSales->sum('total_iva_amount');
+        $average_sale_amount = $sales_count > 0 ? $grand_total_amount / $sales_count : 0;
+
+        $budget_count = $allSalesInPeriod->filter(function ($sale) {
+            return $this->isBudgetSale($sale);
+        })->count();
+        $client_count = $allSalesInPeriod->whereNotNull('customer_id')->pluck('customer_id')->unique()->count();
+
+        return [
+            'sales_count' => $sales_count,
+            'grand_total_amount' => (float) $grand_total_amount,
+            'grand_total_iva' => (float) $grand_total_iva,
+            'average_sale_amount' => (float) $average_sale_amount,
+            'budget_count' => $budget_count,
+            'client_count' => $client_count,
+        ];
+    }
+    
+    public function downloadPdf(int $id)
+    {
+        $sale = SaleHeader::with([
+            'items.product.iva',
+            'branch',
+            'customer.person',
+            'receiptType',
+            'saleIvas.iva', 
+            'saleFiscalCondition',
+        ])->findOrFail($id);
+
+        $data = ['sale' => $sale];
+        $pdf = Pdf::loadView('pdf.sale', $data); 
+        return $pdf->download('comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf');
+    }
+
+    public function getSalesHistoryByBranch(int $branchId, Request $request): array
+    {
+        $fromInput = $request->input('from_date') ?? $request->input('from');
+        $toInput = $request->input('to_date') ?? $request->input('to');
+        $period = $request->input('period', 'month');
+        $groupBy = $request->input('group_by', 'day');
+
+        $query = SaleHeader::with('receiptType')->where('branch_id', $branchId);
+        
+        if ($fromInput && $toInput) {
+            $from = Carbon::parse($fromInput)->startOfDay();
+            $to = Carbon::parse($toInput)->endOfDay();
+            $query->whereBetween('date', [$from, $to]);
+        } elseif ($fromInput) {
+            $from = Carbon::parse($fromInput)->startOfDay();
+            $query->where('date', '>=', $from);
+            $to = Carbon::now()->endOfDay();
+        } elseif ($toInput) {
+            $to = Carbon::parse($toInput)->endOfDay();
+            $query->where('date', '<=', $to);
+            $from = Carbon::now()->subMonthNoOverflow()->startOfDay();
+        } else {
+            $to = Carbon::now()->endOfDay();
+            if ($period === 'month') {
+                $from = Carbon::now()->subYear()->startOfDay();
+            } elseif ($period === 'week') {
+                $from = Carbon::now()->subWeek()->startOfDay();
+            } elseif ($period === 'year') {
+                $from = Carbon::now()->subYear()->startOfDay();
+            } else {
+                $from = Carbon::now()->subYear()->startOfDay();
+            }
+            $query->whereBetween('date', [$from, $to]);
+        }
+        
+        $sales = $query->get();
+        
+        // Filtrar presupuestos
+        $financialSales = $sales->filter(function ($sale) {
+            return !$this->isBudgetSale($sale);
+        });
+        
+        if ($groupBy === 'month') {
+            $dateFormat = "DATE_FORMAT(date, '%Y-%m')";
+        } else {
+            $dateFormat = "DATE(date)";
+        }
+       
+        $salesData = $financialSales->groupBy(function ($sale) use ($dateFormat, $groupBy) {
+            return $sale->date->format($groupBy === 'month' ? 'Y-m' : 'Y-m-d');
+        })->map(function ($group) use ($groupBy) {
+            return [
+                'sale_date' => $group->first()->date->format($groupBy === 'month' ? 'Y-m' : 'Y-m-d'),
+                'total_sales' => $group->sum('total')
+            ];
+        })->values();
+        
+        $allDates = [];
+        $labels = [];
+        $data = [];
+        
+        if ($groupBy === 'month') {
+            $current = Carbon::parse($from)->startOfMonth();
+            $end = Carbon::parse($to)->endOfMonth();
+            
+            while ($current <= $end) {
+                $dateKey = $current->format('Y-m');
+                $allDates[$dateKey] = 0;
+                $current->addMonth();
+            }
+        } else {
+            $current = Carbon::parse($from)->startOfDay();
+            $end = Carbon::parse($to)->endOfDay();
+            
+            while ($current <= $end) {
+                $dateKey = $current->format('Y-m-d');
+                $allDates[$dateKey] = 0;
+                $current->addDay();
+            }
+        }
+
+        foreach ($salesData as $sale) {
+            $allDates[$sale['sale_date']] = (float) $sale['total_sales'];
+        }
+
+        foreach ($allDates as $date => $amount) {
+            if ($groupBy === 'month') {
+                $labels[] = Carbon::parse($date . '-01')->format('M Y');
+            } else {
+                $labels[] = Carbon::parse($date)->format('d/m');
+            }
+            $data[] = $amount;
+        }
+
+        return [
+            'labels' => $labels,
+            'datasets' => [
+                [
+                    'label' => 'Ventas',
+                    'data' => $data,
+                    'backgroundColor' => 'rgba(75, 192, 192, 0.5)',
+                    'borderColor' => 'rgba(75, 192, 192, 1)',
+                ],
+            ],
+        ];
+    }
+
+    public function getSalesSummaryAllBranches(Request $request): array
+    {
+        $fromInput = $request->input('from_date') ?? $request->input('from');
+        $toInput = $request->input('to_date') ?? $request->input('to');
+
+        $baseQuery = SaleHeader::query();
+        if ($fromInput) {
+            $baseQuery->whereDate('date', '>=', Carbon::parse($fromInput)->startOfDay());
+        }
+        if ($toInput) {
+            $baseQuery->whereDate('date', '<=', Carbon::parse($toInput)->endOfDay());
+        }
+        
+        $allSalesInPeriod = $baseQuery->with(['branch', 'receiptType'])->get();
+        
+        $summaries = [];
+        $salesByBranch = $allSalesInPeriod->groupBy('branch_id');
+
+        foreach ($salesByBranch as $branchId => $salesInBranch) {
+            if (is_null($branchId)) continue;
+
+            $branch = $salesInBranch->first()->branch;
+
+            $financialSales = $salesInBranch->filter(function ($sale) {
+                return !$this->isBudgetSale($sale);
+            });
+
+            $sales_count = $financialSales->count();
+            $grand_total_amount = $financialSales->sum('total');
+            $grand_total_iva = $financialSales->sum('total_iva_amount');
+            $average_sale_amount = $sales_count > 0 ? $grand_total_amount / $sales_count : 0;
+            
+            $budget_count = $salesInBranch->filter(function ($sale) {
+                return $this->isBudgetSale($sale);
+            })->count();
+            $client_count = $salesInBranch->whereNotNull('customer_id')->pluck('customer_id')->unique()->count();
+
+            $summaries[] = [
+                'branch_id' => $branchId,
+                'branch_name' => $branch ? $branch->description : 'Desconocida',
+                'sales_count' => $sales_count,
+                'grand_total_amount' => (float) $grand_total_amount,
+                'grand_total_iva' => (float) $grand_total_iva,
+                'average_sale_amount' => (float) $average_sale_amount,
+                'budget_count' => $budget_count,
+                'client_count' => $client_count,
+            ];
+        }
+        return $summaries;
+    }
+
+    public function getAllSalesGlobal(Request $request)
+    {
+        $query = SaleHeader::with([
+            'receiptType',
+            'branch',
+            'customer.person',
+            'user.person',
+            'items',
+        ]);
+
+        if ($request->has('from_date') && $request->input('from_date')) {
+            $query->whereDate('date', '>=', Carbon::parse($request->input('from_date'))->startOfDay());
+        }
+        if ($request->has('to_date') && $request->input('to_date')) {
+            $query->whereDate('date', '<=', Carbon::parse($request->input('to_date'))->endOfDay());
+        }
+        if ($request->has('branch_id') && $request->input('branch_id')) {
+            $branchIds = $request->input('branch_id');
+            if (is_array($branchIds)) {
+                // Solo aplicar filtro si el array no está vacío
+                if (count($branchIds) > 0) {
+                    $query->whereIn('branch_id', $branchIds);
+                }
+            } else {
+                $query->where('branch_id', $branchIds);
+            }
+        }
+
+        if ($request->has('search') && $request->input('search')) {
+            $searchTerm = $request->input('search');
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('receipt_number', 'like', "%{$searchTerm}%")
+                  ->orWhereHas('customer.person', function($qr) use ($searchTerm){
+                      $qr->where('first_name', 'like', "%{$searchTerm}%")
+                         ->orWhere('last_name', 'like', "%{$searchTerm}%");
+                  })
+                  ->orWhereHas('customer', function($qr) use ($searchTerm){
+                      $qr->where('business_name', 'like', "%{$searchTerm}%");
+                  })
+                  ->orWhereHas('branch', function($qr) use ($searchTerm){
+                      $qr->where('description', 'like', "%{$searchTerm}%");
+                  });
+            });
+        }
+        
+        $salesPaginator = null;
+        if ($request->input('paginate', 'true') === 'false') {
+             $salesCollection = $query->orderByDesc('date')->get();
+        } else {
+             $perPage = $request->input('per_page', 15);
+             $salesPaginator = $query->orderByDesc('date')->paginate($perPage);
+             $salesCollection = $salesPaginator->getCollection();
+        }
+
+        $mappedSales = $salesCollection->map(function ($sale) {
+            $customerName = '';
+            if ($sale->customer && $sale->customer->person) {
+                $customerName = trim($sale->customer->person->first_name . ' ' . $sale->customer->person->last_name);
+            } elseif ($sale->customer && $sale->customer->business_name) {
+                $customerName = $sale->customer->business_name;
+            } else {
+                $customerName = 'Consumidor Final';
+            }
+            
+            // Preparar información del vendedor
+            $sellerName = '';
+            if ($sale->user && $sale->user->person) {
+                $sellerName = trim($sale->user->person->first_name . ' ' . $sale->user->person->last_name);
+            } elseif ($sale->user && $sale->user->username) {
+                $sellerName = $sale->user->username;
+            } else {
+                $sellerName = 'N/A';
+            }
+            
+            $receiptTypeName = $sale->receiptType ? $sale->receiptType->description : 'N/A';
+            $receiptTypeCode = $sale->receiptType ? $sale->receiptType->afip_code ?? '' : '';
+            
+            $itemsCount = $sale->items->count();
+
+            $dateIso = $sale->date ? Carbon::parse($sale->date)->format('Y-m-d H:i:s') : '';
+            $dateDisplay = $sale->date ? Carbon::parse($sale->date)->format('d/m/Y H:i') : '';
+            
+            return [
+                'id' => $sale->id,
+                'date' => $dateIso,
+                'date_display' => $dateDisplay,
+                'receipt_type_id' => $sale->receipt_type_id,
+                'receipt_type' => $receiptTypeName,
+                'receipt_type_code' => $receiptTypeCode,
+                'receipt_number' => $sale->receipt_number ?? '',
+                'customer' => $customerName,
+                'customer_id' => $sale->customer_id,
+                'seller' => $sellerName,
+                'seller_id' => $sale->user_id,
+                'items_count' => $itemsCount, 
+                'cae' => $sale->cae,
+                'cae_expiration_date' => $sale->cae_expiration_date ? Carbon::parse($sale->cae_expiration_date)->format('Y-m-d') : '',
+                'subtotal' => (float) $sale->subtotal,
+                'total' => (float) $sale->total,
+                'total_iva_amount' => (float) $sale->total_iva_amount,
+                'status' => $sale->status ?? ($sale->receiptType && strtoupper($sale->receiptType->code) === 'PRE' ? 'Presupuesto' : 'Completada'),
+                'branch' => $sale->branch ? $sale->branch->description : 'N/A',
+            ];
+        });
+
+        if ($salesPaginator) {
+            return new LengthAwarePaginator(
+                $mappedSales,
+                $salesPaginator->total(),
+                $salesPaginator->perPage(),
+                $salesPaginator->currentPage(),
+                ['path' => $request->url(), 'query' => $request->query()]
+            );
+        }
+        return $mappedSales; 
+    }
+
+    public function getSalesSummaryGlobal(Request $request): array
+    {
+        $query = SaleHeader::query();
+
+        if ($request->has('from_date') && $request->input('from_date')) {
+            $query->whereDate('date', '>=', Carbon::parse($request->input('from_date'))->startOfDay());
+        }
+        if ($request->has('to_date') && $request->input('to_date')) {
+            $query->whereDate('date', '<=', Carbon::parse($request->input('to_date'))->endOfDay());
+        }
+        if ($request->has('branch_id') && $request->input('branch_id')) {
+            $branchIds = $request->input('branch_id');
+            if (is_array($branchIds)) {
+                // Solo aplicar filtro si el array no está vacío
+                if (count($branchIds) > 0) {
+                    $query->whereIn('branch_id', $branchIds);
+                }
+            } else {
+                $query->where('branch_id', $branchIds);
+            }
+        }
+        
+        $allSalesInPeriod = $query->with('receiptType')->get();
+
+        $financialSales = $allSalesInPeriod->filter(function ($sale) {
+            return !$this->isBudgetSale($sale);
+        });
+
+        $sales_count = $financialSales->count();
+        $grand_total_amount = $financialSales->sum('total');
+        $grand_total_iva = $financialSales->sum('total_iva_amount');
+        $average_sale_amount = $sales_count > 0 ? (float)($grand_total_amount / $sales_count) : 0;
+        
+        $budget_count = $allSalesInPeriod->filter(function ($sale) {
+            return $this->isBudgetSale($sale);
+        })->count();
+        $client_count = $allSalesInPeriod->whereNotNull('customer_id')->pluck('customer_id')->unique()->count();
+
+        return [
+            'sales_count' => $sales_count,
+            'grand_total_amount' => (float) $grand_total_amount,
+            'grand_total_iva' => (float) $grand_total_iva,
+            'average_sale_amount' => $average_sale_amount,
+            'budget_count' => $budget_count,
+            'client_count' => $client_count,
+        ];
+    }
+
+    public function getSalesHistoryGlobal(Request $request): array
+    {
+        $period = $request->input('period', 'month');
+        $endDate = Carbon::now()->endOfDay();
+        $startDate = Carbon::now()->startOfDay(); 
+
+        if ($period === 'month') {
+            $startDate = Carbon::now()->subMonthNoOverflow()->startOfDay();
+        } elseif ($period === 'week') {
+            $startDate = Carbon::now()->subWeek()->startOfDay();
+        } elseif ($period === 'year') {
+            $startDate = Carbon::now()->subYearNoOverflow()->startOfDay();
+        }
+        if ($request->has('from_date') && $request->input('from_date')) {
+            $startDate = Carbon::parse($request->input('from_date'))->startOfDay();
+        }
+        if ($request->has('to_date') && $request->input('to_date')) {
+            $endDate = Carbon::parse($request->input('to_date'))->endOfDay();
+        }
+        
+        $salesQuery = SaleHeader::with('receiptType')
+            ->whereBetween('date', [$startDate, $endDate]);
+
+        if ($request->has('branch_id') && $request->input('branch_id')) {
+            $branchIds = $request->input('branch_id');
+            if (is_array($branchIds)) {
+                // Solo aplicar filtro si el array no está vacío
+                if (count($branchIds) > 0) {
+                    $salesQuery->whereIn('branch_id', $branchIds);
+                }
+            } else {
+                $salesQuery->where('branch_id', $branchIds);
+            }
+        }
+
+        $sales = $salesQuery->get();
+        
+        // Filtrar presupuestos
+        $financialSales = $sales->filter(function ($sale) {
+            return !$this->isBudgetSale($sale);
+        });
+        
+        $salesData = $financialSales->groupBy(function ($sale) {
+            return $sale->date->format('Y-m-d');
+        })->map(function ($group) {
+            return [
+                'sale_date' => $group->first()->date->format('Y-m-d'),
+                'total_sales' => $group->sum('total')
+            ];
+        })->values();
+
+        $labels = $salesData->pluck('sale_date')->map(function ($date) {
+            return Carbon::parse($date)->format('d/m');
+        });
+        
+        $data = $salesData->pluck('total_sales');
+
+        return [
+            'labels' => $labels,
+            'datasets' => [
+                [
+                    'label' => 'Ventas Globales',
+                    'data' => $data,
+                    'backgroundColor' => 'rgba(54, 162, 235, 0.5)',
+                    'borderColor' => 'rgba(54, 162, 235, 1)',
+                ],
+            ],
+        ];
+    }
+    
+    /**
+     * Resolver MovementType por método de pago (efectivo, transferencia, tarjetas, MP, etc.)
+     */
+    private function resolveMovementTypeForPaymentMethod(?\App\Models\PaymentMethod $paymentMethod): ?\App\Models\MovementType
+    {
+        try {
+            if (!$paymentMethod) { return null; }
+            $name = strtolower(trim($paymentMethod->name ?? ''));
+            if ($name === '') { return null; }
+
+            // Determinar nombre/desc canónicos por método de pago
+            $canonicalName = null;
+            $canonicalDesc = null;
+
+            if (str_contains($name, 'efectivo')) {
+                $canonicalName = 'Venta en efectivo';
+                $canonicalDesc = 'Ingreso por venta en efectivo';
+            } elseif (str_contains($name, 'transfer')) { // transferencia
+                $canonicalName = 'Venta por transferencia';
+                $canonicalDesc = 'Ingreso por venta realizada por transferencia';
+            } elseif (str_contains($name, 'debito') || str_contains($name, 'débito')) {
+                $canonicalName = 'Venta con tarjeta de débito';
+                $canonicalDesc = 'Ingreso por venta pagada con tarjeta de débito';
+            } elseif (str_contains($name, 'credito') || str_contains($name, 'crédito')) {
+                $canonicalName = 'Venta con tarjeta de crédito';
+                $canonicalDesc = 'Ingreso por venta pagada con tarjeta de crédito';
+            } elseif (str_contains($name, 'tarjeta')) {
+                $canonicalName = 'Venta con tarjeta';
+                $canonicalDesc = 'Ingreso por venta pagada con tarjeta';
+            } elseif (str_contains($name, 'mercado') || preg_match('/\bmp\b/', $name)) {
+                $canonicalName = 'Venta por Mercado Pago';
+                $canonicalDesc = 'Ingreso por venta cobrada por Mercado Pago';
+            } elseif (str_contains($name, 'cheque')) {
+                $canonicalName = 'Venta por cheque';
+                $canonicalDesc = 'Ingreso por venta cobrada con cheque';
+            }
+
+            if ($canonicalName) {
+                // Buscar o crear el tipo con flags correctos
+                return \App\Models\MovementType::firstOrCreate(
+                    ['name' => $canonicalName, 'operation_type' => 'entrada'],
+                    [
+                        'description' => $canonicalDesc,
+                        'is_cash_movement' => true,
+                        'is_current_account_movement' => false,
+                        'active' => true,
+                    ]
+                );
+            }
+        } catch (\Throwable $t) {
+            // ignorar y permitir fallback
+        }
+        return null;
+    }
+}

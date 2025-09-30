@@ -1,0 +1,266 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Http\Controllers\Controller;
+use App\Interfaces\SaleServiceInterface;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\JsonResponse;
+use Exception;
+use Illuminate\Database\QueryException;
+use App\Models\ReceiptType; // Asegúrate de importar el modelo ReceiptType
+
+class SaleController extends Controller
+{
+    protected SaleServiceInterface $saleService;
+
+    public function __construct(SaleServiceInterface $saleService)
+    {
+        $this->saleService = $saleService;
+    }
+
+    public function index(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'from' => 'sometimes|date',
+            'to' => 'sometimes|date|after_or_equal:from',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        $sales = $this->saleService->getAllSales($request);
+        return response()->json(['data' => $sales], 200);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'date' => 'sometimes|date',
+            'receipt_type_id' => 'required|integer|exists:receipt_type,id',
+            'branch_id' => 'required|integer|exists:branches,id',
+            'customer_id' => 'nullable|integer|exists:customers,id',
+            'sale_fiscal_condition_id' => 'nullable|integer|exists:fiscal_conditions,id',
+            'sale_document_type_id' => 'nullable|integer|exists:document_types,id',
+            'sale_document_number' => 'nullable|string|max:255',
+            'iibb' => 'nullable|numeric|min:0',
+            'internal_tax' => 'nullable|numeric|min:0',
+            'discount_type' => 'nullable|in:percent,amount',
+            'discount_value' => 'nullable|numeric|min:0',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|integer|exists:products,id',
+            'items.*.quantity' => 'required|numeric|min:0.001',
+            'items.*.unit_price' => 'nullable|numeric|min:0',
+            'items.*.discount_type' => 'nullable|in:percent,amount',
+            'items.*.discount_value' => 'nullable|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error de validación',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        
+        try {
+            $validatedData = $validator->validated();
+            
+            // --- INICIO DE LA MODIFICACIÓN ---
+
+            // 1. Buscamos el tipo de comprobante.
+            $receiptType = ReceiptType::find($validatedData['receipt_type_id']);
+
+            // 2. Verificamos si NO es un presupuesto para asignar la caja.
+            //    El middleware 'cash.open' ya nos ha proporcionado 'current_cash_register' en el request.
+            if ($receiptType && $receiptType->name !== 'Presupuesto') {
+                $currentCashRegister = $request->get('current_cash_register');
+                if ($currentCashRegister) {
+                    $validatedData['current_cash_register_id'] = $currentCashRegister->id;
+                }
+            } else {
+                // Si es un presupuesto, nos aseguramos de no pasar el ID de la caja.
+                $validatedData['current_cash_register_id'] = null;
+            }
+            
+            // --- FIN DE LA MODIFICACIÓN ---
+            
+            $sale = $this->saleService->createSale($validatedData);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $sale, 
+                'message' => 'Venta creada exitosamente.'
+            ], 201);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al crear la venta: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function show(int $id): JsonResponse
+    {
+        $sale = $this->saleService->getSaleById($id);
+        if (!$sale) {
+            return response()->json(['message' => 'Venta no encontrada.'], 404);
+        }
+
+        $saleData = $sale->toArray();
+        
+        if ($sale->user) {
+            if ($sale->user->person) {
+                $saleData['seller_name'] = trim($sale->user->person->first_name . ' ' . $sale->user->person->last_name);
+            } else {
+                $saleData['seller_name'] = $sale->user->username ?? 'N/A';
+            }
+            $saleData['seller_id'] = $sale->user->id;
+        } else {
+            $saleData['seller_name'] = 'N/A';
+            $saleData['seller_id'] = null;
+        }
+
+        return response()->json(['data' => $saleData], 200);
+    }
+
+    public function update(Request $request, int $id): JsonResponse
+    {
+        $sale = $this->saleService->getSaleById($id);
+        if (!$sale) {
+            return response()->json(['message' => 'Venta no encontrada.'], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'date' => 'sometimes|required|date',
+            'receipt_type_id' => 'sometimes|required|integer|exists:receipt_type,id',
+            'branch_id' => 'sometimes|required|integer|exists:branches,id',
+            'receipt_number' => 'sometimes|required|string|max:255',
+            'customer_id' => 'nullable|integer|exists:customers,id',
+            'sale_fiscal_condition_id' => 'nullable|integer|exists:fiscal_conditions,id',
+            'sale_document_type_id' => 'nullable|integer|exists:document_types,id',
+            'sale_document_number' => 'nullable|string|max:255',
+            'subtotal' => 'sometimes|required|numeric|min:0',
+            'iva_id' => 'sometimes|required|integer|exists:ivas,id',
+            'iibb' => 'nullable|numeric|min:0',
+            'internal_tax' => 'nullable|numeric|min:0',
+            'discount' => 'nullable|numeric|min:0',
+            'total' => 'sometimes|required|numeric|min:0',
+            'cae' => 'nullable|string|max:255',
+            'cae_expiration_date' => 'nullable|date',
+            'service_from_date' => 'nullable|date',
+            'service_to_date' => 'nullable|date|after_or_equal:service_from_date',
+            'service_due_date' => 'nullable|date',
+            'user_id' => 'sometimes|required|integer|exists:users,id',
+        
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $updatedSale = $this->saleService->updateSale($id, $validator->validated());
+        return response()->json(['data' => $updatedSale, 'message' => 'Venta actualizada exitosamente.'], 200);
+    }
+
+    public function destroy(int $id): JsonResponse
+    {
+        $deleted = $this->saleService->deleteSale($id);
+        if (!$deleted) {
+            return response()->json(['message' => 'Venta no encontrada o no se pudo eliminar.'], 404);
+        }
+        return response()->json(['message' => 'Venta eliminada exitosamente.'], 200);
+    }
+
+    public function summary(Request $request): JsonResponse
+    {
+        $from = $request->input('from_date') ?? $request->input('from');
+        $to = $request->input('to_date') ?? $request->input('to');
+        $branchId = $request->input('branch_id');
+
+        $validator = Validator::make([
+            'branch_id' => $branchId,
+            'from' => $from,
+            'to' => $to,
+        ], [
+            'branch_id' => 'required|integer|exists:branches,id',
+            'from' => 'required|date',
+            'to' => 'required|date|after_or_equal:from',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $request->merge(['from_date' => $from, 'to_date' => $to]);
+        $summary = $this->saleService->getSalesSummary($request);
+        return response()->json($summary);
+    }
+
+    public function downloadPdf($id)
+    {
+        return $this->saleService->downloadPdf($id);
+    }
+
+    public function salesHistoryByBranch(Request $request, int $branchId): JsonResponse
+    {
+        $salesHistory = $this->saleService->getSalesHistoryByBranch($branchId, $request);
+        if (empty($salesHistory)) {
+            return response()->json(['message' => 'No sales history found for this branch.'], 404);
+        }
+        return response()->json(['data' => $salesHistory], 200);
+    }
+
+    public function summaryAllBranches(Request $request): JsonResponse
+    {
+        $from = $request->input('from_date') ?? $request->input('from');
+        $to = $request->input('to_date') ?? $request->input('to');
+        $validator = Validator::make(['from' => $from, 'to' => $to], [
+            'from' => 'required|date',
+            'to' => 'required|date|after_or_equal:from',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $summaries = $this->saleService->getSalesSummaryAllBranches($request);
+        return response()->json($summaries);
+    }
+
+    public function indexGlobal(Request $request)
+    {
+        try {
+            $sales = $this->saleService->getAllSalesGlobal($request);
+            return response()->json($sales);
+        } catch (QueryException $e) {
+            return response()->json(['error' => 'Error de base de datos: ' . $e->getMessage()], 500);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function summaryGlobal(Request $request)
+    {
+        try {
+            $summary = $this->saleService->getSalesSummaryGlobal($request);
+            return response()->json($summary);
+        } catch (QueryException $e) {
+            return response()->json(['error' => 'Error de base de datos: ' . $e->getMessage()], 500);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function historyGlobal(Request $request)
+    {
+        try {
+            $history = $this->saleService->getSalesHistoryGlobal($request);
+            return response()->json($history);
+        } catch (QueryException $e) {
+            return response()->json(['error' => 'Error de base de datos: ' . $e->getMessage()], 500);
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+   }
+}
