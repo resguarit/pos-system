@@ -1,0 +1,185 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+
+  /* FIXES FOR TRANSPARENCY AND STYLING ISSUES */
+  
+  /* 1. Dialog overlays - difuminar el fondo */
+  [data-radix-dialog-overlay],
+  [data-radix-alert-dialog-overlay] {
+    background-color: rgba(0, 0, 0, 0.5) !important;
+    backdrop-filter: blur(4px) !important;
+  }
+
+  /* 2. Forzar fondos sólidos para contenido de popups */
+  [data-radix-dialog-content],
+  [data-radix-popover-content],
+  [data-radix-dropdown-menu-content],
+  [data-radix-select-content],
+  [data-radix-tooltip-content],
+  [data-radix-alert-dialog-content],
+  [data-radix-command-dialog-content] {
+    background-color: white !important;
+    border: 1px solid rgb(209, 213, 219) !important;
+    color: rgb(17, 24, 39) !important;
+  }
+
+  /* 3. Modo oscuro para popups */
+  .dark [data-radix-dialog-content],
+  .dark [data-radix-popover-content],
+  .dark [data-radix-dropdown-menu-content],
+  .dark [data-radix-select-content],
+  .dark [data-radix-tooltip-content],
+  .dark [data-radix-alert-dialog-content],
+  .dark [data-radix-command-dialog-content] {
+    background-color: rgb(31, 41, 55) !important;
+    color: rgb(243, 244, 246) !important;
+    border: 1px solid rgb(75, 85, 99) !important;
+  }
+
+  /* 4. Forzar fondos sólidos para cards */
+  .card,
+  [data-card],
+  .bg-card,
+  .bg-muted {
+    background-color: white !important;
+    border: 1px solid rgb(229, 231, 235) !important;
+    color: rgb(17, 24, 39) !important;
+  }
+
+  .dark .card,
+  .dark [data-card],
+  .dark .bg-card,
+  .dark .bg-muted {
+    background-color: rgb(31, 41, 55) !important;
+    border: 1px solid rgb(75, 85, 99) !important;
+    color: rgb(243, 244, 246) !important;
+  }
+
+  /* 5. Forzar fondos para formularios y páginas */
+  .form-container,
+  .form-section,
+  .bg-background,
+  main,
+  .main-content {
+    background-color: white !important;
+    color: rgb(17, 24, 39) !important;
+  }
+
+  .dark .form-container,
+  .dark .form-section,
+  .dark .bg-background,
+  .dark main,
+  .dark .main-content {
+    background-color: rgb(31, 41, 55) !important;
+    color: rgb(243, 244, 246) !important;
+  }
+
+  /* 6. Forzar fondos para contenido general */
+  .bg-white {
+    background-color: white !important;
+    color: rgb(17, 24, 39) !important;
+  }
+
+  .dark .bg-white {
+    background-color: rgb(31, 41, 55) !important;
+    color: rgb(243, 244, 246) !important;
+  }
+  /* 7. Fix para elementos con clases específicas de TailwindCSS */
+  .text-card-foreground {
+    color: rgb(17, 24, 39) !important;
+  }
+  .dark .text-card-foreground {
+    color: rgb(243, 244, 246) !important;
+  }
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Safari and Chrome */
+}
