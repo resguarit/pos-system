@@ -26,6 +26,7 @@ jobs:
         npm install --force
         npm install @rollup/rollup-linux-x64-gnu --save-optional
         npm install @swc/core-linux-x64-gnu --save-optional
+        npm install lightningcss-linux-x64-gnu --save-optional
         
     - name: Run tests
       run: |
