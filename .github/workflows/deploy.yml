@@ -34,7 +34,8 @@ jobs:
       run: |
         cd apps/frontend
         rm -rf node_modules package-lock.json
-        npm install
+        npm install --force
+        npm install @rollup/rollup-linux-x64-gnu --save-optional
         
     - name: Run tests
       run: |
