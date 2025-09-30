@@ -11,7 +11,7 @@
       "message": "chore(release): publish"
     },
     "version": {
-      "allowBranch": ["main", "master"],
+      "allowBranch": ["master", "develop"],
       "conventionalCommits": true
     }
   }
