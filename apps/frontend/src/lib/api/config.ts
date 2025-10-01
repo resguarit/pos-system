@@ -1,3 +1,2 @@
-// Base URL for API requests (Vite)
- export const apiUrl = 'https://api.heroedelwhisky.com.ar/api';
-// export const apiUrl = 'http://localhost:8000/api';
+// Base URL for API requests (Vite) - Updated for environment-based configuration
+export const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
