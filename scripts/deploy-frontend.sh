@@ -20,9 +20,13 @@ git pull origin master
 # Cambiar al directorio del frontend
 cd apps/frontend
 
+# Limpiar instalaciones previas (bug de npm con dependencias opcionales)
+echo "🧹 Limpiando instalación previa..."
+rm -rf node_modules package-lock.json
+
 # Instalar/actualizar dependencias de npm
 echo "📦 Instalando dependencias de npm..."
-npm ci
+npm install
 
 # Construir el proyecto para producción
 echo "🔨 Construyendo proyecto para producción..."
