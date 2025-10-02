@@ -1,8 +1,15 @@
 {
   "name": "pos-system",
   "version": "1.0.0",
-  "description": "POS System - Frontend and Backend",
+  "description": "Modern Point of Sale (POS) system built with React/TypeScript and Laravel",
   "private": true,
+  "keywords": ["pos", "point-of-sale", "react", "laravel", "typescript", "monorepo"],
+  "author": "Resguar IT",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/resguarit/pos-system.git"
+  },
   "workspaces": [
     "apps/*"
   ],

@@ -61,6 +61,7 @@ graph TD
 
 - **Product Management**: Complete product catalog with categories, suppliers, and stock management
 - **Sales System**: Point of sale interface with real-time calculations
+- **Sale Annulment**: Cancel sales with automatic stock restoration and cash register adjustments
 - **Inventory Control**: Stock tracking, adjustments, and low stock alerts
 - **Customer Management**: Customer database with purchase history
 - **Financial Reports**: Sales reports, profit analysis, and cash register management
@@ -321,7 +322,8 @@ php artisan test
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is proprietary software owned by Resguar IT. All rights reserved.
+See the [LICENSE](./LICENSE) file for details.
 
 ## 🐛 Troubleshooting
 
@@ -380,6 +382,25 @@ ssh -p 5507 root@149.50.138.145
 # Check GitHub Actions logs
 # Go to repository → Actions tab → Select failed workflow run
 ```
+
+## 📚 Documentation
+
+### Core Features
+- [Sale Annulment](./docs/SALE_ANNULMENT.md) - Complete guide for sale cancellation functionality
+- [Permissions and Roles](./docs/PERMISSIONS_AND_ROLES.md) - Complete guide for user permissions and role management
+
+### API Documentation
+The system provides a RESTful API for all operations. Key endpoints include:
+- `POST /api/pos/sales/{id}/annul` - Annul a sale
+- `GET /api/pos/sales` - List sales with filtering
+- `POST /api/pos/sales` - Create new sale
+
+### Development Guidelines
+- Follow the [React Rules](./.cursor/rules/react-rule.mdc) for frontend development
+- Follow the [PHP Rules](./.cursor/rules/php-rule.mdc) for backend development
+- No emojis in frontend components (use text or icons instead)
+- Implement proper loading states for all async operations
+- Include comprehensive error handling and user feedback
 
 ## 🆘 Support
 

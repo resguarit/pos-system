@@ -218,7 +218,7 @@ php artisan migrate --force
 curl -I https://heroedelwhisky.com.ar
 
 # Check backend API
-curl -I https://api.heroedelwhisky.com.ar/api/health
+curl -I https://api.heroedelwhisky.com.ar/up
 
 # Check database connection
 cd /home/api.heroedelwhisky.com.ar/public_html

@@ -13,6 +13,9 @@ build/
 .env.test.local
 .env.production.local
 
+# Keep example files
+!.env.example
+
 # Logs
 *.log
 npm-debug.log*
