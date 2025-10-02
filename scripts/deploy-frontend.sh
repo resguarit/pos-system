@@ -29,8 +29,8 @@ echo "📦 Instalando dependencias de npm..."
 npm install --force
 
 # Instalar manualmente el binary de rollup si falta
-echo "🔧 Verificando dependencias de rollup..."
-npm install --force @rollup/rollup-linux-x64-gnu
+echo "🔧 Verificando dependencias de rollup y swc..."
+npm install --force @rollup/rollup-linux-x64-gnu @swc/core-linux-x64-gnu
 
 # Construir el proyecto para producción
 echo "🔨 Construyendo proyecto para producción..."
