@@ -1,45 +1,68 @@
 #!/bin/bash
+set -euo pipefail
 
-# Script de deployment para el frontend React
-# Este script se ejecuta en el servidor VPS
+# Script de deployment para el frontend React (build remoto en VPS)
+# Requiere: NVM instalado, Node 20 disponible, repo monorepo en /home/api.heroedelwhisky.com.ar/public_html
 
-echo "🚀 Iniciando deployment del frontend..."
+echo "🚀 Iniciando deployment del frontend (build remoto)..."
 
 # Cargar NVM y usar Node.js 20
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm use 20
+nvm use 20 >/dev/null
+echo "🟢 Node $(node -v) / npm $(npm -v)"
 
-# Cambiar al directorio del proyecto
-cd /home/api.heroedelwhisky.com.ar/public_html
+# Directorio raíz del repo
+REPO_DIR="/home/api.heroedelwhisky.com.ar/public_html"
+FRONTEND_DIR="$REPO_DIR/apps/frontend"
+PUBLIC_DIR="/home/heroedelwhisky.com.ar/public_html"
 
-# Hacer pull de los últimos cambios
+cd "$REPO_DIR"
 echo "📥 Obteniendo últimos cambios del repositorio..."
-git pull origin master
+git fetch origin master
+git reset --hard origin/master
 
-# Cambiar al directorio del frontend
-cd apps/frontend
+# Limpiar sólo dependencias del frontend para asegurar reinstalación de binarios opcionales
+echo "🧹 Limpiando instalación previa (frontend)..."
+rm -rf "$FRONTEND_DIR/node_modules" "$FRONTEND_DIR/package-lock.json"
 
-# Limpiar instalaciones previas (bug de npm con dependencias opcionales)
-echo "🧹 Limpiando instalación previa..."
-rm -rf node_modules package-lock.json
+# Instalar dependencias a nivel monorepo (workspaces) para que npm resuelva correctamente binarios opcionales
+echo "📦 Instalando dependencias (workspaces)..."
+npm install --workspaces --include-workspace-root
 
-# Instalar/actualizar dependencias de npm
-echo "📦 Instalando dependencias de npm..."
-npm install --force
+cd "$FRONTEND_DIR"
 
-# Instalar manualmente el binary de rollup si falta
-echo "🔧 Verificando dependencias de rollup y swc..."
-npm install --force @rollup/rollup-linux-x64-gnu @swc/core-linux-x64-gnu
+# Instalar/forzar binarios nativos críticos (rollup, swc, lightningcss)
+echo "🔧 Verificando binarios nativos (rollup, swc, lightningcss)..."
+npm install --no-save @rollup/rollup-linux-x64-gnu || true
+npm install --no-save @swc/core-linux-x64-gnu || true
+npm install --no-save lightningcss lightningcss-linux-x64-gnu || true
+
+# Diagnóstico rápido si siguen faltando
+echo "🔍 Comprobando presencia de paquetes nativos..."
+ls -1 node_modules/@rollup 2>/dev/null || echo "(warn) @rollup no presente"
+ls -1 node_modules/@swc 2>/dev/null || echo "(warn) @swc no presente"
+ls -1 node_modules/lightningcss 2>/dev/null || echo "(warn) lightningcss no presente"
 
 # Construir el proyecto para producción
 echo "🔨 Construyendo proyecto para producción..."
-npm run build
+if ! npm run build; then
+	echo "❌ Build falló. Abortando deployment." >&2
+	exit 1
+fi
 
-# Copiar los archivos build al directorio público del dominio frontend
-echo "📂 Copiando archivos al directorio público..."
-# Ajusta esta ruta según donde esté configurado tu dominio frontend
-rm -rf /home/heroedelwhisky.com.ar/public_html/*
-cp -r dist/* /home/heroedelwhisky.com.ar/public_html/
+if [ ! -d "dist" ]; then
+	echo "❌ Build completó sin errores pero falta el directorio dist/. Abortando." >&2
+	exit 1
+fi
+
+echo "📦 Tamaño de artefactos generados:" 
+du -sh dist || true
+
+# Publicar
+echo "📂 Publicando artefactos..."
+rm -rf "${PUBLIC_DIR:?}"/*
+cp -r dist/* "$PUBLIC_DIR/"
 
 echo "✅ Deployment del frontend completado exitosamente!"
+echo "🌐 URL: https://heroedelwhisky.com.ar"
