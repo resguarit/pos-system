@@ -32,17 +32,8 @@ npm install --workspaces --include-workspace-root
 
 cd "$FRONTEND_DIR"
 
-# Instalar/forzar binarios nativos críticos (rollup, swc, lightningcss)
-echo "🔧 Verificando binarios nativos (rollup, swc, lightningcss)..."
-npm install --no-save @rollup/rollup-linux-x64-gnu || true
-npm install --no-save @swc/core-linux-x64-gnu || true
-npm install --no-save lightningcss lightningcss-linux-x64-gnu || true
-
-# Diagnóstico rápido si siguen faltando
-echo "🔍 Comprobando presencia de paquetes nativos..."
-ls -1 node_modules/@rollup 2>/dev/null || echo "(warn) @rollup no presente"
-ls -1 node_modules/@swc 2>/dev/null || echo "(warn) @swc no presente"
-ls -1 node_modules/lightningcss 2>/dev/null || echo "(warn) lightningcss no presente"
+# (Ya no usamos plugin SWC ni lightningcss nativo; dependemos de @vitejs/plugin-react babel)
+echo "� Dependencias listas (sin binarios nativos críticos)."
 
 # Construir el proyecto para producción
 echo "🔨 Construyendo proyecto para producción..."
