@@ -28,6 +28,10 @@ rm -rf node_modules package-lock.json
 echo "📦 Instalando dependencias de npm..."
 npm install --force
 
+# Instalar manualmente el binary de rollup si falta
+echo "🔧 Verificando dependencias de rollup..."
+npm install --force @rollup/rollup-linux-x64-gnu
+
 # Construir el proyecto para producción
 echo "🔨 Construyendo proyecto para producción..."
 npm run build
