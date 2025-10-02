@@ -75,7 +75,8 @@ jspm_packages/
 
 # Gatsby files
 .cache/
-public
+# public (comentado para permitir apps/backend/public)
+# /public
 
 # Storybook build outputs
 .out
