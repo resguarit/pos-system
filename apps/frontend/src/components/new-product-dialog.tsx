@@ -11,6 +11,7 @@ import { usePricing } from '@/hooks/usePricing'
 import FormattedNumberInput from '@/components/ui/formatted-number-input'
 import { useBranch } from '@/context/BranchContext'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Loader2 } from 'lucide-react'
 
 interface NewProductDialogProps {
   open: boolean;

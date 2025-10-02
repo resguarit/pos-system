@@ -848,15 +848,6 @@ export default function POSPage() {
                         </TableHeader>
                         <TableBody>
                         {cart.map((item) => {
-                            const itemBase = round2((item.price || 0) * item.quantity)
-                            let itemDisc = 0
-                            if (item.discount_type && (item.discount_value ?? 0) > 0) {
-                              itemDisc = item.discount_type === 'percent' ? round2(itemBase * ((item.discount_value || 0) / 100)) : round2(Number(item.discount_value))
-                              itemDisc = Math.max(0, Math.min(itemDisc, itemBase))
-                            }
-                            const itemNet = round2(itemBase - itemDisc)
-                            const itemIva = round2(itemNet * ((item.iva_rate || 0) / 100))
-                            const itemTotal = round2(itemNet + itemIva)
                             return (
                             <TableRow key={item.id}>
                                 <TableCell className="font-medium">

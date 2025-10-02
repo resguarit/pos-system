@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
-import { Lock, User } from 'lucide-react';
+import { Lock, User, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
