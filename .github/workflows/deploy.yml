@@ -73,24 +73,14 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Deploy to VPS
+    - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
         port: ${{ secrets.VPS_PORT }}
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
-        script: |
-          cd ${{ secrets.BACKEND_DEPLOY_PATH }}
-          git pull origin master
-          composer install --no-dev --optimize-autoloader
-          php artisan config:cache
-          php artisan route:cache
-          php artisan view:cache
-          php artisan migrate --force
+        script: /home/posdeployer/deploy-backend.sh
           
     - name: Notify backend deployment
       if: always()
