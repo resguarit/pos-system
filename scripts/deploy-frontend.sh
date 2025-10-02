@@ -5,6 +5,11 @@
 
 echo "🚀 Iniciando deployment del frontend..."
 
+# Cargar NVM y usar Node.js 18
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use 18
+
 # Cambiar al directorio del proyecto
 cd /home/api.heroedelwhisky.com.ar/public_html
 
@@ -26,7 +31,7 @@ npm run build
 # Copiar los archivos build al directorio público del dominio frontend
 echo "📂 Copiando archivos al directorio público..."
 # Ajusta esta ruta según donde esté configurado tu dominio frontend
-# rm -rf /home/heroedelwhisky.com.ar/public_html/*
-# cp -r dist/* /home/heroedelwhisky.com.ar/public_html/
+rm -rf /home/heroedelwhisky.com.ar/public_html/*
+cp -r dist/* /home/heroedelwhisky.com.ar/public_html/
 
 echo "✅ Deployment del frontend completado exitosamente!"
