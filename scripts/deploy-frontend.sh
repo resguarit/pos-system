@@ -26,7 +26,7 @@ rm -rf node_modules package-lock.json
 
 # Instalar/actualizar dependencias de npm
 echo "📦 Instalando dependencias de npm..."
-npm install
+npm install --force
 
 # Construir el proyecto para producción
 echo "🔨 Construyendo proyecto para producción..."
