@@ -5,10 +5,10 @@
 
 echo "🚀 Iniciando deployment del frontend..."
 
-# Cargar NVM y usar Node.js 18
+# Cargar NVM y usar Node.js 20
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm use 18
+nvm use 20
 
 # Cambiar al directorio del proyecto
 cd /home/api.heroedelwhisky.com.ar/public_html
