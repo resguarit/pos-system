@@ -12,46 +12,63 @@ export NVM_DIR="$HOME/.nvm"
 nvm use 20 >/dev/null
 echo "🟢 Node $(node -v) / npm $(npm -v)"
 
-# Directorio raíz del repo
+# Directorios
 REPO_DIR="/home/api.heroedelwhisky.com.ar/public_html"
-FRONTEND_DIR="$REPO_DIR/apps/frontend"
+FRONTEND_SRC="$REPO_DIR/apps/frontend"
 PUBLIC_DIR="/home/heroedelwhisky.com.ar/public_html"
 
-cd "$REPO_DIR"
 echo "📥 Obteniendo últimos cambios del repositorio..."
+cd "$REPO_DIR"
 git fetch origin master
 git reset --hard origin/master
 
-# Limpiar sólo dependencias del frontend para asegurar reinstalación de binarios opcionales
-echo "🧹 Limpiando instalación previa (frontend)..."
-rm -rf "$FRONTEND_DIR/node_modules" "$FRONTEND_DIR/package-lock.json"
+if [ ! -d "$FRONTEND_SRC" ]; then
+	echo "❌ No existe el directorio frontend esperado: $FRONTEND_SRC" >&2
+	exit 1
+fi
 
-# Instalar dependencias a nivel monorepo (workspaces) para que npm resuelva correctamente binarios opcionales
-echo "📦 Instalando dependencias (workspaces)..."
-npm install --workspaces --include-workspace-root
+BUILD_TMP="/tmp/frontend-build-src-$$"
+ARTIFACT_TMP="/tmp/frontend-dist-$$"
+cleanup() { rm -rf "$BUILD_TMP" "$ARTIFACT_TMP"; }
+trap cleanup EXIT INT TERM
 
-cd "$FRONTEND_DIR"
+echo "🗂  Preparando copia aislada de código en $BUILD_TMP ..."
+mkdir -p "$BUILD_TMP"
+if command -v rsync >/dev/null 2>&1; then
+	rsync -a --delete --exclude node_modules --exclude dist --exclude .git "$FRONTEND_SRC/" "$BUILD_TMP/"
+else
+	cp -R "$FRONTEND_SRC/"* "$BUILD_TMP/" || true
+fi
 
-# (Ya no usamos plugin SWC ni lightningcss nativo; dependemos de @vitejs/plugin-react babel)
-echo "� Dependencias listas (sin binarios nativos críticos)."
+cd "$BUILD_TMP"
+echo "🧹 Limpiando rastros previos..."
+rm -rf node_modules package-lock.json dist .npmrc 2>/dev/null || true
 
-# Construir el proyecto para producción
-echo "🔨 Construyendo proyecto para producción..."
+echo "📦 Instalando dependencias (modo aislado)..."
+if ! npm install --no-audit --no-fund; then
+	echo "⚠️ Primer intento de instalación falló. Reintentando tras limpieza..."
+	rm -rf node_modules package-lock.json
+	npm cache verify || true
+	if ! npm install --no-audit --no-fund; then
+		echo "❌ Falló la instalación de dependencias (segundo intento)." >&2
+		exit 1
+	fi
+fi
+
+echo "🔨 Construyendo proyecto para producción (vite build)..."
 if ! npm run build; then
 	echo "❌ Build falló. Abortando deployment." >&2
 	exit 1
 fi
 
-if [ ! -d "dist" ]; then
-	echo "❌ Build completó sin errores pero falta el directorio dist/. Abortando." >&2
+if [ ! -d dist ]; then
+	echo "❌ No se generó dist/. Abortando." >&2
 	exit 1
 fi
 
-echo "📦 Tamaño de artefactos generados:" 
-du -sh dist || true
+echo "📦 Tamaño de artefactos:" && du -sh dist || true
 
-# Publicar
-echo "📂 Publicando artefactos..."
+echo "📂 Publicando artefactos en $PUBLIC_DIR ..."
 rm -rf "${PUBLIC_DIR:?}"/*
 cp -r dist/* "$PUBLIC_DIR/"
 
