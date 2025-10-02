@@ -18,7 +18,6 @@ class PermissionSeeder extends Seeder
             ['name' => 'ver_ventas', 'description' => 'Ver listado de ventas', 'module' => 'ventas'],
             ['name' => 'crear_ventas', 'description' => 'Registrar nueva venta', 'module' => 'ventas'],
             ['name' => 'editar_ventas', 'description' => 'Editar venta existente', 'module' => 'ventas'],
-            ['name' => 'eliminar_ventas', 'description' => 'Eliminar venta', 'module' => 'ventas'],
             ['name' => 'anular_ventas', 'description' => 'Anular venta', 'module' => 'ventas'],
             ['name' => 'ver_comprobantes', 'description' => 'Ver comprobantes fiscales', 'module' => 'ventas'],
             ['name' => 'reimprimir_comprobantes', 'description' => 'Reimprimir comprobantes', 'module' => 'ventas'],

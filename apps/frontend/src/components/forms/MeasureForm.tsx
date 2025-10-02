@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 
 interface MeasureFormProps {
   measure?: Measure;
@@ -66,7 +67,14 @@ export function MeasureForm({ measure, onSuccess }: MeasureFormProps) {
       </div>
 
       <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Saving..." : measure?.id ? "Update Unit of Measure" : "Create Unit of Measure"}
+        {loading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Saving...
+          </>
+        ) : (
+          measure?.id ? "Update Unit of Measure" : "Create Unit of Measure"
+        )}
       </Button>
     </form>
   );

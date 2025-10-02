@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { createSupplier } from '@/lib/api/supplierService';
 import useApi from "@/hooks/useApi";
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 export interface NewProviderDialogProps {
   open: boolean;
@@ -177,7 +178,14 @@ export const NewProviderDialog = ({ open, onOpenChange, onSaved }: NewProviderDi
         
         <DialogFooter className="flex-shrink-0">
           <Button type="submit" form="provider-form" disabled={loading}>
-            {loading ? 'Guardando...' : 'Guardar'}
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

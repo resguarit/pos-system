@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import {
@@ -19,9 +20,11 @@ import {
   // Receipt, // Comentado por ocultar vista previa
   Loader2,
   RefreshCw,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ViewSaleDialog from "@/components/view-sale-dialog";
+import AnnulSaleDialog from "@/components/AnnulSaleDialog";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart";
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
@@ -66,11 +69,14 @@ export default function VentasPage() {
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
+  const [isAnnulDialogOpen, setIsAnnulDialogOpen] = useState(false);
+  const [saleToAnnul, setSaleToAnnul] = useState<SaleHeader | null>(null);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageLoading, setPageLoading] = useState(true);
   const [allSales, setAllSales] = useState<SaleHeader[]>([]); // Para paginación del cliente
+  const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
   const location = useLocation();
   // Track handled navigation to avoid repeated detail fetches
   const handledOpenSaleIdRef = useRef<number | null>(null);
@@ -369,6 +375,8 @@ export default function VentasPage() {
     return <Badge className={cssClasses}>{textToShow}</Badge>;
   };
 
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'annulled'>('all');
+
   const filteredSales = sales.filter((sale: SaleHeader) => {
     const receiptTypeInfo = getReceiptType(sale);
     const matchesSearch =
@@ -380,7 +388,13 @@ export default function VentasPage() {
         .includes(searchTerm.toLowerCase()) ||
       (typeof sale.branch === 'string' ? sale.branch.toLowerCase() : (sale.branch?.description || "").toLowerCase())
         .includes(searchTerm.toLowerCase());
-    return matchesSearch;
+
+    const matchesStatus =
+      statusFilter === 'all' ? true :
+      statusFilter === 'active' ? sale.status !== 'annulled' :
+      sale.status === 'annulled';
+
+    return matchesSearch && matchesStatus;
   });
   
   const handleDateRangeChange = (range: DateRange | undefined) => {
@@ -440,6 +454,9 @@ export default function VentasPage() {
   };
 
   const handleViewDetail = async (sale: SaleHeader) => {
+    const actionKey = `view-${sale.id}`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
+    
     try {
       const response = await request({
         method: "GET",
@@ -454,6 +471,8 @@ export default function VentasPage() {
       });
       setSelectedSale(sale);
       setIsDetailOpen(true);
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   };
 
@@ -483,6 +502,10 @@ export default function VentasPage() {
             alert("No se puede descargar el PDF: ID de venta faltante.");
             return;
           }
+          
+          const actionKey = `download-${sale.id}`;
+          setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
+          
           try {
             const response = await request({ 
               method: 'GET', 
@@ -507,7 +530,26 @@ export default function VentasPage() {
           } catch (error) {
             console.error("Error downloading PDF:", error);
             alert("Error al descargar PDF");
+          } finally {
+            setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
           }
+  };
+
+  const handleAnnulSale = (sale: SaleHeader) => {
+    setSaleToAnnul(sale);
+    setIsAnnulDialogOpen(true);
+  };
+
+  const handleAnnulSuccess = () => {
+    setIsAnnulDialogOpen(false);
+    setSaleToAnnul(null);
+    // Refresh the sales list and stats
+    setCurrentPage(1);
+    setAllSales([]); // Limpiar caché para forzar nueva carga
+    Promise.all([
+      fetchSales(dateRange.from, dateRange.to, 1),
+      fetchStats(dateRange.from, dateRange.to),
+    ]);
   };
 
   const goToPage = (pageNumber: number) => {
@@ -679,6 +721,24 @@ export default function VentasPage() {
         </Card>
       </div>
 
+      {/* Status Filter Tabs */}
+      <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'annulled')} className="w-fit">
+        <TabsList>
+          <TabsTrigger value="all">
+            <FileText className="w-4 h-4 mr-2" />
+            Todas
+          </TabsTrigger>
+          <TabsTrigger value="active">
+            <TrendingUp className="w-4 h-4 mr-2" />
+            Vigentes
+          </TabsTrigger>
+          <TabsTrigger value="annulled">
+            <X className="w-4 h-4 mr-2" />
+            Anuladas
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Chart Section */}
       {showChart && (
             <SalesHistoryChart dateRange={dateRange} /> 
@@ -775,26 +835,26 @@ export default function VentasPage() {
             )}
             {!pageLoading &&
               filteredSales.map((sale: SaleHeader) => (
-                <TableRow key={sale.id}>
+                <TableRow
+                  key={sale.id}
+                  className={sale.status === 'annulled' ? 'group bg-red-50 hover:bg-red-100 transition-colors' : ''}
+                >
                   <ResizableTableCell
                     columnId="receipt_number"
                     getColumnCellProps={getColumnCellProps}
-                    className="font-medium"
+                    className={`font-medium ${sale.status === 'annulled' ? 'text-red-700' : ''}`}
                   >
                     {sale.receipt_number || sale.id}
                   </ResizableTableCell>
-                  <ResizableTableCell
-                    columnId="customer"
-                    getColumnCellProps={getColumnCellProps}
-                  >
-                    <div className="truncate" title={getCustomerName(sale)}>
+                  <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
+                    <div
+                      className={`truncate ${sale.status === 'annulled' ? 'text-red-600' : ''}`}
+                      title={getCustomerName(sale)}
+                    >
                       {getCustomerName(sale)}
                     </div>
                   </ResizableTableCell>
-                  <ResizableTableCell
-                    columnId="receipt_type"
-                    getColumnCellProps={getColumnCellProps}
-                  >
+                  <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
                     {getReceiptTypeBadge(getReceiptType(sale))}
                   </ResizableTableCell>
                   <ResizableTableCell
@@ -802,8 +862,17 @@ export default function VentasPage() {
                     getColumnCellProps={getColumnCellProps}
                     className="hidden md:table-cell"
                   >
-                    <div className="truncate" title={typeof sale.branch === 'string' ? sale.branch : sale.branch?.description || "N/A"}>
-                      {typeof sale.branch === 'string' ? sale.branch : sale.branch?.description || "N/A"}
+                    <div
+                      className={`truncate ${sale.status === 'annulled' ? 'text-red-600' : ''}`}
+                      title={
+                        typeof sale.branch === 'string'
+                          ? sale.branch
+                          : sale.branch?.description || 'N/A'
+                      }
+                    >
+                      {typeof sale.branch === 'string'
+                        ? sale.branch
+                        : sale.branch?.description || 'N/A'}
                     </div>
                   </ResizableTableCell>
                   <ResizableTableCell
@@ -811,21 +880,26 @@ export default function VentasPage() {
                     getColumnCellProps={getColumnCellProps}
                     className="hidden md:table-cell text-center"
                   >
-                    {getItemsCount(sale)}
+                    <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{getItemsCount(sale)}</span>
                   </ResizableTableCell>
                   <ResizableTableCell
                     columnId="date"
                     getColumnCellProps={getColumnCellProps}
                     className="hidden sm:table-cell"
                   >
-                    {formatShortDate(sale.date)}
+                    <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{formatShortDate(sale.date)}</span>
                   </ResizableTableCell>
                   <ResizableTableCell
                     columnId="total"
                     getColumnCellProps={getColumnCellProps}
                     className="text-right"
                   >
-                    {formatCurrency(sale.total)}
+                    <span
+                      className={`${sale.status === 'annulled' ? 'line-through text-red-500 font-medium' : ''}`}
+                      title={sale.status === 'annulled' ? 'Venta anulada' : ''}
+                    >
+                      {formatCurrency(sale.total)}
+                    </span>
                   </ResizableTableCell>
                   <ResizableTableCell
                     columnId="actions"
@@ -833,15 +907,64 @@ export default function VentasPage() {
                     className="text-center"
                   >
                     <div className="flex justify-center items-center gap-1">
-                      <Button variant="ghost" size="icon" className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer" onClick={() => handleViewDetail(sale)} title="Ver Detalle" type="button">
-                        <Eye className="h-4 w-4" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
+                        onClick={() => handleViewDetail(sale)}
+                        title="Ver Detalle"
+                        type="button"
+                        disabled={loadingActions[`view-${sale.id}`]}
+                      >
+                        {loadingActions[`view-${sale.id}`] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </Button>
-                      
-                      {hasPermission('reimprimir_comprobantes') && (
-                        <Button variant="ghost" className="text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 cursor-pointer" size="icon" onClick={() => handleDownloadPdf(sale)} title="Descargar PDF" type="button">
+                      <Button
+                        variant="ghost"
+                        className={`text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
+                        size="icon"
+                        onClick={
+                          hasPermission('reimprimir_comprobantes')
+                            ? () => handleDownloadPdf(sale)
+                            : undefined
+                        }
+                        title={
+                          hasPermission('reimprimir_comprobantes') ? 'Descargar PDF' : ''
+                        }
+                        type="button"
+                        disabled={loadingActions[`download-${sale.id}`]}
+                      >
+                        {loadingActions[`download-${sale.id}`] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
                           <Download className="h-4 w-4" />
-                        </Button>
-                      )}
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className={`text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 ${
+                          hasPermission('anular_ventas') && sale.status === 'completed'
+                            ? 'cursor-pointer'
+                            : 'invisible cursor-default'
+                        }`}
+                        size="icon"
+                        onClick={
+                          hasPermission('anular_ventas') && sale.status === 'completed'
+                            ? () => handleAnnulSale(sale)
+                            : undefined
+                        }
+                        title={
+                          hasPermission('anular_ventas') && sale.status === 'completed'
+                            ? 'Anular Venta'
+                            : ''
+                        }
+                        type="button"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                   </ResizableTableCell>
                 </TableRow>
@@ -901,6 +1024,16 @@ export default function VentasPage() {
               alert("Error al descargar PDF");
             }
           }}
+        />
+      )}
+
+      {/* Annul Sale Dialog */}
+      {saleToAnnul && (
+        <AnnulSaleDialog
+          isOpen={isAnnulDialogOpen}
+          onClose={() => setIsAnnulDialogOpen(false)}
+          sale={saleToAnnul}
+          onSuccess={handleAnnulSuccess}
         />
       )}
 

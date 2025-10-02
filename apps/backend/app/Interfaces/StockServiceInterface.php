@@ -21,4 +21,6 @@ interface StockServiceInterface
     public function updateStockQuantity($id, $quantity);
 
     public function reduceStockByProductAndBranch($productId, $branchId, $quantity);
+
+    public function increaseStockByProductAndBranch($productId, $branchId, $quantity);
 }

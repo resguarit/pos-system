@@ -757,7 +757,14 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Guardando...' : 'Guardar Producto'}
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar Producto'
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

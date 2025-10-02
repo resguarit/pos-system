@@ -36,7 +36,8 @@ type CartItem = {
   code: string
   name: string
   price: number // Precio unitario sin IVA
-  price_with_iva: number
+  price_with_iva: number // Precio unitario con IVA
+  sale_price: number
   iva_rate: number
   quantity: number
   image: string
@@ -262,16 +263,19 @@ export default function POSPage() {
                          Array.isArray(response?.data?.data) ? response.data.data :
                          Array.isArray(response?.data) ? response.data : [];
       const mappedProducts = productData.map((p: any) => {
-        const salePriceWithIva = parseFloat(p.sale_price) || 0;
+        const salePriceWithIva = p.sale_price || 0;
         const ivaRate = p.iva?.rate || 0;
         
         // El sale_price de la API YA INCLUYE IVA, necesitamos calcular el precio sin IVA
-        const priceWithoutIva = ivaRate > 0 ? salePriceWithIva / (1 + ivaRate / 100) : salePriceWithIva;
+        // Redondeamos a 2 decimales porque la división puede generar errores de precisión
+        const priceWithoutIva = ivaRate > 0 
+          ? Math.round((salePriceWithIva / (1 + ivaRate / 100) + Number.EPSILON) * 100) / 100
+          : salePriceWithIva;
 
         const result = {
           ...p,
           name: p.description,
-          price: priceWithoutIva // Precio sin IVA para cálculos
+          price: priceWithoutIva // Precio sin IVA para cálculos (ya redondeado)
           , sale_price: salePriceWithIva // Precio original con IVA
           , iva_rate: ivaRate
           , price_with_iva: salePriceWithIva // Este es el precio final
@@ -357,8 +361,8 @@ export default function POSPage() {
 
   // Actualizar para respetar la cantidad por click
   const addToCart = (product: CartItem, qty?: number) => {
-    
     const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1)
+    
     setCart((prevCart) => {
       const existingItem = prevCart.find((item) => item.id === product.id)
       if (existingItem) {
@@ -422,12 +426,14 @@ export default function POSPage() {
   const computeTotals = () => {
     const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
-    // 1. APLICAR DESCUENTOS POR ÍTEM
+    // 1. APLICAR DESCUENTOS POR ÍTEM - USANDO SALE_PRICE (CON IVA)
     const prepared = cart.map((item) => {
-      const unit_without_iva = Number(item.price || 0);
+      const unit_with_iva = Number(item.price_with_iva || item.sale_price || 0);
       const qty = Math.max(1, Number(item.quantity || 0));
-      const base_without_iva = round2(unit_without_iva * qty);
       const ivaRate = (item.iva_rate || 0) / 100;
+
+      const unit_without_iva = ivaRate > 0 ? unit_with_iva / (1 + ivaRate) : unit_with_iva;
+      const base_without_iva = unit_without_iva * qty;
 
       let itemDiscount_on_base = 0; // Este es el descuento que se aplicará al subtotal (sin IVA)
       const dv = Number(item.discount_value ?? 0);
@@ -435,20 +441,20 @@ export default function POSPage() {
       if (item.discount_type && dv > 0) {
         if (item.discount_type === 'percent') {
           // El descuento por % siempre se calcula sobre la base sin IVA.
-          itemDiscount_on_base = round2(base_without_iva * (dv / 100));
+          itemDiscount_on_base = (base_without_iva * (dv / 100));
         } else { // discount_type === 'amount'
           // El descuento por monto se interpreta como un descuento al precio final.
           // Calculamos cuánto de ese descuento corresponde a la base sin IVA.
-          itemDiscount_on_base = round2(dv / (1 + ivaRate));
+          itemDiscount_on_base = (dv / (1 + ivaRate));
         }
       }
       
       itemDiscount_on_base = Math.max(0, Math.min(itemDiscount_on_base, base_without_iva));
-      const netBase = round2(base_without_iva - itemDiscount_on_base);
+      const netBase = (base_without_iva - itemDiscount_on_base);
       return { item, netBase };
     });
 
-    const subtotalAfterItemDiscounts = round2(prepared.reduce((s, x) => s + x.netBase, 0));
+    const subtotalAfterItemDiscounts = (prepared.reduce((s, x) => s + x.netBase, 0));
 
     // 2. APLICAR DESCUENTO GLOBAL
     let globalDiscountAmount_on_base = 0;
@@ -456,7 +462,7 @@ export default function POSPage() {
 
     if (globalDiscountType && gVal > 0) {
       if (globalDiscountType === 'percent') {
-        globalDiscountAmount_on_base = round2(subtotalAfterItemDiscounts * (gVal / 100));
+        globalDiscountAmount_on_base = (subtotalAfterItemDiscounts * (gVal / 100));
       } else { // globalDiscountType === 'amount'
         // Para un descuento global por monto, lo distribuimos proporcionalmente
         // entre los diferentes grupos de IVA para encontrar el descuento base correcto.
@@ -475,7 +481,7 @@ export default function POSPage() {
                 const group = ivaGroups[rateKey];
                 const proportion = group.netBaseAmount / subtotalAfterItemDiscounts;
                 const discountForGroup_final = gVal * proportion; // Distribuir monto final
-                const discountForGroup_pre_tax = round2(discountForGroup_final / (1 + (group.ivaRate / 100)));
+                const discountForGroup_pre_tax = (discountForGroup_final / (1 + (group.ivaRate / 100)));
                 totalPreTaxDiscount += discountForGroup_pre_tax;
             }
         }
@@ -484,32 +490,36 @@ export default function POSPage() {
     }
     
     globalDiscountAmount_on_base = Math.max(0, Math.min(globalDiscountAmount_on_base, subtotalAfterItemDiscounts));
-    const finalSubtotalNet = round2(subtotalAfterItemDiscounts - globalDiscountAmount_on_base);
+    const finalSubtotalNet = (subtotalAfterItemDiscounts - globalDiscountAmount_on_base);
 
     // 3. CALCULAR IVA SOBRE EL SUBTOTAL FINAL NETO
     let totalIva = 0;
     if (subtotalAfterItemDiscounts > 0) {
       prepared.forEach((row) => {
         const proportion = row.netBase / subtotalAfterItemDiscounts;
-        const discountForIvaCalc = globalDiscountAmount_on_base * proportion;
-        const finalBaseForItem = row.netBase - discountForIvaCalc;
-        const ivaForItem = round2(finalBaseForItem * ((row.item.iva_rate || 0) / 100));
-        totalIva = round2(totalIva + ivaForItem);
+        const discountForIvaCalc = (globalDiscountAmount_on_base * proportion);
+        const finalBaseForItem = (row.netBase - discountForIvaCalc);
+        const ivaForItem = (finalBaseForItem * ((row.item.iva_rate || 0) / 100));
+        totalIva += ivaForItem; // Sumar sin redondear en cada iteración
       });
+      totalIva = (totalIva); // Redondear el total al final
     }
 
     // 4. CALCULAR TOTALES FINALES
     const total = round2(finalSubtotalNet + totalIva);
-    const totalItemDiscount = round2(prepared.reduce((s, p, i) => {
-        const originalBase = (cart[i].price || 0) * (cart[i].quantity || 0);
-        return s + (originalBase - p.netBase);
-    }, 0));
+    const totalItemDiscount = prepared.reduce((s, p, i) => {
+        const originalBase = round2((cart[i].price || 0) * (cart[i].quantity || 0));
+        return s + Math.max(0, originalBase - p.netBase); // Asegurar que nunca sea negativo
+    }, 0);
+
+    // Asegurar que el total de descuentos nunca sea negativo
+    const finalTotalDiscount = Math.max(0, round2(totalItemDiscount + globalDiscountAmount_on_base));
 
     return {
-      totalItemDiscount: round2(totalItemDiscount + globalDiscountAmount_on_base), // Suma de ambos descuentos (base)
+      totalItemDiscount: finalTotalDiscount,
       globalDiscountAmount: globalDiscountAmount_on_base,
-      subtotalNet: finalSubtotalNet,
-      totalIva,
+      subtotalNet: round2(finalSubtotalNet),
+      totalIva: round2(totalIva),
       total,
     };
   };
@@ -579,20 +589,25 @@ export default function POSPage() {
       receipt_type_id: receiptTypeId,
       sale_fiscal_condition_id: selectedCustomer?.fiscal_condition_id || null,
       sale_date: argDateString, // Fecha y hora local de Argentina
+      // Enviar los totales calculados por el frontend
+      subtotal_net: subtotalNet,
+      total_iva: totalIva,
+      total: total,
+      total_discount: Math.max(0, totalItemDiscount), // Asegurar que nunca sea negativo
       ...(globalDiscountType && Number(globalDiscountValue) > 0
         ? { discount_type: globalDiscountType, discount_value: Number(globalDiscountValue) }
         : {}),
       items: cart.map(item => ({
         product_id: parseInt(item.id),
         quantity: item.quantity,
-        unit_price: round2(Number(item.price || 0)),
+        unit_price: Number(item.price || 0), // Sin round2, usar el precio exacto
         ...(item.discount_type && (item.discount_value ?? 0) > 0
           ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
           : {}),
       })),
       payments: payments.map(p => ({
         payment_method_id: parseInt(p.payment_method_id),
-        amount: round2(parseFloat(p.amount || '0') || 0),
+        amount: parseFloat(p.amount || '0') || 0, // Sin round2, usar el monto exacto
       })),
     };
 
@@ -610,7 +625,7 @@ export default function POSPage() {
         if (saleId) {
           const saleDetails = await request({ 
             method: 'GET', 
-            url: `/pos/sales/${saleId}?include=items,customer,receipt_type,saleFiscalCondition,branch,saleIvas` 
+            url: `/sales/${saleId}?include=items,customer,receipt_type,saleFiscalCondition,branch,saleIvas` 
           });
           const normalizedSale = (saleDetails as any)?.data ?? saleDetails;
           setCompletedSale(normalizedSale);
@@ -847,7 +862,7 @@ export default function POSPage() {
                                 <TableCell className="font-medium">
                                 <div>{item.name}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  {formatCurrency(item.price)} c/u
+                                  {formatCurrency(item.sale_price)} c/u
                                   {item.discount_type && (item.discount_value ?? 0) > 0 && (
                                     <span className="ml-2 text-amber-700">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
                                   )}
@@ -864,7 +879,7 @@ export default function POSPage() {
                                     </Button>
                                 </div>
                                 </TableCell>
-                                <TableCell className="text-right">{formatCurrency(itemTotal)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(item.sale_price)}</TableCell>
                                 <TableCell>
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFromCart(item.id)}>
                                     <Trash2 className="h-4 w-4" />

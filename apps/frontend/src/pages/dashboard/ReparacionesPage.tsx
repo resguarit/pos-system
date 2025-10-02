@@ -744,7 +744,7 @@ export default function ReparacionesPage() {
             Recargar
           </Button>
           <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (open) resetForm(); }}>
-            {hasPermission('repairs.create') && (
+            {hasPermission('crear_reparaciones') && (
               <DialogTrigger asChild>
                 <Button className="cursor-pointer">
                   <Plus className="mr-2 h-4 w-4" />
@@ -896,7 +896,7 @@ export default function ReparacionesPage() {
               </div>
               <div className="flex justify-end space-x-2">
                 <Button variant="outline" className="cursor-pointer" onClick={() => setCreateOpen(false)} disabled={creating}>Cancelar</Button>
-                {hasPermission('repairs.create') && (
+                {hasPermission('crear_reparaciones') && (
                   <Button className="cursor-pointer" onClick={handleCreateRepair} disabled={creating}>{creating ? 'Creando...' : 'Crear Reparación'}</Button>
                 )}
               </div>
@@ -996,7 +996,7 @@ export default function ReparacionesPage() {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => { setLinkOpenId(null); setLinkSaleId("") }} disabled={linking}>Cancelar</Button>
-            {hasPermission('repairs.link_sale') && (
+            {hasPermission('vincular_venta_reparaciones') && (
               <Button onClick={handleLinkSale} disabled={linking || !linkSaleId}>{linking ? 'Vinculando...' : 'Vincular'}</Button>
             )}
           </div>
@@ -1004,7 +1004,7 @@ export default function ReparacionesPage() {
       </Dialog>
 
       {/* Modal Ver/Editar reparación */}
-      {hasPermission('repairs.view') && (
+      {hasPermission('ver_reparaciones') && (
         <RepairDetailDialog
           open={detailOpen}
           onOpenChange={(open) => { setDetailOpen(open); if (!open) { setSelectedRepair(null); setEditMode(false) } }}
@@ -1237,7 +1237,7 @@ export default function ReparacionesPage() {
                   <TableCell>{typeof rep.cost === 'number' ? `$${rep.cost.toFixed(2)}` : '-'}</TableCell>
                   <TableCell>{rep.sale?.receipt_number || rep.sale_id || '-'}</TableCell>
                   <TableCell className="text-right space-x-1">
-                    {hasPermission('repairs.view') && (
+                    {hasPermission('ver_reparaciones') && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1249,7 +1249,7 @@ export default function ReparacionesPage() {
                         <Eye className="h-4 w-4" />
                       </Button>
                     )}
-                    {hasPermission('repairs.edit') && (
+                    {hasPermission('editar_reparaciones') && (
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1261,7 +1261,7 @@ export default function ReparacionesPage() {
                         <Pencil className="h-4 w-4" />
                       </Button>
                     )}
-                    {hasPermission('repairs.link_sale') && (
+                    {hasPermission('vincular_venta_reparaciones') && (
                       <Button
                         variant="ghost"
                         size="icon"

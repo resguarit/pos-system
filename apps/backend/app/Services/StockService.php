@@ -104,4 +104,43 @@ class StockService implements StockServiceInterface
         
         return $stock;
     }
+
+    /**
+     * Increase stock by product and branch
+     */
+    public function increaseStockByProductAndBranch($productId, $branchId, $quantity)
+    {
+        // Debug para ver qué cantidad se está pasando
+        \Illuminate\Support\Facades\Log::info('Stock increase debug', [
+            'product_id' => $productId,
+            'branch_id' => $branchId,
+            'quantity_to_increase' => $quantity,
+            'quantity_type' => gettype($quantity),
+        ]);
+
+        // Allow negative stock and auto-create the stock row if missing
+        $stock = Stock::firstOrCreate(
+            [
+                'product_id' => $productId,
+                'branch_id' => $branchId,
+            ],
+            [
+                'current_stock' => 0,
+            ]
+        );
+
+        $originalStock = $stock->current_stock;
+        $stock->current_stock = ((float) $stock->current_stock) + ((float) $quantity);
+        $stock->save();
+        
+        // Debug del resultado
+        \Illuminate\Support\Facades\Log::info('Stock increase result', [
+            'product_id' => $productId,
+            'original_stock' => $originalStock,
+            'quantity_increased' => $quantity,
+            'new_stock' => $stock->current_stock,
+        ]);
+        
+        return $stock;
+    }
 }

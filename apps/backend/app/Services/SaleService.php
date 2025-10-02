@@ -192,7 +192,21 @@ class SaleService implements SaleServiceInterface
             // Total = Subtotal (sin descuentos) - Descuentos + IVA + impuestos internos/IIBB
             $finalTotal = round((($subtotalGrossBeforeDiscounts - $totalDiscountApplied) + $totalIvaAmount + $iibb + $internalTax), 2);
 
-            // 4) Asignar campos en cabecera
+            // 4) Usar totales del frontend si están disponibles (para evitar diferencias de redondeo)
+            if (isset($data['total']) && is_numeric($data['total'])) {
+                $finalTotal = (float) $data['total'];
+            }
+            if (isset($data['total_iva']) && is_numeric($data['total_iva'])) {
+                $totalIvaAmount = (float) $data['total_iva'];
+            }
+            if (isset($data['subtotal_net']) && is_numeric($data['subtotal_net'])) {
+                $subtotalNetFinal = (float) $data['subtotal_net'];
+            }
+            if (isset($data['total_discount']) && is_numeric($data['total_discount'])) {
+                $totalDiscountApplied = (float) $data['total_discount'];
+            }
+
+            // 5) Asignar campos en cabecera
             $data['subtotal'] = $subtotalGrossBeforeDiscounts; // persistir subtotal SIN descuentos
             $data['total_iva_amount'] = $totalIvaAmount;
             $data['discount_type'] = $globalDiscountType; // tipo de descuento global
@@ -201,7 +215,7 @@ class SaleService implements SaleServiceInterface
             $data['total'] = $finalTotal;
             $data['date'] = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::now();
 
-            // 5) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
+            // 6) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
             $lastSale = SaleHeader::where('branch_id', $data['branch_id'])
                 ->where('receipt_type_id', $data['receipt_type_id'])
                 ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
@@ -209,10 +223,10 @@ class SaleService implements SaleServiceInterface
             $nextReceiptNumber = $lastSale ? ((int)$lastSale->receipt_number) + 1 : 1;
             $data['receipt_number'] = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
 
-            // 6) Crear cabecera
+            // 7) Crear cabecera
             $saleHeader = SaleHeader::create($data);
 
-            // 7) Crear ítems
+            // 8) Crear ítems
             foreach ($preparedItems as $item) {
                 $payload = $item;
                 unset($payload['_net_base']);
@@ -220,13 +234,13 @@ class SaleService implements SaleServiceInterface
                 SaleItem::create($payload);
             }
 
-            // 8) Crear desglose de IVA por tasa
+            // 9) Crear desglose de IVA por tasa
             foreach ($ivaTotals as $total) {
                 $total['sale_header_id'] = $saleHeader->id;
                 SaleIva::create($total);
             }
 
-            // 8.1) Reducir stock (solo si no es presupuesto)
+            // 10) Reducir stock (solo si no es presupuesto)
             $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
             if (!$receiptType || $receiptType->afip_code !== '016') {
                 $branchId = $data['branch_id'];
@@ -240,12 +254,12 @@ class SaleService implements SaleServiceInterface
                 }
             }
 
-            // 9) Registrar movimientos
+            // 11) Registrar movimientos
             if ($registerMovement) {
                 $this->registerSaleMovement($saleHeader, $data);
             }
 
-            // 10) Devolver con relaciones
+            // 12) Devolver con relaciones
             return $saleHeader->fresh(['items', 'saleIvas']);
         });
     }
@@ -621,7 +635,7 @@ class SaleService implements SaleServiceInterface
             ->get();
             
         return (float) $sales->filter(function ($sale) {
-            return !$this->isBudgetSale($sale);
+            return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         })->sum('total');
     }
 
@@ -667,7 +681,7 @@ class SaleService implements SaleServiceInterface
         $allSalesInPeriod = $query->get();
 
         $financialSales = $allSalesInPeriod->filter(function ($sale) {
-            return !$this->isBudgetSale($sale);
+            return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         });
 
         $sales_count = $financialSales->count();
@@ -743,9 +757,9 @@ class SaleService implements SaleServiceInterface
         
         $sales = $query->get();
         
-        // Filtrar presupuestos
+        // Filtrar presupuestos y ventas anuladas
         $financialSales = $sales->filter(function ($sale) {
-            return !$this->isBudgetSale($sale);
+            return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         });
         
         if ($groupBy === 'month') {
@@ -837,7 +851,7 @@ class SaleService implements SaleServiceInterface
             $branch = $salesInBranch->first()->branch;
 
             $financialSales = $salesInBranch->filter(function ($sale) {
-                return !$this->isBudgetSale($sale);
+                return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
             });
 
             $sales_count = $financialSales->count();
@@ -965,6 +979,9 @@ class SaleService implements SaleServiceInterface
                 'total' => (float) $sale->total,
                 'total_iva_amount' => (float) $sale->total_iva_amount,
                 'status' => $sale->status ?? ($sale->receiptType && strtoupper($sale->receiptType->code) === 'PRE' ? 'Presupuesto' : 'Completada'),
+                'annulled_at' => $sale->annulled_at ? Carbon::parse($sale->annulled_at)->format('Y-m-d H:i:s') : null,
+                'annulled_by' => $sale->annulled_by,
+                'annulment_reason' => $sale->annulment_reason,
                 'branch' => $sale->branch ? $sale->branch->description : 'N/A',
             ];
         });
@@ -1006,7 +1023,7 @@ class SaleService implements SaleServiceInterface
         $allSalesInPeriod = $query->with('receiptType')->get();
 
         $financialSales = $allSalesInPeriod->filter(function ($sale) {
-            return !$this->isBudgetSale($sale);
+            return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         });
 
         $sales_count = $financialSales->count();
@@ -1066,9 +1083,9 @@ class SaleService implements SaleServiceInterface
 
         $sales = $salesQuery->get();
         
-        // Filtrar presupuestos
+        // Filtrar presupuestos y ventas anuladas
         $financialSales = $sales->filter(function ($sale) {
-            return !$this->isBudgetSale($sale);
+            return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         });
         
         $salesData = $financialSales->groupBy(function ($sale) {

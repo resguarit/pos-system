@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { createSupplier } from '@/lib/api/supplierService'; // Asegúrate de que este servicio exista
 
 // Esquema de validación con Zod
@@ -102,9 +103,12 @@ const SupplierForm: React.FC<SupplierFormProps> = ({ onSuccess }) => {
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? 'Guardando...' : 'Guardar Proveedor'}
-        </Button>
+        <SubmitButton 
+          isLoading={form.formState.isSubmitting}
+          loadingText="Guardando..."
+        >
+          Guardar Proveedor
+        </SubmitButton>
       </form>
     </Form>
   );

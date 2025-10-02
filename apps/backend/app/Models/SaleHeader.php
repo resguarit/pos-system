@@ -35,6 +35,10 @@ class SaleHeader extends Model
         'service_to_date',
         'service_due_date',
         'user_id',
+        'status',
+        'annulled_at',
+        'annulled_by',
+        'annulment_reason',
     ];
 
     protected $casts = [
@@ -50,6 +54,7 @@ class SaleHeader extends Model
         'service_from_date' => 'date',
         'service_to_date' => 'date',
         'service_due_date' => 'date',
+        'annulled_at' => 'datetime',
     ];
 
     public function receiptType()
@@ -70,6 +75,11 @@ class SaleHeader extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function annulledByUser()
+    {
+        return $this->belongsTo(User::class, 'annulled_by');
     }
 
     public function saleFiscalCondition()
@@ -108,7 +118,8 @@ class SaleHeader extends Model
     // Relación con movimientos de caja
     public function cashMovements()
     {
-        return $this->hasMany(CashMovement::class, 'sale_id');
+        return $this->hasMany(CashMovement::class, 'reference_id')
+            ->where('reference_type', 'sale');
     }
 
     // Relación con movimientos de cuenta corriente

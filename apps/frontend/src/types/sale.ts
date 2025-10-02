@@ -26,6 +26,10 @@ export interface SaleHeader {
   user_id: number
   created_at: string
   updated_at: string
+  status?: 'completed' | 'annulled'
+  annulled_at?: string | null
+  annulled_by?: number | null
+  annulment_reason?: string | null
   customer?: string | {
     id: number
     person?: {

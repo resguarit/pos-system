@@ -40,10 +40,10 @@ export const PERMISSIONS_CONFIG = {
       'ver_ventas',
       'crear_ventas',
       'editar_ventas',
-      'eliminar_ventas',
-      'ver_detalle_venta',
-      'imprimir_comprobante',
-      'anular_venta'
+      'anular_ventas',
+      'ver_comprobantes',
+      'reimprimir_comprobantes',
+      'aplicar_descuentos'
     ]
   },
   
@@ -66,9 +66,9 @@ export const PERMISSIONS_CONFIG = {
     feature: 'historialVentas',
     permissions: [
       'ver_ventas',
-      'ver_detalle_venta',
-      'imprimir_comprobante',
-      'exportar_ventas'
+      'ver_comprobantes',
+      'reimprimir_comprobantes',
+      'exportar_reportes'
     ]
   },
   
@@ -182,8 +182,7 @@ export const PERMISSIONS_CONFIG = {
       'crear_reparaciones',
       'editar_reparaciones',
       'eliminar_reparaciones',
-      'cambiar_estado_reparacion',
-      'asignar_tecnico'
+      'vincular_venta_reparaciones'
     ]
   },
   
@@ -194,8 +193,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_turnos',
       'crear_turnos',
       'editar_turnos',
-      'eliminar_turnos',
-      'asignar_turnos'
+      'eliminar_turnos'
     ]
   },
   

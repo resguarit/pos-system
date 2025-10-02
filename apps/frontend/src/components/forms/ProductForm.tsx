@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { toast } from "sonner";
 
 interface ProductFormProps {
@@ -505,9 +506,13 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         />
       </div>
 
-      <Button type="submit" disabled={loading} className="w-full">
-        {loading ? "Saving..." : product?.id ? "Update Product" : "Create Product"}
-      </Button>
+      <SubmitButton 
+        isLoading={loading} 
+        loadingText="Saving..." 
+        className="w-full"
+      >
+        {product?.id ? "Update Product" : "Create Product"}
+      </SubmitButton>
     </form>
   );
 }

@@ -25,8 +25,10 @@ import { BulkPriceUpdateDialog } from "@/components/BulkPriceUpdateDialog"
 import { NumberFormatter } from '@/lib/formatters/numberFormatter';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function InventarioPage() {
+  const { hasPermission } = useAuth();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -695,24 +697,32 @@ export default function InventarioPage() {
               <Button variant="outline" size="icon" onClick={refreshData} disabled={loading}>
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => setExportDialogOpen(true)}
-                className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
-              >
-                <Download className="h-4 w-4" />
-                Exportar Lista
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setBulkUpdateDialogOpen(true)}
-                className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
-              >
-                <Calculator className="h-4 w-4" />
-                Actualizar Precios
-              </Button>
-              <AddStockButton branches={branches} onStockAdded={refreshData} />
-              <NewProductButton onProductCreated={refreshData} />
+              {hasPermission('exportar_lista_precios') && (
+                <Button
+                  variant="outline"
+                  onClick={() => setExportDialogOpen(true)}
+                  className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
+                >
+                  <Download className="h-4 w-4" />
+                  Exportar Lista
+                </Button>
+              )}
+              {hasPermission('actualizar_precios_masivo') && (
+                <Button
+                  variant="outline"
+                  onClick={() => setBulkUpdateDialogOpen(true)}
+                  className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
+                >
+                  <Calculator className="h-4 w-4" />
+                  Actualizar Precios
+                </Button>
+              )}
+              {hasPermission('actualizar_stock') && (
+                <AddStockButton branches={branches} onStockAdded={refreshData} />
+              )}
+              {hasPermission('crear_productos') && (
+                <NewProductButton onProductCreated={refreshData} />
+              )}
             </div>
           </div>
         </div>
@@ -987,12 +997,16 @@ export default function InventarioPage() {
                                   <Button variant="ghost" size="sm" onClick={() => handleViewClick(p)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                     <Eye className="h-4 w-4" />
                                   </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleEditClick(p)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(p)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  {hasPermission('editar_productos') && (
+                                    <Button variant="ghost" size="sm" onClick={() => handleEditClick(p)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  {hasPermission('eliminar_productos') && (
+                                    <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(p)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
                                 </div>
                               </ResizableTableCell>
                             </TableRow>
@@ -1193,12 +1207,16 @@ export default function InventarioPage() {
                                 <Button variant="ghost" size="sm" onClick={() => handleViewClick(product)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(product)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(product)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                {hasPermission('editar_productos') && (
+                                  <Button variant="ghost" size="sm" onClick={() => handleEditClick(product)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {hasPermission('eliminar_productos') && (
+                                  <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(product)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             </ResizableTableCell>
                           </TableRow>

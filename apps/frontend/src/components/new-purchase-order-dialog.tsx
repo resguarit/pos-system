@@ -905,7 +905,14 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
               Cancelar
             </Button>
             <Button type="submit" disabled={loading || items.length === 0}>
-              {loading ? 'Guardando...' : 'Crear Orden de Compra'}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Crear Orden de Compra'
+              )}
             </Button>
           </DialogFooter>
         </form>

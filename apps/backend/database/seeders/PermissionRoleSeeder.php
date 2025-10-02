@@ -37,8 +37,12 @@ class PermissionRoleSeeder extends Seeder
                 'ver_perfil',
                 'editar_perfil',
                 'ver_clientes',
+                'crear_clientes',
+                'editar_clientes',
                 'ver_productos',
-                'ver_stock'
+                'ver_stock',
+                'ver_metodos_pago',
+                'cambiar_password'
             ])->get();
             $cajero->permissions()->sync($cajeroPermissions->pluck('id'));
         }
@@ -68,15 +72,42 @@ class PermissionRoleSeeder extends Seeder
                 'crear_compras',
                 'editar_compras',
                 'eliminar_compras',
+                'aprobar_compras',
                 'ver_ordenes_compra',
                 'crear_ordenes_compra',
                 'editar_ordenes_compra',
                 'eliminar_ordenes_compra',
                 'ver_historial_compras',
+                'ver_reportes',
                 'generar_reportes',
+                'exportar_reportes',
                 'ver_ventas',
+                'anular_ventas',
+                'ver_comprobantes',
+                'reimprimir_comprobantes',
+                'ver_clientes',
+                'crear_clientes',
+                'editar_clientes',
+                'ver_reparaciones',
+                'crear_reparaciones',
+                'editar_reparaciones',
+                'repairs.create',
+                'repairs.view',
+                'repairs.edit',
+                'repairs.link_sale',
+                'ver_turnos',
+                'crear_turnos',
+                'editar_turnos',
+                'appointments.create',
+                'ver_sucursales',
+                'ver_historial_ventas_sucursal',
+                'ver_metodos_pago',
+                'ajustar_stock',
+                'ver_alertas_stock',
+                'realizar_inventario',
                 'ver_perfil',
-                'editar_perfil'
+                'editar_perfil',
+                'cambiar_password'
             ])->get();
             $supervisor->permissions()->sync($supervisorPermissions->pluck('id'));
         }

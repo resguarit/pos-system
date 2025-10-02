@@ -62,6 +62,11 @@ class PosController extends Controller
         'internal_tax' => 'nullable|numeric|min:0',
         'discount_type' => 'nullable|in:percent,amount',
         'discount_value' => 'nullable|numeric|min:0',
+        // Totales calculados por el frontend
+        'subtotal_net' => 'nullable|numeric|min:0',
+        'total_iva' => 'nullable|numeric|min:0',
+        'total' => 'nullable|numeric|min:0',
+        'total_discount' => 'nullable|numeric|min:0',
         'cae' => 'nullable|string|max:255',
         'cae_expiration_date' => 'nullable|date',
         'service_from_date' => 'nullable|date',

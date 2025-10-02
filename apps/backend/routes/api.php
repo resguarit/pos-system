@@ -29,6 +29,7 @@ use App\Http\Controllers\CurrentAccountController;
 use App\Http\Controllers\MovementTypeController;
 use App\Http\Controllers\RepairController; // Added
 use App\Http\Controllers\ExchangeRateController; // **SOLUCIÓN BUG #2**
+use App\Http\Controllers\SaleAnnulmentController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -243,6 +244,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
         
         Route::delete('/{id}', [SaleController::class, 'destroy'])->whereNumber('id');
+        Route::post('/{id}/annul', [SaleAnnulmentController::class, 'annulSale'])->whereNumber('id');
         Route::get('/download-pdf/{id}', [SaleController::class, 'downloadPdf'])->whereNumber('id');
         Route::get('/history/branch/{branchId}', [SaleController::class, 'salesHistoryByBranch'])->whereNumber('branchId');
         Route::get('/global', [SaleController::class, 'indexGlobal']);
