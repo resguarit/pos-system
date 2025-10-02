@@ -37,6 +37,14 @@ class SaleAnnulmentController extends Controller
     }
 
     /**
+     * Anular una venta (alias para compatibilidad con frontend)
+     */
+    public function annulSale(Request $request, int $id): JsonResponse
+    {
+        return $this->annul($request, $id);
+    }
+
+    /**
      * Anular una venta
      */
     public function annul(Request $request, int $id): JsonResponse
