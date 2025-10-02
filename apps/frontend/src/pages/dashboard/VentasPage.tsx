@@ -946,18 +946,18 @@ export default function VentasPage() {
                       <Button
                         variant="ghost"
                         className={`text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 ${
-                          hasPermission('anular_ventas') && sale.status === 'completed'
+                          hasPermission('anular_ventas') && sale.status === 'active'
                             ? 'cursor-pointer'
                             : 'invisible cursor-default'
                         }`}
                         size="icon"
                         onClick={
-                          hasPermission('anular_ventas') && sale.status === 'completed'
+                          hasPermission('anular_ventas') && sale.status === 'active'
                             ? () => handleAnnulSale(sale)
                             : undefined
                         }
                         title={
-                          hasPermission('anular_ventas') && sale.status === 'completed'
+                          hasPermission('anular_ventas') && sale.status === 'active'
                             ? 'Anular Venta'
                             : ''
                         }
