@@ -183,7 +183,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       const [categoriesRes, measuresRes, suppliersRes, ivasRes] = await Promise.all([
         request({ method: 'GET', url: '/categories/for-selector' }),
         request({ method: 'GET', url: '/measures' }),
-        request({ method: 'GET', url: '/suppliers' }),
+        request({ method: 'GET', url: '/suppliers?per_page=10000' }), // Obtener todos los proveedores
         request({ method: 'GET', url: '/ivas' })
       ]);
       
