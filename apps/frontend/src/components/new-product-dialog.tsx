@@ -287,7 +287,16 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       setCategories(getArray(categoriesRes));
       setMeasures(getArray(measuresRes));
       setSuppliers(getArray(suppliersRes));
-      setIvas(getArray(ivasRes));
+      const ivasArray = getArray(ivasRes);
+      setIvas(ivasArray);
+      
+      // Seleccionar automáticamente el IVA de 0% si existe y no hay IVA seleccionado
+      if (!formData.iva_id && ivasArray.length > 0) {
+        const zeroIva = ivasArray.find((iva: Iva) => iva.rate === 0);
+        if (zeroIva) {
+          setFormData(prev => ({ ...prev, iva_id: zeroIva.id.toString() }));
+        }
+      }
     } catch (err) {
       console.error("Error loading catalogs:", err);
       toast.error("Error al cargar datos necesarios.");
