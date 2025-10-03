@@ -80,11 +80,32 @@ class PosController extends Controller
         'items.*.discount_value' => 'nullable|numeric|min:0',
         'payments' => 'required|array|min:1',
         'payments.*.payment_method_id' => 'required|integer|exists:payment_methods,id',
-        'payments.*.amount' => 'required|numeric|min:0.01',
+        'payments.*.amount' => 'required|numeric|min:0',
     ]);
 
     if ($validator->fails()) {
         return response()->json(['errors' => $validator->errors()], 422);
+    }
+
+    // Validación adicional: suma de pagos debe coincidir con el total
+    $requestData = $request->all();
+    $totalPayments = 0;
+    if (isset($requestData['payments']) && is_array($requestData['payments'])) {
+        foreach ($requestData['payments'] as $payment) {
+            $totalPayments += floatval($payment['amount'] ?? 0);
+        }
+    }
+    
+    $totalSale = floatval($requestData['total'] ?? 0);
+    
+    // Permitir diferencia de hasta 0.01 para compensar redondeos
+    $difference = abs($totalPayments - $totalSale);
+    if ($difference > 0.01) {
+        return response()->json([
+            'errors' => [
+                'payments' => ['La suma de los pagos (' . number_format($totalPayments, 2) . ') no coincide con el total de la venta (' . number_format($totalSale, 2) . ')']
+            ]
+        ], 422);
     }
 
     $user = auth()->user();
