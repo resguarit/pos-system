@@ -456,69 +456,40 @@ export default function POSPage() {
 
     const subtotalAfterItemDiscounts = (prepared.reduce((s, x) => s + x.netBase, 0));
 
-    // 2. APLICAR DESCUENTO GLOBAL
-    let globalDiscountAmount_on_base = 0;
+    // 2. CALCULAR IVA SOBRE EL SUBTOTAL SIN DESCUENTO GLOBAL
+    let totalIva = 0;
+    prepared.forEach((row) => {
+      const ivaForItem = (row.netBase * ((row.item.iva_rate || 0) / 100));
+      totalIva += ivaForItem;
+    });
+    totalIva = round2(totalIva);
+
+    // 3. APLICAR DESCUENTO GLOBAL SOBRE EL TOTAL CON IVA
+    const subtotalConIva = round2(subtotalAfterItemDiscounts + totalIva);
+    let globalDiscountAmount = 0;
     const gVal = Number(globalDiscountValue);
 
     if (globalDiscountType && gVal > 0) {
       if (globalDiscountType === 'percent') {
-        globalDiscountAmount_on_base = (subtotalAfterItemDiscounts * (gVal / 100));
+        globalDiscountAmount = round2(subtotalConIva * (gVal / 100));
       } else { // globalDiscountType === 'amount'
-        // Para un descuento global por monto, lo distribuimos proporcionalmente
-        // entre los diferentes grupos de IVA para encontrar el descuento base correcto.
-        const ivaGroups = prepared.reduce((acc, row) => {
-            const rateKey = (row.item.iva_rate || 0).toString();
-            if (!acc[rateKey]) {
-                acc[rateKey] = { netBaseAmount: 0, ivaRate: row.item.iva_rate || 0 };
-            }
-            acc[rateKey].netBaseAmount += row.netBase;
-            return acc;
-        }, {} as Record<string, { netBaseAmount: number; ivaRate: number }>);
-
-        let totalPreTaxDiscount = 0;
-        if (subtotalAfterItemDiscounts > 0) {
-            for (const rateKey in ivaGroups) {
-                const group = ivaGroups[rateKey];
-                const proportion = group.netBaseAmount / subtotalAfterItemDiscounts;
-                const discountForGroup_final = gVal * proportion; // Distribuir monto final
-                const discountForGroup_pre_tax = (discountForGroup_final / (1 + (group.ivaRate / 100)));
-                totalPreTaxDiscount += discountForGroup_pre_tax;
-            }
-        }
-        globalDiscountAmount_on_base = totalPreTaxDiscount;
+        globalDiscountAmount = round2(gVal);
       }
-    }
-    
-    globalDiscountAmount_on_base = Math.max(0, Math.min(globalDiscountAmount_on_base, subtotalAfterItemDiscounts));
-    const finalSubtotalNet = (subtotalAfterItemDiscounts - globalDiscountAmount_on_base);
-
-    // 3. CALCULAR IVA SOBRE EL SUBTOTAL FINAL NETO
-    let totalIva = 0;
-    if (subtotalAfterItemDiscounts > 0) {
-      prepared.forEach((row) => {
-        const proportion = row.netBase / subtotalAfterItemDiscounts;
-        const discountForIvaCalc = (globalDiscountAmount_on_base * proportion);
-        const finalBaseForItem = (row.netBase - discountForIvaCalc);
-        const ivaForItem = (finalBaseForItem * ((row.item.iva_rate || 0) / 100));
-        totalIva += ivaForItem; // Sumar sin redondear en cada iteración
-      });
-      totalIva = (totalIva); // Redondear el total al final
+      // Limitar el descuento al total con IVA para que no sea negativo
+      globalDiscountAmount = Math.max(0, Math.min(globalDiscountAmount, subtotalConIva));
     }
 
     // 4. CALCULAR TOTALES FINALES
-    const total = round2(finalSubtotalNet + totalIva);
+    const total = Math.max(0, round2(subtotalConIva - globalDiscountAmount));
     const totalItemDiscount = prepared.reduce((s, p, i) => {
         const originalBase = round2((cart[i].price || 0) * (cart[i].quantity || 0));
         return s + Math.max(0, originalBase - p.netBase); // Asegurar que nunca sea negativo
     }, 0);
 
-    // Asegurar que el total de descuentos nunca sea negativo
-    const finalTotalDiscount = Math.max(0, round2(totalItemDiscount + globalDiscountAmount_on_base));
-
     return {
-      totalItemDiscount: finalTotalDiscount,
-      globalDiscountAmount: globalDiscountAmount_on_base,
-      subtotalNet: round2(finalSubtotalNet),
+      totalItemDiscount: round2(totalItemDiscount),
+      globalDiscountAmount: globalDiscountAmount,
+      subtotalNet: round2(subtotalAfterItemDiscounts),
       totalIva: round2(totalIva),
       total,
     };
@@ -593,7 +564,7 @@ export default function POSPage() {
       subtotal_net: subtotalNet,
       total_iva: totalIva,
       total: total,
-      total_discount: Math.max(0, totalItemDiscount), // Asegurar que nunca sea negativo
+      total_discount: Math.max(0, totalItemDiscount + globalDiscountAmount), // Total de descuentos (items + global)
       ...(globalDiscountType && Number(globalDiscountValue) > 0
         ? { discount_type: globalDiscountType, discount_value: Number(globalDiscountValue) }
         : {}),
@@ -890,13 +861,13 @@ export default function POSPage() {
                         <span>Subtotal (sin IVA)</span>
                         <span>{formatCurrency(subtotalNet)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Descuentos</span>
-                        <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
-                    </div>
                     <div className="flex justify-between">
                         <span>Impuestos (IVA)</span>
                         <span>{formatCurrency(totalIva)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Descuentos</span>
+                        <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
                     </div>
                     <div className="flex justify-between text-lg font-bold">
                         <span>Total</span>
@@ -1032,19 +1003,19 @@ export default function POSPage() {
 
                      <div>
                        <div className="mb-2 flex flex-col gap-2">
-                         {/* Resumen para no duplicar: Subtotal, Descuentos, IVA, Total y Falta en un solo bloque */}
+                         {/* Resumen para no duplicar: Subtotal, IVA, Descuentos, Total y Falta en un solo bloque */}
                          <div className="space-y-1.5 text-sm">
                            <div className="flex justify-between">
                              <span>Subtotal (sin IVA)</span>
                              <span>{formatCurrency(subtotalNet)}</span>
                            </div>
-                           <div className="flex justify-between text-muted-foreground">
-                             <span>Descuentos</span>
-                             <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
-                           </div>
                            <div className="flex justify-between">
                              <span>Impuestos (IVA)</span>
                              <span>{formatCurrency(totalIva)}</span>
+                           </div>
+                           <div className="flex justify-between text-muted-foreground">
+                             <span>Descuentos</span>
+                             <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
                            </div>
                          </div>
                          <div className="flex justify-between text-base font-semibold">
@@ -1114,7 +1085,7 @@ export default function POSPage() {
                      <h3 className="font-semibold mb-2">Productos en la venta</h3>
                      {/* Aclaración de precios y cálculo */}
                      <p className="text-xs text-muted-foreground mb-2">
-                       El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos (por ítem y global) se aplican antes del IVA. Cálculo con hasta 2 decimales.
+                       El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos por ítem se aplican antes del IVA, el descuento global se aplica sobre el total con IVA. Cálculo con hasta 2 decimales.
                      </p>
                      <Table>
                      <TableHeader>

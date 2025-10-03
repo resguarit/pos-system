@@ -54,13 +54,14 @@ const ViewSaleDialog = ({
   const formatUnitPrice = (item: any) => {
     if (!item || !item.product) return '$0.00';
     
-    const unitPrice = Number(item.unit_price || 0);
+    // sale_price es el precio de venta con IVA del producto
+    const salePrice = Number(item.product.sale_price || 0);
     
     // Todos los precios de venta son en ARS
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS'
-    }).format(unitPrice);
+    }).format(salePrice);
   };
 
   if (!sale) {
@@ -140,21 +141,6 @@ const ViewSaleDialog = ({
             <div>
               <strong>Vendedor:</strong> {sale.seller_name || sale.seller || 'N/A'}
             </div>
-            <div>
-              <strong>Total:</strong> {formatCurrencyARS(sale.total)}
-            </div>
-            <div>
-              <strong>Subtotal (sin IVA):</strong> {formatCurrencyARS((sale as any).subtotal)}
-            </div>
-            <div>
-              <strong>IVA:</strong> {formatCurrencyARS((sale as any).total_iva_amount)}
-            </div>
-            <div>
-              <strong>Desc. por ítems:</strong> - {formatCurrencyARS(itemsDiscountSum)}
-            </div>
-            <div>
-              <strong>Desc. global:</strong> - {formatCurrencyARS(globalDiscount)}
-            </div>
             {sale.cae && (
               <div>
                 <strong>CAE:</strong> {sale.cae}
@@ -201,17 +187,52 @@ const ViewSaleDialog = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sale.items?.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{(item as any).description || (item as any).product?.description || 'Sin descripción'}</TableCell>
-                  <TableCell className="text-right">{(item as any).quantity}</TableCell>
-                  <TableCell className="text-right">{formatUnitPrice(item)}</TableCell>
-                  <TableCell className="text-right">{formatCurrencyARS(Number((item as any).discount_amount || 0))}</TableCell>
-                  <TableCell className="text-right">{formatCurrencyARS(Number((item as any).item_total))}</TableCell>
-                </TableRow>
-              ))}
+              {sale.items?.map((item) => {
+                const salePrice = Number((item as any).product?.sale_price || 0);
+                const quantity = Number((item as any).quantity || 0);
+                const discountAmount = Number((item as any).discount_amount || 0);
+                
+                // Calcular el total del item: (precio de venta * cantidad) - descuento
+                const itemTotal = (salePrice * quantity) - discountAmount;
+                
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell>{(item as any).description || (item as any).product?.description || 'Sin descripción'}</TableCell>
+                    <TableCell className="text-right">{quantity}</TableCell>
+                    <TableCell className="text-right">{formatUnitPrice(item)}</TableCell>
+                    <TableCell className="text-right">{formatCurrencyARS(discountAmount)}</TableCell>
+                    <TableCell className="text-right">{formatCurrencyARS(itemTotal)}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
+          
+          {/* Resumen de totales */}
+          <div className="mt-4 border-t pt-4">
+            <div className="flex justify-end">
+              <div className="w-64 space-y-2">
+                <div className="flex justify-between">
+                  <span>Subtotal (sin IVA):</span>
+                  <span>{formatCurrencyARS(Number(sale.subtotal || 0))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>IVA:</span>
+                  <span>{formatCurrencyARS(Number(sale.total_iva_amount || 0))}</span>
+                </div>
+                {(sale as any).discount_amount > 0 && (
+                  <div className="flex justify-between text-red-600">
+                    <span>Descuentos:</span>
+                    <span>-{formatCurrencyARS(Number((sale as any).discount_amount || 0))}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold border-t pt-2">
+                  <span>Total:</span>
+                  <span>{formatCurrencyARS(Number(sale.total || 0))}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter className="px-6 py-3 shrink-0">
           {onPrintPdf && (

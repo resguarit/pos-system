@@ -100,55 +100,15 @@ class SaleService implements SaleServiceInterface
             $subtotalNetBeforeGlobal = 0.0;
             foreach ($preparedItems as $pi) { $subtotalNetBeforeGlobal = round($subtotalNetBeforeGlobal + (float) ($pi['_net_base'] ?? ($pi['item_subtotal'] ?? 0.0)), 2); }
 
-            // 2.2) Descuento global (opcional) antes de IVA: percent|amount sobre el subtotal neto
-            $globalDiscountType = $data['discount_type'] ?? null; // 'percent'|'amount'|null
-            $globalDiscountValue = isset($data['discount_value']) ? (float) $data['discount_value'] : null; // number
-            $globalDiscountAmount = 0.0;
-            if ($globalDiscountType && $globalDiscountValue !== null && $subtotalNetBeforeGlobal > 0) {
-                if ($globalDiscountType === 'percent') {
-                    $globalDiscountAmount = round($subtotalNetBeforeGlobal * ($globalDiscountValue / 100.0), 2);
-                } else { // amount
-                    $globalDiscountAmount = round($globalDiscountValue, 2);
-                }
-                if ($globalDiscountAmount > $subtotalNetBeforeGlobal) {
-                    $globalDiscountAmount = round($subtotalNetBeforeGlobal, 2);
-                }
+            // 2.2) Calcular IVA SIN descuento global primero
+            foreach ($preparedItems as &$item) {
+                $netBase = round((float) ($item['_net_base'] ?? ($item['item_subtotal'] ?? 0.0)), 2);
+                $item['item_subtotal'] = $netBase;
+                $item['item_iva'] = round($netBase * (((float)($item['iva_rate'] ?? 0.0)) / 100.0), 2);
+                $item['item_total'] = round($item['item_subtotal'] + $item['item_iva'], 2);
+                $item['_net_base'] = $netBase;
             }
-
-            // 2.3) Distribuir el descuento global proporcionalmente por ítem para recalcular IVA
-            if ($globalDiscountAmount > 0 && $subtotalNetBeforeGlobal > 0) {
-                $allocated = 0.0;
-                $count = count($preparedItems);
-                foreach ($preparedItems as $idx => &$item) {
-                    $netBase = (float) ($item['_net_base'] ?? ($item['item_subtotal'] ?? 0.0));
-                    $proportion = $netBase > 0 ? ($netBase / $subtotalNetBeforeGlobal) : 0.0;
-                    $share = ($idx === $count - 1)
-                        ? round($globalDiscountAmount - $allocated, 2)
-                        : round($globalDiscountAmount * $proportion, 2);
-                    if ($share < 0) { $share = 0.0; }
-                    $allocated = round($allocated + $share, 2);
-
-                    $adjNetBase = round(max(0.0, $netBase - $share), 2);
-
-                    // Recalcular IVA y totales con base ajustada (descuento ya aplicado)
-                    $rate = (float) ($item['iva_rate'] ?? 0.0);
-                    $item['item_subtotal'] = $adjNetBase; // base neta final antes de IVA
-                    $item['item_iva'] = round($adjNetBase * ($rate / 100.0), 2);
-                    $item['item_total'] = round($item['item_subtotal'] + $item['item_iva'], 2);
-                    $item['_net_base'] = $adjNetBase; // actualizar auxiliar
-                }
-                unset($item);
-            } else {
-                // Alinear item_subtotal (ya es neta) y recalcular IVA por consistencia
-                foreach ($preparedItems as &$item) {
-                    $netBase = round((float) ($item['_net_base'] ?? ($item['item_subtotal'] ?? 0.0)), 2);
-                    $item['item_subtotal'] = $netBase;
-                    $item['item_iva'] = round($netBase * (((float)($item['iva_rate'] ?? 0.0)) / 100.0), 2);
-                    $item['item_total'] = round($item['item_subtotal'] + $item['item_iva'], 2);
-                    $item['_net_base'] = $netBase;
-                }
-                unset($item);
-            }
+            unset($item);
 
             // 3) Totales y desglose de IVA por tasa
             $subtotalNetFinal = 0.0; // suma bases netas finales (con descuentos)
@@ -184,13 +144,34 @@ class SaleService implements SaleServiceInterface
             foreach ($preparedItems as $item) {
                 $sumPerItemDiscounts = round($sumPerItemDiscounts + (float) ($item['discount_amount'] ?? 0.0), 2);
             }
-            $totalDiscountApplied = round($sumPerItemDiscounts + (float) $globalDiscountAmount, 2);
 
             $iibb = round((float) ($data['iibb'] ?? 0.0), 2);
             $internalTax = round((float) ($data['internal_tax'] ?? 0.0), 2);
 
-            // Total = Subtotal (sin descuentos) - Descuentos + IVA + impuestos internos/IIBB
-            $finalTotal = round((($subtotalGrossBeforeDiscounts - $totalDiscountApplied) + $totalIvaAmount + $iibb + $internalTax), 2);
+            // 2.3) Aplicar descuento global DESPUÉS del IVA (sobre el total con IVA)
+            $globalDiscountType = $data['discount_type'] ?? null; // 'percent'|'amount'|null
+            $globalDiscountValue = isset($data['discount_value']) ? (float) $data['discount_value'] : null; // number
+            $globalDiscountAmount = 0.0;
+            
+            // Calcular subtotal + IVA antes del descuento global
+            $subtotalConIva = round($subtotalGrossBeforeDiscounts + $totalIvaAmount, 2);
+            
+            if ($globalDiscountType && $globalDiscountValue !== null && $subtotalConIva > 0) {
+                if ($globalDiscountType === 'percent') {
+                    $globalDiscountAmount = round($subtotalConIva * ($globalDiscountValue / 100.0), 2);
+                } else { // amount
+                    $globalDiscountAmount = round($globalDiscountValue, 2);
+                }
+                if ($globalDiscountAmount > $subtotalConIva) {
+                    $globalDiscountAmount = round($subtotalConIva, 2);
+                }
+            }
+
+            // Total de descuentos (por ítem + global)
+            $totalDiscountApplied = round($sumPerItemDiscounts + (float) $globalDiscountAmount, 2);
+
+            // Total final = Subtotal + IVA - Descuento Global + otros impuestos
+            $finalTotal = round($subtotalConIva - $globalDiscountAmount + $iibb + $internalTax, 2);
 
             // 4) Usar totales del frontend si están disponibles (para evitar diferencias de redondeo)
             if (isset($data['total']) && is_numeric($data['total'])) {

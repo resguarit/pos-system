@@ -529,7 +529,6 @@ export default function VentasPage() {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
           } catch (error) {
-            console.error("Error downloading PDF:", error);
             alert("Error al descargar PDF");
           } finally {
             setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
@@ -538,14 +537,15 @@ export default function VentasPage() {
 
   const handlePrintPdf = async (sale: SaleHeader) => {
     if (!sale || !sale.id) {
-      alert("No se puede imprimir el PDF: ID de venta faltante.");
+      toast.error("No se puede imprimir: ID de venta faltante.");
       return;
     }
 
     const actionKey = `print-${sale.id}`;
     setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
-    
+
     try {
+      // Descargar el PDF con autenticación usando request (incluye token)
       const response = await request({ 
         method: 'GET', 
         url: `/pos/sales/${sale.id}/pdf`,
@@ -556,54 +556,57 @@ export default function VentasPage() {
         throw new Error("La respuesta del servidor no es un archivo PDF válido.");
       }
       
+      // Crear blob URL del PDF descargado
       const blob = new Blob([response], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // Crear iframe oculto para imprimir
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.style.position = 'fixed';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
       
-      // Estrategia mejorada: descargar primero y luego intentar imprimir
-      console.log("PDF generado correctamente. Descargando...");
+      // Agregar al DOM
+      document.body.appendChild(iframe);
       
-      // Descargar el PDF primero para asegurar que esté disponible
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Comprobante_${sale.receipt_number || sale.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Asignar blob URL al iframe
+      iframe.src = blobUrl;
       
-      // Después de descargar, intentar abrir para imprimir
-      setTimeout(() => {
-        const printWindow = window.open(url, '_blank');
-        
-        if (printWindow) {
-          printWindow.onload = () => {
-            console.log("PDF cargado en nueva ventana");
-            // Dar tiempo para que el PDF se renderice completamente
-            setTimeout(() => {
-              printWindow.focus();
-              printWindow.print();
-              console.log("Diálogo de impresión abierto");
-              
-              // Cerrar la ventana después de imprimir
-              setTimeout(() => {
-                printWindow.close();
-                window.URL.revokeObjectURL(url);
-              }, 3000);
-            }, 2000);
-          };
+      // Cuando el iframe cargue, ejecutar print
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            // Ejecutar impresión desde el iframe
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch (err) {
+            toast.error("No se pudo abrir el diálogo de impresión.");
+          }
           
-          // Si el navegador bloquea la apertura, mostrar mensaje explicativo
-          printWindow.addEventListener('error', () => {
-            alert('El navegador bloqueó la apertura automática del PDF. Ya se descargó en tu equipo.\n\nPara imprimir:\n1. Busca el archivo descargado\n2. Ábrelo con tu visor de PDF\n3. Imprime desde ahí');
-          });
-        } else {
-          alert('No se pudo abrir el PDF automáticamente. Ya se descargó en tu equipo.\n\nPara imprimir:\n1. Busca el archivo "Comprobante_' + (sale.receipt_number || sale.id) + '.pdf" en tu carpeta de descargas\n2. Ábrelo con tu visor de PDF predeterminado\n3. Imprime usando Ctrl+P');
-          window.URL.revokeObjectURL(url);
+          // Limpiar después de un tiempo
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+            window.URL.revokeObjectURL(blobUrl);
+          }, 1000);
+        }, 500);
+      };
+      
+      // Timeout de seguridad
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+          window.URL.revokeObjectURL(blobUrl);
         }
-      }, 500);
+      }, 10000);
+      
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
+
     } catch (error) {
-      console.error("Error printing PDF:", error);
-      alert("Error al imprimir PDF");
-    } finally {
+      toast.error("Error al preparar la impresión.");
       setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
     }
   };
@@ -1093,33 +1096,64 @@ export default function VentasPage() {
               return;
             }
             try {
+              // Descargar el PDF con autenticación usando request (incluye token)
               const response = await request({ 
                 method: 'GET', 
                 url: `/pos/sales/${sale.id}/pdf`,
                 responseType: 'blob'
               });
+              
               if (!response || !(response instanceof Blob)) {
                 throw new Error("La respuesta del servidor no es un archivo PDF válido.");
               }
+              
+              // Crear blob URL del PDF descargado
               const blob = new Blob([response], { type: 'application/pdf' });
-              const url = window.URL.createObjectURL(blob);
+              const blobUrl = window.URL.createObjectURL(blob);
+
+              // Crear iframe oculto para imprimir
+              const iframe = document.createElement('iframe');
+              iframe.style.display = 'none';
+              iframe.style.position = 'fixed';
+              iframe.style.width = '0';
+              iframe.style.height = '0';
+              iframe.style.border = 'none';
               
-              // Abrir en ventana nueva para imprimir
-              const printWindow = window.open(url, '_blank');
-              if (printWindow) {
-                printWindow.onload = () => {
-                  printWindow.print();
-                };
-              } else {
-                toast.error("No se pudo abrir la ventana de impresión. Verifique que los pop-ups estén habilitados.");
-              }
+              // Agregar al DOM
+              document.body.appendChild(iframe);
               
-              // Limpiar URL después de un tiempo
+              // Asignar blob URL al iframe
+              iframe.src = blobUrl;
+              
+              // Cuando el iframe cargue, ejecutar print
+              iframe.onload = () => {
+                setTimeout(() => {
+                  try {
+                    // Ejecutar impresión desde el iframe
+                    iframe.contentWindow?.focus();
+                    iframe.contentWindow?.print();
+                  } catch (err) {
+                    toast.error("No se pudo abrir el diálogo de impresión.");
+                  }
+                  
+                  // Limpiar después de un tiempo
+                  setTimeout(() => {
+                    if (document.body.contains(iframe)) {
+                      document.body.removeChild(iframe);
+                    }
+                    window.URL.revokeObjectURL(blobUrl);
+                  }, 1000);
+                }, 500);
+              };
+              
+              // Timeout de seguridad
               setTimeout(() => {
-                window.URL.revokeObjectURL(url);
-              }, 1000);
+                if (document.body.contains(iframe)) {
+                  document.body.removeChild(iframe);
+                  window.URL.revokeObjectURL(blobUrl);
+                }
+              }, 10000);
             } catch (error) {
-              console.error("Error printing PDF:", error);
               toast.error("Error al imprimir el PDF");
             }
           }}
@@ -1151,7 +1185,6 @@ export default function VentasPage() {
               window.URL.revokeObjectURL(url);
               toast.success("PDF descargado exitosamente");
             } catch (error) {
-              console.error("Error downloading PDF:", error);
               toast.error("Error al descargar PDF");
             }
           }}

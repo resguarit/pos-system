@@ -199,7 +199,22 @@ class SaleController extends Controller
 
     public function downloadPdf($id)
     {
-        return $this->saleService->downloadPdf($id);
+        try {
+            $sale = \App\Models\SaleHeader::with([
+                'items.product.iva',
+                'branch',
+                'customer.person',
+                'receiptType',
+                'saleIvas.iva', 
+                'saleFiscalCondition',
+            ])->findOrFail($id);
+            
+            return $this->saleService->downloadPdf($id);
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error generando PDF: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     public function salesHistoryByBranch(Request $request, int $branchId): JsonResponse
