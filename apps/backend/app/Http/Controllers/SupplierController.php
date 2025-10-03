@@ -30,7 +30,8 @@ class SupplierController extends Controller
         }
 
         // Paginación
-        $perPage = $request->get('limit', 8);
+        $perPage = $request->get('per_page', $request->get('limit', 8));
+        $perPage = min($perPage, 10000); // Limitar a máximo 1000 registros por página
         $suppliers = $query->paginate($perPage);
 
         return response()->json([

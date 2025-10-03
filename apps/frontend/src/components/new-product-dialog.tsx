@@ -8,6 +8,8 @@ import { useState, useEffect } from "react"
 import useApi from "@/hooks/useApi"
 import { Textarea } from "@/components/ui/textarea"
 import { usePricing } from '@/hooks/usePricing'
+import { useExchangeRate } from '@/hooks/useExchangeRate'
+import { NumberFormatter } from '@/lib/formatters/numberFormatter'
 import FormattedNumberInput from '@/components/ui/formatted-number-input'
 import { useBranch } from '@/context/BranchContext'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -78,105 +80,198 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
   const [isCheckingDescription, setIsCheckingDescription] = useState<boolean>(false);
   const [codeTimeoutId, setCodeTimeoutId] = useState<number | null>(null);
   const [descriptionTimeoutId, setDescriptionTimeoutId] = useState<number | null>(null);
+  const [isManualPrice, setIsManualPrice] = useState(false);
 
   const { request, loading } = useApi();
 
-  // Hook de precios con valores por defecto para nuevo producto
+  // Key para localStorage
+  const STORAGE_KEY = 'newProductDialog_formData';
+  const { rate: exchangeRate } = useExchangeRate({ fromCurrency: 'USD', toCurrency: 'ARS' });
+
+  // Funciones para localStorage
+  const saveToStorage = (data: ProductFormData) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        formData: data,
+        selectedBranches,
+        minStock,
+        maxStock,
+        isManualPrice,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.warn('Error guardando en localStorage:', error);
+    }
+  };
+
+  const loadFromStorage = () => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Solo restaurar si no ha pasado más de 24 horas
+        if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      console.warn('Error cargando desde localStorage:', error);
+    }
+    return null;
+  };
+
+  const clearStorage = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      console.warn('Error limpiando localStorage:', error);
+    }
+  };
+
+  // Hook de precios solo para formateo
   const {
-    pricing,
-    updateUnitPrice,
-    updateMarkup,
-    updateSalePrice,
-    updateCurrency,
-    updateIvaRate,
-    validatePricing,
     formatPrice
-  } = usePricing({
-    unitPrice: 0,
-    currency: 'ARS',
-    markup: 0,
-    ivaRate: 0.21, // IVA por defecto 21%
-    initialSalePrice: 0
-  });
+  } = usePricing();
+
+  // Funciones de cálculo locales
+  const convertToARS = (amount: number, currency: string): number => {
+    if (currency === 'USD' && exchangeRate && exchangeRate > 0) {
+      return amount * exchangeRate;
+    }
+    return amount;
+  };
+
+  const calculateSalePrice = (unitPrice: number, currency: string, markup: number, ivaRate: number): number => {
+    if (!unitPrice || unitPrice <= 0) return 0;
+    
+    const costInArs = convertToARS(unitPrice, currency);
+    const costWithIva = costInArs * (1 + ivaRate);
+    const priceWithMarkup = costWithIva * (1 + markup);
+    
+    // Redondear de manera inteligente
+    const finalPrice = priceWithMarkup < 1000 
+      ? Math.round(priceWithMarkup / 10) * 10
+      : Math.round(priceWithMarkup / 100) * 100;
+    
+    return finalPrice;
+  };
+
+  const calculateMarkup = (unitPrice: number, currency: string, salePrice: number, ivaRate: number): number => {
+    if (!unitPrice || unitPrice <= 0 || !salePrice || salePrice <= 0) return 0;
+    
+    const costInArs = convertToARS(unitPrice, currency);
+    const priceWithoutIva = salePrice / (1 + ivaRate);
+    const markup = (priceWithoutIva / costInArs) - 1;
+    
+    return Math.round(markup * 10000) / 10000;
+  };
+
+  const getCurrentIvaRate = (): number => {
+    if (formData.iva_id && ivas.length > 0) {
+      const selectedIva = ivas.find(iva => iva.id.toString() === formData.iva_id);
+      return selectedIva ? selectedIva.rate / 100 : 0;
+    }
+    return 0;
+  };
+
+  const validatePricing = (): boolean => {
+    const unitPrice = NumberFormatter.parseFormattedNumber(formData.unit_price || '0');
+    const salePrice = NumberFormatter.parseFormattedNumber(formData.sale_price || '0');
+    const markup = NumberFormatter.parseFormattedNumber(formData.markup || '0');
+    
+    // Validar que el precio unitario sea mayor a 0
+    if (unitPrice <= 0) {
+      return false;
+    }
+    
+    // Validar que el precio de venta sea mayor a 0
+    if (salePrice <= 0) {
+      return false;
+    }
+    
+    // Validar que el markup no sea menor a -100% (no puede ser negativo más de 100%)
+    if (markup < -100) {
+      return false;
+    }
+    
+    return true;
+  };
 
   useEffect(() => {
     if (open) {
       fetchCatalogs();
-      // Reset form
-      setFormData({
-        code: "",
-        description: "",
-        unit_price: "",
-        currency: "ARS",
-        markup: "",
-        sale_price: "",
-        category_id: "",
-        measure_id: "none",
-        supplier_id: "",
-        iva_id: "",
-        observaciones: "",
-        status: "1",
-        web: "1"
-      });
       
-      // Inicializar sucursales seleccionadas
-      if (branches.length === 1) {
-        // Si hay una sola sucursal, seleccionarla automáticamente
-        setSelectedBranches([String(branches[0].id)]);
+      // Intentar cargar datos guardados
+      const savedData = loadFromStorage();
+      
+      if (savedData) {
+        // Restaurar datos guardados
+        setFormData(savedData.formData);
+        setSelectedBranches(savedData.selectedBranches || []);
+        setMinStock(savedData.minStock || "0");
+        setMaxStock(savedData.maxStock || "0");
+        setIsManualPrice(savedData.isManualPrice || false);
+        
+        toast.info("Datos restaurados automáticamente", {
+          description: "Se han cargado los datos que tenías anteriormente"
+        });
       } else {
-        // Si hay múltiples sucursales, no seleccionar ninguna por defecto
-        // El usuario debe elegir explícitamente
-        setSelectedBranches([]);
+        // Reset form con valores por defecto
+        setIsManualPrice(false);
+        setFormData({
+          code: "",
+          description: "",
+          unit_price: "",
+          currency: "ARS",
+          markup: "",
+          sale_price: "",
+          category_id: "",
+          measure_id: "none",
+          supplier_id: "",
+          iva_id: "",
+          observaciones: "",
+          status: "1",
+          web: "1"
+        });
+        
+        // Inicializar sucursales seleccionadas
+        if (branches.length === 1) {
+          // Si hay una sola sucursal, seleccionarla automáticamente
+          setSelectedBranches([String(branches[0].id)]);
+        } else {
+          // Si hay múltiples sucursales, no seleccionar ninguna por defecto
+          // El usuario debe elegir explícitamente
+          setSelectedBranches([]);
+        }
+        
+        // Resetear stock min/max
+        setMinStock("0");
+        setMaxStock("0");
       }
-      
-      // Resetear stock min/max
-      setMinStock("0");
-      setMaxStock("0");
       
       // Resetear validación de código y descripción
       setCodeError("");
       setIsCheckingCode(false);
       setDescriptionError("");
       setIsCheckingDescription(false);
+    } else {
+      // Cuando se cierra el diálogo, limpiar el storage si no hay datos importantes
+      if (!formData.description && !formData.code && !formData.unit_price) {
+        clearStorage();
+      }
     }
   }, [open, branches, selectedBranch]);
 
-  // Sincronizar valores del formulario con el hook de precios
+  // Guardar automáticamente los datos cuando cambien (solo si el diálogo está abierto)
   useEffect(() => {
-    if (formData.unit_price && !isNaN(parseFloat(formData.unit_price))) {
-      updateUnitPrice(parseFloat(formData.unit_price));
-    }
-  }, [formData.unit_price, updateUnitPrice]);
+    if (open && (formData.description || formData.code || formData.unit_price || formData.sale_price)) {
+      const timeoutId = setTimeout(() => {
+        saveToStorage(formData);
+      }, 1000); // Debounce de 1 segundo
 
-  useEffect(() => {
-    updateCurrency(formData.currency);
-  }, [formData.currency, updateCurrency]);
-
-  useEffect(() => {
-    if (formData.markup && !isNaN(parseFloat(formData.markup))) {
-      updateMarkup(parseFloat(formData.markup) / 100);
+      return () => clearTimeout(timeoutId);
     }
-  }, [formData.markup, updateMarkup]);
-
-  // Sincronizar IVA seleccionado con el hook de precios
-  useEffect(() => {
-    if (formData.iva_id && ivas.length > 0) {
-      const selectedIva = ivas.find(iva => iva.id.toString() === formData.iva_id);
-      if (selectedIva) {
-        updateIvaRate(selectedIva.rate / 100);
-      }
-    }
-  }, [formData.iva_id, ivas, updateIvaRate]);
-
-  // Solo sincronizar el sale_price calculado cuando no hay valor manual
-  useEffect(() => {
-    if (pricing.salePrice && pricing.salePrice > 0 && !formData.sale_price) {
-      setFormData(prev => ({
-        ...prev,
-        sale_price: pricing.salePrice.toString()
-      }));
-    }
-  }, [pricing.salePrice, formData.sale_price]);
+  }, [open, formData, selectedBranches, minStock, maxStock, isManualPrice]);
 
   const fetchCatalogs = async () => {
     try {
@@ -304,23 +399,117 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       setDescriptionTimeoutId(newTimeoutId);
     }
 
-    // Manejar cambios específicos para precios
+    // Manejar cambios específicos para precios con lógica inteligente
     if (field === 'unit_price') {
-      const numValue = parseFloat(value) || 0;
-      updateUnitPrice(numValue);
+      const numValue = NumberFormatter.parseFormattedNumber(value) || 0;
+      
+      // Si hay un precio de venta manual, recalcular el markup
+      if (isManualPrice && formData.sale_price) {
+        const salePrice = NumberFormatter.parseFormattedNumber(formData.sale_price) || 0;
+        const currentIvaRate = getCurrentIvaRate();
+        const newMarkup = calculateMarkup(numValue, formData.currency, salePrice, currentIvaRate);
+        
+        setFormData(prev => ({
+          ...prev,
+          [field]: value,
+          markup: (newMarkup * 100).toFixed(2) // Convertir a porcentaje
+        }));
+      } else {
+        // Caso normal: recalcular precio de venta
+        const currentMarkup = NumberFormatter.parseFormattedNumber(formData.markup) / 100 || 0;
+        const currentIvaRate = getCurrentIvaRate();
+        const newSalePrice = calculateSalePrice(numValue, formData.currency, currentMarkup, currentIvaRate);
+        
+        setFormData(prev => ({
+          ...prev,
+          [field]: value,
+          sale_price: newSalePrice > 0 ? newSalePrice.toString() : ''
+        }));
+        setIsManualPrice(false);
+      }
     } else if (field === 'markup') {
-      const numValue = parseFloat(value) || 0;
-      updateMarkup(numValue / 100); // Convertir porcentaje a decimal
+      // Siempre recalcular precio de venta cuando se cambia markup
+      const numValue = NumberFormatter.parseFormattedNumber(value) || 0;
+      const unitPrice = NumberFormatter.parseFormattedNumber(formData.unit_price) || 0;
+      const currentIvaRate = getCurrentIvaRate();
+      const newSalePrice = calculateSalePrice(unitPrice, formData.currency, numValue / 100, currentIvaRate);
+      
+      setFormData(prev => ({
+        ...prev,
+        [field]: value,
+        sale_price: newSalePrice > 0 ? newSalePrice.toString() : ''
+      }));
+      setIsManualPrice(false);
     } else if (field === 'sale_price') {
-      const numValue = parseFloat(value) || 0;
-      updateSalePrice(numValue);
-      // El hook usePricing se encarga de recalcular el markup automáticamente
+      // Precio manual: recalcular markup
+      const numValue = NumberFormatter.parseFormattedNumber(value) || 0;
+      const unitPrice = NumberFormatter.parseFormattedNumber(formData.unit_price) || 0;
+      const currentIvaRate = getCurrentIvaRate();
+      
+      if (unitPrice > 0) {
+        const newMarkup = calculateMarkup(unitPrice, formData.currency, numValue, currentIvaRate);
+        setFormData(prev => ({
+          ...prev,
+          [field]: value,
+          markup: (newMarkup * 100).toFixed(2)
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [field]: value
+        }));
+      }
+      
+      setIsManualPrice(true);
     } else if (field === 'currency') {
-      updateCurrency(value as 'USD' | 'ARS');
+      // Recalcular precios cuando cambia la moneda
+      const unitPrice = NumberFormatter.parseFormattedNumber(formData.unit_price) || 0;
+      const currentIvaRate = getCurrentIvaRate();
+      
+      if (isManualPrice && formData.sale_price) {
+        // Si hay precio manual, recalcular markup con nueva moneda
+        const salePrice = NumberFormatter.parseFormattedNumber(formData.sale_price) || 0;
+        const newMarkup = calculateMarkup(unitPrice, value, salePrice, currentIvaRate);
+        setFormData(prev => ({
+          ...prev,
+          currency: value as 'USD' | 'ARS',
+          markup: (newMarkup * 100).toFixed(2)
+        }));
+      } else {
+        // Recalcular precio de venta con nueva moneda
+        const currentMarkup = NumberFormatter.parseFormattedNumber(formData.markup) / 100 || 0;
+        const newSalePrice = calculateSalePrice(unitPrice, value, currentMarkup, currentIvaRate);
+        setFormData(prev => ({
+          ...prev,
+          currency: value as 'USD' | 'ARS',
+          sale_price: newSalePrice > 0 ? newSalePrice.toString() : ''
+        }));
+      }
     } else if (field === 'iva_id') {
       const selectedIva = ivas.find(iva => iva.id.toString() === value);
       if (selectedIva) {
-        updateIvaRate(selectedIva.rate / 100);
+        const unitPrice = NumberFormatter.parseFormattedNumber(formData.unit_price) || 0;
+        const newIvaRate = selectedIva.rate / 100;
+        
+        if (isManualPrice && formData.sale_price) {
+          // Si hay precio manual, recalcular markup con nuevo IVA
+          const salePrice = NumberFormatter.parseFormattedNumber(formData.sale_price) || 0;
+          const newMarkup = calculateMarkup(unitPrice, formData.currency, salePrice, newIvaRate);
+          setFormData(prev => ({
+            ...prev,
+            [field]: value,
+            markup: (newMarkup * 100).toFixed(2)
+          }));
+        } else {
+          // Recalcular precio de venta con nuevo IVA
+          const currentMarkup = parseFloat(formData.markup) / 100 || 0;
+          const newSalePrice = calculateSalePrice(unitPrice, formData.currency, currentMarkup, newIvaRate);
+          setFormData(prev => ({
+            ...prev,
+            [field]: value,
+            sale_price: newSalePrice > 0 ? newSalePrice.toString() : ''
+          }));
+        }
       }
     }
   };
@@ -416,23 +605,26 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       return;
     }
 
-    // Validar precios con el hook
+    // Validar precios
     if (!validatePricing()) {
       toast.error("Error en los parámetros de precios. Verifique que los valores sean válidos.");
       return;
     }
 
     try {
+      const salePriceToSend = NumberFormatter.parseFormattedNumber(formData.sale_price || '0');
+      const markupToSend = NumberFormatter.parseFormattedNumber(formData.markup || '0') / 100;
+
       await request({
         method: 'POST',
         url: '/products',
         data: {
           description: formData.description,
           code: formData.code,
-          unit_price: parseFloat(formData.unit_price),
+          unit_price: NumberFormatter.parseFormattedNumber(formData.unit_price || '0'),
           currency: formData.currency,
-          markup: pricing.markup, // Usar el markup del hook (en decimal)
-          sale_price: pricing.salePrice, // Usar el precio calculado
+          markup: markupToSend, // Usar el markup calculado localmente
+          sale_price: salePriceToSend, // Usar el precio manual del usuario, o el calculado si no hay manual
           category_id: parseInt(formData.category_id),
           measure_id: formData.measure_id && formData.measure_id !== 'none' ? parseInt(formData.measure_id) : null, // Permitir null
           supplier_id: parseInt(formData.supplier_id),
@@ -451,6 +643,10 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           ? `Stock inicial creado en ${selectedBranches.length} sucursal${selectedBranches.length > 1 ? 'es' : ''}`
           : "Producto creado sin stock inicial"
       });
+      
+      // Limpiar localStorage después del envío exitoso
+      clearStorage();
+      
       onSuccess();
       onOpenChange(false);
 
@@ -474,7 +670,14 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuevo Producto</DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle>Nuevo Producto</DialogTitle>
+            {loadFromStorage() && (
+              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                📄 Datos guardados automáticamente
+              </div>
+            )}
+          </div>
           <DialogDescription>
             Complete los datos del nuevo producto. Los precios se calcularán automáticamente.
           </DialogDescription>
@@ -564,15 +767,29 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
               <FormattedNumberInput
                 id="sale_price"
                 formatType="salePrice"
-                currency={formData.currency}
+                currency="ARS"
                 value={formData.sale_price}
                 onChange={(value) => handleInputChange('sale_price', value.toString())}
-                placeholder="0,00"
+                placeholder="Ingrese precio manual o se calculará automáticamente"
                 className="font-mono"
               />
-              <div className="text-sm text-muted-foreground flex items-center">
-                Calculado: {formatPrice(pricing.salePrice)}
-              </div>
+              {(() => {
+                const unitPrice = NumberFormatter.parseFormattedNumber(formData.unit_price || '0');
+                const markupParsed = parseFloat(formData.markup || '0');
+                const markup = markupParsed / 100;
+                const ivaRate = getCurrentIvaRate();
+                
+                const autoPrice = calculateSalePrice(unitPrice, formData.currency, markup, ivaRate);
+                
+                if (autoPrice > 0) {
+                  return (
+                    <div className="text-sm text-muted-foreground flex items-center">
+                      Calculado: {formatPrice(autoPrice)}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
 
@@ -753,20 +970,40 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
-              </>
-            ) : (
-              'Guardar Producto'
+        <DialogFooter className="gap-2">
+          <div className="flex gap-2">
+            {loadFromStorage() && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => {
+                  clearStorage();
+                  toast.info("Datos guardados eliminados");
+                  // Recargar el diálogo
+                  onOpenChange(false);
+                  setTimeout(() => onOpenChange(true), 100);
+                }}
+                disabled={loading}
+              >
+                🗑️ Limpiar guardado
+              </Button>
             )}
-          </Button>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSubmit} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar Producto'
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
