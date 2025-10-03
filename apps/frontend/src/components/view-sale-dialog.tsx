@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { Download } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { type Dispatch, type SetStateAction } from "react";
 import { type SaleHeader } from "@/types/sale";
 
@@ -30,6 +30,7 @@ interface ViewSaleDialogProps {
     sale: SaleHeader
   ) => { displayName: string; afipCode: string };
   onDownloadPdf: (sale: SaleHeader) => Promise<void>;
+  onPrintPdf?: (sale: SaleHeader) => Promise<void>;
 }
 
 const ViewSaleDialog = ({
@@ -40,6 +41,7 @@ const ViewSaleDialog = ({
   formatDate,
   getReceiptType,
   onDownloadPdf,
+  onPrintPdf,
 }: ViewSaleDialogProps) => {
   const formatCurrencyARS = (amount: number | null | undefined) => {
     if (amount == null) return '$0.00 ARS';
@@ -212,8 +214,13 @@ const ViewSaleDialog = ({
           </Table>
         </div>
         <DialogFooter className="px-6 py-3 shrink-0">
-          <Button onClick={() => onDownloadPdf(sale)} size="sm">
-            <Download className="mr-2 h-4 w-4" /> Descargar PDF del Comprobante
+          {onPrintPdf && (
+            <Button onClick={() => onPrintPdf(sale)} size="sm" variant="default">
+              <Printer className="mr-2 h-4 w-4" /> Imprimir
+            </Button>
+          )}
+          <Button onClick={() => onDownloadPdf(sale)} size="sm" variant="secondary">
+            <Download className="mr-2 h-4 w-4" /> Descargar PDF
           </Button>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cerrar</Button>
         </DialogFooter>

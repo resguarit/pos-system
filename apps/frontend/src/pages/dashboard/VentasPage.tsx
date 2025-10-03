@@ -21,6 +21,7 @@ import {
   Loader2,
   RefreshCw,
   X,
+  Printer,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ViewSaleDialog from "@/components/view-sale-dialog";
@@ -535,6 +536,78 @@ export default function VentasPage() {
           }
   };
 
+  const handlePrintPdf = async (sale: SaleHeader) => {
+    if (!sale || !sale.id) {
+      alert("No se puede imprimir el PDF: ID de venta faltante.");
+      return;
+    }
+
+    const actionKey = `print-${sale.id}`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
+    
+    try {
+      const response = await request({ 
+        method: 'GET', 
+        url: `/pos/sales/${sale.id}/pdf`,
+        responseType: 'blob'
+      });
+      
+      if (!response || !(response instanceof Blob)) {
+        throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+      }
+      
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Estrategia mejorada: descargar primero y luego intentar imprimir
+      console.log("PDF generado correctamente. Descargando...");
+      
+      // Descargar el PDF primero para asegurar que esté disponible
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Comprobante_${sale.receipt_number || sale.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Después de descargar, intentar abrir para imprimir
+      setTimeout(() => {
+        const printWindow = window.open(url, '_blank');
+        
+        if (printWindow) {
+          printWindow.onload = () => {
+            console.log("PDF cargado en nueva ventana");
+            // Dar tiempo para que el PDF se renderice completamente
+            setTimeout(() => {
+              printWindow.focus();
+              printWindow.print();
+              console.log("Diálogo de impresión abierto");
+              
+              // Cerrar la ventana después de imprimir
+              setTimeout(() => {
+                printWindow.close();
+                window.URL.revokeObjectURL(url);
+              }, 3000);
+            }, 2000);
+          };
+          
+          // Si el navegador bloquea la apertura, mostrar mensaje explicativo
+          printWindow.addEventListener('error', () => {
+            alert('El navegador bloqueó la apertura automática del PDF. Ya se descargó en tu equipo.\n\nPara imprimir:\n1. Busca el archivo descargado\n2. Ábrelo con tu visor de PDF\n3. Imprime desde ahí');
+          });
+        } else {
+          alert('No se pudo abrir el PDF automáticamente. Ya se descargó en tu equipo.\n\nPara imprimir:\n1. Busca el archivo "Comprobante_' + (sale.receipt_number || sale.id) + '.pdf" en tu carpeta de descargas\n2. Ábrelo con tu visor de PDF predeterminado\n3. Imprime usando Ctrl+P');
+          window.URL.revokeObjectURL(url);
+        }
+      }, 500);
+    } catch (error) {
+      console.error("Error printing PDF:", error);
+      alert("Error al imprimir PDF");
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
+    }
+  };
+
   const handleAnnulSale = (sale: SaleHeader) => {
     setSaleToAnnul(sale);
     setIsAnnulDialogOpen(true);
@@ -945,6 +1018,27 @@ export default function VentasPage() {
                       </Button>
                       <Button
                         variant="ghost"
+                        className={`text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
+                        size="icon"
+                        onClick={
+                          hasPermission('reimprimir_comprobantes')
+                            ? () => handlePrintPdf(sale)
+                            : undefined
+                        }
+                        title={
+                          hasPermission('reimprimir_comprobantes') ? 'Imprimir comprobante' : ''
+                        }
+                        type="button"
+                        disabled={loadingActions[`print-${sale.id}`]}
+                      >
+                        {loadingActions[`print-${sale.id}`] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Printer className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
                         className={`text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 ${
                           hasPermission('anular_ventas') && sale.status === 'active'
                             ? 'cursor-pointer'
@@ -993,9 +1087,45 @@ export default function VentasPage() {
           getCustomerName={getCustomerName}
           formatDate={formatDate}
           getReceiptType={getReceiptType}
+          onPrintPdf={async (sale) => {
+            if (!sale || !sale.id) {
+              toast.error("No se puede imprimir: ID de venta faltante.");
+              return;
+            }
+            try {
+              const response = await request({ 
+                method: 'GET', 
+                url: `/pos/sales/${sale.id}/pdf`,
+                responseType: 'blob'
+              });
+              if (!response || !(response instanceof Blob)) {
+                throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+              }
+              const blob = new Blob([response], { type: 'application/pdf' });
+              const url = window.URL.createObjectURL(blob);
+              
+              // Abrir en ventana nueva para imprimir
+              const printWindow = window.open(url, '_blank');
+              if (printWindow) {
+                printWindow.onload = () => {
+                  printWindow.print();
+                };
+              } else {
+                toast.error("No se pudo abrir la ventana de impresión. Verifique que los pop-ups estén habilitados.");
+              }
+              
+              // Limpiar URL después de un tiempo
+              setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+              }, 1000);
+            } catch (error) {
+              console.error("Error printing PDF:", error);
+              toast.error("Error al imprimir el PDF");
+            }
+          }}
           onDownloadPdf={async (sale) => {
             if (!sale || !sale.id) {
-              alert("No se puede descargar el PDF: ID de venta faltante.");
+              toast.error("No se puede descargar el PDF: ID de venta faltante.");
               return;
             }
             try {
@@ -1019,9 +1149,10 @@ export default function VentasPage() {
               a.click();
               document.body.removeChild(a);
               window.URL.revokeObjectURL(url);
+              toast.success("PDF descargado exitosamente");
             } catch (error) {
               console.error("Error downloading PDF:", error);
-              alert("Error al descargar PDF");
+              toast.error("Error al descargar PDF");
             }
           }}
         />
