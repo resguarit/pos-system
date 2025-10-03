@@ -373,3 +373,175 @@ sudo crontab -e
 ---
 
 For additional support, refer to the main [README.md](./README.md) or create an issue in the repository.
+
+---
+
+## 🤖 CI/CD Automático (Implementación Real en Producción)
+
+Esta sección documenta exactamente el proceso que FUNCIONA actualmente para el despliegue automático (frontend y backend) del sistema POS en el VPS.
+
+### 🎯 Objetivo
+Al hacer push a la rama `master`, GitHub Actions ejecuta un workflow que:
+1. Se conecta por SSH al VPS usando un usuario deployment seguro
+2. Ejecuta dos scripts residentes en el servidor: `~/deploy-frontend.sh` y `~/deploy-backend.sh`
+3. Cada script realiza build/actualización en entorno aislado y publica artefactos
+
+### 🧱 Componentes Clave
+
+| Componente | Rol | Ubicación |
+|------------|-----|-----------|
+| Usuario `posdeployer` | Usuario no-root para despliegues | VPS |
+| Clave SSH (privada en GitHub Secret) | Autenticación sin password | GitHub Secrets |
+| `deploy-frontend.sh` | Build remoto aislado y publicación React | `~/deploy-frontend.sh` (VPS) |
+| `deploy-backend.sh` | Actualización Laravel + migraciones | `~/deploy-backend.sh` (VPS) |
+| Workflow `deploy.yml` | Orquestación CI/CD | `.github/workflows/deploy.yml` |
+| NVM + Node 20 | Entorno JS consistente | `$HOME/.nvm` (VPS) |
+| Repositorio monorepo | Código fuente | `/home/api.heroedelwhisky.com.ar/public_html` |
+| Carpeta frontend pública | Hosting estático | `/home/heroedelwhisky.com.ar/public_html` |
+
+### 🔐 Secrets Reales Utilizados
+
+Se configuraron en GitHub (Settings → Secrets and variables → Actions):
+
+| Nombre | Descripción |
+|--------|-------------|
+| `VPS_HOST` | IP del servidor (ej: `149.50.138.145`) |
+| `VPS_PORT` | Puerto SSH (ej: `5507`) |
+| `VPS_USERNAME` | `posdeployer` |
+| `VPS_SSH_KEY` | Clave privada del usuario `posdeployer` |
+
+No se exponen paths ni variables adicionales; los scripts en el servidor resuelven rutas internamente.
+
+### 👤 Creación del Usuario de Deploy (`posdeployer`)
+
+```bash
+sudo addgroup posgroup
+sudo adduser --ingroup posgroup posdeployer
+sudo usermod -aG www-data posdeployer
+sudo mkdir -p /home/posdeployer/.ssh
+sudo chown -R posdeployer:posgroup /home/posdeployer/.ssh
+chmod 700 /home/posdeployer/.ssh
+# Copiar la clave pública autorizada
+echo "ssh-ed25519 AAAA... github-ci" | sudo tee -a /home/posdeployer/.ssh/authorized_keys
+sudo chown posdeployer:posgroup /home/posdeployer/.ssh/authorized_keys
+chmod 600 /home/posdeployer/.ssh/authorized_keys
+```
+
+Deshabilitar login por contraseña (en `/etc/ssh/sshd_config`):
+
+```
+PasswordAuthentication no
+PermitRootLogin prohibit-password
+```
+
+Reiniciar SSH:
+```bash
+sudo systemctl restart sshd
+```
+
+### 🗂️ Estructura Real en el VPS
+
+```text
+/home/
+ ├─ api.heroedelwhisky.com.ar/public_html/   (clonado monorepo Git)
+ │   └─ apps/backend  (Laravel)
+ │   └─ apps/frontend (Código fuente React)
+ ├─ heroedelwhisky.com.ar/public_html/       (Solo artefactos compilados dist/)
+ ├─ posdeployer/                             (Home del usuario CI/CD)
+      ├─ deploy-frontend.sh
+      └─ deploy-backend.sh
+```
+
+### ⚙️ Instalar Dependencias Fundamentales (una sola vez)
+
+```bash
+# Node via NVM para evitar paquetes nativos rotos
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.nvm/nvm.sh
+nvm install 20
+nvm alias default 20
+
+# Composer global estable
+EXPECTED_SIGNATURE=$(curl -s https://composer.github.io/installer.sig) \
+  && php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+  && ACTUAL_SIGNATURE=$(php -r "echo hash_file('sha384', 'composer-setup.php');") \
+  && [ "$EXPECTED_SIGNATURE" = "$ACTUAL_SIGNATURE" ] && php composer-setup.php --install-dir=/usr/local/bin --filename=composer && rm composer-setup.php
+```
+
+### 🧪 Decisiones Técnicas Clave
+
+| Problema | Riesgo | Decisión | Justificación |
+|----------|--------|----------|---------------|
+| Dependencias nativas (SWC) fallando | Builds rotos | Migrar a `@vitejs/plugin-react` (Babel) | Evita binarios compilados en VPS LiteSpeed |
+| Build frontend contaminando repo | Cache rotas / permisos | Build en carpeta temporal | Aísla dependencias y garantiza reproducibilidad |
+| Permisos `storage/` Laravel | Errores de escritura logs | `chmod -R 777 storage/` (inicial) | Solución rápida; pendiente ajuste fino |
+| Rollback rápido | Interrupción servicio | Scripts idempotentes y `git reset --hard` | Estado reproducible post-deploy |
+| Entorno Node impredecible | Builds inconsistentes | Forzar Node 20 vía NVM | Uniformidad en CI y VPS |
+
+### 🧵 Flujo Completo (End-to-End)
+
+1. Developer hace `git push origin master`
+2. GitHub Actions dispara workflow `deploy.yml`
+3. Job `deploy-frontend` → SSH → ejecuta `~/deploy-frontend.sh`
+    - Resetea repo a `origin/master`
+    - Copia código `apps/frontend` a `/tmp/*`
+    - Instala dependencias limpias
+    - Ejecuta `npm run build`
+    - Copia `dist/` a `/home/heroedelwhisky.com.ar/public_html`
+4. Job `deploy-backend` → SSH → ejecuta `~/deploy-backend.sh`
+    - `git pull`
+    - `composer install --no-dev --optimize-autoloader`
+    - Limpia y recompila caches
+    - Corre migraciones con `--force`
+5. Job `notify` resume resultados
+6. Sitio actualizado sin intervención manual
+
+### 📜 Contenido Real de los Scripts (Referencia)
+
+`deploy-frontend.sh` (resumen lógico):
+```
+git reset --hard origin/master
+aislar código → instalar deps → build vite → publicar dist/* → limpiar temporales
+```
+
+`deploy-backend.sh` (resumen lógico):
+```
+git pull → composer install → limpiar caches → migrar → cache config/route/view
+```
+
+### 🧷 Hooks / Integraciones
+No se usan webhooks adicionales ni PM2. Laravel sirve vía PHP/LiteSpeed y frontend es estático.
+
+### 🔄 Rollback Simplificado
+
+```bash
+# Backend
+cd /home/api.heroedelwhisky.com.ar/public_html
+git log --oneline | head -n 5
+git checkout <commit_anterior>
+php artisan config:cache route:cache view:cache
+
+# Frontend
+cd /home/heroedelwhisky.com.ar/public_html
+# Mantener snapshot previo (opción futura: versionar dist con timestamp)
+```
+
+### 🔍 Verificación Post-Deploy
+```bash
+curl -I https://heroedelwhisky.com.ar | grep 200
+curl -I https://api.heroedelwhisky.com.ar/up | grep 200
+tail -n 50 /home/api.heroedelwhisky.com.ar/public_html/storage/logs/laravel.log
+```
+
+### 🛡️ Mejoras Futuras Recomendadas
+| Categoría | Mejora | Beneficio |
+|-----------|--------|-----------|
+| Seguridad | Ajustar permisos `storage/` (usar grupo www-data) | Menor superficie de riesgo |
+| Seguridad | Fail2ban + firewall reglas específicas | Mitigación ataques fuerza bruta |
+| Observabilidad | Agregar monitoreo (Health + UptimeRobot) | Detección temprana de caídas |
+| Confiabilidad | Artefactos versionados (ej: `dist-YYYYMMDDHHmm/`) | Rollback instantáneo |
+| Calidad | Tests automáticos antes de deploy | Evitar despliegues rotos |
+
+### 🧾 Resumen Ejecutivo
+El pipeline implementado es minimalista, reproducible y seguro respecto a: llave SSH dedicada, usuario sin privilegios de root, build aislado del frontend y despliegues idempotentes. Sirve como base sólida para escalar hacia mayor observabilidad y control en etapas posteriores.
+

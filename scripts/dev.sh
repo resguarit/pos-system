@@ -87,6 +87,27 @@ install_all() {
 start_dev() {
     print_status "Starting development servers..."
     
+    # Check if frontend dependencies are installed
+    if [ ! -d "apps/frontend/node_modules" ]; then
+        print_warning "Frontend dependencies not found. Installing..."
+        cd apps/frontend
+        npm install
+        cd ../..
+    fi
+    
+    # Check if backend dependencies are installed
+    if [ ! -d "apps/backend/vendor" ]; then
+        print_warning "Backend dependencies not found. Installing..."
+        cd apps/backend
+        composer install
+        cd ../..
+    fi
+    
+    print_success "Dependencies verified. Starting development servers..."
+    print_status "Frontend will be available at http://localhost:5173"
+    print_status "Backend API will be available at http://localhost:8000"
+    print_status "Press Ctrl+C to stop all servers"
+    
     # Start both frontend and backend in parallel
     npm run dev
 }
@@ -136,6 +157,18 @@ lint_code() {
     print_success "Linting completed"
 }
 
+# Clean previous development servers
+clean_servers() {
+    print_status "Cleaning previous development servers..."
+    
+    # Kill any running Vite processes
+    pkill -f "vite" 2>/dev/null || true
+    # Kill any running PHP artisan serve processes
+    pkill -f "php artisan serve" 2>/dev/null || true
+    
+    print_success "Previous servers cleaned"
+}
+
 # Show help
 show_help() {
     echo "POS System Development Script"
@@ -149,6 +182,7 @@ show_help() {
     echo "  test        Run all tests"
     echo "  lint        Lint code"
     echo "  check       Check dependencies"
+    echo "  clean       Clean previous development servers"
     echo "  help        Show this help message"
     echo ""
 }
@@ -177,6 +211,9 @@ case "${1:-help}" in
         ;;
     check)
         check_dependencies
+        ;;
+    clean)
+        clean_servers
         ;;
     help|--help|-h)
         show_help
