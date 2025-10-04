@@ -34,8 +34,8 @@ class PosController extends Controller
             return response()->json([]);
         }
 
-        $products = Product::where('name', 'LIKE', "%{$query}%")
-                           ->orWhere('barcode', '=', $query)
+        $products = Product::where('description', 'LIKE', "%{$query}%")
+                           ->orWhere('code', '=', $query)
                            ->take(20) // Limitar el número de resultados
                            ->get();
 
