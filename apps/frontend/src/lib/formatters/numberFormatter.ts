@@ -150,12 +150,37 @@ export class NumberFormatter {
    * SRP: Responsabilidad específica para parsing
    */
   static parseFormattedNumber(formattedValue: string): number {
-    // Remover separadores de miles y reemplazar coma decimal por punto
-    const cleanValue = formattedValue
-      .replace(/\./g, '') // Remover puntos (separadores de miles)
-      .replace(',', '.'); // Reemplazar coma decimal por punto
+    if (!formattedValue || formattedValue.trim() === '') return 0;
     
-    return parseFloat(cleanValue) || 0;
+    // Detectar si usa coma como separador decimal (formato europeo/latinoamericano)
+    const hasCommaDecimal = formattedValue.includes(',') && !formattedValue.includes('.');
+    const hasDotDecimal = formattedValue.includes('.') && !formattedValue.includes(',');
+    const hasBoth = formattedValue.includes(',') && formattedValue.includes('.');
+    
+    let cleanValue = formattedValue.trim();
+    
+    if (hasCommaDecimal) {
+      // Formato: 1.234,56 -> 1234.56
+      cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+    } else if (hasDotDecimal) {
+      // Formato: 1,234.56 -> 1234.56 (formato americano)
+      cleanValue = cleanValue.replace(/,/g, '');
+    } else if (hasBoth) {
+      // Formato mixto: determinar cuál es el separador decimal
+      const lastComma = cleanValue.lastIndexOf(',');
+      const lastDot = cleanValue.lastIndexOf('.');
+      
+      if (lastComma > lastDot) {
+        // La coma está después del punto, entonces coma es decimal
+        cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+      } else {
+        // El punto está después de la coma, entonces punto es decimal
+        cleanValue = cleanValue.replace(/,/g, '');
+      }
+    }
+    
+    const result = parseFloat(cleanValue);
+    return isNaN(result) ? 0 : result;
   }
 
   /**

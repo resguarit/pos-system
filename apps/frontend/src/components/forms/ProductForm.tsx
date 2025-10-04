@@ -128,20 +128,62 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
   useEffect(() => {
     if (unitPrice && markup) {
-      const calculatedSalePrice = unitPrice + (unitPrice * markup / 100);
-      setSalePrice(calculatedSalePrice);
+      // Usar la misma lógica que el backend: costo * (1 + iva) * (1 + markup)
+      let costInArs = unitPrice;
       
-      // Calcular precio en ARS si está en USD
-      if (currency === 'USD') {
-        setSalePriceARS(calculatedSalePrice * exchangeRate);
-      } else {
-        setSalePriceARS(calculatedSalePrice);
+      // 1. Convertir USD a ARS si es necesario
+      if (currency === 'USD' && exchangeRate) {
+        costInArs = unitPrice * exchangeRate;
       }
+      
+      // 2. Aplicar IVA primero (si hay IVA seleccionado)
+      let costWithIva = costInArs;
+      if (selectedIva && selectedIva.rate > 0) {
+        costWithIva = costInArs * (1 + selectedIva.rate / 100);
+      }
+      
+      // 3. Aplicar markup después
+      const markupDecimal = markup / 100; // Convertir porcentaje a decimal
+      const priceWithMarkup = costWithIva * (1 + markupDecimal);
+      
+      // 4. Redondear a múltiplos de 100 para precios grandes
+      const finalPrice = priceWithMarkup < 1000 
+        ? Math.round(priceWithMarkup / 10) * 10  // Para precios pequeños, múltiplos de 10
+        : Math.round(priceWithMarkup / 100) * 100; // Para precios grandes, múltiplos de 100
+      
+      setSalePrice(finalPrice);
+      
+      // El precio ya está en ARS después de la conversión
+      setSalePriceARS(finalPrice);
     } else {
       setSalePrice(null);
       setSalePriceARS(null);
     }
-  }, [unitPrice, markup, currency, exchangeRate]);
+  }, [unitPrice, markup, currency, exchangeRate, selectedIva]);
+
+  // Función para calcular markup cuando se ingresa precio de venta manualmente
+  const calculateMarkupFromSalePrice = (salePrice: number) => {
+    if (!unitPrice || !salePrice) return 0;
+    
+    let costInArs = unitPrice;
+    
+    // 1. Convertir USD a ARS si es necesario
+    if (currency === 'USD' && exchangeRate) {
+      costInArs = unitPrice * exchangeRate;
+    }
+    
+    // 2. Remover IVA del precio de venta si existe
+    let priceWithoutIva = salePrice;
+    if (selectedIva && selectedIva.rate > 0) {
+      priceWithoutIva = salePrice / (1 + selectedIva.rate / 100);
+    }
+    
+    // 3. Calcular markup: (precio_sin_iva / costo) - 1
+    const markupDecimal = (priceWithoutIva / costInArs) - 1;
+    
+    // 4. Convertir a porcentaje y redondear a 2 decimales
+    return Math.round(markupDecimal * 10000) / 100; // Redondear a 2 decimales
+  };
 
   // Fetch all related data when component mounts
   useEffect(() => {
@@ -425,9 +467,22 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
             type="number"
             step="0.01"
             value={salePrice !== null ? salePrice.toFixed(2) : ''}
-            readOnly
-            className="bg-gray-100"
+            onChange={(e) => {
+              const newSalePrice = parseFloat(e.target.value) || 0;
+              setSalePrice(newSalePrice);
+              setSalePriceARS(newSalePrice);
+              
+              // Calcular markup automáticamente
+              if (newSalePrice > 0 && unitPrice > 0) {
+                const calculatedMarkup = calculateMarkupFromSalePrice(newSalePrice);
+                setValue("markup", calculatedMarkup);
+              }
+            }}
+            placeholder="0.00"
           />
+          <p className="text-xs text-muted-foreground">
+            Ingresa el precio de venta deseado para calcular automáticamente el markup
+          </p>
         </div>
 
         {currency === 'USD' && (
