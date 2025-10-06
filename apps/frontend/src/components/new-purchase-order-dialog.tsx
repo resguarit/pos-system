@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService';
-import { getSuppliers } from '@/lib/api/supplierService';
 import { getBranches } from '@/lib/api/branchService';
 import { getProducts } from '@/lib/api/productService';
 import api from '@/lib/api';
@@ -125,7 +124,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
     const loadData = async () => {
       try {
         const [suppliersData, branchesData, productsData, paymentMethodsData] = await Promise.all([
-          getSuppliers(),
+          api.get('/suppliers?per_page=10000').then(res => res.data.data || res.data), // Obtener todos los proveedores
           getBranches(),
           getProducts(),
           paymentMethodService.getAll()
@@ -614,7 +613,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione un proveedor" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   {suppliers.map((supplier) => (
                     <SelectItem key={supplier.id} value={supplier.id.toString()}>
                       {supplier.name}

@@ -9,9 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Trash2, Search, Calendar as CalendarIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService'
-import { getSuppliers } from '@/lib/api/supplierService'
 import { getBranches } from '@/lib/api/branchService'
 import { getProducts } from '@/lib/api/productService'
+import api from '@/lib/api'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { format } from 'date-fns'
@@ -68,7 +68,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
     const loadData = async () => {
       try {
         const [suppliersData, branchesData, productsData, order, paymentMethodsData] = await Promise.all([
-          getSuppliers(),
+          api.get('/suppliers?per_page=10000').then(res => res.data.data || res.data), // Obtener todos los proveedores
           getBranches(),
           getProducts(),
           purchaseOrderService.getById(purchaseOrderId),
@@ -275,7 +275,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                 <SelectTrigger disabled={isReadOnly}>
                   <SelectValue placeholder="Seleccione un proveedor" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   {suppliers.map(s => (
                     <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                   ))}
