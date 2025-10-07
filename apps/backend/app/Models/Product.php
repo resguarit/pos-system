@@ -64,8 +64,14 @@ class Product extends Model
     {
         return Attribute::make(
             get: function () {
-                // Siempre calcular dinámicamente para productos USD
-                // para que se actualicen automáticamente cuando cambia la tasa de cambio
+                // Si hay un sale_price almacenado en la base de datos (precio manual), usarlo
+                $storedSalePrice = $this->attributes['sale_price'] ?? null;
+                
+                if ($storedSalePrice !== null && $storedSalePrice > 0) {
+                    return (float) $storedSalePrice;
+                }
+
+                // Si no hay precio manual, calcular dinámicamente (precio automático)
                 $unitPrice = $this->unit_price ?? 0;
                 $markup = $this->markup ?? 0;
                 $currency = $this->currency ?? 'ARS';
@@ -84,22 +90,6 @@ class Product extends Model
                     $markup,
                     $ivaRate
                 );
-            }
-        );
-    }
-
-    /**
-     * Mutator para markup: convierte porcentaje a decimal automáticamente
-     */
-    protected function markup(): Attribute
-    {
-        return Attribute::make(
-            get: fn ($value) => $value,
-            set: function ($value) {
-                if (is_numeric($value) && $value > 1) {
-                    return $value / 100;
-                }
-                return $value;
             }
         );
     }

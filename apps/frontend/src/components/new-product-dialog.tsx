@@ -757,15 +757,21 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="markup">Markup</Label>
-              <Input
-                id="markup"
-                type="number"
-                step="0.01"
-                value={formData.markup}
-                onChange={(e) => handleInputChange('markup', e.target.value)}
-                placeholder="0.00"
-              />
+              <Label htmlFor="markup">Markup (%)</Label>
+              <div className="relative">
+                <Input
+                  id="markup"
+                  type="number"
+                  step="0.01"
+                  value={formData.markup}
+                  onChange={(e) => handleInputChange('markup', e.target.value)}
+                  placeholder="0.00"
+                  className="pr-8"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <span className="text-gray-500 text-sm">%</span>
+                </div>
+              </div>
             </div>
           </div>
 

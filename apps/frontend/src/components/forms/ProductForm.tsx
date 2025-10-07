@@ -441,18 +441,24 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="markup">Markup % *</Label>
-          <Input 
-            id="markup" 
-            type="number"
-            step="0.01"
-            {...register("markup", { 
-              required: "Markup is required",
-              valueAsNumber: true,
-              min: { value: 0, message: "Markup must be positive" }
-            })}
-            placeholder="0.00" 
-          />
+          <Label htmlFor="markup">Markup (%) *</Label>
+          <div className="relative">
+            <Input 
+              id="markup" 
+              type="number"
+              step="0.01"
+              {...register("markup", { 
+                required: "Markup is required",
+                valueAsNumber: true,
+                min: { value: 0, message: "Markup must be positive" }
+              })}
+              placeholder="0.00"
+              className="pr-8"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <span className="text-gray-500 text-sm">%</span>
+            </div>
+          </div>
           {errors.markup && (
             <p className="text-sm text-red-500">{errors.markup.message}</p>
           )}

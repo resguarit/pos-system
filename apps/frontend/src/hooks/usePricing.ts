@@ -8,6 +8,7 @@ interface PricingCalculation {
   markup: number;
   ivaRate: number;
   salePrice: number;
+  hasChanged: boolean;
 }
 
 interface UsePricingProps {
@@ -36,7 +37,8 @@ export function usePricing({
     currency,
     markup,
     ivaRate,
-    salePrice: initialSalePrice
+    salePrice: initialSalePrice,
+    hasChanged: false
   });
 
   /**
@@ -95,27 +97,42 @@ export function usePricing({
     // 1. Convertir costo a ARS
     const costInArs = currency === 'USD' ? convertUsdToArs(unitPrice, currency) : unitPrice;
     
+    console.log('calculateMarkup DEBUG:');
+    console.log('  - unitPrice:', unitPrice);
+    console.log('  - currency:', currency);
+    console.log('  - salePrice:', salePrice);
+    console.log('  - ivaRate:', ivaRate);
+    console.log('  - costInArs:', costInArs);
+    
     // 2. Remover IVA del precio de venta
     const priceWithoutIva = salePrice / (1 + ivaRate);
+    console.log('  - priceWithoutIva:', priceWithoutIva);
     
     // 3. Calcular markup
     const markup = (priceWithoutIva / costInArs) - 1;
+    console.log('  - markup calculado:', markup);
     
     // 4. Redondear a 4 decimales
-    return Math.round(markup * 10000) / 10000;
+    const finalMarkup = Math.round(markup * 10000) / 10000;
+    console.log('  - markup final:', finalMarkup);
+    
+    return finalMarkup;
   }, [convertUsdToArs]);
 
   /**
-   * Actualiza el precio unitario y recalcula el precio de venta manteniendo el markup
+   * Actualiza el precio unitario y recalcula el precio de venta Y el markup
    */
   const updateUnitPrice = useCallback((newUnitPrice: number) => {
     const newSalePrice = calculateSalePrice(newUnitPrice, pricing.currency, pricing.markup, pricing.ivaRate);
+    const newMarkup = calculateMarkup(newUnitPrice, pricing.currency, pricing.salePrice, pricing.ivaRate);
     setPricing(prev => ({
       ...prev,
       unitPrice: newUnitPrice,
-      salePrice: newSalePrice
+      salePrice: newSalePrice,
+      markup: newMarkup,
+      hasChanged: true
     }));
-  }, [pricing.currency, pricing.markup, pricing.ivaRate, calculateSalePrice]);
+  }, [pricing.currency, pricing.markup, pricing.ivaRate, pricing.salePrice, calculateSalePrice, calculateMarkup]);
 
   /**
    * Actualiza el markup y recalcula el precio de venta
@@ -125,7 +142,8 @@ export function usePricing({
     setPricing(prev => ({
       ...prev,
       markup: newMarkup,
-      salePrice: newSalePrice
+      salePrice: newSalePrice,
+      hasChanged: true
     }));
   }, [pricing.unitPrice, pricing.currency, pricing.ivaRate, calculateSalePrice]);
 
@@ -137,33 +155,40 @@ export function usePricing({
     setPricing(prev => ({
       ...prev,
       markup: newMarkup,
-      salePrice: newSalePrice
+      salePrice: newSalePrice,
+      hasChanged: true
     }));
   }, [pricing.unitPrice, pricing.currency, pricing.ivaRate, calculateMarkup]);
 
   /**
-   * Actualiza la moneda y recalcula el precio de venta
+   * Actualiza la moneda y recalcula el precio de venta y markup
    */
   const updateCurrency = useCallback((newCurrency: string) => {
     const newSalePrice = calculateSalePrice(pricing.unitPrice, newCurrency, pricing.markup, pricing.ivaRate);
+    const newMarkup = calculateMarkup(pricing.unitPrice, newCurrency, pricing.salePrice, pricing.ivaRate);
     setPricing(prev => ({
       ...prev,
       currency: newCurrency,
-      salePrice: newSalePrice
+      salePrice: newSalePrice,
+      markup: newMarkup,
+      hasChanged: true
     }));
-  }, [pricing.unitPrice, pricing.markup, pricing.ivaRate, calculateSalePrice]);
+  }, [pricing.unitPrice, pricing.markup, pricing.ivaRate, pricing.salePrice, calculateSalePrice, calculateMarkup]);
 
   /**
-   * Actualiza la tasa de IVA y recalcula el precio de venta
+   * Actualiza la tasa de IVA y recalcula el precio de venta Y el markup
    */
   const updateIvaRate = useCallback((newIvaRate: number) => {
     const newSalePrice = calculateSalePrice(pricing.unitPrice, pricing.currency, pricing.markup, newIvaRate);
+    const newMarkup = calculateMarkup(pricing.unitPrice, pricing.currency, pricing.salePrice, newIvaRate);
     setPricing(prev => ({
       ...prev,
       ivaRate: newIvaRate,
-      salePrice: newSalePrice
+      salePrice: newSalePrice,
+      markup: newMarkup,
+      hasChanged: true
     }));
-  }, [pricing.unitPrice, pricing.currency, pricing.markup, calculateSalePrice]);
+  }, [pricing.unitPrice, pricing.currency, pricing.markup, pricing.salePrice, calculateSalePrice, calculateMarkup]);
 
   /**
    * Valida que los parámetros de precio sean válidos
@@ -198,7 +223,11 @@ export function usePricing({
 
   // Actualizar pricing cuando cambien los props externos o el tipo de cambio
   useEffect(() => {
-    const calculatedPrice = calculateSalePrice(unitPrice, currency, markup, ivaRate);
+    // Si hay un precio inicial (precio manual guardado), respetarlo
+    // Solo calcular automáticamente si initialSalePrice es 0 o no existe
+    const finalSalePrice = initialSalePrice && initialSalePrice > 0 
+      ? initialSalePrice 
+      : calculateSalePrice(unitPrice, currency, markup, ivaRate);
     
     setPricing(prev => ({
       ...prev,
@@ -206,7 +235,8 @@ export function usePricing({
       currency,
       markup,
       ivaRate,
-      salePrice: calculatedPrice // Siempre usar el precio calculado
+      salePrice: finalSalePrice,
+      hasChanged: false
     }));
   }, [unitPrice, currency, markup, ivaRate, initialSalePrice, calculateSalePrice, exchangeRate]);
 

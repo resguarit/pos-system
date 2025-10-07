@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Product } from "@/types/product"
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import useApi from "@/hooks/useApi"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from 'sonner';
@@ -38,6 +38,14 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
   const [formData, setFormData] = useState<ProductFormData | null>(null);
 
+  // Rastrear qué campo se está editando actualmente usando useRef (no causa re-renders)
+  const editingFieldRef = useRef<string | null>(null);
+  
+  // Rastrear valores previos para evitar actualizaciones innecesarias
+  const prevPricingRef = useRef({ markup: 0, salePrice: 0 });
+  // Guardar el sale_price anterior al hacer focus para poder restaurarlo si queda vacío
+  const prevSalePriceRef = useRef<string | null>(null);
+
   // Estados para stock
   const [stockData, setStockData] = useState({
     min_stock: "",
@@ -69,7 +77,8 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     updateIvaRate,
     validatePricing,
     formatPrice,
-    formatMarkup
+    formatMarkup,
+    calculateSalePrice
   } = usePricing({
     unitPrice: typeof product?.unit_price === 'string' ? parseFloat(product.unit_price) : 
                typeof product?.unit_price === 'number' ? product.unit_price : 0,
@@ -112,6 +121,21 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       setFormData(null);
     }
   }, [open, product, formatMarkup]);
+
+  // Sincronizar formData.markup con pricing.markup cuando el hook lo recalcula
+  // PERO NO cuando el usuario está editando el campo markup directamente
+  useEffect(() => {
+    if (!formData || !pricing.hasChanged || editingFieldRef.current === 'markup') return;
+    
+    const markupAsPercentage = (pricing.markup * 100).toFixed(2);
+    
+    // Solo actualizar si realmente cambió
+    if (prevPricingRef.current.markup !== pricing.markup && formData.markup !== markupAsPercentage) {
+      setFormData(prev => prev ? { ...prev, markup: markupAsPercentage } : null);
+      prevPricingRef.current.markup = pricing.markup;
+    }
+  }, [pricing.markup, pricing.hasChanged, formData]);
+
 
   // Funciones para verificar duplicados
   const checkCodeExists = async (code: string) => {
@@ -242,6 +266,8 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
   const handleInputChange = useCallback((field: keyof ProductFormData, value: string) => {
     if (!formData) return;
 
+    // Marcar qué campo se está editando (no causa re-render)
+    editingFieldRef.current = field;
     setFormData(prev => prev ? { ...prev, [field]: value } : null);
 
     // Validación de duplicados con debounce
@@ -271,9 +297,15 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         const markupDecimal = numericValue / 100;
         updateMarkup(markupDecimal);
         break;
-      case 'sale_price':
+      case 'sale_price': {
+        // Permitir vacío o 0 mientras escribe sin recalcular inmediatamente
+        if (value.trim() === '' || value === '0' || value === '0,00' || value === '0.00') {
+          // No recalcular markup aún
+          break;
+        }
         updateSalePrice(numericValue);
         break;
+      }
       case 'currency':
         updateCurrency(value);
         break;
@@ -313,11 +345,28 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
     try {
       // Preparar datos para envío
+      // Si el usuario NO tocó el campo sale_price en esta sesión,
+      // aplicamos el calculado al guardar para persistir el nuevo precio.
+      const userEditedSalePrice = editingFieldRef.current === 'sale_price';
+      const salePriceValue = userEditedSalePrice
+        ? (parseFloat(formData.sale_price) || 0)
+        : Math.round(pricing.salePrice);
+      
+      // Detectar si el usuario cambió el precio manualmente
+      // Calculamos qué debería ser el precio automático con los datos actuales
+  const unitPrice = parseFloat(formData.unit_price);
+      
+  // Usar el markup del hook (que se recalcula automáticamente)
+      const markupDecimal = pricing.markup;
+      
       const submitData = {
         ...formData,
-        unit_price: parseFloat(formData.unit_price),
-        markup: pricing.markup, // Usar el markup calculado
-        sale_price: Math.round(pricing.salePrice), // Redondear precio de venta
+        unit_price: unitPrice,
+        markup: markupDecimal, // Enviar el markup recalculado por el hook
+        sale_price: salePriceValue, // SIEMPRE enviar el precio del formulario
+        target_manual_price: salePriceValue, // SIEMPRE enviar como precio manual
+        is_manual_price: true, // SIEMPRE marcar como precio manual
+        force_manual_price: true, // Campo adicional para forzar precio manual
         status: formData.status === "1",
         web: formData.web === "1",
       };
@@ -328,6 +377,8 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
           delete submitData[key as keyof typeof submitData];
         }
       });
+
+  // Nota: removidos logs de depuración para UX limpia
 
       await request({
         method: 'PUT',
@@ -457,34 +508,82 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="markup">Markup</Label>
-              <Input
-                id="markup"
-                type="number"
-                step="0.01"
-                value={formData.markup}
-                onChange={(e) => handleInputChange('markup', e.target.value)}
-                placeholder="0.00"
-              />
+              <Label htmlFor="markup">Markup (%)</Label>
+              <div className="relative">
+                <Input
+                  id="markup"
+                  type="number"
+                  step="0.01"
+                  value={formData.markup}
+                  onChange={(e) => handleInputChange('markup', e.target.value)}
+                  onBlur={() => editingFieldRef.current = null}
+                  onFocus={() => editingFieldRef.current = 'markup'}
+                  placeholder="0.00"
+                  className="pr-8"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                  <span className="text-gray-500 text-sm">%</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Precio de venta calculado */}
+          {/* Precio de venta */}
           <div className="grid gap-2">
             <Label htmlFor="sale_price">Precio de Venta</Label>
             <div className="flex gap-2">
-              <FormattedNumberInput
-                id="sale_price"
-                formatType="salePrice"
-                currency={formData.currency}
-                value={formData.sale_price}
-                onChange={(value) => handleInputChange('sale_price', value.toString())}
-                placeholder="0,00"
-                className="font-mono"
-              />
-              <div className="text-sm text-muted-foreground flex items-center">
-                Calculado: {formatPrice(pricing.salePrice)}
+              <div className="relative flex-1">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <Input
+                  id="sale_price"
+                  type="text"
+                  value={(() => {
+                    // Formatear con separador de miles mientras se muestra
+                    const numStr = formData.sale_price.toString().replace(/\D/g, '');
+                    if (!numStr) return '';
+                    return parseInt(numStr, 10).toLocaleString('es-AR');
+                  })()}
+                  onChange={(e) => {
+                    // Remover formato y guardar solo números
+                    const rawValue = e.target.value.replace(/\D/g, '');
+                    handleInputChange('sale_price', rawValue);
+                  }}
+                  onFocus={() => {
+                    editingFieldRef.current = 'sale_price';
+                    prevSalePriceRef.current = formData.sale_price;
+                  }}
+                  onBlur={() => {
+                    editingFieldRef.current = null;
+                    // Si el usuario dejó vacío o 0, restaurar el anterior
+                    const cleaned = (formData.sale_price || '').trim();
+                    if (cleaned === '' || cleaned === '0' || cleaned === '0,00' || cleaned === '0.00') {
+                      setFormData(prev => prev && prevSalePriceRef.current !== null
+                        ? { ...prev, sale_price: prevSalePriceRef.current! }
+                        : prev);
+                    }
+                    prevSalePriceRef.current = null;
+                  }}
+                  placeholder="0"
+                  className="font-mono pl-7"
+                />
               </div>
+              {(() => {
+                // Mostrar referencia "Calculado" mientras haya cambios y NO se esté editando el campo sale_price
+                if (pricing.hasChanged && editingFieldRef.current !== 'sale_price') {
+                  const autoCalculated = calculateSalePrice(
+                    pricing.unitPrice,
+                    pricing.currency,
+                    pricing.markup,
+                    pricing.ivaRate
+                  );
+                  return (
+                    <div className="text-sm text-muted-foreground flex items-center">
+                      Calculado: {formatPrice(autoCalculated)}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           </div>
 
