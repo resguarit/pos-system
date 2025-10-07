@@ -27,13 +27,26 @@ export function UpdateExchangeRateDialog({
   const [rate, setRate] = useState(currentRate.toString());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usdProductsCount, setUsdProductsCount] = useState<number>(0);
   const { triggerRefresh } = useRefresh(); // Obtener la función de refresco global
+
+  // Cargar estadísticas de productos USD
+  const loadUSDProductsStats = async () => {
+    try {
+      const stats = await exchangeRateService.getUSDProductsStats();
+      setUsdProductsCount(stats.count);
+    } catch (error) {
+      console.error('Error loading USD products stats:', error);
+      setUsdProductsCount(0);
+    }
+  };
 
   // Actualizar el rate cuando cambie currentRate o cuando se abra el diálogo
   useEffect(() => {
     if (open) {
       setRate(currentRate.toString());
       setError(null); // Limpiar errores previos
+      loadUSDProductsStats(); // Cargar estadísticas
     }
   }, [open, currentRate]);
 
@@ -52,9 +65,36 @@ export function UpdateExchangeRateDialog({
       const success = await exchangeRateService.updateRate('USD', 'ARS', newRate);
 
       if (success) {
-        toast.success('Precio del dólar actualizado', {
-          description: `1 USD = $${newRate.toFixed(2)} ARS`
-        });
+        // Actualizar precios de productos USD después de actualizar la tasa
+        try {
+          const updateResult = await exchangeRateService.updateUSDProductPrices(newRate);
+          
+          if (updateResult.success && updateResult.updatedCount > 0) {
+            toast.success('Precio del dólar y productos actualizados', {
+              description: `1 USD = $${newRate.toFixed(2)} ARS - ${updateResult.updatedCount} productos actualizados`
+            });
+          } else if (updateResult.success && updateResult.updatedCount === 0) {
+            toast.success('Precio del dólar actualizado', {
+              description: `1 USD = $${newRate.toFixed(2)} ARS - No hay productos en USD para actualizar`
+            });
+          } else {
+            toast.success('Precio del dólar actualizado', {
+              description: `1 USD = $${newRate.toFixed(2)} ARS`
+            });
+            toast.warning('Advertencia', {
+              description: 'No se pudieron actualizar algunos precios de productos'
+            });
+          }
+        } catch (productUpdateError) {
+          // Si falla la actualización de productos, al menos informar que la tasa se actualizó
+          toast.success('Precio del dólar actualizado', {
+            description: `1 USD = $${newRate.toFixed(2)} ARS`
+          });
+          toast.error('Error', {
+            description: 'No se pudieron actualizar los precios de productos en USD'
+          });
+          console.error('Error updating USD product prices:', productUpdateError);
+        }
         
         // PASO CRÍTICO: Disparar el refresco global
         triggerRefresh();
@@ -90,6 +130,7 @@ export function UpdateExchangeRateDialog({
           </DialogTitle>
           <DialogDescription>
             Establecer el nuevo precio del dólar estadounidense en pesos argentinos.
+            Los precios de productos en USD se actualizarán automáticamente.
           </DialogDescription>
         </DialogHeader>
 
@@ -121,6 +162,27 @@ export function UpdateExchangeRateDialog({
             </div>
           </div>
 
+          {/* Warning about product updates */}
+          <div className="mt-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <div className="font-medium text-amber-800">
+                  Actualización automática
+                </div>
+                <div className="text-amber-700">
+                  {usdProductsCount > 0 ? (
+                    <>
+                      <strong>{usdProductsCount}</strong> producto{usdProductsCount === 1 ? '' : 's'} con precio unitario en USD tendrá{usdProductsCount === 1 ? '' : 'n'} su precio de venta recalculado automáticamente.
+                    </>
+                  ) : (
+                    'No hay productos con precio unitario en USD para actualizar.'
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {error && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
@@ -134,7 +196,9 @@ export function UpdateExchangeRateDialog({
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Actualizando...' : 'Actualizar Precio'}
+            {loading ? 'Actualizando...' : 
+             usdProductsCount > 0 ? `Actualizar Precio y ${usdProductsCount} Producto${usdProductsCount === 1 ? '' : 's'}` :
+             'Actualizar Precio'}
           </Button>
         </DialogFooter>
       </DialogContent>

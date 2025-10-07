@@ -813,13 +813,17 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
             <div className="grid gap-2">
               <Label htmlFor="category_id">Categoría <span className="text-red-500">*</span></Label>
               <Select value={formData.category_id} onValueChange={(value) => handleInputChange('category_id', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar categoría" />
+                <SelectTrigger className="w-full pr-8 overflow-hidden">
+                  <div className="min-w-0 truncate">
+                    <SelectValue placeholder="Seleccionar categoría" />
+                  </div>
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto">
+                <SelectContent className="max-h-[200px] overflow-y-auto w-[--radix-select-trigger-width] max-w-full">
                   {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id.toString()}>
-                      {category.display_name || category.name}
+                    <SelectItem key={category.id} value={category.id.toString()} className="max-w-full">
+                      <div className="truncate overflow-hidden text-ellipsis">
+                        {category.display_name || category.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -828,13 +832,17 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
             <div className="grid gap-2">
               <Label htmlFor="supplier_id">Proveedor <span className="text-red-500">*</span></Label>
               <Select value={formData.supplier_id} onValueChange={(value) => handleInputChange('supplier_id', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar proveedor" />
+                <SelectTrigger className="w-full pr-8 overflow-hidden">
+                  <div className="min-w-0 truncate">
+                    <SelectValue placeholder="Seleccionar proveedor" />
+                  </div>
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto">
+                <SelectContent className="max-h-[200px] overflow-y-auto w-[--radix-select-trigger-width] max-w-full">
                   {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                      {supplier.name}
+                    <SelectItem key={supplier.id} value={supplier.id.toString()} className="max-w-full">
+                      <div className="truncate overflow-hidden text-ellipsis">
+                        {supplier.name}
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

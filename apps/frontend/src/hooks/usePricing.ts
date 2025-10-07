@@ -176,19 +176,19 @@ export function usePricing({
   }, [pricing.unitPrice, pricing.markup, pricing.ivaRate, pricing.salePrice, calculateSalePrice, calculateMarkup]);
 
   /**
-   * Actualiza la tasa de IVA y recalcula el precio de venta Y el markup
+   * Actualiza la tasa de IVA manteniendo el precio de venta y recalculando el markup
    */
   const updateIvaRate = useCallback((newIvaRate: number) => {
-    const newSalePrice = calculateSalePrice(pricing.unitPrice, pricing.currency, pricing.markup, newIvaRate);
+    // MANTENER el precio de venta actual y recalcular solo el markup
     const newMarkup = calculateMarkup(pricing.unitPrice, pricing.currency, pricing.salePrice, newIvaRate);
     setPricing(prev => ({
       ...prev,
       ivaRate: newIvaRate,
-      salePrice: newSalePrice,
       markup: newMarkup,
       hasChanged: true
+      // salePrice se mantiene igual (no se recalcula)
     }));
-  }, [pricing.unitPrice, pricing.currency, pricing.markup, pricing.salePrice, calculateSalePrice, calculateMarkup]);
+  }, [pricing.unitPrice, pricing.currency, pricing.salePrice, calculateMarkup]);
 
   /**
    * Valida que los parámetros de precio sean válidos
@@ -223,6 +223,9 @@ export function usePricing({
 
   // Actualizar pricing cuando cambien los props externos o el tipo de cambio
   useEffect(() => {
+    // No sobrescribir si el usuario ya ha hecho cambios manuales
+    if (pricing.hasChanged) return;
+    
     // Si hay un precio inicial (precio manual guardado), respetarlo
     // Solo calcular automáticamente si initialSalePrice es 0 o no existe
     const finalSalePrice = initialSalePrice && initialSalePrice > 0 
@@ -238,7 +241,7 @@ export function usePricing({
       salePrice: finalSalePrice,
       hasChanged: false
     }));
-  }, [unitPrice, currency, markup, ivaRate, initialSalePrice, calculateSalePrice, exchangeRate]);
+  }, [unitPrice, currency, markup, ivaRate, initialSalePrice, calculateSalePrice, exchangeRate, pricing.hasChanged]);
 
   return {
     pricing,

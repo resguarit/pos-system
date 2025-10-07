@@ -91,6 +91,62 @@ const exchangeRateService = {
     
     const rate = await this.getCurrentRate(fromCurrency, toCurrency);
     return amount * rate;
+  },
+
+  /**
+   * Obtiene estadísticas de productos en USD antes de actualizar precios
+   */
+  async getUSDProductsStats(): Promise<{
+    count: number;
+    totalValue: number;
+  }> {
+    try {
+      const response = await api.get('/exchange-rate/usd-products-stats');
+      
+      if (response.data?.success) {
+        return {
+          count: response.data.data?.count || 0,
+          totalValue: response.data.data?.total_value || 0
+        };
+      }
+      
+      return { count: 0, totalValue: 0 };
+    } catch (error) {
+      console.error('Error al obtener estadísticas de productos USD:', error);
+      return { count: 0, totalValue: 0 };
+    }
+  },
+
+  /**
+   * Actualiza precios de productos en USD cuando cambia la tasa de cambio
+   */
+  async updateUSDProductPrices(newUSDRate: number): Promise<{
+    success: boolean;
+    updatedCount: number;
+    message: string;
+  }> {
+    try {
+      const response = await api.post('/exchange-rate/update-prices', {
+        new_usd_rate: newUSDRate
+      });
+      
+      if (response.data?.success) {
+        return {
+          success: true,
+          updatedCount: response.data.data?.updated_count || 0,
+          message: response.data.message || 'Precios actualizados exitosamente'
+        };
+      }
+      
+      return {
+        success: false,
+        updatedCount: 0,
+        message: response.data?.message || 'Error al actualizar precios'
+      };
+    } catch (error) {
+      console.error('Error al actualizar precios de productos USD:', error);
+      throw error;
+    }
   }
 };
 
