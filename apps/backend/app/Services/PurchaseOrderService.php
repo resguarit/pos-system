@@ -67,6 +67,7 @@ public function createPurchaseOrder(array $data)
             'supplier_id' => $data['supplier_id'],
             'branch_id' => $data['branch_id'],
             'payment_method_id' => $data['payment_method_id'] ?? null,
+            'currency' => $data['currency'] ?? 'ARS', // Agregar currency
             'order_date' => $data['order_date'] ?? now(),
             'status' => 'pending',
             'notes' => $data['notes'] ?? null,
@@ -314,6 +315,12 @@ public function createPurchaseOrder(array $data)
             
             if (!$paymentMethod) {
                 Log::warning("Método de pago no encontrado para orden de compra {$purchaseOrder->id}. No se registrará movimiento de caja.");
+                return;
+            }
+
+            // NUEVO: Solo registrar movimiento si el método de pago afecta la caja
+            if (!$paymentMethod->affects_cash) {
+                Log::info("Método de pago '{$paymentMethod->name}' no afecta la caja. No se registrará movimiento de caja para orden {$purchaseOrder->id}.");
                 return;
             }
 

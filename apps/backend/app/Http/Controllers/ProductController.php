@@ -6,6 +6,7 @@ use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Product;
 
@@ -34,8 +35,8 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'description' => 'required|string|unique:products,description',
-            'code' => 'required|string|max:50|unique:products,code',
+            'description' => ['required', 'string', Rule::unique('products')->whereNull('deleted_at')],
+            'code' => ['required', 'string', 'max:50', Rule::unique('products')->whereNull('deleted_at')],
             'measure_id' => 'nullable|integer|exists:measures,id',
             'unit_price' => 'required|numeric',
             'currency' => 'required|in:ARS,USD',
@@ -65,21 +66,21 @@ class ProductController extends Controller
 
     public function checkCode($code)
     {
-        $exists = Product::where('code', $code)->exists();
+        $exists = Product::where('code', $code)->whereNull('deleted_at')->exists();
         return response()->json(['exists' => $exists]);
     }
 
     public function checkDescription($description)
     {
-        $exists = Product::where('description', $description)->exists();
+        $exists = Product::where('description', $description)->whereNull('deleted_at')->exists();
         return response()->json(['exists' => $exists]);
     }
 
     public function update(Request $request, $id)
     {
         $validatedData = $request->validate([
-            'description' => 'sometimes|required|string',
-            'code' => 'sometimes|required|string|max:50',
+            'description' => ['sometimes', 'required', 'string', Rule::unique('products')->ignore($id)->whereNull('deleted_at')],
+            'code' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('products')->ignore($id)->whereNull('deleted_at')],
             'measure' => 'sometimes|required|string',
             'measure_id' => 'sometimes|nullable|integer|exists:measures,id',
             'unit_price' => 'sometimes|required|numeric',
