@@ -36,6 +36,7 @@ interface CashMovement {
   reference_type?: string
   reference_id?: number
   created_at: string
+  affects_balance?: boolean
   movement_type?: {
     id: number
     code: string

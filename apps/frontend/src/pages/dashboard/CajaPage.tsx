@@ -1227,20 +1227,36 @@ export default function CajaPage() {
                     : movement.description
                   // Usar el tipo desde backend
                   const typeLabel = movement.movement_type?.description || 'N/A'
+                  const affectsBalance = movement.affects_balance !== false // Por defecto true si no existe el campo
+                  
                   return (
-                    <TableRow key={movement.id}>
+                    <TableRow 
+                      key={movement.id}
+                      className={!affectsBalance ? 'bg-gray-100 opacity-75' : ''}
+                    >
                       {/* Columna ID eliminada */}
                       <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={
-                            isIncome
-                              ? "bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700"
-                              : "bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700"
-                          }
-                        >
-                          {typeLabel}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className={
+                              isIncome
+                                ? "bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700"
+                                : "bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700"
+                            }
+                          >
+                            {typeLabel}
+                          </Badge>
+                          {!affectsBalance && (
+                            <Badge 
+                              variant="outline" 
+                              className="bg-gray-100 text-gray-600 text-xs"
+                              title="Este movimiento NO afecta el balance de la caja"
+                            >
+                              Informativo
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{cleanedDescription}</TableCell>
                       <TableCell className="hidden md:table-cell">{getPaymentMethod(movement)}</TableCell>

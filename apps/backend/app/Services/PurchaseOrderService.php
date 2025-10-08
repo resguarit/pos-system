@@ -72,6 +72,7 @@ public function createPurchaseOrder(array $data)
             'status' => 'pending',
             'notes' => $data['notes'] ?? null,
             'total_amount' => 0,
+            'affects_cash_register' => $data['affects_cash_register'] ?? true, // Por defecto true
         ]);
 
         $totalAmount = 0;
@@ -119,8 +120,8 @@ public function createPurchaseOrder(array $data)
             Log::warning("Discrepancia en total de orden {$purchaseOrder->id}: Guardado: {$totalAmount}, Calculado: {$calculatedTotal}");
         }
 
-        // Registrar movimiento de caja al crear la orden
-        $this->registerPurchaseCashMovement($purchaseOrder, $purchaseOrder->payment_method_id);
+        // NO registrar movimiento de caja aquí - se registrará al completar la orden
+        // $this->registerPurchaseCashMovement($purchaseOrder, $purchaseOrder->payment_method_id);
 
         DB::commit();
 
@@ -150,6 +151,12 @@ public function createPurchaseOrder(array $data)
             }
             if (array_key_exists('notes', $data)) {
                 $purchaseOrder->notes = $data['notes'];
+            }
+            if (isset($data['payment_method_id'])) {
+                $purchaseOrder->payment_method_id = $data['payment_method_id'];
+            }
+            if (array_key_exists('affects_cash_register', $data)) {
+                $purchaseOrder->affects_cash_register = $data['affects_cash_register'];
             }
             $purchaseOrder->save();
 
@@ -306,6 +313,16 @@ public function createPurchaseOrder(array $data)
     private function registerPurchaseCashMovement(PurchaseOrder $purchaseOrder, $paymentMethodId = null): void
     {
         try {
+            // Verificar si ya existe un movimiento para esta orden (evitar duplicados)
+            $existingMovement = \App\Models\CashMovement::where('reference_type', 'purchase_order')
+                ->where('reference_id', $purchaseOrder->id)
+                ->first();
+            
+            if ($existingMovement) {
+                Log::info("Ya existe un movimiento de caja para la orden {$purchaseOrder->id}. Saltando creación.");
+                return;
+            }
+            
             // Determinar método de pago
             $paymentMethod = null;
             
@@ -318,21 +335,19 @@ public function createPurchaseOrder(array $data)
                 return;
             }
 
-            // NUEVO: Solo registrar movimiento si el método de pago afecta la caja
-            if (!$paymentMethod->affects_cash) {
-                Log::info("Método de pago '{$paymentMethod->name}' no afecta la caja. No se registrará movimiento de caja para orden {$purchaseOrder->id}.");
-                return;
-            }
+            // NUEVO: Siempre registrar movimiento, pero usar affects_cash_register de la orden para determines si afecta balance
+            $affectsBalance = $purchaseOrder->affects_cash_register ?? true;
+            Log::info("Registrando movimiento para orden {$purchaseOrder->id} con affects_balance: " . ($affectsBalance ? 'true' : 'false'));
 
-            // Buscar el tipo de movimiento para compra de mercadería
-            $movementType = \App\Models\MovementType::where('name', 'Compra de mercadería')
+            // Buscar el tipo de movimiento para compra en efectivo
+            $movementType = \App\Models\MovementType::where('name', 'Compra en efectivo')
                 ->where('operation_type', 'salida')
                 ->where('is_cash_movement', true)
                 ->where('active', true)
                 ->first();
 
             if (!$movementType) {
-                Log::warning("Tipo de movimiento 'Compra de mercadería' no encontrado. No se registrará movimiento de caja.");
+                Log::warning("Tipo de movimiento 'Compra en efectivo' no encontrado. No se registrará movimiento de caja.");
                 return;
             }
 
@@ -348,9 +363,54 @@ public function createPurchaseOrder(array $data)
 
             $cashMovementService = app(\App\Interfaces\CashMovementServiceInterface::class);
 
+            // Calcular el monto en ARS (la caja siempre maneja ARS)
+            $amountInARS = $purchaseOrder->total_amount;
+            $currency = $purchaseOrder->currency ?? 'ARS';
+            
+            if ($currency === 'USD') {
+                // Convertir USD a ARS usando la tasa actual
+                try {
+                    $exchangeRate = \App\Models\ExchangeRate::getCurrentRate('USD', 'ARS');
+                    if ($exchangeRate && $exchangeRate > 0) {
+                        $amountInARS = $purchaseOrder->total_amount * $exchangeRate;
+                        Log::info("Orden {$purchaseOrder->id} - Convertido \${$purchaseOrder->total_amount} USD a \${$amountInARS} ARS (tasa: {$exchangeRate})");
+                    } else {
+                        Log::warning("No se pudo obtener tasa USD->ARS para orden {$purchaseOrder->id}. No se registrará movimiento de caja.");
+                        return;
+                    }
+                } catch (\Exception $e) {
+                    Log::error("Error convirtiendo USD a ARS para orden {$purchaseOrder->id}: {$e->getMessage()}");
+                    return;
+                }
+            }
+
             // Crear descripción detallada
             $supplierName = $purchaseOrder->supplier ? $purchaseOrder->supplier->name : 'Proveedor N/A';
             $description = "Compra #{$purchaseOrder->id} - Proveedor: {$supplierName}";
+            
+            if ($currency === 'USD') {
+                $formattedUSD = number_format($purchaseOrder->total_amount, 2, '.', ',');
+                $formattedARS = number_format($amountInARS, 2, '.', ',');
+                $formattedRate = number_format($exchangeRate, 2, '.', ',');
+                $description .= " | USD \${$formattedUSD} → ARS \${$formattedARS} (TC: \${$formattedRate})";
+            }
+            
+            // Agregar indicación si no afecta la caja
+            if (!$affectsBalance) {
+                $description .= " - NO afecta balance de caja";
+            }
+
+            // Obtener un usuario válido
+            $userId = auth()->id();
+            if (!$userId) {
+                $firstUser = \App\Models\User::first();
+                $userId = $firstUser ? $firstUser->id : null;
+            }
+
+            if (!$userId) {
+                Log::warning("No se pudo obtener un usuario válido para el movimiento de caja de la orden {$purchaseOrder->id}");
+                return;
+            }
 
             $cashMovementService->createMovement([
                 'cash_register_id' => $cashRegister->id,
@@ -358,12 +418,14 @@ public function createPurchaseOrder(array $data)
                 'payment_method_id' => $paymentMethod->id,
                 'reference_type'   => 'purchase_order',
                 'reference_id'     => $purchaseOrder->id,
-                'amount'           => $purchaseOrder->total_amount,
+                'amount'           => $amountInARS, // Siempre en ARS
                 'description'      => $description,
-                'user_id'          => auth()->id() ?? 1, // Usuario actual o admin por defecto
+                'user_id'          => $userId,
+                'affects_balance'  => $affectsBalance, // Usar el valor de la orden
             ]);
 
-            Log::info("Movimiento de caja registrado para orden de compra {$purchaseOrder->id} por \${$purchaseOrder->total_amount} con método de pago: {$paymentMethod->name}");
+            $balanceStatus = $affectsBalance ? 'afecta el balance' : 'NO afecta el balance';
+            Log::info("Movimiento de caja registrado para orden de compra {$purchaseOrder->id} por \${$amountInARS} ARS con método de pago: {$paymentMethod->name} - {$balanceStatus}");
 
         } catch (\Exception $e) {
             Log::error("Error al registrar movimiento de caja para orden de compra {$purchaseOrder->id}: " . $e->getMessage());

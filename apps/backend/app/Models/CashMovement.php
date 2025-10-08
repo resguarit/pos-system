@@ -19,10 +19,12 @@ class CashMovement extends Model
         'description',
         'user_id',
         'payment_method_id',
+        'affects_balance',
     ];
 
     protected $casts = [
         'amount' => 'decimal:3',
+        'affects_balance' => 'boolean',
     ];
 
     protected $dispatchesEvents = [

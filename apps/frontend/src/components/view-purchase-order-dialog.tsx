@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CalendarDays, Building2, User, Package, DollarSign, Printer } from "lucide-react"
+import { CalendarDays, Building2, User, Package, DollarSign, Printer, CheckCircle, AlertCircle } from "lucide-react"
 import { type PurchaseOrder } from "@/lib/api/purchaseOrderService"
 import { getPurchaseOrderById, openPurchaseOrderPdf } from "@/lib/api/purchaseOrderService"
 import { toast } from "sonner"
@@ -202,6 +202,36 @@ export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }:
                 </div>
               </CardContent>
             </Card>
+          </div>
+
+          {/* Afecta Caja */}
+          <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <h3 className="text-base font-semibold">¿Afecta el balance de la caja?</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Esta orden {(purchaseOrder as any).affects_cash_register !== false ? 'SÍ impacta' : 'NO impacta'} en el saldo de la caja registradora
+                </p>
+              </div>
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 ${
+                (purchaseOrder as any).affects_cash_register !== false
+                  ? "bg-green-50 border-green-300" 
+                  : "bg-orange-50 border-orange-300"
+              }`}>
+                {(purchaseOrder as any).affects_cash_register !== false ? (
+                  <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="h-6 w-6 text-orange-600 flex-shrink-0" />
+                )}
+                <span className={`font-semibold text-base ${
+                  (purchaseOrder as any).affects_cash_register !== false
+                    ? "text-green-700" 
+                    : "text-orange-700"
+                }`}>
+                  {(purchaseOrder as any).affects_cash_register !== false ? "SÍ afecta" : "NO afecta"}
+                </span>
+              </div>
+            </div>
           </div>
 
           <Separator />

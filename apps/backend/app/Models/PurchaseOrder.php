@@ -21,12 +21,14 @@ class PurchaseOrder extends Model
         'total_amount',
         'status',
         'notes',
+        'affects_cash_register',
     ];
 
     protected $casts = [
         'order_date' => 'date',
         'total_amount' => 'decimal:2',
         'currency' => 'string',
+        'affects_cash_register' => 'boolean',
     ];
 
     /**

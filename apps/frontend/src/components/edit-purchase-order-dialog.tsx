@@ -3,10 +3,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Trash2, Search, Calendar as CalendarIcon } from 'lucide-react'
+import { Plus, Trash2, Search, Calendar as CalendarIcon, CheckCircle, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService'
 import { getBranches } from '@/lib/api/branchService'
@@ -54,6 +55,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<'ARS' | 'USD'>('ARS');
+  const [affectsCashRegister, setAffectsCashRegister] = useState(true); // Por defecto true
 
   // Función helper para prevenir Enter en inputs
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -85,6 +87,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
           notes: (order as any).notes || '',
         })
         setSelectedPaymentMethod(String((order as any).payment_method_id ?? (order as any).payment_method?.id ?? ''));
+        setAffectsCashRegister((order as any).affects_cash_register !== false); // Por defecto true si no existe
         setPaymentMethods(paymentMethodsData as unknown as PaymentMethod[]);
         const mapped: PurchaseOrderItem[] = ((order as any).items || []).map((it: any) => ({
           product_id: Number(it.product_id || it.product?.id),
@@ -202,6 +205,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         order_date: format(form.order_date, 'yyyy-MM-dd'),
         notes: form.notes || '',
         payment_method_id: parseInt(selectedPaymentMethod),
+        affects_cash_register: affectsCashRegister,
       }
       if (items.length > 0) {
         payload.items = items
@@ -342,6 +346,50 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          {/* Checkbox para afectar caja */}
+          <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <Label className="text-base font-semibold">¿Afecta el balance de la caja?</Label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Controla si esta orden de compra impacta en el saldo de la caja registradora
+                </p>
+              </div>
+              <div className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all",
+                affectsCashRegister 
+                  ? "bg-green-50 border-green-300" 
+                  : "bg-orange-50 border-orange-300"
+              )}>
+                {affectsCashRegister ? (
+                  <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="h-6 w-6 text-orange-600 flex-shrink-0" />
+                )}
+                <Checkbox
+                  id="affects_cash_register"
+                  checked={affectsCashRegister}
+                  onCheckedChange={(checked: boolean) => setAffectsCashRegister(checked)}
+                  disabled={isReadOnly}
+                  className={cn(
+                    "h-5 w-5",
+                    affectsCashRegister ? "border-green-600" : "border-orange-600"
+                  )}
+                />
+                <Label 
+                  htmlFor="affects_cash_register"
+                  className={cn(
+                    "font-semibold cursor-pointer text-base whitespace-nowrap",
+                    affectsCashRegister ? "text-green-700" : "text-orange-700",
+                    isReadOnly && "cursor-default"
+                  )}
+                >
+                  {affectsCashRegister ? "SÍ afecta" : "NO afecta"}
+                </Label>
+              </div>
             </div>
           </div>
 

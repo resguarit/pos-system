@@ -3,10 +3,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService';
 import { getBranches } from '@/lib/api/branchService';
@@ -71,6 +72,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [affectsCashRegister, setAffectsCashRegister] = useState(true); // Por defecto true
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +102,8 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
         quantity: '',
         purchase_price: '',
       });
+      setSelectedPaymentMethod('');
+      setAffectsCashRegister(true); // Reset a true por defecto
       setError(null);
     }
   }, [open]);
@@ -321,6 +325,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
         notes: form.notes || '',
         items: items,
         payment_method_id: parseInt(selectedPaymentMethod),
+        affects_cash_register: affectsCashRegister,
       });
       toast.success("Orden de compra creada", {
         description: "La orden de compra se creó exitosamente.",
@@ -340,6 +345,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
         purchase_price: '',
       });
       setSelectedPaymentMethod('');
+      setAffectsCashRegister(true); // Reset a true por defecto
     } catch (err: any) {
       if (err?.response?.data?.message) {
         setError(err.response.data.message);
@@ -402,7 +408,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Nueva Orden de Compra</DialogTitle>
           <DialogDescription>
@@ -606,7 +612,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="supplier_id">Proveedor *</Label>
               <Select value={form.supplier_id} onValueChange={(value) => setForm({ ...form, supplier_id: value })}>
@@ -658,7 +664,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
             </div>
 
             <div className="space-y-2">
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <div className="flex-1 space-y-2">
                   <Label htmlFor="order_date">Fecha de Orden</Label>
                   <Popover>
@@ -687,10 +693,10 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
                 <div className="flex-1 space-y-2">
                   <Label htmlFor="payment_method_id">Método de Pago *</Label>
                   <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
-                    <SelectTrigger className="w-full min-w-0">
+                    <SelectTrigger className="w-full min-w-0 sm:min-w-[200px]">
                       <SelectValue placeholder="Seleccione un método de pago" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-60 overflow-y-auto">
                       {paymentMethods.map((pm) => (
                         <SelectItem key={pm.id} value={pm.id.toString()}>
                           {pm.name}
@@ -699,6 +705,45 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Checkbox para afectar caja registradora */}
+          <div className={`p-4 border-2 rounded-lg transition-colors ${affectsCashRegister ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
+            <div className="flex items-start space-x-3">
+              <Checkbox 
+                id="affects_cash_register" 
+                checked={affectsCashRegister}
+                onCheckedChange={(checked) => setAffectsCashRegister(checked === true)}
+                className="mt-1 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+              />
+              <div className="flex-1">
+                <Label 
+                  htmlFor="affects_cash_register"
+                  className="text-base font-semibold cursor-pointer flex items-center gap-2"
+                >
+                  {affectsCashRegister ? (
+                    <>
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <span className="text-green-700">Esta compra SÍ afecta el balance de la caja</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-5 w-5 text-orange-600" />
+                      <span className="text-orange-700">Esta compra NO afecta el balance de la caja</span>
+                    </>
+                  )}
+                </Label>
+                <p className={`text-sm mt-1 ${affectsCashRegister ? 'text-green-600' : 'text-orange-600'}`}>
+                  {affectsCashRegister 
+                    ? "El monto se descontará del balance de la caja registradora automáticamente." 
+                    : "Se creará un registro informativo sin modificar el balance de la caja."
+                  }
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Haz clic para cambiar este comportamiento
+                </p>
               </div>
             </div>
           </div>

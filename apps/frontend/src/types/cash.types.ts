@@ -12,6 +12,7 @@ export interface CashMovement {
   cash_register_id: number
   sale_id?: number
   purchase_order_id?: number
+  affects_balance?: boolean
 }
 
 export interface CashRegister {

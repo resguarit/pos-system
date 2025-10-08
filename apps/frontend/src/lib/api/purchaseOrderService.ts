@@ -22,6 +22,7 @@ export interface PurchaseOrder {
   items?: PurchaseOrderItem[];
   payment_method_id?: number;
   payment_method?: { id: number; name: string };
+  affects_cash_register?: boolean;
 }
 export interface CreatePurchaseOrder {
   supplier_id: number;
@@ -31,6 +32,7 @@ export interface CreatePurchaseOrder {
   notes?: string;
   items: PurchaseOrderItem[];
   payment_method_id?: number;
+  affects_cash_register?: boolean;
 }
 export interface PurchaseSummaryByCurrency {
   from: string;

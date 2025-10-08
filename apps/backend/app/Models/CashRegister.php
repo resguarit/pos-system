@@ -190,6 +190,11 @@ class CashRegister extends Model
 
         // Iteramos sobre cada movimiento para hacer los cálculos
         foreach ($movements as $movement) {
+            // CRÍTICO: Solo procesar movimientos que afectan el balance
+            if (!$movement->affects_balance) {
+                continue; // Saltar movimientos informativos
+            }
+            
             // Determinamos si el monto es positivo (ingreso) o negativo (egreso)
             // basándonos en el operation_type del MovementType.
             $amount = ($movement->movementType->operation_type === 'entrada')
