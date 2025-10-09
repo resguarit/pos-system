@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2, CheckCircle, AlertCircle, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService';
 import { getBranches } from '@/lib/api/branchService';
@@ -410,7 +410,10 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle>Nueva Orden de Compra</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Nueva Orden de Compra
+          </DialogTitle>
           <DialogDescription>
             Complete los campos para crear una nueva orden de compra.
           </DialogDescription>

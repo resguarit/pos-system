@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Trash2, Search, Calendar as CalendarIcon, CheckCircle, AlertCircle } from 'lucide-react'
+import { Plus, Trash2, Search, Calendar as CalendarIcon, CheckCircle, AlertCircle, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService'
 import { getBranches } from '@/lib/api/branchService'
@@ -231,7 +231,10 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Orden de Compra</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-5 w-5" />
+            Editar Orden de Compra
+          </DialogTitle>
           <DialogDescription>
             {isReadOnly ? 'Esta orden no es editable porque no está Pendiente.' : 'Modifique los campos y guarde los cambios.'}
           </DialogDescription>
