@@ -49,6 +49,20 @@ class SaleAnnulmentController extends Controller
      */
     public function annul(Request $request, int $id): JsonResponse
     {
+        // Verificar permiso de anular ventas
+        $user = auth()->user();
+        $hasPermission = $user->role
+            ->permissions()
+            ->where('name', 'anular_ventas')
+            ->exists();
+
+        if (!$hasPermission) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No tienes permiso para anular ventas'
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'reason' => 'nullable|string|max:500',
         ]);

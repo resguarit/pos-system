@@ -41,7 +41,6 @@ export const PERMISSIONS_CONFIG = {
       'crear_ventas',
       'editar_ventas',
       'anular_ventas',
-      'ver_comprobantes',
       'reimprimir_comprobantes',
       'aplicar_descuentos'
     ]
@@ -56,8 +55,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_stock',
       'ver_clientes',
       'crear_clientes',
-      'ver_tipos_comprobante',
-      'ver_metodos_pago'
+      'ver_tipos_comprobante'
     ]
   },
   
@@ -66,7 +64,6 @@ export const PERMISSIONS_CONFIG = {
     feature: 'historialVentas',
     permissions: [
       'ver_ventas',
-      'ver_comprobantes',
       'reimprimir_comprobantes',
       'exportar_reportes'
     ]
@@ -76,13 +73,11 @@ export const PERMISSIONS_CONFIG = {
   caja: {
     feature: 'caja',
     permissions: [
-      'abrir_caja',
-      'cerrar_caja',
+      'abrir_cerrar_caja',
       'ver_movimientos_caja',
       'crear_movimientos_caja',
       'eliminar_movimientos_caja',
-      'ver_estado_caja',
-      'imprimir_cierre_caja'
+      'ver_historico_caja'
     ]
   },
   
@@ -106,8 +101,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_proveedores',
       'crear_proveedores',
       'editar_proveedores',
-      'eliminar_proveedores',
-      'ver_compras_proveedor'
+      'eliminar_proveedores'
     ]
   },
   
@@ -115,13 +109,11 @@ export const PERMISSIONS_CONFIG = {
   purchaseOrders: {
     feature: 'purchaseOrders',
     permissions: [
-      'ver_compras',
-      'crear_compras',
-      'editar_compras',
-      'eliminar_compras',
-      'finalizar_compras',
-      'cancelar_compras',
-      'ver_detalle_compra'
+      'ver_ordenes_compra',
+      'crear_ordenes_compra',
+      'editar_ordenes_compra',
+      'cancelar_ordenes_compra',
+      'completar_ordenes_compra'
     ]
   },
   
@@ -223,7 +215,7 @@ export const PERMISSIONS_CONFIG = {
   facturacion: {
     feature: 'facturacion',
     permissions: [
-      'ver_comprobantes',
+      'ver_ventas',
       'crear_comprobantes',
       'editar_comprobantes',
       'eliminar_comprobantes',

@@ -13,13 +13,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Hooks y Contexto
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
 
 // Iconos
-import { ArrowLeft, Save, Loader2 } from "lucide-react"
+import { ArrowLeft, Save, Loader2, Info } from "lucide-react"
 
 // --- Interfaces ---
 interface Module {
@@ -129,6 +130,15 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const [isCheckingName, setIsCheckingName] = useState<boolean>(false)
   const [nameTimeoutId, setNameTimeoutId] = useState<number | null>(null)
 
+  // Cleanup del timeout cuando el componente se desmonte
+  useEffect(() => {
+    return () => {
+      if (nameTimeoutId) {
+        clearTimeout(nameTimeoutId);
+      }
+    };
+  }, [nameTimeoutId]);
+
   // --- Efecto Principal para Cargar Datos ---
   useEffect(() => {
     const controller = new AbortController();
@@ -186,7 +196,8 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
 
     loadData();
     return () => controller.abort();
-  }, [roleId, request, dispatch]); // Incluir todas las dependencias necesarias
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleId]); // Solo depender de roleId para evitar loops infinitos
 
   // Función para verificar si el nombre ya existe
   const checkNameExists = async (name: string) => {
@@ -230,13 +241,13 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
       }
       
       // Crear nuevo timeout
-      const newTimeoutId = setTimeout(() => {
+      const newTimeoutId = window.setTimeout(() => {
         checkNameExists(e.target.value);
       }, 500);
       
       setNameTimeoutId(newTimeoutId);
     }
-  }, [nameTimeoutId]);
+  }, []); // Sin dependencias para evitar re-renders innecesarios
 
   const handlePermissionChange = useCallback((permissionId: string, checked: boolean) => {
     setFormData((prev) => ({
@@ -303,7 +314,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const filteredModules = modules.filter(module => getFeatureForModule(module.name));
 
   return (
-    <div className="flex flex-col h-full p-4 pt-6 md:p-8">
+    <div className="flex flex-col h-screen w-full p-4 pt-6 md:p-8 overflow-hidden box-border">
       <div className="flex items-center justify-between flex-shrink-0 mb-4">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
@@ -321,8 +332,8 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         )}
       </div>
       
-      <div className="flex-1">
-        <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pr-2">
+        <form onSubmit={handleSubmit} className="space-y-4 pb-4 pr-2">
           <Card>
             <CardHeader><CardTitle>Información del Rol</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -334,7 +345,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
                     name="name" 
                     value={formData.name} 
                     onChange={handleInputChange} 
-                    disabled={viewOnly || isSubmitting || isSystem} 
+                    disabled={viewOnly || isSubmitting || isSystem || formData.name.toLowerCase() === 'admin'} 
                     required 
                     className={nameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                     style={{ borderColor: nameError ? '#ef4444' : undefined }}
@@ -345,10 +356,15 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
                     </div>
                   )}
                 </div>
+                {formData.name.toLowerCase() === 'admin' && (
+                  <p className="text-sm text-muted-foreground">
+                    El nombre del rol Admin no puede ser modificado
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Descripción</Label>
-                <Textarea id="description" name="description" value={formData.description} onChange={handleInputChange} disabled={viewOnly || isSubmitting || isSystem} rows={3} />
+                <Textarea id="description" name="description" value={formData.description} onChange={handleInputChange} disabled={viewOnly || isSubmitting || isSystem || formData.name.toLowerCase() === 'admin'} rows={3} />
               </div>
             </CardContent>
           </Card>
@@ -359,15 +375,26 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
               <CardDescription>Selecciona los permisos para este rol. Solo se muestran los módulos habilitados en el sistema.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Alerta para rol Admin */}
+              {formData.name.toLowerCase() === 'admin' && (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertTitle className="text-blue-900">Rol de Administrador</AlertTitle>
+                  <AlertDescription className="text-blue-800">
+                    El rol <strong>Admin</strong> tiene acceso automático a todos los permisos del sistema, 
+                    independientemente de los permisos seleccionados aquí. Esta configuración no puede ser modificada.
+                  </AlertDescription>
+                </Alert>
+              )}
               {filteredModules.map((module) => (
                 <div key={module.id} className="rounded-md border p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium">{formatPermissionName(module.name)}</h3>
+                  <div className="flex items-center justify-between gap-2 min-w-0">
+                    <h3 className="font-medium truncate flex-1">{formatPermissionName(module.name)}</h3>
                     <Checkbox
                       id={`module-${module.id}`}
                       checked={module.permissions.length > 0 && module.permissions.every((p) => formData.permissions.includes(p.id))}
                       onCheckedChange={(checked) => handleModuleToggle(module, !!checked)}
-                      disabled={viewOnly || isSystem || isSubmitting}
+                      disabled={viewOnly || isSystem || isSubmitting || formData.name.toLowerCase() === 'admin'}
                     />
                   </div>
                   {module.permissions.length > 0 && (
@@ -375,15 +402,21 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
                       <Separator className="my-4" />
                       <div className="grid grid-cols-1 gap-4 pl-6 md:grid-cols-2 lg:grid-cols-3">
                         {module.permissions.map((permission) => (
-                          <div key={permission.id} className="flex items-center justify-between gap-2">
-                            <Label htmlFor={`permission-${permission.id}`} className="text-sm font-normal" title={permission.description || formatPermissionName(permission.name)}>
-                              {formatPermissionName(permission.name)}
-                            </Label>
+                          <div key={permission.id} className="flex items-center justify-between gap-2 min-w-0">
+                            <div className="min-w-0 flex-1">
+                              <Label 
+                                htmlFor={`permission-${permission.id}`} 
+                                className="text-sm font-normal truncate block"
+                                title={permission.description || formatPermissionName(permission.name)}
+                              >
+                                {formatPermissionName(permission.name)}
+                              </Label>
+                            </div>
                             <Checkbox
                               id={`permission-${permission.id}`}
                               checked={formData.permissions.includes(permission.id)}
                               onCheckedChange={(checked) => handlePermissionChange(permission.id, !!checked)}
-                              disabled={viewOnly || isSystem || isSubmitting}
+                              disabled={viewOnly || isSystem || isSubmitting || formData.name.toLowerCase() === 'admin'}
                             />
                           </div>
                         ))}

@@ -22,8 +22,15 @@ import {
   RefreshCw,
   X,
   Printer,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
@@ -50,7 +57,7 @@ const PAGE_SIZE = 5; // Temporalmente reducido para probar paginación
 
 export default function VentasPage() {
   const { request } = useApi();
-  const { hasPermission } = useAuth();
+  const { hasPermission, isAdmin } = useAuth();
   const { selectionChangeToken, selectedBranch } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [stats, setStats] = useState({
@@ -677,7 +684,24 @@ export default function VentasPage() {
       
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <h1 className="text-2xl font-semibold">Ventas Globales</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-semibold">Ventas Globales</h1>
+          {isAdmin() && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1">
+                    <ShieldCheck className="h-3 w-3" />
+                    Admin
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Como administrador, tienes acceso a todas las funciones independientemente de los permisos configurados</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2 items-center">
           {/* Botón de recarga (igual al de Inventario) */}
           <Button
@@ -1043,18 +1067,18 @@ export default function VentasPage() {
                       <Button
                         variant="ghost"
                         className={`text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 ${
-                          hasPermission('anular_ventas') && sale.status === 'active'
+                          hasPermission('anular_ventas') && sale.status === 'completed'
                             ? 'cursor-pointer'
                             : 'invisible cursor-default'
                         }`}
                         size="icon"
                         onClick={
-                          hasPermission('anular_ventas') && sale.status === 'active'
+                          hasPermission('anular_ventas') && sale.status === 'completed'
                             ? () => handleAnnulSale(sale)
                             : undefined
                         }
                         title={
-                          hasPermission('anular_ventas') && sale.status === 'active'
+                          hasPermission('anular_ventas') && sale.status === 'completed'
                             ? 'Anular Venta'
                             : ''
                         }

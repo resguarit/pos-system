@@ -94,7 +94,8 @@ export function DatePickerWithRange({ className, selected, onSelect }: DatePicke
           // Actualizar la selección y luego cerrar el calendario
         onSelect(newRange);
         // Cerramos después de un pequeño delay para asegurar que la actualización se complete
-        setTimeout(() => setOpen(false), 100);} else {
+        setTimeout(() => setOpen(false), 100);
+      } else {
         // Establecer solo fecha de inicio
         onSelect({ from: new Date(date) });
         // No cerramos el calendario para permitir seleccionar la segunda fecha

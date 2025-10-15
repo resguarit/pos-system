@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Info, Loader2 } from 'lucide-react'
+import { Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Info, Loader2, AlertTriangle } from 'lucide-react'
 import { DEFAULT_RECEIPT_TYPES, findReceiptTypeByAfipCode, type ReceiptType } from '@/lib/constants/afipCodes'
 import { toast } from "sonner"
 import {
@@ -67,7 +67,7 @@ export default function POSPage() {
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
   const { request } = useApi()
   const { selectedBranch, selectionChangeToken } = useBranch()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
 
   // Funciones para manejar localStorage del carrito
   const CART_STORAGE_KEY = 'pos_cart'
@@ -955,6 +955,7 @@ export default function POSPage() {
                          </Select>
                        </div>
                        {/* Descuento global */}
+                       {hasPermission('aplicar_descuentos') && (
                        <div className="mb-4 grid grid-cols-4 gap-2 items-end">
                          <Label className="col-span-4">Descuento global</Label>
                          <Select value={globalDiscountType} onValueChange={(v) => setGlobalDiscountType(v as any)}>
@@ -974,6 +975,7 @@ export default function POSPage() {
                            onChange={(e) => setGlobalDiscountValue(e.target.value)}
                          />
                        </div>
+                       )}
                        {selectedCustomer && (
                          <div className="space-y-3">
                              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1087,6 +1089,12 @@ export default function POSPage() {
                      <p className="text-xs text-muted-foreground mb-2">
                        El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos por ítem se aplican antes del IVA, el descuento global se aplica sobre el total con IVA. Cálculo con hasta 2 decimales.
                      </p>
+                     {!hasPermission('aplicar_descuentos') && (
+                       <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2 mb-2">
+                         <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                         <p>No tienes permiso para aplicar descuentos. Los campos de descuento están deshabilitados.</p>
+                       </div>
+                     )}
                      <Table>
                      <TableHeader>
                          <TableRow>
@@ -1124,6 +1132,7 @@ export default function POSPage() {
                                  onValueChange={(v) => {
                                    setCart((prev) => prev.map((ci, i) => i === idx ? { ...ci, discount_type: v as any, discount_value: ci.discount_value ?? 0 } : ci))
                                  }}
+                                 disabled={!hasPermission('aplicar_descuentos')}
                                >
                                  <SelectTrigger className="w-[130px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
                                  <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
@@ -1144,6 +1153,7 @@ export default function POSPage() {
                                    const val = e.target.value
                                    setCart((prev) => prev.map((ci, i) => i === idx ? { ...ci, discount_value: val === '' ? undefined : Number(val) } : ci))
                                  }}
+                                 disabled={!hasPermission('aplicar_descuentos')}
                                />
                              </TableCell>
                              </TableRow>

@@ -3,6 +3,7 @@ import { type Product } from "@/types/product"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useBranch } from "@/context/BranchContext"
+import { useAuth } from "@/hooks/useAuth"
 
 interface ViewProductDialogProps {
   open: boolean
@@ -12,6 +13,7 @@ interface ViewProductDialogProps {
 
 export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDialogProps) {
   const { branches } = useBranch();
+  const { hasPermission } = useAuth();
 
   // Función para formatear el markup
   const formatMarkup = (markup: number | string): string => {
@@ -105,39 +107,41 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
               <span className="font-medium text-right">Observaciones:</span>
               <span className="col-span-3">{product.observaciones || '-'}</span>
             </div>
-            <div className="mt-4">
-              <h3 className="font-semibold mb-2">Stock por Sucursal</h3>
-              <div className="border rounded-md overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Sucursal</TableHead>
-                      <TableHead>Stock Actual</TableHead>
-                      <TableHead>Stock Mínimo</TableHead>
-                      <TableHead>Stock Máximo</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {product.stocks && product.stocks.length > 0 ? (
-                      product.stocks.map((stock) => (
-                        <TableRow key={stock.id}>
-                          <TableCell>{resolveBranchName(stock.branch_id, stock.branch)}</TableCell>
-                          <TableCell>{stock.current_stock}</TableCell>
-                          <TableCell>{stock.min_stock}</TableCell>
-                          <TableCell>{stock.max_stock}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
+            {hasPermission('ver_stock') && (
+              <div className="mt-4">
+                <h3 className="font-semibold mb-2">Stock por Sucursal</h3>
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center">
-                          No hay información de stock disponible
-                        </TableCell>
+                        <TableHead>Sucursal</TableHead>
+                        <TableHead>Stock Actual</TableHead>
+                        <TableHead>Stock Mínimo</TableHead>
+                        <TableHead>Stock Máximo</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {product.stocks && product.stocks.length > 0 ? (
+                        product.stocks.map((stock) => (
+                          <TableRow key={stock.id}>
+                            <TableCell>{resolveBranchName(stock.branch_id, stock.branch)}</TableCell>
+                            <TableCell>{stock.current_stock}</TableCell>
+                            <TableCell>{stock.min_stock}</TableCell>
+                            <TableCell>{stock.max_stock}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center">
+                            No hay información de stock disponible
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </DialogContent>

@@ -384,10 +384,12 @@ export default function BranchSalesPage() {
                   <TableCell className="hidden md:table-cell text-center">{getItemsCount(sale)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(sale.total)}</TableCell>
                   <TableCell className="text-center">
-                    <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer" onClick={() => handleViewDetail(sale)} title="Ver Detalle" disabled={loading}>
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    {hasPermission('ver_comprobantes') && (
+                    {hasPermission('ver_ventas') && (
+                      <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer" onClick={() => handleViewDetail(sale)} title="Ver Detalle" disabled={loading}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {hasPermission('reimprimir_comprobantes') && (
                       <Button variant="ghost" size="icon" className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 cursor-pointer" onClick={() => handleDownloadPdf(sale)} title="Descargar PDF">
                         <Download className="h-4 w-4" />
                       </Button>

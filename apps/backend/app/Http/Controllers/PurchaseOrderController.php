@@ -56,9 +56,35 @@ class PurchaseOrderController extends Controller
     {
         try {
             $query = PurchaseOrder::with(['supplier', 'branch', 'items.product', 'paymentMethod']);
+            
+            // Filtro por moneda
             if ($request->has('currency') && $request->currency) {
                 $query->byCurrency($request->currency);
             }
+            
+            // Filtro por rango de fechas
+            if ($request->has('from') && $request->from) {
+                $query->whereDate('order_date', '>=', $request->from);
+            }
+            if ($request->has('to') && $request->to) {
+                $query->whereDate('order_date', '<=', $request->to);
+            }
+            
+            // Filtro por estado
+            if ($request->has('status') && $request->status) {
+                $query->where('status', $request->status);
+            }
+            
+            // Filtro por proveedor
+            if ($request->has('supplier_id') && $request->supplier_id) {
+                $query->where('supplier_id', $request->supplier_id);
+            }
+            
+            // Filtro por sucursal
+            if ($request->has('branch_id') && $request->branch_id) {
+                $query->where('branch_id', $request->branch_id);
+            }
+            
             $purchaseOrders = $query->latest()->get();
             return response()->json($purchaseOrders);
         } catch (Exception $e) {

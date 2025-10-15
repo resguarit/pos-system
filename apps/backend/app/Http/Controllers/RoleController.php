@@ -106,6 +106,17 @@ class RoleController extends Controller
 
     public function update(Request $request, $id): JsonResponse
     {
+        // Verificar si es el rol Admin antes de permitir cambios
+        $role = \App\Models\Role::findOrFail($id);
+        
+        if (strtolower($role->name) === 'admin') {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'El rol Admin no puede ser modificado'
+            ], 403);
+        }
+
         $validatedData = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $id,
             'description' => 'nullable|string|max:500'
@@ -142,6 +153,17 @@ class RoleController extends Controller
 
     public function destroy($id): JsonResponse
     {
+        // Verificar si es el rol Admin antes de permitir eliminación
+        $role = \App\Models\Role::findOrFail($id);
+        
+        if (strtolower($role->name) === 'admin') {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'El rol Admin no puede ser eliminado'
+            ], 403);
+        }
+
         try {
             $deleted = $this->roleService->deleteRole($id);
             return response()->json([

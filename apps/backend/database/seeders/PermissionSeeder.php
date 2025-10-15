@@ -17,9 +17,7 @@ class PermissionSeeder extends Seeder
             // Ventas
             ['name' => 'ver_ventas', 'description' => 'Ver listado de ventas', 'module' => 'ventas'],
             ['name' => 'crear_ventas', 'description' => 'Registrar nueva venta', 'module' => 'ventas'],
-            ['name' => 'editar_ventas', 'description' => 'Editar venta existente', 'module' => 'ventas'],
             ['name' => 'anular_ventas', 'description' => 'Anular venta', 'module' => 'ventas'],
-            ['name' => 'ver_comprobantes', 'description' => 'Ver comprobantes fiscales', 'module' => 'ventas'],
             ['name' => 'reimprimir_comprobantes', 'description' => 'Reimprimir comprobantes', 'module' => 'ventas'],
             ['name' => 'aplicar_descuentos', 'description' => 'Aplicar descuentos en ventas', 'module' => 'ventas'],
             
@@ -29,8 +27,6 @@ class PermissionSeeder extends Seeder
             ['name' => 'editar_productos', 'description' => 'Editar producto', 'module' => 'productos'],
             ['name' => 'eliminar_productos', 'description' => 'Eliminar producto', 'module' => 'productos'],
             ['name' => 'actualizar_stock', 'description' => 'Actualizar stock de productos', 'module' => 'productos'],
-            ['name' => 'importar_productos', 'description' => 'Importar productos masivamente', 'module' => 'productos'],
-            ['name' => 'exportar_productos', 'description' => 'Exportar lista de productos', 'module' => 'productos'],
             
             // Categorías
             ['name' => 'ver_categorias', 'description' => 'Ver categorías', 'module' => 'categorias'],
@@ -70,7 +66,6 @@ class PermissionSeeder extends Seeder
             ['name' => 'crear_sucursales', 'description' => 'Crear sucursal', 'module' => 'sucursales'],
             ['name' => 'editar_sucursales', 'description' => 'Editar sucursal', 'module' => 'sucursales'],
             ['name' => 'eliminar_sucursales', 'description' => 'Eliminar sucursal', 'module' => 'sucursales'],
-            ['name' => 'cambiar_sucursal', 'description' => 'Cambiar entre sucursales asignadas', 'module' => 'sucursales'],
             ['name' => 'ver_personal_sucursal', 'description' => 'Ver personal de sucursales', 'module' => 'sucursales'],
             ['name' => 'ver_historial_ventas_sucursal', 'description' => 'Ver historial de ventas de sucursal', 'module' => 'sucursales'],
             
@@ -79,15 +74,13 @@ class PermissionSeeder extends Seeder
             ['name' => 'crear_clientes', 'description' => 'Crear cliente', 'module' => 'clientes'],
             ['name' => 'editar_clientes', 'description' => 'Editar cliente', 'module' => 'clientes'],
             ['name' => 'eliminar_clientes', 'description' => 'Eliminar cliente', 'module' => 'clientes'],
-            ['name' => 'importar_clientes', 'description' => 'Importar clientes masivamente', 'module' => 'clientes'],
-            ['name' => 'exportar_clientes', 'description' => 'Exportar lista de clientes', 'module' => 'clientes'],
             
-            // Compras
-            ['name' => 'ver_compras', 'description' => 'Ver compras', 'module' => 'compras'],
-            ['name' => 'crear_compras', 'description' => 'Registrar compra', 'module' => 'compras'],
-            ['name' => 'editar_compras', 'description' => 'Editar compra', 'module' => 'compras'],
-            ['name' => 'eliminar_compras', 'description' => 'Eliminar compra', 'module' => 'compras'],
-            ['name' => 'aprobar_compras', 'description' => 'Aprobar órdenes de compra', 'module' => 'compras'],
+            // Órdenes de Compra
+            ['name' => 'ver_ordenes_compra', 'description' => 'Ver órdenes de compra e historial', 'module' => 'compras'],
+            ['name' => 'crear_ordenes_compra', 'description' => 'Crear orden de compra', 'module' => 'compras'],
+            ['name' => 'editar_ordenes_compra', 'description' => 'Editar orden de compra', 'module' => 'compras'],
+            ['name' => 'cancelar_ordenes_compra', 'description' => 'Cancelar orden de compra', 'module' => 'compras'],
+            ['name' => 'completar_ordenes_compra', 'description' => 'Completar/finalizar orden de compra', 'module' => 'compras'],
             
             // Proveedores
             ['name' => 'ver_proveedores', 'description' => 'Ver proveedores', 'module' => 'proveedores'],
@@ -95,18 +88,12 @@ class PermissionSeeder extends Seeder
             ['name' => 'editar_proveedores', 'description' => 'Editar proveedor', 'module' => 'proveedores'],
             ['name' => 'eliminar_proveedores', 'description' => 'Eliminar proveedor', 'module' => 'proveedores'],
             
-            // Métodos de pago
-            ['name' => 'ver_metodos_pago', 'description' => 'Ver métodos de pago', 'module' => 'metodos_pago'],
-            // ['name' => 'crear_metodos_pago', 'description' => 'Crear método de pago', 'module' => 'metodos_pago'],
-            // ['name' => 'editar_metodos_pago', 'description' => 'Editar método de pago', 'module' => 'metodos_pago'],
-            // ['name' => 'eliminar_metodos_pago', 'description' => 'Eliminar método de pago', 'module' => 'metodos_pago'],
-            
             // Caja y Movimientos
-            ['name' => 'abrir_caja', 'description' => 'Abrir caja registradora', 'module' => 'caja'],
-            ['name' => 'cerrar_caja', 'description' => 'Cerrar caja registradora', 'module' => 'caja'],
-            ['name' => 'ver_movimientos_caja', 'description' => 'Ver movimientos de caja', 'module' => 'caja'],
-            ['name' => 'crear_movimientos_caja', 'description' => 'Crear movimientos de efectivo', 'module' => 'caja'],
-            ['name' => 'arqueo_caja', 'description' => 'Realizar arqueo de caja', 'module' => 'caja'],
+            ['name' => 'abrir_cerrar_caja', 'description' => 'Abrir o cerrar caja registradora', 'module' => 'caja'],
+            ['name' => 'ver_movimientos_caja', 'description' => 'Ver la tabla de movimientos de caja', 'module' => 'caja'],
+            ['name' => 'crear_movimientos_caja', 'description' => 'Crear nuevo movimiento de caja', 'module' => 'caja'],
+            ['name' => 'eliminar_movimientos_caja', 'description' => 'Eliminar movimientos de caja', 'module' => 'caja'],
+            ['name' => 'ver_historico_caja', 'description' => 'Ver histórico y reportes de caja', 'module' => 'caja'],
             
             // // Reportes
             // ['name' => 'ver_reportes', 'description' => 'Ver reportes', 'module' => 'reportes'],
@@ -120,9 +107,10 @@ class PermissionSeeder extends Seeder
             // ['name' => 'ver_tipos_comprobante', 'description' => 'Ver tipos de comprobante', 'module' => 'fiscal'],
             // ['name' => 'editar_tipos_comprobante', 'description' => 'Editar tipos de comprobante', 'module' => 'fiscal'],
             
-            // // Configuración
-            ['name' => 'ver_configuracion', 'description' => 'Ver configuración general', 'module' => 'configuracion'],
-            ['name' => 'editar_configuracion', 'description' => 'Editar configuración general', 'module' => 'configuracion'],
+            // Configuración del Sistema
+          //  ['name' => 'ver_configuracion', 'description' => 'Ver configuración general', 'module' => 'configuracion'],
+          //  ['name' => 'editar_configuracion', 'description' => 'Editar configuración general (logo, monedas, etc)', 'module' => 'configuracion'],
+           // ['name' => 'gestionar_metodos_pago', 'description' => 'CRUD de métodos de pago', 'module' => 'configuracion'],
             // ['name' => 'gestionar_backup', 'description' => 'Gestionar copias de seguridad', 'module' => 'configuracion'],
             // ['name' => 'ver_logs', 'description' => 'Ver logs del sistema', 'module' => 'configuracion'],
             
@@ -158,14 +146,7 @@ class PermissionSeeder extends Seeder
             // Permisos adicionales identificados en la aplicación
             ['name' => 'ver_perfil', 'description' => 'Ver perfil de usuario', 'module' => 'usuarios'],
             ['name' => 'editar_perfil', 'description' => 'Editar perfil de usuario', 'module' => 'usuarios'],
-            ['name' => 'ver_stock', 'description' => 'Ver información de stock', 'module' => 'productos'],
             ['name' => 'ver_cuentas_corrientes', 'description' => 'Ver cuentas corrientes', 'module' => 'clientes'],
-            ['name' => 'gestionar_cuentas_corrientes', 'description' => 'Gestionar cuentas corrientes', 'module' => 'clientes'],
-            ['name' => 'ver_ordenes_compra', 'description' => 'Ver órdenes de compra', 'module' => 'compras'],
-            ['name' => 'crear_ordenes_compra', 'description' => 'Crear órdenes de compra', 'module' => 'compras'],
-            ['name' => 'editar_ordenes_compra', 'description' => 'Editar órdenes de compra', 'module' => 'compras'],
-            ['name' => 'eliminar_ordenes_compra', 'description' => 'Eliminar órdenes de compra', 'module' => 'compras'],
-            ['name' => 'ver_historial_compras', 'description' => 'Ver historial de compras', 'module' => 'compras'],
             ['name' => 'exportar_lista_precios', 'description' => 'Exportar lista de precios', 'module' => 'productos'],
             ['name' => 'actualizar_precios_masivo', 'description' => 'Actualizar precios masivamente', 'module' => 'productos'],
         ];

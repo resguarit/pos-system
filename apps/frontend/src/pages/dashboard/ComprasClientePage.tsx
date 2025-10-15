@@ -12,6 +12,7 @@ import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import useApi from "@/hooks/useApi";
+import { useAuth } from "@/context/AuthContext";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
 import { type SaleHeader } from "@/types/sale";
@@ -28,6 +29,7 @@ import {
 export default function CustomerPurchasesPage() {
   const params = useParams()
   const { request } = useApi()
+  const { hasPermission } = useAuth();
   const [customer, setCustomer] = useState<any>(null)
   const [purchases, setPurchases] = useState<SaleHeader[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -406,27 +408,31 @@ export default function CustomerPurchasesPage() {
                   <TableCell>{formatCurrency(purchase.total)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
-                        title="Ver detalle"
-                        onClick={() => handleViewDetail(purchase)}
-                      >
-                        <Eye className="h-4 w-4" />
-                        <span className="sr-only">Ver detalle</span>
-                      </Button>
+                      {hasPermission('ver_ventas') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
+                          title="Ver detalle"
+                          onClick={() => handleViewDetail(purchase)}
+                        >
+                          <Eye className="h-4 w-4" />
+                          <span className="sr-only">Ver detalle</span>
+                        </Button>
+                      )}
                     
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 cursor-pointer"
-                        title="Descargar PDF"
-                        onClick={() => handleDownloadPdf(purchase)}
-                      >
-                        <Download className="h-4 w-4" />
-                        <span className="sr-only">Descargar PDF</span>
-                      </Button>
+                      {hasPermission('reimprimir_comprobantes') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 cursor-pointer"
+                          title="Descargar PDF"
+                          onClick={() => handleDownloadPdf(purchase)}
+                        >
+                          <Download className="h-4 w-4" />
+                          <span className="sr-only">Descargar PDF</span>
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

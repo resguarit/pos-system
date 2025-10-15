@@ -1,289 +1,515 @@
-import { useState, useEffect } from 'react';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Check, X, Eye, Pencil } from 'lucide-react';
-import { purchaseOrderService, type PurchaseOrder } from '@/lib/api/purchaseOrderService';
-import NewPurchaseOrderDialog from '@/components/new-purchase-order-dialog';
-import EditPurchaseOrderDialog from '@/components/edit-purchase-order-dialog';
-import { ViewPurchaseOrderDialog } from '@/components/view-purchase-order-dialog';
-import CompleteOrderDialog from '@/components/complete-order-dialog-simple';
-import { toast } from "sonner";
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
+import { useResizableColumns } from '@/hooks/useResizableColumns';
+import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
+import { Badge } from "@/components/ui/badge"
+import { Plus, Search, ShoppingBag, CheckCircle, XCircle, Eye, Pencil } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { NewPurchaseOrderDialog } from "@/components/new-purchase-order-dialog"
+import { ViewPurchaseOrderDialog } from "@/components/view-purchase-order-dialog"
+import EditPurchaseOrderDialog from "@/components/edit-purchase-order-dialog"
+import { getPurchaseOrders, finalizePurchaseOrder, cancelPurchaseOrder, getPurchaseSummaryByCurrency } from "@/lib/api/purchaseOrderService"
+import type { PurchaseOrder as APIPurchaseOrder } from "@/lib/api/purchaseOrderService"
+import { toast } from "sonner"
+import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import type { DateRange } from "@/components/ui/date-range-picker"
+import { format } from "date-fns"
+import { Label } from "@/components/ui/label"
+import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus"
+import { useAuth } from "@/hooks/useAuth"
+import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper"
+import Pagination from "@/components/ui/pagination"
 
-type CurrencyTotals = {
-  ARS?: number;
-  USD?: number;
-};
+export default function PurchaseOrderPage() {
+  const { hasPermission, currentBranch } = useAuth();
+  const [searchTerm, setSearchTerm] = useState("")
 
-type SummaryResponse = {
-  from: string;
-  to: string;
-  totals: CurrencyTotals;
-};
+  // Configuración de columnas redimensionables para órdenes de compra
+  const orderColumnConfig = [
+    { id: 'number', minWidth: 60, maxWidth: 180, defaultWidth: 140 },
+    { id: 'supplier', minWidth: 200, maxWidth: 350, defaultWidth: 250 },
+    { id: 'date', minWidth: 100, maxWidth: 180, defaultWidth: 140 },
+    { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
+    { id: 'total', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
+    { id: 'actions', minWidth: 180, maxWidth: 300, defaultWidth: 240 }
+  ];
 
-function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-function formatAmount(amount?: number, currency?: string) {
-  if (amount == null) return "-";
-  return `${currency === "USD" ? "US$" : "$"}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+  const {
+    getResizeHandleProps: getOrderResizeHandleProps,
+    getColumnHeaderProps: getOrderColumnHeaderProps,
+    getColumnCellProps: getOrderColumnCellProps,
+    tableRef: orderTableRef
+  } = useResizableColumns({
+    columns: orderColumnConfig,
+    storageKey: 'ordenes-compra-column-widths',
+    defaultWidth: 150
+  });
 
-const today = new Date();
-const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const [openNewPurchaseOrder, setOpenNewPurchaseOrder] = useState(false)
+  const [viewPurchaseOrderDialogOpen, setViewPurchaseOrderDialogOpen] = useState(false)
+  const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<number | null>(null)
+  const [editPurchaseOrderDialogOpen, setEditPurchaseOrderDialogOpen] = useState(false)
+  const [purchaseOrders, setPurchaseOrders] = useState<APIPurchaseOrder[]>([])
+  const [loading, setLoading] = useState(false)
+  const [statusFilter, setStatusFilter] = useState("all")
 
-export default function PurchaseOrdersPage() {
-  const [ purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [from, setFrom] = useState<string>(formatDate(firstDay));
-  const [to, setTo] = useState<string>(formatDate(lastDay));
-  const [totals, setTotals] = useState<CurrencyTotals>({});
-  const [totalsLoading, setTotalsLoading] = useState(false);
-  const [totalsError, setTotalsError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showNewDialog, setShowNewDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [showViewDialog, setShowViewDialog] = useState(false);
-  const [showCompleteDialog, setShowCompleteDialog] = useState(false);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [orderToComplete, setOrderToComplete] = useState<PurchaseOrder | null>(null);
+  // Estados de paginación para órdenes de compra
+  const [currentPOPage, setCurrentPOPage] = useState(1)
+  const [totalPOItems, setTotalPOItems] = useState(0)
+  const [totalPOPages, setTotalPOPages] = useState(1)
+  const PO_PAGE_SIZE = 10
 
-  const loadPurchaseOrders = async () => {
-    try {
-      setLoading(true);
-      const data = await purchaseOrderService.getAll();
-      setPurchaseOrders(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar las órdenes de compra');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Nuevos estados para el resumen
+  const [summary, setSummary] = useState<{ ARS?: number; USD?: number }>({})
+  const [summaryPeriod, setSummaryPeriod] = useState<{ from: string; to: string } | null>(null)
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: new Date(2025, 8, 1),
+    to: new Date(2025, 8, 30),
+  })
 
-  useEffect(() => { loadPurchaseOrders(); }, []);
+  // Obtener el estado de la caja abierta para la sucursal seleccionada
+  const branchId = currentBranch?.id ? Number(currentBranch.id) : 1;
+  const { status: cashRegisterStatus, isOpen: isCashRegisterOpen } = useCashRegisterStatus(branchId);
+
+  // Fetch purchase orders from backend
+  useEffect(() => {
+    loadPurchaseOrders(1)
+  }, [])
 
   useEffect(() => {
-    async function fetchTotals() {
-      setTotalsLoading(true);
-      setTotalsError(null);
-      try {
-        const params = new URLSearchParams({ from, to });
-        const res = await fetch(`/api/purchase-orders/summary-by-currency?${params}`);
-        if (!res.ok) throw new Error("Error al obtener totales");
-        const data: SummaryResponse = await res.json();
-        setTotals(data.totals || {});
-      } catch (err: any) {
-        setTotalsError(err.message || "Error desconocido");
-      } finally {
-        setTotalsLoading(false);
+    const fetchSummary = async () => {
+      if (dateRange?.from && dateRange.to) {
+        try {
+          const fromDate = format(dateRange.from, "yyyy-MM-dd")
+          const toDate = format(dateRange.to, "yyyy-MM-dd")
+          const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate)
+          setSummary(summaryData.totals)
+          setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
+        } catch (error) {
+          toast.error("Error al cargar el resumen de compras por moneda.")
+          setSummary({})
+          setSummaryPeriod(null)
+        }
       }
     }
-    fetchTotals();
-  }, [from, to]);
+    fetchSummary()
+  }, [dateRange])
 
-  const handleComplete = (order: PurchaseOrder) => {
-    alert(`Intentando completar orden ${order.id} - Total: $${order.total_amount} - Proveedor: ${order.supplier?.name}`);
-    setOrderToComplete(order);
-    setShowCompleteDialog(true);
-  };
-
-  const handleCompleteWithPayment = async (paymentMethodId: number) => {
-    if (!orderToComplete?.id) return;
-    
+  // Modificar loadPurchaseOrders para aceptar fechas
+  const loadPurchaseOrders = async (page = 1, from?: string, to?: string) => {
     try {
-      await purchaseOrderService.finalize(orderToComplete.id, paymentMethodId);
-      toast.success("Orden completada", { 
-        description: "La orden de compra se completó y el stock se actualizó correctamente." 
-      });
-      loadPurchaseOrders();
-    } catch (err: any) {
-      toast.error("Error al completar la orden", { 
-        description: err.message || "Error al completar la orden de compra" 
-      });
-      throw err; // Re-throw para que el modal maneje el error
+      setLoading(true)
+      const params: any = {};
+      if (from) params.from = from;
+      if (to) params.to = to;
+      
+      console.log('Cargando órdenes con parámetros:', params);
+      const orders = await getPurchaseOrders(params);
+      console.log('Órdenes recibidas:', orders.length);
+      const startIndex = (page - 1) * PO_PAGE_SIZE;
+      const endIndex = startIndex + PO_PAGE_SIZE;
+      const paginatedOrders = orders.slice(startIndex, endIndex);
+      setPurchaseOrders(paginatedOrders);
+      setTotalPOItems(orders.length);
+      setCurrentPOPage(page);
+      setTotalPOPages(Math.ceil(orders.length / PO_PAGE_SIZE));
+    } catch (error) {
+      console.error('Error loading purchase orders:', error);
+      toast.error("Error al cargar órdenes de compra");
+      setPurchaseOrders([]);
+      setTotalPOItems(0);
+      setTotalPOPages(1);
+    } finally {
+      setLoading(false)
     }
-  };
-
-  const handleCancel = async (id: number) => {
-    try {
-      await purchaseOrderService.cancel(id);
-      toast.success("Orden cancelada", { description: "La orden de compra se canceló correctamente." });
-      loadPurchaseOrders();
-    } catch (err: any) {
-      toast.error("Error al cancelar la orden", { description: err.message || "Error al cancelar la orden de compra" });
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const v = (status || '').toLowerCase();
-    switch (v) {
-      case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pendiente</Badge>;
-      case 'completed':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Completada</Badge>;
-      case 'cancelled':
-        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelada</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const isPending = (status?: string | null) => {
-    const v = (status ?? '').toLowerCase();
-    return v === '' || v === 'pending';
-  };
-
-  const formatDateForDisplay = (dateString: string) => new Date(dateString).toLocaleDateString('es-ES');
-  const formatCurrency = (amount: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
-
-  if (loading) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="flex justify-center items-center h-64">
-          <div className="text-lg">Cargando órdenes de compra...</div>
-        </div>
-      </div>
-    );
   }
 
+  // Actualizar useEffect para cargar órdenes de compra al cambiar el periodo
+  useEffect(() => {
+    console.log('useEffect dateRange ejecutado:', dateRange);
+    if (dateRange?.from && dateRange.to) {
+      const fromDate = format(dateRange.from, "yyyy-MM-dd");
+      const toDate = format(dateRange.to, "yyyy-MM-dd");
+      console.log('Cargando con filtro de fechas:', { fromDate, toDate });
+      loadPurchaseOrders(1, fromDate, toDate);
+    } else {
+      // Si no hay filtro de fecha, cargar todas las órdenes
+      console.log('Cargando sin filtro de fechas');
+      loadPurchaseOrders(1);
+    }
+  }, [dateRange])
+
+  // Funciones de paginación para órdenes de compra
+  const goToPOPage = (pageNumber: number) => {
+    if (pageNumber >= 1 && pageNumber <= totalPOPages && pageNumber !== currentPOPage && !loading) {
+      setCurrentPOPage(pageNumber);
+      loadPurchaseOrders(pageNumber);
+    }
+  };
+
+  const handlePurchaseOrderSaved = async () => {
+    setOpenNewPurchaseOrder(false)
+    setEditPurchaseOrderDialogOpen(false)
+    await loadPurchaseOrders(currentPOPage)
+  }
+
+  const refreshCards = async () => {
+    setLoading(true);
+    await loadPurchaseOrders(currentPOPage);
+    // Refresca el resumen de compras
+    if (dateRange?.from && dateRange.to) {
+      const fromDate = format(dateRange.from, "yyyy-MM-dd");
+      const toDate = format(dateRange.to, "yyyy-MM-dd");
+      try {
+        const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate);
+        setSummary(summaryData.totals);
+        setSummaryPeriod({ from: summaryData.from, to: summaryData.to });
+      } catch {
+        setSummary({});
+        setSummaryPeriod(null);
+      }
+    }
+    setLoading(false);
+  };
+
+  const handleCompletePurchaseOrder = async (orderId: number) => {
+    if (!isCashRegisterOpen || !cashRegisterStatus?.cash_register?.id) {
+      toast.error("No hay caja abierta en la sucursal seleccionada. Debe abrir la caja antes de finalizar la orden.");
+      return;
+    }
+    try {
+      const cashRegisterId = cashRegisterStatus.cash_register.id;
+      await finalizePurchaseOrder(orderId, cashRegisterId);
+      toast.success("Orden de compra finalizada exitosamente");
+      await refreshCards();
+    } catch (error) {
+      toast.error("Error al finalizar la orden de compra");
+    }
+  }
+
+  const handleCancelPurchaseOrder = async (orderId: number) => {
+    try {
+      await cancelPurchaseOrder(orderId)
+      toast.success("Orden de compra cancelada")
+      await refreshCards()
+    } catch (error) {
+      toast.error("Error al cancelar la orden de compra")
+    }
+  }
+
+  const handleViewPurchaseOrder = (order: APIPurchaseOrder) => {
+    setSelectedPurchaseOrderId(order.id ?? null)
+    setViewPurchaseOrderDialogOpen(true)
+  }
+
+  const handleEditPurchaseOrder = (order: APIPurchaseOrder) => {
+    setSelectedPurchaseOrderId(order.id ?? null)
+    setEditPurchaseOrderDialogOpen(true)
+  }
+
+  const isPending = (status?: string) => (status ?? '').toLowerCase() === 'pending' || (status ?? '') === ''
+
+  const getStatusBadgeColor = (status?: string) => {
+    const s = (status ?? '').toLowerCase()
+    switch (s) {
+      case 'pending':
+        return 'bg-yellow-50 text-yellow-700 hover:bg-yellow-50 hover:text-yellow-700'
+      case 'completed':
+        return 'bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700'
+      case 'cancelled':
+        return 'bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700'
+      default:
+        return 'bg-gray-50 text-gray-700 hover:bg-gray-50 hover:text-gray-700'
+    }
+  }
+
+  const getStatusLabel = (status?: string) => {
+    const s = (status ?? '').toLowerCase()
+    switch (s) {
+      case 'pending':
+        return 'Pendiente'
+      case 'completed':
+        return 'Completada'
+      case 'cancelled':
+        return 'Cancelada'
+      default:
+        return status || 'Pendiente'
+    }
+  }
+
+  const getOrderTotalNumber = (order: APIPurchaseOrder): number => {
+    if (order.total_amount) {
+      return typeof order.total_amount === 'string' ? parseFloat(order.total_amount) : order.total_amount
+    }
+    if (typeof order.total === 'string') return parseFloat(order.total)
+    return 0
+  }
+
+  const filteredPurchaseOrders = purchaseOrders.filter(order => {
+    const matchesSearch = (order.supplier?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (order.id?.toString() || '').includes(searchTerm)
+    const matchesStatus = statusFilter === 'all' || (order.status || '').toLowerCase() === statusFilter
+    return matchesSearch && matchesStatus
+  })
+
+  const pendingOrders = purchaseOrders.filter(order => isPending(order.status)).length
+
+  const formatCurrency = (amount: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount)
+
   return (
-    <div className="container mx-auto py-6">
-      {/* Card de totales por moneda y período */}
-      <div className="mb-6 p-4 bg-white rounded shadow">
-        <div className="flex flex-col md:flex-row md:items-center md:gap-6">
-          <div>
-            <label className="mr-2">Desde:</label>
-            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border rounded px-2 py-1" />
-          </div>
-          <div>
-            <label className="mr-2">Hasta:</label>
-            <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border rounded px-2 py-1" />
-          </div>
-        </div>
-        <div className="mt-4">
-          <div className="font-semibold">Total compras ARS: <span className="text-green-700">{formatAmount(totals.ARS, "ARS")}</span></div>
-          <div className="font-semibold">Total compras USD: <span className="text-blue-700">{formatAmount(totals.USD, "USD")}</span></div>
-          <div className="mt-2 text-sm text-gray-600">Período: {from && to ? `${formatDateForDisplay(from)} al ${formatDateForDisplay(to)}` : "-"}</div>
-          {totalsLoading && <div className="text-xs text-gray-400 mt-2">Cargando...</div>}
-          {totalsError && <div className="text-xs text-red-500 mt-2">{totalsError}</div>}
-        </div>
-      </div>
-
-      {/* ...resto del dashboard... */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Órdenes de Compra</h1>
-          <p className="text-gray-600">Gestione las compras a proveedores</p>
-        </div>
-        <Button onClick={() => setShowNewDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nueva Orden de Compra
-        </Button>
-      </div>
-
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">{error}</div>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Órdenes de Compra</CardTitle>
-          <CardDescription> Todas las órdenes de compra registradas en el sistema </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {purchaseOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500 mb-4">No hay órdenes de compra registradas</p>
-              <Button onClick={() => setShowNewDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Crear primera orden
+    <BranchRequiredWrapper 
+      title="Selecciona una sucursal" 
+      description="Las órdenes de compra necesitan una sucursal seleccionada para funcionar correctamente."
+      requireSingleBranch={true}
+    >
+      <div className="h-full w-full flex flex-col space-y-4 p-4 md:p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xl font-bold tracking-tight">Órdenes de Compra</h2>
+          <div className="flex gap-2">
+            {hasPermission('crear_ordenes_compra') && (
+              <Button onClick={() => setOpenNewPurchaseOrder(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Nueva Orden de Compra
               </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {/* Card: Total de Compras con ARS y USD */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total de Compras</CardTitle>
+              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                ARS: {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(summary.ARS || 0)}
+              </div>
+              <div className="text-2xl font-bold">
+                USD: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(summary.USD || 0)}
+              </div>
+              {summaryPeriod && (
+                <p className="text-xs text-muted-foreground">
+                  Período: {new Date(summaryPeriod.from + 'T00:00:00').toLocaleDateString('es-ES')} al {new Date(summaryPeriod.to + 'T00:00:00').toLocaleDateString('es-ES')}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">Total de {purchaseOrders.length} órdenes</p>
+            </CardContent>
+          </Card>
+          
+          {/* Card: Compras Pendientes */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Compras Pendientes</CardTitle>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                className="h-4 w-4 text-muted-foreground"
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{pendingOrders}</div>
+              <p className="text-xs text-muted-foreground">Órdenes pendientes de recepción</p>
+            </CardContent>
+          </Card>
+          
+          {/* Card: Total de Órdenes */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total de Órdenes</CardTitle>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                className="h-4 w-4 text-muted-foreground"
+              >
+                <rect width="20" height="14" x="2" y="5" rx="2" />
+                <path d="M2 10h20" />
+              </svg>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalPOItems}</div>
+              <p className="text-xs text-muted-foreground">En el período seleccionado</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <Label>Período</Label>
+          <DatePickerWithRange
+            selected={dateRange}
+            onSelect={(range) => {
+              if (range && range.from) {
+                setDateRange({ from: range.from, to: range.to });
+              }
+            }}
+          />
+        </div>
+
+        <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+          <div className="flex flex-1 items-center space-x-2">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input 
+                type="search" 
+                placeholder="Buscar órdenes..." 
+                className="w-full pl-8" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value="pending">Pendientes</SelectItem>
+                <SelectItem value="completed">Completadas</SelectItem>
+                <SelectItem value="cancelled">Canceladas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="rounded-md border">
+          {filteredPurchaseOrders.length === 0 ? (
+            <div className="flex h-32 items-center justify-center text-center text-muted-foreground">
+              {loading ? "Cargando órdenes de compra..." : "No se encontraron órdenes de compra."}
             </div>
           ) : (
-            <Table>
+            <Table ref={orderTableRef}>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Proveedor</TableHead>
-                  <TableHead>Sucursal</TableHead>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Acciones</TableHead>
+                  <ResizableTableHeader columnId="number" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>N° Orden</ResizableTableHeader>
+                  <ResizableTableHeader columnId="supplier" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Proveedor</ResizableTableHeader>
+                  <ResizableTableHeader columnId="date" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Fecha</ResizableTableHeader>
+                  <ResizableTableHeader columnId="status" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Estado</ResizableTableHeader>
+                  <ResizableTableHeader columnId="total" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Total</ResizableTableHeader>
+                  <ResizableTableHeader columnId="actions" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps} className="text-center">Acciones</ResizableTableHeader>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchaseOrders.map((order) => (
+                {filteredPurchaseOrders.map((order) => (
                   <TableRow key={order.id}>
-                    <TableCell className="font-medium">#{order.id}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{order.supplier?.name}</div>
-                        {order.supplier?.contact_name && (
-                          <div className="text-sm text-gray-500">Contacto: {order.supplier.contact_name}</div>
+                    <ResizableTableCell columnId="number" getColumnCellProps={getOrderColumnCellProps}>
+                      <span className="truncate" title={`#${order.id}`}>#{order.id}</span>
+                    </ResizableTableCell>
+                    <ResizableTableCell columnId="supplier" getColumnCellProps={getOrderColumnCellProps}>
+                      <span className="truncate" title={order.supplier?.name || "-"}>{order.supplier?.name || "-"}</span>
+                    </ResizableTableCell>
+                    <ResizableTableCell columnId="date" getColumnCellProps={getOrderColumnCellProps}>
+                      {new Date(order.order_date).toLocaleDateString('es-ES')}
+                    </ResizableTableCell>
+                    <ResizableTableCell columnId="status" getColumnCellProps={getOrderColumnCellProps}>
+                      <Badge variant="outline" className={getStatusBadgeColor(order.status)}>
+                        {getStatusLabel(order.status)}
+                      </Badge>
+                    </ResizableTableCell>
+                    <ResizableTableCell columnId="total" getColumnCellProps={getOrderColumnCellProps}>
+                      {formatCurrency(getOrderTotalNumber(order))}
+                    </ResizableTableCell>
+                    <ResizableTableCell columnId="actions" getColumnCellProps={getOrderColumnCellProps} className="text-center">
+                      <div className="flex gap-1 justify-center">
+                        {hasPermission('ver_ordenes_compra') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewPurchaseOrder(order)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Ver
+                          </Button>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{order.branch?.description}</TableCell>
-                    <TableCell>{formatDateForDisplay(order.order_date)}</TableCell>
-                    <TableCell className="font-medium">
-                      {formatCurrency(typeof order.total_amount === 'string' ? parseFloat(order.total_amount) : (order.total_amount || 0))}
-                      {order.currency && (
-                        <span className="ml-1 font-bold text-gray-700">{order.currency}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{getStatusBadge(order.status || 'pending')}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {isPending(order.status) && (
+                        {isPending(order.status) && order.id && (
                           <>
-                            <Button size="sm" variant="outline" onClick={() => handleComplete(order)} className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100">
-                              <Check className="h-4 w-4 mr-1" />
-                              Completar
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleCancel(order.id!)} className="bg-red-50 text-red-700 border-red-200 hover:bg-red-100">
-                              <X className="h-4 w-4 mr-1" />
-                              Cancelar
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => { setSelectedId(order.id!); setShowEditDialog(true); }} className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
-                              <Pencil className="h-4 w-4 mr-1" />
-                              Editar
-                            </Button>
+                            {hasPermission('editar_ordenes_compra') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditPurchaseOrder(order)}
+                                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                              >
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Editar
+                              </Button>
+                            )}
+                            {hasPermission('completar_ordenes_compra') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCompletePurchaseOrder(order.id!)}
+                                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Completar
+                              </Button>
+                            )}
+                            {hasPermission('cancelar_ordenes_compra') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCancelPurchaseOrder(order.id!)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Cancelar
+                              </Button>
+                            )}
                           </>
                         )}
-                        <Button size="sm" variant="outline" onClick={() => { setSelectedId(order.id!); setShowViewDialog(true); }}>
-                          <Eye className="h-4 w-4 mr-1" />
-                          Ver
-                        </Button>
                       </div>
-                    </TableCell>
+                    </ResizableTableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
-      <NewPurchaseOrderDialog open={showNewDialog} onOpenChange={setShowNewDialog} onSaved={loadPurchaseOrders} />
-      {selectedId && (
-        <EditPurchaseOrderDialog open={showEditDialog} onOpenChange={setShowEditDialog} purchaseOrderId={selectedId} onSaved={loadPurchaseOrders} />
-      )}
-      <ViewPurchaseOrderDialog open={showViewDialog} onOpenChange={setShowViewDialog} purchaseOrderId={selectedId || 0} />
-      
-      {orderToComplete && (
-        <CompleteOrderDialog
-          open={showCompleteDialog}
-          onOpenChange={setShowCompleteDialog}
-          orderId={orderToComplete.id!}
-          orderTotal={typeof orderToComplete.total_amount === 'string' ? parseFloat(orderToComplete.total_amount) : (orderToComplete.total_amount || 0)}
-          supplierName={orderToComplete.supplier?.name || 'N/A'}
-          onComplete={handleCompleteWithPayment}
+        {/* Paginación para órdenes de compra */}
+        <Pagination
+          currentPage={currentPOPage}
+          lastPage={totalPOPages}
+          total={totalPOItems}
+          itemName="órdenes"
+          onPageChange={(page) => goToPOPage(page)}
+          disabled={loading}
+        />
+      </div>
+
+      <NewPurchaseOrderDialog open={openNewPurchaseOrder} onOpenChange={setOpenNewPurchaseOrder} onSaved={handlePurchaseOrderSaved} />
+      <ViewPurchaseOrderDialog 
+        open={viewPurchaseOrderDialogOpen} 
+        onOpenChange={setViewPurchaseOrderDialogOpen} 
+        purchaseOrderId={selectedPurchaseOrderId} 
+      />
+      {selectedPurchaseOrderId && (
+        <EditPurchaseOrderDialog
+          open={editPurchaseOrderDialogOpen}
+          onOpenChange={setEditPurchaseOrderDialogOpen}
+          purchaseOrderId={selectedPurchaseOrderId}
+          onSaved={handlePurchaseOrderSaved}
         />
       )}
-    </div>
-  );
+    </BranchRequiredWrapper>
+  )
 }

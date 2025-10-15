@@ -6,7 +6,7 @@ import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { Search, Eye, Pencil, Trash2, RotateCw, BarChart2 } from "lucide-react"
+import { Search, Eye, Pencil, Trash2, RotateCw, BarChart2, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EditCustomerDialog } from "@/components/edit-customer-dialog"
 import useApi from "@/hooks/useApi"
@@ -396,10 +396,17 @@ export default function ClientesPage() {
                             </Link>
                             </Button>
                           )}
-                          {hasPermission('ver_clientes') && (
-                             <Button variant="ghost" size="sm" title="Historial de Compras" className="hover:bg-purple-100 group">
+                          {hasPermission('ver_clientes') && hasPermission('ver_ventas') && (
+                             <Button variant="ghost" size="icon" title="Historial de Compras" className="hover:bg-purple-100 group">
                               <Link to={`/dashboard/clientes/${customer.id}/compras`}>
                               <BarChart2 className="h-4 w-4 text-purple-600 group-hover:text-purple-700" />
+                              </Link>
+                            </Button>
+                          )}
+                          {hasPermission('ver_cuentas_corrientes') && (
+                             <Button variant="ghost" size="icon" title="Cuenta Corriente" className="hover:bg-green-100 group">
+                              <Link to={`/dashboard/clientes/${customer.id}/cuenta-corriente`}>
+                              <Wallet className="h-4 w-4 text-green-600 group-hover:text-green-700" />
                               </Link>
                             </Button>
                           )}

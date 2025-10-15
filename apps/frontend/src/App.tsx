@@ -8,6 +8,8 @@ import CategoriesPage from '@/pages/dashboard/CategoriesPage'
 import ClientesPage from '@/pages/dashboard/ClientesPage'
 import ComprasClientePage from '@/pages/dashboard/ComprasClientePage'
 import ConfiguracionUsuarioPage from '@/pages/dashboard/ConfiguracionUsuarioPage'
+import CurrentAccountsPage from '@/pages/dashboard/CurrentAccountsPage'
+import CuentaCorrienteClientePage from '@/pages/dashboard/CuentaCorrienteClientePage'
 import ConfiguracionPage from '@/pages/dashboard/ConfiguracionPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 import EditarClientePage from '@/pages/dashboard/EditarClientePage'
@@ -19,7 +21,6 @@ import FacturacionPage from '@/pages/dashboard/FacturacionPage'
 import HistorialVentasPage from '@/pages/dashboard/HistorialVentasPage'
 import InventarioPage from '@/pages/dashboard/InventarioPage'
 import NewCategoryPage from '@/pages/dashboard/categories/NewCategoryPage'
-import NuevaCompraProveedorPage from '@/pages/dashboard/NuevaCompraProveedorPage'
 import NuevaSucursalPage from '@/pages/dashboard/NuevaSucursalPage'
 import NuevoClientePage from '@/pages/dashboard/NuevoClientePage'
 import NuevoRolPage from '@/pages/dashboard/NuevoRolPage'
@@ -56,27 +57,28 @@ function App() {
         {/* Rutas anidadas del Dashboard */}
         <Route path="/dashboard" element={<LayoutDashboard />}>
           <Route index element={<DashboardPage />} />
-          {FEATURES.analisisVentas && <Route path="analisis-ventas" element={<ProtectedRoute permissions={['ver_estadisticas']}><AnalisisVentasPage /></ProtectedRoute>} />}
-          {FEATURES.caja && <Route path="caja" element={<ProtectedRoute permissions={['abrir_caja', 'cerrar_caja', 'ver_movimientos_caja']}><CajaPage /></ProtectedRoute>} />}
+          {FEATURES.analisisventas && <Route path="analisis-ventas" element={<ProtectedRoute permissions={['ver_ventas', 'ver_estadisticas']} requireAny={false}><AnalisisVentasPage /></ProtectedRoute>} />}
+          {FEATURES.caja && <Route path="caja" element={<ProtectedRoute permissions={['abrir_cerrar_caja', 'ver_movimientos_caja', 'crear_movimientos_caja', 'ver_historico_caja']} requireAny={true}><CajaPage /></ProtectedRoute>} />}
           {FEATURES.categorias && <Route path="categorias" element={<ProtectedRoute permissions={['ver_categorias']}><CategoriesPage /></ProtectedRoute>} />}
           {FEATURES.categorias && <Route path="categorias/:id" element={<ProtectedRoute permissions={['editar_categorias']}><EditCategoryPage /></ProtectedRoute>} />}
           {FEATURES.categorias && <Route path="categorias/:id/ver" element={<ProtectedRoute permissions={['ver_categorias']}><ViewCategoryPage /></ProtectedRoute>} />}
           {FEATURES.categorias && <Route path="categorias/nuevo" element={<ProtectedRoute permissions={['crear_categorias']}><NewCategoryPage /></ProtectedRoute>} />}
           {FEATURES.clientes && <Route path="clientes" element={<ProtectedRoute permissions={['ver_clientes']}><ClientesPage /></ProtectedRoute>} />}
-          {FEATURES.clientes && <Route path="clientes/:id/compras" element={<ProtectedRoute permissions={['ver_clientes']}><ComprasClientePage /></ProtectedRoute>} />}
+          {FEATURES.clientes && <Route path="clientes/:id/compras" element={<ProtectedRoute permissions={['ver_clientes', 'ver_ventas']} requireAny={false}><ComprasClientePage /></ProtectedRoute>} />}
+          {FEATURES.clientes && <Route path="clientes/:id/cuenta-corriente" element={<ProtectedRoute permissions={['ver_cuentas_corrientes']}><CuentaCorrienteClientePage /></ProtectedRoute>} />}
           {FEATURES.clientes && <Route path="clientes/:id/editar" element={<ProtectedRoute permissions={['editar_clientes']}><EditarClientePage /></ProtectedRoute>} />}
           {FEATURES.clientes && <Route path="clientes/:id/ver" element={<ProtectedRoute permissions={['ver_clientes']}><VerClientePage /></ProtectedRoute>} />}
           {FEATURES.clientes && <Route path="clientes/nuevo" element={<ProtectedRoute permissions={['crear_clientes']}><NuevoClientePage /></ProtectedRoute>} />}
           {FEATURES.configuracionUsuario && <Route path="configuracion-usuario" element={<ConfiguracionUsuarioPage />} />}
           {FEATURES.configuracionSistema && <Route path="configuracion" element={<ProtectedRoute permissions={['ver_configuracion']}><ConfiguracionPage /></ProtectedRoute>} />}
-          {FEATURES.facturacion && <Route path="facturacion" element={<ProtectedRoute permissions={['ver_comprobantes']}><FacturacionPage /></ProtectedRoute>} />}
+          {FEATURES.cuentasCorrientes && <Route path="cuentas-corrientes" element={<ProtectedRoute permissions={['ver_cuentas_corrientes']}><CurrentAccountsPage /></ProtectedRoute>} />}
+          {FEATURES.facturacion && <Route path="facturacion" element={<ProtectedRoute permissions={['ver_ventas']}><FacturacionPage /></ProtectedRoute>} />}
           {FEATURES.historialVentas && <Route path="historial-ventas" element={<ProtectedRoute permissions={['ver_ventas']}><HistorialVentasPage /></ProtectedRoute>} />}
           {FEATURES.inventario && <Route path="inventario" element={<ProtectedRoute permissions={['ver_productos']}><InventarioPage /></ProtectedRoute>} />}
           {FEATURES.perfil && <Route path="perfil" element={<PerfilPage />} />}
           {FEATURES.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
           {FEATURES.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
-          {FEATURES.proveedores && <Route path="proveedores/compras/nueva" element={<ProtectedRoute permissions={['crear_compras']}><NuevaCompraProveedorPage /></ProtectedRoute>} />}
-          {FEATURES.purchaseOrders && <Route path="purchase-orders" element={<PurchaseOrderPage />} />}
+          {FEATURES.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
           {FEATURES.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}
           {FEATURES.roles && <Route path="roles" element={<ProtectedRoute permissions={['ver_roles']}><RolesPage /></ProtectedRoute>} />}
           {FEATURES.roles && <Route path="roles/:id" element={<ProtectedRoute permissions={['editar_roles']}><EditarRolPage /></ProtectedRoute>} />}

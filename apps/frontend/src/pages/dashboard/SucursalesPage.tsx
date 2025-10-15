@@ -236,7 +236,13 @@ export default function SucursalesPage() {
                     </span>
                   </ResizableTableCell>
                   <ResizableTableCell columnId="users" getColumnCellProps={getColumnCellProps} className="text-center hidden sm:table-cell">
-                     <Button variant="ghost" size="sm" onClick={() => handleViewPersonnel(branchItem)} className="font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 cursor-pointer">
+                     <Button 
+                       variant="ghost" 
+                       size="sm" 
+                       onClick={hasPermission('ver_personal_sucursal') ? () => handleViewPersonnel(branchItem) : undefined}
+                       className={`font-medium text-teal-600 ${hasPermission('ver_personal_sucursal') ? 'hover:text-teal-700 hover:bg-teal-50 cursor-pointer' : 'cursor-default hover:bg-transparent'}`}
+                       disabled={!hasPermission('ver_personal_sucursal')}
+                     >
                         <Users className="h-4 w-4 mr-2" />
                         {branchItem.users_count ?? 0}
                      </Button>

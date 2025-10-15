@@ -774,21 +774,23 @@ export default function InventarioPage() {
               </Popover>
             )}
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar estados de stock">
-                  <span className="truncate">Estado stock</span>
-                  <span className="ml-2 flex items-center gap-1 text-muted-foreground">
-                    <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{statusSummary}</span>
-                    <ChevronDown className="h-4 w-4 opacity-70" />
-                  </span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                <div className="mb-2 text-xs text-muted-foreground">Selecciona estados</div>
-                <MultiSelectCheckbox options={statusOptions} selected={selectedStockStatuses} onChange={setSelectedStockStatuses} />
-              </PopoverContent>
-            </Popover>
+            {hasPermission('ver_stock') && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar estados de stock">
+                    <span className="truncate">Estado stock</span>
+                    <span className="ml-2 flex items-center gap-1 text-muted-foreground">
+                      <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{statusSummary}</span>
+                      <ChevronDown className="h-4 w-4 opacity-70" />
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                  <div className="mb-2 text-xs text-muted-foreground">Selecciona estados</div>
+                  <MultiSelectCheckbox options={statusOptions} selected={selectedStockStatuses} onChange={setSelectedStockStatuses} />
+                </PopoverContent>
+              </Popover>
+            )}
 
             {branches.length > 1 && (
               <Button variant={perBranchView ? "default" : "outline"} onClick={togglePerBranchView} title={perBranchView ? "Cambiar a vista por producto" : "Cambiar a vista por sucursal"} className="whitespace-nowrap text-xs sm:text-sm">
@@ -856,29 +858,33 @@ export default function InventarioPage() {
                           >
                             Precio Venta
                           </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="stock"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden sm:table-cell"
-                          >
-                            Stock Actual
-                          </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="stock-min-max"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden lg:table-cell"
-                          >
-                            Stock Min/Max
-                          </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="stock-status"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                          >
-                            Estado Stock
-                          </ResizableTableHeader>
+                          {hasPermission('ver_stock') && (
+                            <>
+                              <ResizableTableHeader
+                                columnId="stock"
+                                getResizeHandleProps={getResizeHandleProps}
+                                getColumnHeaderProps={getColumnHeaderProps}
+                                className="hidden sm:table-cell"
+                              >
+                                Stock Actual
+                              </ResizableTableHeader>
+                              <ResizableTableHeader
+                                columnId="stock-min-max"
+                                getResizeHandleProps={getResizeHandleProps}
+                                getColumnHeaderProps={getColumnHeaderProps}
+                                className="hidden lg:table-cell"
+                              >
+                                Stock Min/Max
+                              </ResizableTableHeader>
+                              <ResizableTableHeader
+                                columnId="stock-status"
+                                getResizeHandleProps={getResizeHandleProps}
+                                getColumnHeaderProps={getColumnHeaderProps}
+                              >
+                                Estado Stock
+                              </ResizableTableHeader>
+                            </>
+                          )}
                           <ResizableTableHeader
                             columnId="status"
                             getResizeHandleProps={getResizeHandleProps}
@@ -946,27 +952,31 @@ export default function InventarioPage() {
                               >
                                 <span className="truncate block">{formatSalePrice(p.sale_price)}</span>
                               </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="stock"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden sm:table-cell font-medium ${!p.status ? "text-gray-500" : ""}`}
-                              >
-                                <span className="truncate block">{Number.parseInt(String(stock.current_stock)) || 0}</span>
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="stock-min-max"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
-                              >
-                                <span className="truncate block">{Number.parseInt(String(stock.min_stock)) || 0} / {Number.parseInt(String(stock.max_stock)) || 0}</span>
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="stock-status"
-                                getColumnCellProps={getColumnCellProps}
-                                className={!p.status ? "opacity-60" : ""}
-                              >
-                                <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
-                              </ResizableTableCell>
+                              {hasPermission('ver_stock') && (
+                                <>
+                                  <ResizableTableCell
+                                    columnId="stock"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden sm:table-cell font-medium ${!p.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <span className="truncate block">{Number.parseInt(String(stock.current_stock)) || 0}</span>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="stock-min-max"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <span className="truncate block">{Number.parseInt(String(stock.min_stock)) || 0} / {Number.parseInt(String(stock.max_stock)) || 0}</span>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="stock-status"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={!p.status ? "opacity-60" : ""}
+                                  >
+                                    <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                  </ResizableTableCell>
+                                </>
+                              )}
                               <ResizableTableCell
                                 columnId="status"
                                 getColumnCellProps={getColumnCellProps}
@@ -1065,29 +1075,33 @@ export default function InventarioPage() {
                       >
                         Precio Venta
                       </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="stock"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                        className="hidden sm:table-cell"
-                      >
-                        Stock Actual
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="stock-min-max"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                        className="hidden lg:table-cell"
-                      >
-                        Stock Min/Max
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="stock-status"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                      >
-                        Estado Stock
-                      </ResizableTableHeader>
+                      {hasPermission('ver_stock') && (
+                        <>
+                          <ResizableTableHeader
+                            columnId="stock"
+                            getResizeHandleProps={getResizeHandleProps}
+                            getColumnHeaderProps={getColumnHeaderProps}
+                            className="hidden sm:table-cell"
+                          >
+                            Stock Actual
+                          </ResizableTableHeader>
+                          <ResizableTableHeader
+                            columnId="stock-min-max"
+                            getResizeHandleProps={getResizeHandleProps}
+                            getColumnHeaderProps={getColumnHeaderProps}
+                            className="hidden lg:table-cell"
+                          >
+                            Stock Min/Max
+                          </ResizableTableHeader>
+                          <ResizableTableHeader
+                            columnId="stock-status"
+                            getResizeHandleProps={getResizeHandleProps}
+                            getColumnHeaderProps={getColumnHeaderProps}
+                          >
+                            Estado Stock
+                          </ResizableTableHeader>
+                        </>
+                      )}
                       <ResizableTableHeader
                         columnId="status"
                         getResizeHandleProps={getResizeHandleProps}
@@ -1156,27 +1170,31 @@ export default function InventarioPage() {
                             >
                               <span className="truncate block">{formatSalePrice(product.sale_price)}</span>
                             </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="stock"
-                              getColumnCellProps={getColumnCellProps}
-                              className={`hidden sm:table-cell font-medium ${!product.status ? "text-gray-500" : ""}`}
-                            >
-                              <span className="truncate block">{Number.parseInt(String(stock.current)) || 0}</span>
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="stock-min-max"
-                              getColumnCellProps={getColumnCellProps}
-                              className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
-                            >
-                              <span className="truncate block">{Number.parseInt(String(stock.min)) || 0} / {Number.parseInt(String(stock.max)) || 0}</span>
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="stock-status"
-                              getColumnCellProps={getColumnCellProps}
-                              className={!product.status ? "opacity-60" : ""}
-                            >
-                              <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
-                            </ResizableTableCell>
+                            {hasPermission('ver_stock') && (
+                              <>
+                                <ResizableTableCell
+                                  columnId="stock"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={`hidden sm:table-cell font-medium ${!product.status ? "text-gray-500" : ""}`}
+                                >
+                                  <span className="truncate block">{Number.parseInt(String(stock.current)) || 0}</span>
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="stock-min-max"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                                >
+                                  <span className="truncate block">{Number.parseInt(String(stock.min)) || 0} / {Number.parseInt(String(stock.max)) || 0}</span>
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="stock-status"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={!product.status ? "opacity-60" : ""}
+                                >
+                                  <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                </ResizableTableCell>
+                              </>
+                            )}
                             <ResizableTableCell
                               columnId="status"
                               getColumnCellProps={getColumnCellProps}

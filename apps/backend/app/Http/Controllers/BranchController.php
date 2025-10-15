@@ -17,6 +17,21 @@ class BranchController extends Controller
 
     public function index(): JsonResponse
     {
+        // Verificar permiso de ver sucursales
+        $user = auth()->user();
+        $hasPermission = $user->role
+            ->permissions()
+            ->where('name', 'ver_sucursales')
+            ->exists();
+
+        if (!$hasPermission) {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'No tienes permiso para ver sucursales'
+            ], 403);
+        }
+
         $branches = $this->branchService->getAllBranches();
         return response()->json([
             'status' => 200,
@@ -37,6 +52,21 @@ class BranchController extends Controller
 
     public function show($id): JsonResponse
     {
+        // Verificar permiso de ver sucursales
+        $user = auth()->user();
+        $hasPermission = $user->role
+            ->permissions()
+            ->where('name', 'ver_sucursales')
+            ->exists();
+
+        if (!$hasPermission) {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'No tienes permiso para ver sucursales'
+            ], 403);
+        }
+
         $branch = $this->branchService->getBranchById($id);
         if (!$branch) {
             return response()->json([
@@ -55,6 +85,21 @@ class BranchController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        // Verificar permiso de crear sucursales
+        $user = auth()->user();
+        $hasPermission = $user->role
+            ->permissions()
+            ->where('name', 'crear_sucursales')
+            ->exists();
+
+        if (!$hasPermission) {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'No tienes permiso para crear sucursales'
+            ], 403);
+        }
+
         $validatedData = $request->validate([
             'description' => 'required|string|max:255',
             'address' => 'required|string|max:255',
@@ -97,6 +142,21 @@ class BranchController extends Controller
 
     public function update(Request $request, $id): JsonResponse
     {
+        // Verificar permiso de editar sucursales
+        $user = auth()->user();
+        $hasPermission = $user->role
+            ->permissions()
+            ->where('name', 'editar_sucursales')
+            ->exists();
+
+        if (!$hasPermission) {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'No tienes permiso para editar sucursales'
+            ], 403);
+        }
+
         $validatedData = $request->validate([
             'description' => 'string|max:255',
             'address' => 'string|max:255',
@@ -126,6 +186,21 @@ class BranchController extends Controller
 
     public function destroy($id): JsonResponse
     {
+        // Verificar permiso de eliminar sucursales
+        $user = auth()->user();
+        $hasPermission = $user->role
+            ->permissions()
+            ->where('name', 'eliminar_sucursales')
+            ->exists();
+
+        if (!$hasPermission) {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'No tienes permiso para eliminar sucursales'
+            ], 403);
+        }
+
         $result = $this->branchService->deleteBranch($id);
         if (!$result) {
             return response()->json([
@@ -154,6 +229,21 @@ class BranchController extends Controller
 
     public function personnel($id): JsonResponse
     {
+        // Verificar permiso de ver personal de sucursales
+        $user = auth()->user();
+        $hasPermission = $user->role
+            ->permissions()
+            ->where('name', 'ver_personal_sucursal')
+            ->exists();
+
+        if (!$hasPermission) {
+            return response()->json([
+                'status' => 403,
+                'success' => false,
+                'message' => 'No tienes permiso para ver el personal de sucursales'
+            ], 403);
+        }
+
         $personnel = $this->branchService->getBranchPersonnel($id);
         return response()->json([
             'status' => 200,

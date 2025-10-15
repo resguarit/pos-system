@@ -231,16 +231,18 @@ export default function SalesHistoryPage() {
                             {formatCurrency(sale.total)}
                           </TableCell>
                           <TableCell className="text-center">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer" 
-                              onClick={() => handleViewDetail(sale)} 
-                              title="Ver Detalle"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {hasPermission('ver_comprobantes') && (
+                            {hasPermission('ver_ventas') && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer" 
+                                onClick={() => handleViewDetail(sale)} 
+                                title="Ver Detalle"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {hasPermission('reimprimir_comprobantes') && (
                               <Button 
                                 variant="ghost" 
                                 size="icon" 

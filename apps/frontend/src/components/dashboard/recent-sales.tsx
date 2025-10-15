@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { SimpleList } from "@/components/ui/data-display"
 import { Eye } from "lucide-react"
+import { useAuth } from "@/context/AuthContext"
 
 interface Sale {
   id: number
@@ -38,6 +39,8 @@ export function RecentSales({
   onViewSale,
   getCustomerName
 }: RecentSalesProps) {
+  const { hasPermission } = useAuth();
+  
   const renderSaleItem = (sale: Sale) => {
     // Construir el nombre del cliente
     const customerName = getCustomerName(sale)
@@ -89,7 +92,7 @@ export function RecentSales({
               : '$0.00'
             }
           </div>
-          {onViewSale && (
+          {onViewSale && hasPermission('ver_ventas') && (
             <Button
               variant="ghost"
               size="sm"

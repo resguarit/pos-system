@@ -335,10 +335,10 @@ export default function RolesPage() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  title="Eliminar"
+                                  title={role.name.toLowerCase() === 'admin' ? 'El rol Admin no puede ser eliminado' : 'Eliminar'}
                                   className="hover:bg-red-100 group"
                                   onClick={() => handleDeleteClick(role.id)}
-                                  disabled={role.isSystem} // No permitir eliminar roles del sistema
+                                  disabled={role.isSystem || role.name.toLowerCase() === 'admin'} // No permitir eliminar roles del sistema ni Admin
                                 >
                                   <Trash2 className="h-4 w-4 text-red-600 group-hover:text-red-700" />
                                 </Button>

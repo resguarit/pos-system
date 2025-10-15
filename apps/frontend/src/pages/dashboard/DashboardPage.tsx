@@ -144,79 +144,83 @@ export default function DashboardPage() {
          <TabsContent value="overview" className="space-y-4 flex-1 overflow-y-auto pr-2 sm:pr-4">
             {/* Grid responsive para métricas */}
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-              <MetricCard
-                title="Ventas Totales (Este Mes)"
-                value={formatCurrency(generalStats?.total_sales || 0)}
-                subtitle={salesSummary?.growth_percentage !== undefined 
-                  ? salesSummary.growth_percentage === null 
-                    ? "Nuevo período (sin datos anteriores)"
-                    : `${formatPercentage(salesSummary.growth_percentage)} respecto al mes anterior`
-                  : '+0.0% respecto al mes anterior'}
-                subtitleColor={
-                  (salesSummary?.growth_percentage ?? 0) > 0 ? 'text-green-600' : 
-                  (salesSummary?.growth_percentage ?? 0) < 0 ? 'text-red-600' : 
-                  'text-orange-600'
-                }
-                isLoading={dashboardLoading}
-                icon={
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    className="h-4 w-4 text-emerald-600"
-                  >
-                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                  </svg>
-                }
-              />
-              <MetricCard
-                title="Clientes Únicos (Este Mes)"
-                value={generalStats?.unique_customers || 0}
-                subtitle="En el período actual"
-                isLoading={dashboardLoading}
-                icon={
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    className="h-4 w-4 text-amber-600"
-                  >
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                }
-              />
-              <MetricCard
-                title="Ventas (Este Mes)"
-                value={generalStats?.sales_count || 0}
-                subtitle="Transacciones realizadas"
-                isLoading={dashboardLoading}
-                icon={
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    className="h-4 w-4 text-blue-600"
-                  >
-                    <path d="M3 3h18v4H3z" />
-                    <path d="M16 13H3v-4h13z" />
-                    <path d="M21 13H3v8h18z" />
-                  </svg>
-                }
-              />
+              {hasPermission('ver_ventas') && (
+                <>
+                  <MetricCard
+                    title="Ventas Totales (Este Mes)"
+                    value={formatCurrency(generalStats?.total_sales || 0)}
+                    subtitle={salesSummary?.growth_percentage !== undefined 
+                      ? salesSummary.growth_percentage === null 
+                        ? "Nuevo período (sin datos anteriores)"
+                        : `${formatPercentage(salesSummary.growth_percentage)} respecto al mes anterior`
+                      : '+0.0% respecto al mes anterior'}
+                    subtitleColor={
+                      (salesSummary?.growth_percentage ?? 0) > 0 ? 'text-green-600' : 
+                      (salesSummary?.growth_percentage ?? 0) < 0 ? 'text-red-600' : 
+                      'text-orange-600'
+                    }
+                    isLoading={dashboardLoading}
+                    icon={
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        className="h-4 w-4 text-emerald-600"
+                      >
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                      </svg>
+                    }
+                  />
+                  <MetricCard
+                    title="Clientes Únicos (Este Mes)"
+                    value={generalStats?.unique_customers || 0}
+                    subtitle="En el período actual"
+                    isLoading={dashboardLoading}
+                    icon={
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        className="h-4 w-4 text-amber-600"
+                      >
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                  />
+                  <MetricCard
+                    title="Ventas (Este Mes)"
+                    value={generalStats?.sales_count || 0}
+                    subtitle="Transacciones realizadas"
+                    isLoading={dashboardLoading}
+                    icon={
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        className="h-4 w-4 text-blue-600"
+                      >
+                        <path d="M3 3h18v4H3z" />
+                        <path d="M16 13H3v-4h13z" />
+                        <path d="M21 13H3v8h18z" />
+                      </svg>
+                    }
+                  />
+                </>
+              )}
               <MetricCard
                 title="Productos Activos"
                 value={generalStats?.active_products || 0}
@@ -244,67 +248,75 @@ export default function DashboardPage() {
             
             {/* Cards principales - responsive */}
             <div className="flex flex-col gap-4 lg:flex-row items-stretch min-h-0">
-              <Card className="w-full lg:flex-[4] lg:basis-0 border border-gray-200 shadow-md h-full min-h-[300px] sm:min-h-[400px] flex flex-col">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-gray-900 text-lg sm:text-xl">Resumen de Ventas</CardTitle>
-                  <CardDescription className="text-gray-600 text-sm">
-                    Ventas mensuales del año actual
-                    {getBranchDescription()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pl-2 flex-1 min-h-0 overflow-hidden">
-                  <Overview data={monthlySales} isLoading={dashboardLoading} />
-                </CardContent>
-              </Card>
-              <Card className="w-full lg:flex-[3] lg:basis-0 border border-gray-200 shadow-md h-full min-h-[300px] sm:min-h-[455px] flex flex-col">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-gray-900 text-lg sm:text-xl">Ventas Recientes</CardTitle>
-                  <CardDescription className="text-gray-600 text-sm">
-                    Últimas 5 ventas realizadas en el sistema.
-                    {salesError && (
-                      <span className="text-red-500 text-xs block mt-1">
-                        Error al cargar ventas: {salesError}
-                      </span>
-                    )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                  <RecentSales 
-                    sales={sales} 
-                    isLoading={salesLoading} 
-                    onViewSale={handleViewSale}
-                    getCustomerName={getCustomerName}
-                  />
-                </CardContent>
-              </Card>
+              {hasPermission('ver_ventas') && (
+                <Card className="w-full lg:flex-[4] lg:basis-0 border border-gray-200 shadow-md h-full min-h-[300px] sm:min-h-[400px] flex flex-col">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-gray-900 text-lg sm:text-xl">Resumen de Ventas</CardTitle>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Ventas mensuales del año actual
+                      {getBranchDescription()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pl-2 flex-1 min-h-0 overflow-hidden">
+                    <Overview data={monthlySales} isLoading={dashboardLoading} />
+                  </CardContent>
+                </Card>
+              )}
+              {hasPermission('ver_ventas') && (
+                <Card className="w-full lg:flex-[3] lg:basis-0 border border-gray-200 shadow-md h-full min-h-[300px] sm:min-h-[455px] flex flex-col">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-gray-900 text-lg sm:text-xl">Ventas Recientes</CardTitle>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Últimas 5 ventas realizadas en el sistema.
+                      {salesError && (
+                        <span className="text-red-500 text-xs block mt-1">
+                          Error al cargar ventas: {salesError}
+                        </span>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                    <RecentSales 
+                      sales={sales} 
+                      isLoading={salesLoading} 
+                      onViewSale={handleViewSale}
+                      getCustomerName={getCustomerName}
+                    />
+                  </CardContent>
+                </Card>
+              )}
             </div>
             
             {/* Grid inferior - responsive */}
             <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
-              <Card className="lg:col-span-3 border border-gray-200 shadow-md">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-gray-900 text-lg sm:text-xl">Alertas de Stock</CardTitle>
-                  <CardDescription className="text-gray-600 text-sm">
-                    Productos con stock bajo o agotado
-                    {getBranchDescription()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <StockAlerts alerts={stockAlerts} isLoading={dashboardLoading} />
-                </CardContent>
-              </Card>
-              <Card className="lg:col-span-4 border border-gray-200 shadow-md">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-gray-900 text-lg sm:text-xl">Ventas por Sucursal</CardTitle>
-                  <CardDescription className="text-gray-600 text-sm">
-                    Comparativa de ventas entre sucursales del mes actual
-                    {getBranchDescription()}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pl-2">
-                  <SalesByBranch data={salesByBranch} isLoading={dashboardLoading} />
-                </CardContent>
-              </Card>
+              {hasPermission('ver_stock') && (
+                <Card className="lg:col-span-3 border border-gray-200 shadow-md">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-gray-900 text-lg sm:text-xl">Alertas de Stock</CardTitle>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Productos con stock bajo o agotado
+                      {getBranchDescription()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <StockAlerts alerts={stockAlerts} isLoading={dashboardLoading} />
+                  </CardContent>
+                </Card>
+              )}
+              {hasPermission('ver_ventas') && (
+                <Card className={`border border-gray-200 shadow-md ${hasPermission('ver_stock') ? 'lg:col-span-4' : 'lg:col-span-7'}`}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-gray-900 text-lg sm:text-xl">Ventas por Sucursal</CardTitle>
+                    <CardDescription className="text-gray-600 text-sm">
+                      Comparativa de ventas entre sucursales del mes actual
+                      {getBranchDescription()}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pl-2">
+                    <SalesByBranch data={salesByBranch} isLoading={dashboardLoading} />
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
         </Tabs>
@@ -319,7 +331,7 @@ export default function DashboardPage() {
             </div>
           </div>
         ) : (
-          hasPermission('ver_comprobantes') && (
+          hasPermission('ver_ventas') && (
             <ViewSaleDialog
               sale={selectedSale}
               open={saleDialogOpen}

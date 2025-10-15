@@ -27,11 +27,12 @@ export const FEATURES = {
   facturacion: false,
   
   // Features adicionales que pueden agregarse
-  cuentasCorrientes: true,
+  cuentasCorrientes: false,
   movimientosStock: true,
   auditoria: true,
   backup: false,
   notificaciones: false,
   integracionAfip: false,
   reportesAvanzados: false,
+  analisisventas: false,
 };
