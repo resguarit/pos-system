@@ -25,6 +25,8 @@ export interface NewPurchaseOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
+  preselectedBranchId?: number;
+  disableBranchSelection?: boolean;
 }
 
 interface Supplier {
@@ -36,6 +38,7 @@ interface Supplier {
 interface Branch {
   id: number;
   description: string;
+  color?: string;
 }
 
 interface Product {
@@ -47,7 +50,7 @@ interface Product {
   supplier_id?: number | string;
 }
 
-export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurchaseOrderDialogProps) => {
+export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselectedBranchId, disableBranchSelection = false }: NewPurchaseOrderDialogProps) => {
   const [form, setForm] = useState({
     supplier_id: '',
     branch_id: '',
@@ -91,7 +94,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
     if (open) {
       setForm({
         supplier_id: '',
-        branch_id: '',
+        branch_id: preselectedBranchId ? preselectedBranchId.toString() : '',
         order_date: new Date(),
         notes: '',
       });
@@ -106,7 +109,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
       setAffectsCashRegister(true); // Reset a true por defecto
       setError(null);
     }
-  }, [open]);
+  }, [open, preselectedBranchId]);
   const [lowStockSuggestions, setLowStockSuggestions] = useState<{
     product: Product;
     stock: number;
@@ -632,21 +635,50 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved }: NewPurch
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="branch_id">Sucursal *</Label>
-              <Select value={form.branch_id} onValueChange={(value) => setForm({ ...form, branch_id: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione una sucursal" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id.toString()}>
-                      {branch.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!disableBranchSelection && (
+              <div className="space-y-2">
+                <Label htmlFor="branch_id">Sucursal *</Label>
+                <Select 
+                  value={form.branch_id} 
+                  onValueChange={(value) => setForm({ ...form, branch_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione una sucursal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          {branch.color && (
+                            <div 
+                              className="w-3 h-3 rounded-full border"
+                              style={{ backgroundColor: branch.color }}
+                            />
+                          )}
+                          <span>{branch.description}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {disableBranchSelection && preselectedBranchId && (
+              <div className="space-y-2">
+                <Label htmlFor="branch_id">Sucursal</Label>
+                <div className="flex items-center space-x-2 p-3 bg-muted rounded-md">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">
+                      {branches.find(b => b.id === preselectedBranchId)?.description || 'Sucursal seleccionada'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Preseleccionada desde la página de Caja
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="currency">Moneda de la Orden *</Label>

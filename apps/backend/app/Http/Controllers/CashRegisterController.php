@@ -586,8 +586,300 @@ class CashRegisterController extends Controller
     }
 
     /**
+     * Obtener historial de cajas para múltiples sucursales
+     */
+    public function cashRegistersHistory(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'branch_ids' => 'required|array',
+            'branch_ids.*' => 'integer|exists:branches,id',
+            'filters' => 'nullable|array',
+            'filters.date_range' => 'nullable|string',
+            'filters.custom_dates' => 'nullable|array',
+            'filters.custom_dates.from' => 'nullable|date',
+            'filters.custom_dates.to' => 'nullable|date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $branchIds = $request->input('branch_ids');
+        $filters = $request->input('filters', []);
+        
+        try {
+            // Obtener todas las cajas de las sucursales especificadas
+            $query = CashRegister::with(['branch', 'user'])
+                ->whereIn('branch_id', $branchIds);
+
+            // Aplicar filtros de fecha si existen
+            if (!empty($filters['date_range']) && $filters['date_range'] !== 'all') {
+                $customDates = [];
+                if ($filters['date_range'] === 'custom' && !empty($filters['custom_dates'])) {
+                    $customDates = $filters['custom_dates'];
+                }
+                $this->applyDateFilter($query, $filters['date_range'], $customDates, 'opened_at');
+            }
+
+            $cashRegisters = $query->orderBy('opened_at', 'desc')->get();
+            
+            // Log para debuggear
+            \Illuminate\Support\Facades\Log::info('Cash Registers History Query', [
+                'branch_ids' => $branchIds,
+                'filters' => $filters,
+                'total_found' => $cashRegisters->count(),
+                'first_register' => $cashRegisters->first() ? [
+                    'id' => $cashRegisters->first()->id,
+                    'branch_id' => $cashRegisters->first()->branch_id,
+                    'opened_at' => $cashRegisters->first()->opened_at,
+                    'status' => $cashRegisters->first()->status
+                ] : null
+            ]);
+            
+            // Verificar si hay cajas en total para estas sucursales
+            $totalCashRegisters = CashRegister::whereIn('branch_id', $branchIds)->count();
+            \Illuminate\Support\Facades\Log::info('Total Cash Registers for branches', [
+                'branch_ids' => $branchIds,
+                'total_count' => $totalCashRegisters
+            ]);
+
+            $history = $cashRegisters->map(function ($cashRegister) {
+                // Calcular el saldo esperado para esta caja
+                $expectedCashBalance = $cashRegister->initial_amount;
+                
+                // Obtener todos los movimientos de esta caja
+                $movements = $cashRegister->cashMovements()
+                    ->with(['movementType', 'paymentMethod'])
+                    ->get();
+                
+                // Calcular el saldo esperado basado en movimientos de efectivo
+                foreach ($movements as $movement) {
+                    $amount = floatval($movement->amount);
+                    $isIncome = $movement->movementType->operation_type === 'entrada';
+                    
+                    // Solo considerar movimientos de efectivo
+                    if ($movement->paymentMethod && $movement->paymentMethod->name === 'Efectivo') {
+                        if ($isIncome) {
+                            $expectedCashBalance += $amount;
+                        } else {
+                            $expectedCashBalance -= $amount;
+                        }
+                    }
+                }
+                
+                return [
+                    'id' => $cashRegister->id,
+                    'branch_id' => $cashRegister->branch_id,
+                    'branch_name' => $cashRegister->branch->description ?? 'N/A',
+                    'user_name' => $cashRegister->user->name ?? $cashRegister->user->username ?? 'N/A',
+                    'opened_at' => $cashRegister->opened_at,
+                    'closed_at' => $cashRegister->closed_at,
+                    'initial_amount' => $cashRegister->initial_amount,
+                    'final_amount' => $cashRegister->final_amount,
+                    'expected_cash_balance' => $expectedCashBalance,
+                    'status' => $cashRegister->status,
+                    'notes' => $cashRegister->notes,
+                ];
+            });
+
+            return response()->json([
+                'message' => 'Historial de cajas obtenido exitosamente',
+                'data' => $history,
+                'total' => $history->count()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al obtener el historial de cajas',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Obtener métodos de pago categorizados para optimización frontend
      */
+    public function multipleBranches(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'branch_ids' => 'required|array',
+            'branch_ids.*' => 'integer|exists:branches,id',
+            'filters' => 'nullable|array',
+            'filters.date_range' => 'nullable|string',
+            'filters.custom_dates' => 'nullable|array',
+            'filters.custom_dates.from' => 'nullable|date',
+            'filters.custom_dates.to' => 'nullable|date',
+            'filters.search' => 'nullable|string',
+            'filters.movement_type' => 'nullable|integer',
+            'filters.branch' => 'nullable|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $branchIds = $request->input('branch_ids');
+        $filters = $request->input('filters', []);
+        
+        try {
+            // Obtener todas las cajas (abiertas y cerradas) de las sucursales especificadas
+            $cashRegisters = CashRegister::with(['branch', 'user'])
+                ->whereIn('branch_id', $branchIds)
+                ->get();
+
+            // Calcular estadísticas consolidadas
+            $consolidatedStats = [
+                'total_balance' => 0.0,
+                'total_income' => 0.0,
+                'total_expenses' => 0.0,
+                'total_saldo' => 0.0,
+                'open_cash_registers' => 0,
+                'closed_cash_registers' => 0,
+                'total_branches' => count($branchIds)
+            ];
+
+            $cashRegistersData = [];
+            $allMovements = [];
+
+            foreach ($cashRegisters as $cashRegister) {
+                // Forzar actualización de campos calculados para obtener datos frescos
+                $cashRegister->updateCalculatedFields();
+                $cashRegister->refresh();
+
+                // Obtener movimientos de esta caja
+                $movementsQuery = $cashRegister->cashMovements()
+                    ->with(['movementType', 'user', 'paymentMethod']);
+                
+                // Aplicar filtros de búsqueda si existen
+                if (!empty($filters['search'])) {
+                    $search = $filters['search'];
+                    $movementsQuery->where(function($q) use ($search) {
+                        $q->where('description', 'like', "%{$search}%")
+                          ->orWhereHas('user', function($userQuery) use ($search) {
+                              $userQuery->where('username', 'like', "%{$search}%")
+                                        ->orWhereHas('person', function($personQuery) use ($search) {
+                                            $personQuery->where('first_name', 'like', "%{$search}%")
+                                                      ->orWhere('last_name', 'like', "%{$search}%");
+                                        });
+                          });
+                    });
+                }
+                
+                // Aplicar filtro por tipo de movimiento si existe
+                if (!empty($filters['movement_type'])) {
+                    $movementsQuery->where('movement_type_id', $filters['movement_type']);
+                }
+                
+                // Aplicar filtro por sucursal si existe
+                if (!empty($filters['branch'])) {
+                    $movementsQuery->whereHas('cashRegister', function($q) use ($filters) {
+                        $q->where('branch_id', $filters['branch']);
+                    });
+                }
+                
+                // Aplicar filtros de fecha si existen
+                if (!empty($filters['date_range'])) {
+                    $customDates = [];
+                    if ($filters['date_range'] === 'custom' && !empty($filters['custom_dates'])) {
+                        $customDates = $filters['custom_dates'];
+                    }
+                    $this->applyDateFilter($movementsQuery, $filters['date_range'], $customDates);
+                }
+                
+                $movements = $movementsQuery->orderBy('created_at', 'desc')->get();
+
+                // Agregar información de sucursal a cada movimiento
+                foreach ($movements as $movement) {
+                    $movement->branch_id = $cashRegister->branch_id;
+                    $movement->branch_name = $cashRegister->branch->description;
+                    $allMovements[] = $movement;
+                }
+
+                // Calcular estadísticas de esta caja
+                $expectedCashBalance = $cashRegister->expected_cash_balance ?? $cashRegister->calculateExpectedCashBalance();
+                $paymentMethodTotals = $cashRegister->payment_method_totals ?? [];
+                
+                // Contar solo cajas abiertas
+                if ($cashRegister->status === 'open') {
+                    $consolidatedStats['open_cash_registers']++;
+                    
+                    // Sumar a estadísticas consolidadas SOLO si la caja está abierta
+                    $consolidatedStats['total_balance'] += (float) $expectedCashBalance;
+
+                    // Calcular ingresos y egresos de hoy
+                    $todayIncome = $movements->where('created_at', '>=', now()->startOfDay())
+                        ->filter(function($movement) {
+                            return $movement->movementType->operation_type === 'entrada';
+                        })
+                        ->sum('amount');
+
+                    $todayExpenses = $movements->where('created_at', '>=', now()->startOfDay())
+                        ->filter(function($movement) {
+                            return $movement->movementType->operation_type === 'salida';
+                        })
+                        ->sum('amount');
+
+                    $consolidatedStats['total_income'] += (float) $todayIncome;
+                    $consolidatedStats['total_expenses'] += (float) $todayExpenses;
+                    $consolidatedStats['total_saldo'] += (float) ($todayIncome - $todayExpenses);
+                } else {
+                    // Para cajas cerradas, calcular ingresos y egresos de hoy para mostrar en datos individuales
+                    $todayIncome = $movements->where('created_at', '>=', now()->startOfDay())
+                        ->filter(function($movement) {
+                            return $movement->movementType->operation_type === 'entrada';
+                        })
+                        ->sum('amount');
+
+                    $todayExpenses = $movements->where('created_at', '>=', now()->startOfDay())
+                        ->filter(function($movement) {
+                            return $movement->movementType->operation_type === 'salida';
+                        })
+                        ->sum('amount');
+                }
+
+                // Datos de la caja individual
+                $cashRegistersData[] = [
+                    'id' => $cashRegister->id,
+                    'branch_id' => $cashRegister->branch_id,
+                    'branch' => $cashRegister->branch,
+                    'user' => $cashRegister->user,
+                    'opened_at' => $cashRegister->opened_at,
+                    'initial_amount' => $cashRegister->initial_amount,
+                    'expected_cash_balance' => $expectedCashBalance,
+                    'payment_method_totals' => $paymentMethodTotals,
+                    'status' => $cashRegister->status,
+                    'notes' => $cashRegister->notes,
+                    'today_income' => $todayIncome,
+                    'today_expenses' => $todayExpenses,
+                    'movements_count' => $movements->count()
+                ];
+            }
+
+            // Contar cajas cerradas (total de cajas - cajas abiertas)
+            $consolidatedStats['closed_cash_registers'] = count($cashRegisters) - $consolidatedStats['open_cash_registers'];
+
+            // Ordenar movimientos por fecha (más recientes primero)
+            $allMovements = collect($allMovements)->sortByDesc('created_at')->values();
+
+            return response()->json([
+                'message' => 'Datos consolidados de múltiples sucursales obtenidos',
+                'data' => [
+                    'consolidated_stats' => $consolidatedStats,
+                    'cash_registers' => $cashRegistersData,
+                    'all_movements' => $allMovements,
+                    'branches_count' => count($branchIds),
+                    'timestamp' => now()->toISOString()
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al obtener datos consolidados',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function getPaymentMethodsOptimized(): JsonResponse
     {
         $paymentMethods = \App\Models\PaymentMethod::where('is_active', true)
@@ -677,5 +969,457 @@ class CashRegisterController extends Controller
             .'<tbody>'.$tbody.'</tbody>'
             .'</table>'
             .'</body></html>';
+    }
+
+    /**
+     * Exportar datos de caja en diferentes formatos
+     */
+    public function export(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        try {
+            $branchIds = $request->get('branch_ids', []);
+            $format = $request->get('format', 'excel');
+            $type = $request->get('type', 'movements');
+            $filters = $request->get('filters', []);
+
+            // Validar que branch_ids sea un array de enteros
+            if (!is_array($branchIds)) {
+                $branchIds = [$branchIds];
+            }
+            $branchIds = array_map('intval', $branchIds);
+
+            $data = [];
+            $filename = '';
+
+            switch ($type) {
+                case 'movements':
+                    $data = $this->getMovementsForExport($branchIds, $filters);
+                    $filename = 'movimientos_caja';
+                    break;
+                case 'summary':
+                    $data = $this->getSummaryForExport($branchIds, $filters);
+                    $filename = 'resumen_caja';
+                    break;
+                case 'comparison':
+                    $data = $this->getComparisonForExport($branchIds, $filters);
+                    $filename = 'comparacion_sucursales';
+                    break;
+                default:
+                    throw new \InvalidArgumentException('Tipo de exportación no válido');
+            }
+
+            return $this->generateExportResponse($data, $filename, $format);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al exportar los datos',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function getMovementsForExport(array $branchIds, array $filters): array
+    {
+        $query = \App\Models\CashMovement::with(['movementType', 'user', 'cashRegister.branch'])
+            ->whereHas('cashRegister', function($q) use ($branchIds) {
+                $q->whereIn('branch_id', $branchIds);
+            });
+
+        // Aplicar filtros
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                  ->orWhereHas('user', function($userQuery) use ($search) {
+                      $userQuery->where('username', 'like', "%{$search}%")
+                                ->orWhereHas('person', function($personQuery) use ($search) {
+                                    $personQuery->where('first_name', 'like', "%{$search}%")
+                                              ->orWhere('last_name', 'like', "%{$search}%");
+                                });
+                  })
+                  ->orWhereHas('cashRegister.branch', function($branchQuery) use ($search) {
+                      $branchQuery->where('description', 'like', "%{$search}%");
+                  });
+            });
+        }
+
+        if (!empty($filters['movement_type'])) {
+            $query->where('movement_type_id', $filters['movement_type']);
+        }
+
+        if (!empty($filters['branch'])) {
+            $query->whereHas('cashRegister', function($q) use ($filters) {
+                $q->where('branch_id', $filters['branch']);
+            });
+        }
+
+        // Filtro de fechas
+        if (!empty($filters['date_range'])) {
+            $customDates = [];
+            if ($filters['date_range'] === 'custom' && !empty($filters['custom_dates'])) {
+                $customDates = $filters['custom_dates'];
+            }
+            $this->applyDateFilter($query, $filters['date_range'], $customDates);
+        }
+
+        $movements = $query->orderBy('created_at', 'desc')->get();
+
+        $data = [];
+        foreach ($movements as $movement) {
+            $data[] = [
+                'Fecha' => $movement->created_at->format('d/m/Y H:i'),
+                'Tipo' => $movement->movementType->description ?? 'N/A',
+                'Descripción' => $movement->description,
+                'Monto' => number_format($movement->amount, 2, ',', '.'),
+                'Sucursal' => $movement->cashRegister->branch->description ?? 'N/A',
+                'Usuario' => $movement->user->name ?? $movement->user->username ?? 'N/A',
+                'Operación' => ($movement->movementType->operation_type ?? 'entrada') === 'entrada' ? 'Ingreso' : 'Egreso'
+            ];
+        }
+
+        return $data;
+    }
+
+    private function getSummaryForExport(array $branchIds, array $filters): array
+    {
+        // Obtener estadísticas consolidadas
+        $stats = $this->getConsolidatedStats($branchIds, $filters);
+        
+        return [
+            [
+                'Métrica' => 'Balance Total',
+                'Valor' => number_format($stats['total_balance'] ?? 0, 2, ',', '.')
+            ],
+            [
+                'Métrica' => 'Ingresos Totales',
+                'Valor' => number_format($stats['total_income'] ?? 0, 2, ',', '.')
+            ],
+            [
+                'Métrica' => 'Egresos Totales',
+                'Valor' => number_format($stats['total_expenses'] ?? 0, 2, ',', '.')
+            ],
+            [
+                'Métrica' => 'Total de Movimientos',
+                'Valor' => $stats['total_movements'] ?? 0
+            ]
+        ];
+    }
+
+    private function getComparisonForExport(array $branchIds, array $filters): array
+    {
+        $data = [];
+        
+        foreach ($branchIds as $branchId) {
+            $branch = \App\Models\Branch::find($branchId);
+            if (!$branch) continue;
+
+            $stats = $this->getBranchStats($branchId, $filters);
+            
+            $data[] = [
+                'Sucursal' => $branch->description,
+                'Balance' => number_format($stats['balance'] ?? 0, 2, ',', '.'),
+                'Ingresos' => number_format($stats['income'] ?? 0, 2, ',', '.'),
+                'Egresos' => number_format($stats['expenses'] ?? 0, 2, ',', '.'),
+                'Movimientos' => $stats['movements'] ?? 0,
+                'Estado' => $stats['is_open'] ? 'Abierta' : 'Cerrada'
+            ];
+        }
+
+        return $data;
+    }
+
+    private function getConsolidatedStats(array $branchIds, array $filters): array
+    {
+        $query = \App\Models\CashMovement::whereHas('cashRegister', function($q) use ($branchIds) {
+            $q->whereIn('branch_id', $branchIds);
+        });
+
+        // Aplicar filtros
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where('description', 'like', "%{$search}%");
+        }
+
+        if (!empty($filters['movement_type'])) {
+            $query->where('movement_type_id', $filters['movement_type']);
+        }
+
+        if (!empty($filters['date_range'])) {
+            $this->applyDateFilter($query, $filters['date_range']);
+        }
+
+        $movements = $query->with('movementType')->get();
+
+        $totalIncome = 0;
+        $totalExpenses = 0;
+
+        foreach ($movements as $movement) {
+            $amount = floatval($movement->amount);
+            $isIncome = ($movement->movementType->operation_type ?? 'entrada') === 'entrada';
+            
+            if ($isIncome) {
+                $totalIncome += $amount;
+            } else {
+                $totalExpenses += $amount;
+            }
+        }
+
+        return [
+            'total_balance' => $totalIncome - $totalExpenses,
+            'total_income' => $totalIncome,
+            'total_expenses' => $totalExpenses,
+            'total_movements' => $movements->count()
+        ];
+    }
+
+    private function getBranchStats(int $branchId, array $filters): array
+    {
+        $query = \App\Models\CashMovement::whereHas('cashRegister', function($q) use ($branchId) {
+            $q->where('branch_id', $branchId);
+        });
+
+        // Aplicar filtros
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where('description', 'like', "%{$search}%");
+        }
+
+        if (!empty($filters['movement_type'])) {
+            $query->where('movement_type_id', $filters['movement_type']);
+        }
+
+        if (!empty($filters['date_range'])) {
+            $this->applyDateFilter($query, $filters['date_range']);
+        }
+
+        $movements = $query->with('movementType')->get();
+
+        $income = 0;
+        $expenses = 0;
+
+        foreach ($movements as $movement) {
+            $amount = floatval($movement->amount);
+            $isIncome = ($movement->movementType->operation_type ?? 'entrada') === 'entrada';
+            
+            if ($isIncome) {
+                $income += $amount;
+            } else {
+                $expenses += $amount;
+            }
+        }
+
+        // Obtener estado de la caja
+        $cashRegister = \App\Models\CashRegister::where('branch_id', $branchId)
+            ->where('status', 'open')
+            ->first();
+
+        return [
+            'balance' => $income - $expenses,
+            'income' => $income,
+            'expenses' => $expenses,
+            'movements' => $movements->count(),
+            'is_open' => $cashRegister ? true : false
+        ];
+    }
+
+    private function applyDateFilter($query, string $dateRange, array $customDates = [], string $dateField = 'created_at'): void
+    {
+        $now = now();
+        
+        switch ($dateRange) {
+            case 'today':
+                $query->whereDate($dateField, $now->toDateString());
+                break;
+            case 'yesterday':
+                $query->whereDate($dateField, $now->subDay()->toDateString());
+                break;
+            case 'week':
+                $query->where($dateField, '>=', $now->startOfWeek());
+                break;
+            case 'month':
+                $query->where($dateField, '>=', $now->startOfMonth());
+                break;
+            case 'custom':
+                if (!empty($customDates['from']) && !empty($customDates['to'])) {
+                    $from = \Carbon\Carbon::parse($customDates['from'])->startOfDay();
+                    $to = \Carbon\Carbon::parse($customDates['to'])->endOfDay();
+                    $query->whereBetween($dateField, [$from, $to]);
+                }
+                break;
+        }
+    }
+
+    private function generateExportResponse(array $data, string $filename, string $format): \Symfony\Component\HttpFoundation\Response
+    {
+        $timestamp = now()->format('Y-m-d_H-i-s');
+        $fullFilename = "{$filename}_{$timestamp}";
+
+        switch ($format) {
+            case 'csv':
+                return $this->exportToCsv($data, $fullFilename);
+            case 'pdf':
+                return $this->exportToPdf($data, $fullFilename);
+            case 'excel':
+            default:
+                return $this->exportToExcel($data, $fullFilename);
+        }
+    }
+
+    private function exportToCsv(array $data, string $filename): \Symfony\Component\HttpFoundation\Response
+    {
+        $headers = array_keys($data[0] ?? []);
+        $csv = implode(',', $headers) . "\n";
+        
+        foreach ($data as $row) {
+            $csv .= implode(',', array_map(function($value) {
+                return '"' . str_replace('"', '""', $value) . '"';
+            }, $row)) . "\n";
+        }
+
+        return response($csv)
+            ->header('Content-Type', 'text/csv; charset=UTF-8')
+            ->header('Content-Disposition', "attachment; filename=\"{$filename}.csv\"");
+    }
+
+    private function exportToPdf(array $data, string $filename): \Symfony\Component\HttpFoundation\Response
+    {
+        $headers = array_keys($data[0] ?? []);
+        $html = $this->buildHtmlTable('Reporte de Caja', $headers, $data);
+        
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
+        
+        return $pdf->download("{$filename}.pdf");
+    }
+
+    private function exportToExcel(array $data, string $filename): \Symfony\Component\HttpFoundation\Response
+    {
+        // Generar HTML para Excel (formato que Excel puede abrir)
+        $headers = array_keys($data[0] ?? []);
+        
+        // Agregar información del rango de fechas y sucursales
+        $exportInfo = $this->getExportInfo($data);
+        $html = $this->buildHtmlTableWithInfo('Reporte de Caja', $headers, $data, $exportInfo);
+        
+        return response($html)
+            ->header('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
+            ->header('Content-Disposition', "attachment; filename=\"{$filename}.xls\"");
+    }
+
+    private function getExportInfo(array $data = []): array
+    {
+        $request = request();
+        $branchIds = $request->get('branch_ids', []);
+        $filters = $request->get('filters', []);
+        
+        // Obtener nombres de sucursales
+        $branches = \App\Models\Branch::whereIn('id', $branchIds)->pluck('description')->toArray();
+        
+        // Determinar rango de fechas
+        $dateRange = $filters['date_range'] ?? 'all';
+        $dateInfo = $this->getDateRangeInfo($dateRange);
+        
+        return [
+            'branches' => $branches,
+            'date_range' => $dateInfo,
+            'total_movements' => count($data),
+            'exported_at' => now()->format('d/m/Y H:i:s')
+        ];
+    }
+
+    private function getDateRangeInfo(string $dateRange): array
+    {
+        $now = now();
+        
+        switch ($dateRange) {
+            case 'today':
+                return [
+                    'label' => 'Hoy',
+                    'from' => $now->format('d/m/Y'),
+                    'to' => $now->format('d/m/Y')
+                ];
+            case 'yesterday':
+                $yesterday = $now->subDay();
+                return [
+                    'label' => 'Ayer',
+                    'from' => $yesterday->format('d/m/Y'),
+                    'to' => $yesterday->format('d/m/Y')
+                ];
+            case 'week':
+                return [
+                    'label' => 'Esta semana',
+                    'from' => $now->startOfWeek()->format('d/m/Y'),
+                    'to' => $now->endOfWeek()->format('d/m/Y')
+                ];
+            case 'month':
+                return [
+                    'label' => 'Este mes',
+                    'from' => $now->startOfMonth()->format('d/m/Y'),
+                    'to' => $now->endOfMonth()->format('d/m/Y')
+                ];
+            case 'custom':
+                // Para rango personalizado, necesitaríamos obtener las fechas del frontend
+                return [
+                    'label' => 'Rango personalizado',
+                    'from' => 'Fecha personalizada',
+                    'to' => 'Fecha personalizada'
+                ];
+            default:
+                return [
+                    'label' => 'Todas las fechas',
+                    'from' => 'Sin límite',
+                    'to' => 'Sin límite'
+                ];
+        }
+    }
+
+    private function buildHtmlTableWithInfo(string $title, array $headers, array $data, array $exportInfo): string
+    {
+        $html = '<html><head><meta charset="UTF-8"></head><body>';
+        
+        // Título principal
+        $html .= '<h2 style="margin:0 0 20px 0;text-align:center;color:#2563eb;">' . e($title) . '</h2>';
+        
+        // Información de exportación
+        $html .= '<div style="margin-bottom:20px;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;">';
+        $html .= '<h3 style="margin:0 0 10px 0;color:#374151;">Información del Reporte</h3>';
+        
+        // Sucursales
+        $branchesText = !empty($exportInfo['branches']) ? implode(', ', $exportInfo['branches']) : 'Todas las sucursales';
+        $html .= '<p style="margin:5px 0;"><strong>Sucursales:</strong> ' . e($branchesText) . '</p>';
+        
+        // Rango de fechas
+        $dateInfo = $exportInfo['date_range'];
+        $html .= '<p style="margin:5px 0;"><strong>Período:</strong> ' . e($dateInfo['label']) . '</p>';
+        if ($dateInfo['from'] !== 'Sin límite' && $dateInfo['from'] !== 'Fecha personalizada') {
+            $html .= '<p style="margin:5px 0;"><strong>Desde:</strong> ' . e($dateInfo['from']) . ' <strong>Hasta:</strong> ' . e($dateInfo['to']) . '</p>';
+        }
+        
+        // Total de movimientos
+        $html .= '<p style="margin:5px 0;"><strong>Total de movimientos:</strong> ' . e($exportInfo['total_movements']) . '</p>';
+        
+        // Fecha de exportación
+        $html .= '<p style="margin:5px 0;"><strong>Exportado el:</strong> ' . e($exportInfo['exported_at']) . '</p>';
+        
+        $html .= '</div>';
+        
+        // Tabla de datos
+        if (!empty($data)) {
+            $thead = '<tr>'.collect($headers)->map(fn($h) => '<th style="border:1px solid #ccc;padding:8px;text-align:left;background:#f3f4f6;font-weight:bold;">'.e($h).'</th>')->implode('').'</tr>';
+            $tbody = '';
+            foreach ($data as $row) {
+                $values = is_array($row) ? $row : array_values($row);
+                $tbody .= '<tr>'.collect($values)->map(fn($v) => '<td style="border:1px solid #eee;padding:6px;">'.e((string)$v).'</td>')->implode('').'</tr>';
+            }
+            $html .= '<table cellspacing="0" cellpadding="0" style="border-collapse:collapse;font-family:Arial, sans-serif;font-size:12px;width:100%;">';
+            $html .= '<thead>' . $thead . '</thead>';
+            $html .= '<tbody>' . $tbody . '</tbody>';
+            $html .= '</table>';
+        } else {
+            $html .= '<p style="text-align:center;color:#6b7280;font-style:italic;">No hay datos para mostrar</p>';
+        }
+        
+        $html .= '</body></html>';
+        
+        return $html;
     }
 }

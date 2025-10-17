@@ -127,10 +127,16 @@ export function BranchSelector() {
                   </span>
                   <div className="flex-1 text-left">
                     <div className={cn(
-                      "font-medium",
+                      "font-medium flex items-center gap-2",
                       checked ? "text-blue-700" : "text-gray-700"
                     )}>
-                      {branch.description}
+                      {branch.color && (
+                        <div 
+                          className="w-3 h-3 rounded-full border"
+                          style={{ backgroundColor: branch.color }}
+                        />
+                      )}
+                      <span>{branch.description}</span>
                     </div>
                   </div>
                 </button>

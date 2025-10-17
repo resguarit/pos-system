@@ -220,7 +220,7 @@ export default function SucursalesPage() {
                 <TableRow key={branchItem.id} className="hover:bg-muted/50">
                   <ResizableTableCell columnId="name" getColumnCellProps={getColumnCellProps}>
                     <div className="flex items-center">
-                      <span className="inline-block h-3 w-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: branchItem.color || "#cccccc" }} />
+                      <span className="inline-block h-3 w-3 rounded-full mr-2 flex-shrink-0" style={{ backgroundColor: branchItem.color }} />
                       <span className="font-medium truncate" title={branchItem.description}>{branchItem.description}</span>
                     </div>
                   </ResizableTableCell>

@@ -23,7 +23,7 @@ import type { PaymentMethod } from '@/lib/api/paymentMethodService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Supplier { id: number; name: string; contact_name?: string }
-interface Branch { id: number; description: string }
+interface Branch { id: number; description: string; color?: string }
 interface Product { id: number; description: string; code: string; unit_price: number; currency?: string }
 
 export interface EditPurchaseOrderDialogProps {

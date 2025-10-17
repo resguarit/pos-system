@@ -105,22 +105,24 @@ export default function useCashRegisterOptimized(branchId: number | null): UseCa
     setLoading(false)
   }
 
+  // Cargar payment methods solo una vez al montar el componente
   useEffect(() => {
+    if (!paymentMethods) {
+      fetchPaymentMethods()
+    }
+  }, []) // Sin dependencias para que solo se ejecute una vez
+
+  // Cargar cash register cuando cambie branchId
+  useEffect(() => {
+    if (!branchId) return
+    
     // Limpiar estado inmediatamente cuando cambia branchId
     setCurrentCashRegister(null)
     setError(null)
     
     const fetchData = async () => {
       setLoading(true)
-      
-      // Fetch payment methods once
-      if (!paymentMethods) {
-        await fetchPaymentMethods()
-      }
-      
-      // Fetch current cash register
       await fetchCurrentCashRegister()
-      
       setLoading(false)
     }
 

@@ -251,8 +251,6 @@ export const PERMISSIONS_CONFIG = {
   perfil: {
     feature: 'perfil',
     permissions: [
-      'ver_perfil',
-      'editar_perfil',
       'cambiar_password'
     ]
   },

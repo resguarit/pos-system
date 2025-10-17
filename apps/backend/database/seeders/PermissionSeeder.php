@@ -57,9 +57,6 @@ class PermissionSeeder extends Seeder
             ['name' => 'ver_permisos', 'description' => 'Ver permisos del sistema', 'module' => 'roles'],
             ['name' => 'asignar_permisos', 'description' => 'Asignar permisos a roles', 'module' => 'roles'],
             
-            // Perfil de usuario
-            ['name' => 'ver_perfil', 'description' => 'Ver perfil de usuario', 'module' => 'perfil'],
-            ['name' => 'editar_perfil', 'description' => 'Editar perfil de usuario', 'module' => 'perfil'],
             ['name' => 'cambiar_password', 'description' => 'Cambiar contraseña de usuario', 'module' => 'perfil'],
             // Sucursales
             ['name' => 'ver_sucursales', 'description' => 'Ver sucursales', 'module' => 'sucursales'],
@@ -144,8 +141,6 @@ class PermissionSeeder extends Seeder
             // ['name' => 'eliminar_solicitudes', 'description' => 'Eliminar solicitud', 'module' => 'solicitudes'],
             
             // Permisos adicionales identificados en la aplicación
-            ['name' => 'ver_perfil', 'description' => 'Ver perfil de usuario', 'module' => 'usuarios'],
-            ['name' => 'editar_perfil', 'description' => 'Editar perfil de usuario', 'module' => 'usuarios'],
             ['name' => 'ver_cuentas_corrientes', 'description' => 'Ver cuentas corrientes', 'module' => 'clientes'],
             ['name' => 'exportar_lista_precios', 'description' => 'Exportar lista de precios', 'module' => 'productos'],
             ['name' => 'actualizar_precios_masivo', 'description' => 'Actualizar precios masivamente', 'module' => 'productos'],

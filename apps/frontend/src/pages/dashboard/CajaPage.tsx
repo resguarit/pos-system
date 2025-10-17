@@ -1,50 +1,32 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
-import { useResizableColumns } from '@/hooks/useResizableColumns';
-import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   ArrowDownIcon,
   ArrowUpIcon,
   DollarSign,
   FileText,
-  type LucideIcon,
   PlusCircle,
   Search,
   Wallet,
   Loader2,
   AlertCircle,
-  Trash2,
   RefreshCcw,
-  Eye,
+  ArrowLeft,
   Coins,
   BarChart3,
-  CheckCircle,
-  TrendingUp,
-  TrendingDown,
+  Clock,
 } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import useCashRegister from "@/hooks/useCashRegister"
 import useCashRegisterOptimized from "@/hooks/useCashRegisterOptimized"
+import { useMultipleBranchesCash } from "@/hooks/useMultipleBranchesCash"
+import { useCashCalculations } from "@/hooks/useCashCalculations"
+import { useCashRegistersHistory } from "@/hooks/useCashRegistersHistory"
+import { useMultiBranchFilters } from "@/hooks/useMultiBranchFilters"
 import { toast } from "sonner"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import { ViewPurchaseOrderDialog } from "@/components/view-purchase-order-dialog"
 import useApi from "@/hooks/useApi"
@@ -52,41 +34,30 @@ import { useSearchParams } from "react-router-dom"
 import { useBranch } from "@/context/BranchContext"
 import { useAuth } from "@/context/AuthContext"
 import CashRegisterStatusBadge from "@/components/cash-register-status-badge"
-import Pagination from "@/components/ui/pagination"
 import SelectBranchPlaceholder from "@/components/ui/select-branch-placeholder"
 
-// Componente de tarjeta con icono
-interface StatCardProps {
-  title: string
-  value: string
-  description: string
-  icon: LucideIcon
-  colorClass?: string
-}
+// Componentes extraídos
+import { StatCard } from "@/components/cash/StatCard"
+import { CashRegisterStatusCard } from "@/components/cash/CashRegisterStatusCard"
+import { OpenCashRegisterDialog } from "@/components/cash/OpenCashRegisterDialog"
+import { CloseCashRegisterDialog } from "@/components/cash/CloseCashRegisterDialog"
+import { NewMovementDialog } from "@/components/cash/NewMovementDialog"
+import { MovementsTable } from "@/components/cash/MovementsTable"
+import { MultiBranchNewMovementDialog } from "@/components/cash/MultiBranchNewMovementDialog"
+import { MultiBranchFilters } from "@/components/cash/MultiBranchFilters"
+import { ExportDialog } from "@/components/cash/ExportDialog"
 
-const StatCard = ({
-  title,
-  value,
-  description,
-  icon: Icon,
-  colorClass = "bg-primary/10 text-primary",
-}: StatCardProps) => (
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      <div className={`rounded-full p-2 ${colorClass}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-    </CardHeader>
-    <CardContent>
-      <div className="card-value">{value}</div>
-      <p className="text-xs text-muted-foreground">{description}</p>
-    </CardContent>
-  </Card>
-)
-
+// Utilidades
+import { 
+  formatCurrency, 
+  formatDate, 
+  getCustomerName, 
+  getReceiptType,
+  extractSaleIdFromDescription
+} from "@/utils/cash-register-utils"
 
 export default function CajaPage() {
+  
   // Hook personalizado para manejar la caja
   const {
     currentRegister,
@@ -103,30 +74,34 @@ export default function CajaPage() {
     loadMovementTypes,
     loadPaymentMethods,
     loadRegisterHistory,
-    calculateTodayIncome,
-    calculateTodayExpenses,
     loadMovements,
     loadAllMovements,
     movementsMeta,
-    calculateBalanceSinceOpening,
   } = useCashRegister()
   
   const { request } = useApi()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { selectedBranchIds, selectionChangeToken } = useBranch()
+  const { selectedBranchIds, selectionChangeToken, branches, setSelectedBranchIds } = useBranch()
   const { user, hasPermission } = useAuth()
   
   // Derivar permisos necesarios para la gestión de caja
-  const canOpenCloseCashRegister = hasPermission('abrir_cerrar_caja') // Permiso único para abrir/cerrar caja
-  const canViewMovements = hasPermission('ver_movimientos_caja') // Ver tabla de movimientos de caja
-  const canCreateMovements = hasPermission('crear_movimientos_caja') // Crear nuevos movimientos
-  const canDeleteMovements = hasPermission('eliminar_movimientos_caja') // Eliminar movimientos
-  const canViewHistory = hasPermission('ver_historico_caja') // Ver historial y reportes (tab completa)
+  const canOpenCloseCashRegister = hasPermission('abrir_cerrar_caja')
+  const canViewMovements = hasPermission('ver_movimientos_caja')
+  const canCreateMovements = hasPermission('crear_movimientos_caja')
+  const canDeleteMovements = hasPermission('eliminar_movimientos_caja')
+  const canViewHistory = hasPermission('ver_historico_caja')
   
-  // Derivar branch actual desde el contexto
-  const currentBranchId = selectedBranchIds?.[0]
-    ? parseInt(String(selectedBranchIds[0]), 10)
-    : undefined
+  // Derivar branches seleccionadas desde el contexto
+  const selectedBranchIdsArray = useMemo(() => 
+    selectedBranchIds?.map(id => parseInt(String(id), 10)).filter(Number.isFinite) || [], 
+    [selectedBranchIds]
+  )
+
+  // Función para obtener información de una sucursal específica
+  const getBranchInfo = (branchId: number) => {
+    return branches.find(branch => branch.id === branchId || branch.id === String(branchId))
+  }
+  const currentBranchId = selectedBranchIdsArray[0]
 
   // Hook optimizado con datos pre-calculados del backend
   const {
@@ -136,85 +111,64 @@ export default function CajaPage() {
     isCashPaymentMethod
   } = useCashRegisterOptimized(currentBranchId || null)
 
+  // Hook para múltiples sucursales
+  const {
+    multipleCashRegisters,
+    multipleCashRegistersLoading,
+    allMovements,
+    allMovementsLoading,
+    consolidatedStats,
+    loadCashRegisterForBranch,
+    loadMultipleBranchesData
+  } = useMultipleBranchesCash({ selectedBranchIdsArray })
+
+  // Hook para historial de cajas
+  const {
+    cashRegistersHistory,
+    loading: cashRegistersHistoryLoading,
+    loadCashRegistersHistory
+  } = useCashRegistersHistory({ selectedBranchIdsArray })
+
+  // Hook para cálculos
+  const {
+    calculateCashOnlyBalance,
+    calculateTodayIncome,
+    calculateTodayExpenses,
+    calculateBalanceSinceOpening,
+    calculateMultipleBranchesBalance,
+    calculateMultipleBranchesIncome,
+    calculateMultipleBranchesExpenses,
+    calculateMultipleBranchesSaldo
+  } = useCashCalculations({
+    currentRegister,
+    movements,
+    optimizedCashRegister,
+    selectedBranchIdsArray,
+    multipleCashRegisters,
+    consolidatedStats,
+    isCashPaymentMethod
+  })
+
   // Estados de UI
   const [openNewMovementDialog, setOpenNewMovementDialog] = useState(false)
   const [openCashRegisterDialog, setOpenCashRegisterDialog] = useState(false)
   const [openCloseCashDialog, setOpenCloseCashDialog] = useState(false)
+  const [openMultiBranchMovementDialog, setOpenMultiBranchMovementDialog] = useState(false)
+  const [openExportDialog, setOpenExportDialog] = useState(false)
+  const [selectedBranchForAction, setSelectedBranchForAction] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [isPageLoading, setIsPageLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState("history")
+  const [multiBranchTab, setMultiBranchTab] = useState("general")
+  const [activeTab, setActiveTab] = useState("current")
   const [movementTypeFilter, setMovementTypeFilter] = useState("all")
   const [movementsPage, setMovementsPage] = useState(1)
   const movementsPerPage = 10
-
-  // Configuración de columnas redimensionables para tabla de movimientos
-  const movementsColumnConfig = [
-    { id: 'type', minWidth: 80, maxWidth: 150, defaultWidth: 100 },
-    { id: 'description', minWidth: 150, maxWidth: 400, defaultWidth: 250 },
-    { id: 'method', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
-    { id: 'date', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
-    { id: 'amount', minWidth: 100, maxWidth: 180, defaultWidth: 130 },
-    { id: 'user', minWidth: 100, maxWidth: 200, defaultWidth: 150 },
-    { id: 'actions', minWidth: 80, maxWidth: 120, defaultWidth: 100 }
-  ];
-
-  // Configuración de columnas redimensionables para historial de cajas
-  const historyColumnConfig = [
-    { id: 'status', minWidth: 80, maxWidth: 140, defaultWidth: 100 },
-    { id: 'opening', minWidth: 140, maxWidth: 200, defaultWidth: 170 },
-    { id: 'closing', minWidth: 140, maxWidth: 200, defaultWidth: 170 },
-    { id: 'initial_amount', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
-    { id: 'system_amount', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
-    { id: 'counted_cash', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
-    { id: 'difference', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
-    { id: 'user', minWidth: 100, maxWidth: 180, defaultWidth: 130 },
-    { id: 'observations', minWidth: 150, maxWidth: 300, defaultWidth: 200 }
-  ];
-
-  const {
-    getResizeHandleProps: getMovementsResizeHandleProps,
-    getColumnHeaderProps: getMovementsColumnHeaderProps,
-    tableRef: movementsTableRef
-  } = useResizableColumns({
-    columns: movementsColumnConfig,
-    storageKey: 'caja-movimientos-column-widths',
-    defaultWidth: 150
-  });
-
-  const {
-    getResizeHandleProps: getHistoryResizeHandleProps,
-    getColumnHeaderProps: getHistoryColumnHeaderProps,
-    getColumnCellProps: getHistoryColumnCellProps,
-    tableRef: historyTableRef
-  } = useResizableColumns({
-    columns: historyColumnConfig,
-    storageKey: 'caja-historial-column-widths',
-    defaultWidth: 150
-  });
 
   // Modal de detalle de venta
   const [saleDialogOpen, setSaleDialogOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<any>(null)
   
-  // Estados del formulario de movimiento
-  const [movementForm, setMovementForm] = useState({
-    movement_type_id: '',
-    payment_method_id: '',
-    amount: '',
-    description: '',
-  })
-  
-  // Estados del formulario de apertura de caja
-  const [openingForm, setOpeningForm] = useState({
-    opening_balance: '',
-    notes: '',
-  })
-  
-  // Estados del formulario de cierre de caja
-  const [closingForm, setClosingForm] = useState({
-    closing_balance: '',
-    notes: '',
-  })
+  // Los formularios ahora se manejan dentro de los diálogos
 
   // Estado para forzar re-render del status badge cuando se cierre la caja
   const [statusRefreshKey, setStatusRefreshKey] = useState(0)
@@ -232,24 +186,113 @@ export default function CajaPage() {
   const [openPurchaseOrderDialog, setOpenPurchaseOrderDialog] = useState(false)
   const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<number | null>(null)
 
-  // Cargar datos iniciales
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Estado para recordar la selección original de sucursales
+  const [originalBranchSelection, setOriginalBranchSelection] = useState<string[]>([])
+  
+  // Ref para controlar la ejecución del useEffect
+  const lastSelectionRef = useRef('')
 
-  // Cargar datos cuando haya una sucursal seleccionada o cambie la selección
+  // Hook para filtros de múltiples sucursales
+  const availableBranchesForFilters = useMemo(() => 
+    selectedBranchIdsArray.map(branchId => ({
+      id: branchId,
+      name: getBranchInfo(branchId)?.description || `Sucursal ${branchId}`
+    })), 
+    [selectedBranchIdsArray, branches]
+  )
+
+  const {
+    searchTerm: multiBranchSearchTerm,
+    setSearchTerm: setMultiBranchSearchTerm,
+    movementTypeFilter: multiBranchMovementTypeFilter,
+    setMovementTypeFilter: setMultiBranchMovementTypeFilter,
+    branchFilter,
+    setBranchFilter,
+    dateRangeFilter,
+    setDateRangeFilter,
+    customDateRange,
+    setCustomDateRange,
+    clearAllFilters
+  } = useMultiBranchFilters({
+    movements: allMovements,
+    availableBranches: availableBranchesForFilters
+  })
+
+  // Cargar datos cuando haya sucursales seleccionadas o cambie la selección
   useEffect(() => {
     const load = async () => {
-      if (!currentBranchId || !Number.isFinite(currentBranchId)) return
-      const bid = Number(currentBranchId)
+      if (selectedBranchIdsArray.length === 0) {
+        return
+      }
+      
       setIsPageLoading(true)
       try {
+        // Cargar datos comunes
         await Promise.all([
-          loadCurrentCashRegister(bid),
           loadMovementTypes(),
           loadPaymentMethods(),
-          canViewHistory && loadRegisterHistory(bid),
-        ].filter(Boolean))
+        ])
+
+        // Cargar caja de la primera sucursal (para compatibilidad)
+        if (currentBranchId) {
+          await loadCurrentCashRegister(currentBranchId)
+          if (canViewHistory) {
+            await loadRegisterHistory(currentBranchId)
+          }
+          // Cargar todos los movimientos para el historial
+          if (canViewMovements) {
+            const backendFilters = {
+              date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+              custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+                from: customDateRange.from.toISOString(),
+                to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+              } : undefined,
+              search: multiBranchSearchTerm || undefined,
+              movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+              branch: branchFilter !== 'all' ? branchFilter : undefined
+            }
+            await loadMultipleBranchesData(backendFilters)
+          }
+        }
+
+        if (selectedBranchIdsArray.length > 1) {
+          // Para múltiples sucursales, usar el endpoint consolidado
+          
+          // Construir filtros para el backend
+          const backendFilters = {
+            date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+            custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+              from: customDateRange.from.toISOString(),
+              to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+            } : undefined,
+            search: multiBranchSearchTerm || undefined,
+            movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+            branch: branchFilter !== 'all' ? branchFilter : undefined
+          }
+          
+          await loadMultipleBranchesData(backendFilters)
+        } else {
+          // Para una sola sucursal, también usar loadMultipleBranchesData para cargar allMovements
+          const branchId = selectedBranchIdsArray[0]
+          
+          try {
+            const backendFilters = {
+              date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+              custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+                from: customDateRange.from.toISOString(),
+                to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+              } : undefined,
+              search: multiBranchSearchTerm || undefined,
+              movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+              branch: branchFilter !== 'all' ? branchFilter : undefined
+            }
+            await loadMultipleBranchesData(backendFilters)
+            await loadCashRegisterForBranch(branchId)
+          } catch (error) {
+            console.error('❌ useEffect - Error en loadCashRegisterForBranch para branchId:', branchId, error)
+          }
+        }
+
       } catch (error) {
         console.error('Error loading initial data:', error)
         toast.error('Error al cargar los datos de caja')
@@ -257,14 +300,77 @@ export default function CajaPage() {
         setIsPageLoading(false)
       }
     }
+    
+    // Solo ejecutar si realmente cambió la selección
+    const currentSelection = selectedBranchIdsArray.join(',')
+    
+    if (currentSelection !== lastSelectionRef.current) {
+      lastSelectionRef.current = currentSelection
     load()
-  }, [currentBranchId, selectionChangeToken, canViewHistory])
+    }
+  }, [selectedBranchIdsArray, selectionChangeToken, canViewHistory, loadMovementTypes, loadCurrentCashRegister, loadRegisterHistory, loadMultipleBranchesData, loadCashRegisterForBranch, currentBranchId])
+
+  // Ref para evitar recargas innecesarias de filtros
+  const lastFiltersRef = useRef<string>('')
+
+  // Recargar datos cuando cambien los filtros (para múltiples sucursales y monosucursal)
+  useEffect(() => {
+    if (selectedBranchIdsArray.length > 0) {
+      const currentFilters = JSON.stringify({
+        date_range: dateRangeFilter,
+        custom_dates: customDateRange,
+        search: multiBranchSearchTerm,
+        movement_type: multiBranchMovementTypeFilter,
+        branch: branchFilter
+      })
+      
+      // Solo recargar si los filtros realmente cambiaron
+      if (lastFiltersRef.current !== currentFilters) {
+        lastFiltersRef.current = currentFilters
+        
+        const backendFilters = {
+          date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+          custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+            from: customDateRange.from.toISOString(),
+            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+          } : undefined,
+          search: multiBranchSearchTerm || undefined,
+          movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+          branch: branchFilter !== 'all' ? branchFilter : undefined
+        }
+        
+        loadMultipleBranchesData(backendFilters)
+      }
+    }
+  }, [dateRangeFilter, customDateRange, multiBranchSearchTerm, multiBranchMovementTypeFilter, branchFilter, selectedBranchIdsArray.length])
+
+  // Cargar historial de cajas cuando cambien los filtros de fecha
+  useEffect(() => {
+    if (selectedBranchIdsArray.length > 0 && (selectedBranchIdsArray.length > 1 ? multiBranchTab === 'historial-cajas' : activeTab === 'dailyreports')) {
+      
+      const backendFilters = {
+        date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+        custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+          from: customDateRange.from.toISOString(),
+          to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+        } : undefined
+      }
+      
+      loadCashRegistersHistory(backendFilters)
+    }
+  }, [dateRangeFilter, customDateRange, selectedBranchIdsArray.length, multiBranchTab, activeTab, loadCashRegistersHistory])
 
   // Cuando cambia la página de movimientos, perPage o filtros, recargar
   useEffect(() => {
-    if (currentRegister?.id && canViewMovements) {
+    console.log('🔄 useEffect paginación - activeTab:', activeTab, 'movementsPage:', movementsPage, 'currentRegister?.id:', currentRegister?.id)
+    
+    // Solo cargar movimientos del servidor si tenemos múltiples sucursales
+    // Para una sola sucursal, usar allMovements con paginación del cliente
+    if (currentRegister?.id && canViewMovements && activeTab === "current" && selectedBranchIdsArray.length > 1) {
+      console.log('📞 Llamando loadMovements para tab current (múltiples sucursales)')
       loadMovements(currentRegister.id, movementsPage, movementsPerPage, searchTerm, false)
       
+      // Solo cargar todos los movimientos si estamos en la primera página
       if (movementsPage === 1) {
         loadAllMovements(currentRegister.id)
       }
@@ -278,21 +384,69 @@ export default function CajaPage() {
         sp.delete('type')
       }
       setSearchParams(sp, { replace: true })
+    } else {
+      console.log('⏭️ No se ejecuta loadMovements - activeTab:', activeTab, 'canViewMovements:', canViewMovements, 'currentRegister?.id:', currentRegister?.id, 'selectedBranchIdsArray.length:', selectedBranchIdsArray.length)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentRegister?.id, movementsPage, movementsPerPage, searchTerm, movementTypeFilter, canViewMovements])
+  }, [currentRegister?.id, movementsPage, movementsPerPage, searchTerm, movementTypeFilter, canViewMovements, activeTab, selectedBranchIdsArray.length])
 
-  const handleOpenCashRegister = async () => {
+  // Efecto para restaurar la selección original cuando el usuario navega a otras páginas
+  useEffect(() => {
+    return () => {
+      // Cleanup: NO restaurar la selección cuando el componente se desmonte
+      // La selección debe mantenerse para cuando el usuario regrese
+      // Solo limpiar el estado interno
+      if (originalBranchSelection.length > 0) {
+        // No cambiar selectedBranchIds aquí, solo limpiar el estado interno
+        setOriginalBranchSelection([])
+      }
+    }
+  }, []) // Solo ejecutar cuando el componente se desmonte
+
+  // Efecto para detectar cuando el usuario sale del detalle y restaurar selección original
+  useEffect(() => {
+    // Si estamos en una sola sucursal pero tenemos selección original guardada con múltiples sucursales,
+    // significa que el usuario está en el detalle de una caja
+    // Cuando el componente se desmonte (navegación a otra página), restaurar la selección
+    if (selectedBranchIdsArray.length === 1 && originalBranchSelection.length > 1) {
+      console.log('🔄 Usuario en detalle de caja, preparando restauración automática')
+      
+      // Función de cleanup que se ejecutará cuando el componente se desmonte
+      const cleanup = () => {
+        console.log('🔄 Usuario salió del detalle, restaurando selección original:', originalBranchSelection)
+        setSelectedBranchIds([...originalBranchSelection])
+        setOriginalBranchSelection([])
+      }
+      
+      // Agregar listener para detectar navegación
+      const handleBeforeUnload = () => {
+        cleanup()
+      }
+      
+      window.addEventListener('beforeunload', handleBeforeUnload)
+      
+      // Cleanup del listener cuando el componente se desmonte
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload)
+        cleanup() // Ejecutar cleanup al desmontar
+      }
+    }
+  }, [selectedBranchIdsArray.length, originalBranchSelection])
+
+  // Handlers para abrir/cerrar caja
+  const handleOpenCashRegister = async (formData: { opening_balance: string; notes: string }) => {
     if (!canOpenCloseCashRegister) {
       toast.error('No tienes permisos para abrir la caja')
       return
     }
     
-    if (!currentBranchId || !Number.isFinite(currentBranchId)) {
+    const branchIdToUse = selectedBranchForAction || currentBranchId
+    
+    if (!branchIdToUse || !Number.isFinite(branchIdToUse)) {
       toast.error('Seleccioná una sucursal para abrir la caja')
       return
     }
-    if (!openingForm.opening_balance || parseFloat(openingForm.opening_balance) < 0) {
+    if (formData.opening_balance === '' || formData.opening_balance === null || formData.opening_balance === undefined || parseFloat(formData.opening_balance) < 0 || isNaN(parseFloat(formData.opening_balance))) {
       toast.error('Por favor ingresa un saldo inicial válido')
       return
     }
@@ -301,60 +455,98 @@ export default function CajaPage() {
       return
     }
 
-    const bid = Number(currentBranchId)
+    const bid = Number(branchIdToUse)
     try {
       await openCashRegister({
         branch_id: bid,
         user_id: Number(user.id),
-        opening_balance: parseFloat(openingForm.opening_balance),
-        notes: openingForm.notes,
+        opening_balance: parseFloat(formData.opening_balance),
+        notes: formData.notes,
       })
 
       setOpenCashRegisterDialog(false)
-      setOpeningForm({ opening_balance: '', notes: '' })
+      setSelectedBranchForAction(null)
       
-      toast.success('Caja abierta exitosamente. Recargando página...')
+      toast.success('Caja abierta exitosamente')
       
+      // Recargar datos según el contexto
+      if (selectedBranchIdsArray.length > 1) {
+        const backendFilters = {
+          date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+          custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+            from: customDateRange.from.toISOString(),
+            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+          } : undefined,
+          search: multiBranchSearchTerm || undefined,
+          movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+          branch: branchFilter !== 'all' ? branchFilter : undefined
+        }
+        await loadMultipleBranchesData(backendFilters)
+      } else {
       setTimeout(() => {
         window.location.reload()
       }, 1000)
+      }
       
     } catch (error) {
       // El error ya se maneja en el hook
     }
   }
 
-  const handleCloseCashRegister = async () => {
+  const handleCloseCashRegister = async (formData: { closing_balance: string; notes: string }) => {
     if (!canOpenCloseCashRegister) {
       toast.error('No tienes permisos para cerrar la caja')
       return
     }
     
-    if (!currentRegister) return
+    let cashRegisterToClose = currentRegister
+    let branchIdToUse = currentBranchId
+    
+    if (selectedBranchForAction) {
+      cashRegisterToClose = multipleCashRegisters[selectedBranchForAction]
+      branchIdToUse = selectedBranchForAction
+    }
+    
+    if (!cashRegisterToClose) return
 
-    if (!closingForm.closing_balance || parseFloat(closingForm.closing_balance) < 0) {
+    if (formData.closing_balance === '' || formData.closing_balance === null || formData.closing_balance === undefined || parseFloat(formData.closing_balance) < 0 || isNaN(parseFloat(formData.closing_balance))) {
       toast.error('Por favor ingresa un saldo de cierre válido')
       return
     }
 
     try {
-      await closeCashRegister(currentRegister.id, {
-        closing_balance: parseFloat(closingForm.closing_balance),
-        notes: closingForm.notes,
+      await closeCashRegister(cashRegisterToClose.id, {
+        closing_balance: parseFloat(formData.closing_balance),
+        notes: formData.notes,
       })
 
       setOpenCloseCashDialog(false)
-      setClosingForm({ closing_balance: '', notes: '' })
+      setSelectedBranchForAction(null)
       
-      if (currentBranchId && Number.isFinite(currentBranchId)) {
-        await loadCurrentCashRegister(Number(currentBranchId))
-      }
-      
-      if (currentBranchId && Number.isFinite(currentBranchId) && canViewHistory) {
-        await loadRegisterHistory(Number(currentBranchId))
+      // Recargar datos según el contexto
+      if (selectedBranchIdsArray.length > 1) {
+        const backendFilters = {
+          date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+          custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+            from: customDateRange.from.toISOString(),
+            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+          } : undefined,
+          search: multiBranchSearchTerm || undefined,
+          movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+          branch: branchFilter !== 'all' ? branchFilter : undefined
+        }
+        await loadMultipleBranchesData(backendFilters)
+      } else {
+        if (branchIdToUse && Number.isFinite(branchIdToUse)) {
+          await loadCurrentCashRegister(Number(branchIdToUse))
+        }
+        
+        if (branchIdToUse && Number.isFinite(branchIdToUse) && canViewHistory) {
+          await loadRegisterHistory(Number(branchIdToUse))
       }
       
       setStatusRefreshKey(prev => prev + 1)
+      }
       
       toast.success('Caja cerrada exitosamente')
     } catch (error) {
@@ -362,7 +554,98 @@ export default function CajaPage() {
     }
   }
 
-  const handleAddMovement = async () => {
+  // Funciones para abrir/cerrar cajas desde la vista de múltiples sucursales
+  const handleOpenCashRegisterForBranch = (branchId: number) => {
+    if (!canOpenCloseCashRegister) {
+      toast.error('No tienes permisos para abrir la caja')
+      return
+    }
+    
+    setSelectedBranchForAction(branchId)
+    setOpenCashRegisterDialog(true)
+  }
+
+  const handleCloseCashRegisterForBranch = (_cashRegisterId: number, branchId: number) => {
+    if (!canOpenCloseCashRegister) {
+      toast.error('No tienes permisos para cerrar la caja')
+      return
+    }
+
+    setSelectedBranchForAction(branchId)
+    setOpenCloseCashDialog(true)
+  }
+
+  // Función para ver detalles de una sucursal específica
+  const handleViewBranchDetails = (branchId: number) => {
+    console.log('🔍 handleViewBranchDetails - INICIANDO:', {
+      branchId,
+      selectedBranchIds,
+      originalBranchSelection,
+      currentSelectionLength: selectedBranchIds.length
+    })
+    
+    if (!branchId || isNaN(branchId)) {
+      console.error('❌ handleViewBranchDetails - branchId inválido:', branchId)
+      toast.error('Error: ID de sucursal inválido')
+      return
+    }
+    
+    // Solo guardar la selección original si no se ha guardado antes y si actualmente hay múltiples sucursales
+    if (originalBranchSelection.length === 0 && selectedBranchIds.length > 1) {
+      console.log('🔍 Guardando selección original:', selectedBranchIds)
+      setOriginalBranchSelection([...selectedBranchIds])
+    }
+    
+    const newSelection = [branchId.toString()]
+    console.log('🔍 Cambiando selección a:', newSelection)
+    
+    try {
+      setSelectedBranchIds(newSelection)
+      console.log('✅ setSelectedBranchIds ejecutado correctamente')
+    } catch (error) {
+      console.error('❌ Error al ejecutar setSelectedBranchIds:', error)
+      toast.error('Error al cambiar la selección de sucursales')
+      return
+    }
+    
+    const branchInfo = getBranchInfo(branchId)
+    console.log('🔍 branchInfo obtenida:', branchInfo)
+    
+    if (!branchInfo) {
+      console.error('❌ No se pudo obtener información de la sucursal:', branchId)
+      toast.error(`Error: No se encontró información de la sucursal ${branchId}`)
+      return
+    }
+    
+    const branchName = branchInfo?.description || `Sucursal ${branchId}`
+    console.log('🔍 branchName final:', branchName)
+    
+    toast.success(`Viendo detalles de ${branchName}`)
+  }
+
+  // Función para volver a la vista de múltiples sucursales
+  const handleGoBackToMultipleBranches = () => {
+    console.log('🔄 handleGoBackToMultipleBranches - INICIANDO:', {
+      originalBranchSelection,
+      selectedBranchIds,
+      currentSelectionLength: selectedBranchIds.length
+    })
+    
+    if (originalBranchSelection.length > 1) {
+      console.log('🔄 Restaurando selección original:', originalBranchSelection)
+      setSelectedBranchIds([...originalBranchSelection])
+      setOriginalBranchSelection([])
+      toast.success('Volviendo a la vista de múltiples sucursales')
+    } else {
+      console.log('🔄 No hay selección original válida, usando todas las sucursales')
+      const allBranchIds = branches.map(branch => branch.id.toString())
+      setSelectedBranchIds(allBranchIds)
+      setOriginalBranchSelection([])
+      toast.success('Mostrando todas las sucursales')
+    }
+  }
+
+  const handleAddMovement = async (formData: { movement_type_id: string; payment_method_id: string; amount: string; description: string }) => {
     if (!canCreateMovements) {
       toast.error('No tienes permisos para crear movimientos de caja')
       return
@@ -373,12 +656,12 @@ export default function CajaPage() {
       return
     }
 
-    if (!movementForm.movement_type_id || !movementForm.payment_method_id || !movementForm.amount || !movementForm.description) {
+    if (!formData.movement_type_id || !formData.payment_method_id || !formData.amount || !formData.description) {
       toast.error('Por favor completa todos los campos requeridos')
       return
     }
 
-    if (parseFloat(movementForm.amount) <= 0) {
+    if (parseFloat(formData.amount) <= 0) {
       toast.error('El monto debe ser mayor a 0')
       return
     }
@@ -391,10 +674,10 @@ export default function CajaPage() {
     try {
       await addMovement({
         cash_register_id: currentRegister.id,
-        movement_type_id: parseInt(movementForm.movement_type_id),
-        payment_method_id: parseInt(movementForm.payment_method_id),
-        amount: parseFloat(movementForm.amount),
-        description: movementForm.description,
+        movement_type_id: parseInt(formData.movement_type_id),
+        payment_method_id: parseInt(formData.payment_method_id),
+        amount: parseFloat(formData.amount),
+        description: formData.description,
         user_id: Number(user.id),
       }, { page: movementsPage, perPage: movementsPerPage })
 
@@ -402,11 +685,80 @@ export default function CajaPage() {
       await loadAllMovements(currentRegister.id)
 
       setOpenNewMovementDialog(false)
-      setMovementForm({ movement_type_id: '', payment_method_id: '', amount: '', description: '' })
 
       toast.success('Movimiento agregado y saldos actualizados.')
     } catch (error) {
       // El error ya se maneja en el hook
+    } finally {
+      setIsPageLoading(false)
+    }
+  }
+
+  // Función para crear movimientos desde múltiples sucursales
+  const handleAddMovementFromMultiBranch = async (formData: {
+    branch_id: number
+    movement_type_id: string
+    payment_method_id: string
+    amount: string
+    description: string
+  }) => {
+    if (!canCreateMovements) {
+      toast.error('No tienes permisos para crear movimientos de caja')
+      return
+    }
+
+    const targetCashRegister = multipleCashRegisters[formData.branch_id]
+    if (!targetCashRegister) {
+      toast.error('No hay una caja abierta en la sucursal seleccionada')
+      return
+    }
+
+    if (!formData.movement_type_id || !formData.payment_method_id || !formData.amount || !formData.description) {
+      toast.error('Por favor completa todos los campos requeridos')
+      return
+    }
+
+    if (parseFloat(formData.amount) <= 0) {
+      toast.error('El monto debe ser mayor a 0')
+      return
+    }
+    if (!user?.id) {
+      toast.error('No se pudo obtener el usuario actual')
+      return
+    }
+
+    setIsPageLoading(true)
+    try {
+      // Crear el movimiento usando la API directamente
+      await request({
+        method: 'POST',
+        url: '/cash-movements',
+        data: {
+          cash_register_id: targetCashRegister.id,
+          movement_type_id: parseInt(formData.movement_type_id),
+          payment_method_id: parseInt(formData.payment_method_id),
+          amount: parseFloat(formData.amount),
+          description: formData.description,
+          user_id: Number(user.id),
+        }
+      })
+
+      setOpenMultiBranchMovementDialog(false)
+      
+      // Recargar datos consolidados
+      const backendFilters = {
+        date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+        custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+          from: customDateRange.from.toISOString(),
+          to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+        } : undefined
+      }
+      await loadMultipleBranchesData(backendFilters)
+      
+      toast.success(`Movimiento agregado en ${getBranchInfo(formData.branch_id)?.description || `Sucursal ${formData.branch_id}`}`)
+    } catch (error: any) {
+      console.error('Error creating movement:', error)
+      toast.error(error?.response?.data?.message || 'Error al crear el movimiento')
     } finally {
       setIsPageLoading(false)
     }
@@ -435,10 +787,7 @@ export default function CajaPage() {
     let saleId = movement?.reference_id || movement?.metadata?.sale_id || null
     
     if (!saleId && movement.description) {
-      const match = movement.description.match(/#(\d{8})/);
-      if (match) {
-        saleId = match[1];
-      }
+      saleId = extractSaleIdFromDescription(movement.description)
     }
     
     if (!saleId) {
@@ -459,7 +808,7 @@ export default function CajaPage() {
   }
 
   // Función para abrir el detalle de orden de compra desde movimiento
-  function handleViewPurchaseOrderFromMovement(movement: any) {
+  const handleViewPurchaseOrderFromMovement = (movement: any) => {
     const purchaseOrderId = movement?.reference_id
     if (purchaseOrderId) {
       setSelectedPurchaseOrderId(purchaseOrderId)
@@ -467,88 +816,123 @@ export default function CajaPage() {
     }
   }
 
-  // Filtrar movimientos por tipo seleccionado
-  const filteredMovements = movementTypeFilter === "all"
-    ? (movements || [])
-    : (movements || []).filter(movement => movement.movement_type?.id === parseInt(movementTypeFilter))
 
-  const formatCurrency = (amount: number) => {
-    const validAmount = isNaN(amount) ? 0 : amount
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS',
-    }).format(validAmount)
-  }
-
-  const formatDate = (dateString: string) => {
+  // Funciones de exportación
+  const handleExportData = async (format: 'excel' | 'pdf' | 'csv', type: 'movements' | 'summary' | 'comparison', selectedBranches: number[]) => {
     try {
-      return format(new Date(dateString), 'dd/MM/yyyy HH:mm', { locale: es })
-    } catch {
-      return dateString
-    }
-  }
-
-  const getCustomerName = (sale: any) => {
-    return sale.customer_name || 
-      (sale.customer?.person 
-        ? `${sale.customer.person.first_name} ${sale.customer.person.last_name}`.trim()
-        : 'Consumidor Final')
-  }
-
-  const getReceiptType = (sale: any) => {
-    return {
-      displayName: sale.receiptType?.name || sale.receipt_type?.name || 'Venta',
-      afipCode: sale.receiptType?.afip_code || sale.receipt_type?.afip_code || '0',
-    }
-  }
-
-  const getPaymentMethod = (movement: any) => {
-    if (movement.payment_method?.name) {
-      if (isCashPaymentMethod(movement.payment_method.name)) {
-        return 'Efectivo'
+      setIsPageLoading(true)
+      
+      const params = {
+        branch_ids: selectedBranches,
+        format,
+        type,
+        filters: {
+          search: multiBranchSearchTerm,
+          movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+          branch: branchFilter !== 'all' ? branchFilter : undefined,
+          date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined
+        }
       }
-      return movement.payment_method.name
+
+      const response = await request({
+        method: 'GET',
+        url: '/cash-registers/export',
+        params,
+        responseType: 'blob'
+      })
+
+      // Crear y descargar el archivo
+      const blob = new Blob([response], { 
+        type: format === 'pdf' ? 'application/pdf' : 
+              format === 'excel' ? 'application/vnd.ms-excel' :
+              'text/csv'
+      })
+      
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-')
+      const fileExtension = format === 'excel' ? 'xls' : format
+      const filename = `reporte_caja_${type}_${timestamp}.${fileExtension}`
+      a.download = filename
+      
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      
+      toast.success(`Reporte exportado como ${filename}`)
+    } catch (error: any) {
+      console.error('Error exporting data:', error)
+      toast.error(error?.response?.data?.message || 'Error al exportar los datos')
+    } finally {
+      setIsPageLoading(false)
     }
-    
-    const description = movement.description.toLowerCase()
-    
-    const paymentMethodKeywords = {
-      'Efectivo': ['efectivo'],
-      'Tarjeta Débito': ['tarjeta de débito', 'débito'],
-      'Tarjeta Crédito': ['tarjeta de crédito', 'crédito'],
-      'Transferencia': ['transferencia'],
-      'Mercado Pago': ['mercado pago', 'mp'],
-      'Tarjeta': ['tarjeta']
-    }
-    
-    for (const [methodName, keywords] of Object.entries(paymentMethodKeywords)) {
-      if (keywords.some(keyword => description.includes(keyword))) {
-        return methodName
-      }
-    }
-    
-    if (movement.movement_type?.id === 1) {
-      return 'No especificado'
-    }
-    
-    if (movement.movement_type?.is_cash_movement === true) {
-      return 'Efectivo'
-    }
-    
-    const typeDescription = movement.movement_type?.description.toLowerCase() || ''
-    if (typeDescription.includes('gasto') || 
-        typeDescription.includes('depósito') || 
-        typeDescription.includes('retiro')) {
-      return 'Efectivo'
-    }
-    
-    return 'No especificado'
   }
+
+  // Filtrar movimientos por tipo seleccionado
+  const allFilteredMovements = movementTypeFilter === "all"
+    ? (selectedBranchIdsArray.length > 1 ? allMovements : (movements || []))
+    : (selectedBranchIdsArray.length > 1 ? allMovements : (movements || [])).filter(movement => movement.movement_type?.id === parseInt(movementTypeFilter))
+
+  // Aplicar paginación a los movimientos filtrados
+  const startIndex = (movementsPage - 1) * movementsPerPage
+  const endIndex = startIndex + movementsPerPage
+  const filteredMovements = allFilteredMovements.slice(startIndex, endIndex)
+
+  // Obtener movimientos solo de cajas abiertas para el tab "General"
+  const getMovementsFromOpenCashRegisters = useMemo(() => {
+    if (selectedBranchIdsArray.length <= 1) return []
+    
+    // Obtener solo las cajas que están realmente abiertas
+    const openCashRegisters = Object.values(multipleCashRegisters)
+      .filter(register => register && register.status === 'open')
+    
+    const openCashRegisterIds = openCashRegisters.map(register => register.id)
+    
+    console.log('🔍 getMovementsFromOpenCashRegisters - Debug:', {
+      selectedBranchIdsArray,
+      openCashRegisters: openCashRegisters.map(r => ({
+        id: r.id,
+        branch_id: r.branch_id,
+        status: r.status,
+        opened_at: r.opened_at
+      })),
+      openCashRegisterIds,
+      allMovementsCount: allMovements.length
+    })
+    
+    // Filtrar movimientos SOLO por cash_register_id de cajas abiertas
+    const filteredMovements = allMovements.filter(movement => {
+      return openCashRegisterIds.includes(movement.cash_register_id)
+    })
+    
+    console.log('💰 getMovementsFromOpenCashRegisters - Filtered movements:', {
+      filteredMovementsCount: filteredMovements.length,
+      movements: filteredMovements.map(m => ({
+        id: m.id,
+        cash_register_id: m.cash_register_id,
+        description: m.description,
+        amount: m.amount,
+        created_at: m.created_at
+      }))
+    })
+    
+    return filteredMovements
+  }, [allMovements, multipleCashRegisters, selectedBranchIdsArray.length])
+
+  // Resetear página cuando cambien los filtros (solo para múltiples sucursales)
+  useEffect(() => {
+    if (selectedBranchIdsArray.length > 1 && movementsPage > 1 && allFilteredMovements.length <= (movementsPage - 1) * movementsPerPage) {
+      setMovementsPage(1)
+    }
+  }, [allFilteredMovements.length, movementsPage, movementsPerPage, selectedBranchIdsArray.length])
 
   // Refrescar datos (caja actual + historial)
   const handleRefresh = async () => {
-    if (!currentBranchId || !Number.isFinite(currentBranchId)) return
-    const bid = Number(currentBranchId)
+    if (selectedBranchIdsArray.length === 0) return
+    
     setIsPageLoading(true)
     const loadingTimeout = setTimeout(() => {
       setIsPageLoading(false)
@@ -557,16 +941,36 @@ export default function CajaPage() {
     try {
       refetchOptimized()
 
-      await loadCurrentCashRegister(bid)
+      // Refrescar caja de la primera sucursal (para compatibilidad)
+      if (currentBranchId) {
+        await loadCurrentCashRegister(currentBranchId)
       if (canViewHistory) {
-        await loadRegisterHistory(bid)
+          await loadRegisterHistory(currentBranchId)
       }
       if (currentRegister?.id && canViewMovements) {
         await loadMovements(currentRegister.id, 1, movementsPerPage)
         await loadAllMovements(currentRegister.id)
         setMovementsPage(1)
       }
-      toast.success('Datos de caja actualizados')
+      }
+
+      if (selectedBranchIdsArray.length > 1) {
+        const backendFilters = {
+          date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
+          custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
+            from: customDateRange.from.toISOString(),
+            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+          } : undefined,
+          search: multiBranchSearchTerm || undefined,
+          movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
+          branch: branchFilter !== 'all' ? branchFilter : undefined
+        }
+        await loadMultipleBranchesData(backendFilters)
+      } else {
+        await loadCashRegisterForBranch(selectedBranchIdsArray[0])
+      }
+
+      toast.success(`Datos de caja actualizados para ${selectedBranchIdsArray.length} sucursal${selectedBranchIdsArray.length > 1 ? 'es' : ''}`)
     } catch (error) {
       // Los errores ya se notifican dentro de los hooks
     } finally {
@@ -586,36 +990,13 @@ export default function CajaPage() {
     return () => window.removeEventListener('focus', onFocus)
   }, [currentBranchId, loadCurrentCashRegister])
 
-  const calculateCashOnlyBalance = () => {
-    if (optimizedCashRegister?.expected_cash_balance !== undefined) {
-      return optimizedCashRegister.expected_cash_balance
-    }
-    
-    if (!currentRegister) return 0
-    
-    const opening = parseFloat(currentRegister.initial_amount) || 0
-    
-    const cashMovements = movements.filter(movement => {
-      const paymentMethod = getPaymentMethod(movement)
-      return paymentMethod === 'Efectivo'
-    })
-    
-    const cashTotal = cashMovements.reduce((total, movement) => {
-      const amount = parseFloat(movement.amount) || 0
-      const opRaw = (movement.movement_type as any)?.operation_type
-      const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
-      return total + (isIncome ? Math.abs(amount) : -Math.abs(amount))
-    }, 0)
-    
-    return opening + cashTotal
-  }
-
   // Render condicional al inicio del componente
-  if (!currentBranchId) {
-    return <SelectBranchPlaceholder />;
+  if (selectedBranchIdsArray.length === 0) {
+    return <SelectBranchPlaceholder />
   }
 
-  if (isPageLoading || optimizedLoading) {
+  // Solo mostrar loading principal si hay una sola sucursal o si es el loading inicial
+  if (selectedBranchIdsArray.length === 1 && (isPageLoading || optimizedLoading)) {
     return (
       <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
         <div className="flex items-center justify-center h-64">
@@ -630,375 +1011,91 @@ export default function CajaPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
+      <div className="space-y-2">
+        {/* Breadcrumb para una sola sucursal - Solo mostrar si se vino de múltiples sucursales */}
+        {selectedBranchIdsArray.length === 1 && originalBranchSelection.length > 1 && (
+          <div className="flex items-center">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleGoBackToMultipleBranches}
+              className="text-muted-foreground hover:text-foreground hover:bg-muted/50 border-muted-foreground/20 hover:border-muted-foreground/40 transition-colors"
+              title="Volver a vista de múltiples sucursales"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              <span className="text-sm font-medium">Todas las sucursales</span>
+            </Button>
+          </div>
+        )}
+        
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Gestión de Caja</h2>
+          <h2 className="text-3xl font-bold tracking-tight">
+            Gestión de Caja
+            {selectedBranchIdsArray.length > 1 && (
+              <span className="text-lg font-normal text-muted-foreground ml-2">
+                ({selectedBranchIdsArray.length} sucursales)
+              </span>
+            )}
+            {selectedBranchIdsArray.length === 1 && originalBranchSelection.length > 1 && (
+              <span className="text-lg font-normal text-muted-foreground ml-2">
+                - {getBranchInfo(selectedBranchIdsArray[0])?.description || `Sucursal ${selectedBranchIdsArray[0]}`}
+              </span>
+            )}
+          </h2>
         <div className="flex gap-2">
+          {/* Botones para una sola sucursal */}
+          {selectedBranchIdsArray.length === 1 && (
+            <>
           <Button variant="outline" onClick={handleRefresh} title="Actualizar">
             <RefreshCcw className="mr-2 h-4 w-4" />
           </Button>
-          
-          {/* Botón para abrir caja (solo con permiso) */}
-          {!currentRegister && canOpenCloseCashRegister && (
-            <Dialog open={openCashRegisterDialog} onOpenChange={setOpenCashRegisterDialog}>
-              <DialogTrigger asChild>
-                <Button>
+              
+              {!currentRegister && canOpenCloseCashRegister && !selectedBranchForAction && (
+                <Button onClick={() => setOpenCashRegisterDialog(true)}>
                   <Wallet className="mr-2 h-4 w-4" />
                   Abrir Caja
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Abrir Caja</DialogTitle>
-                  <DialogDescription>
-                    Ingresa el saldo inicial para abrir una nueva sesión de caja.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="opening-balance">Saldo Inicial</Label>
-                    <Input
-                      id="opening-balance"
-                      type="number"
-                      placeholder="0.00"
-                      step="0.01"
-                      value={openingForm.opening_balance}
-                      onChange={(e) => setOpeningForm(prev => ({ ...prev, opening_balance: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="opening-notes">Observaciones (Opcional)</Label>
-                    <Textarea
-                      id="opening-notes"
-                      placeholder="Observaciones sobre la apertura de caja"
-                      value={openingForm.notes}
-                      onChange={(e) => setOpeningForm(prev => ({ ...prev, notes: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setOpenCashRegisterDialog(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleOpenCashRegister} disabled={hookLoading}>
-                    {hookLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Abriendo...
-                      </>
-                    ) : (
-                      'Abrir Caja'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
+              )}
 
-          {/* Botón para nuevo movimiento (solo con permiso) */}
-          {currentRegister && canCreateMovements && (
-            <Dialog open={openNewMovementDialog} onOpenChange={setOpenNewMovementDialog}>
-              <DialogTrigger asChild>
-                <Button>
+              {currentRegister && canCreateMovements && (
+                <Button onClick={() => setOpenNewMovementDialog(true)}>
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Nuevo Movimiento
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Registrar Movimiento de Caja</DialogTitle>
-                  <DialogDescription>
-                    Ingresa los detalles del movimiento de entrada o salida de dinero.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="movement-type">Tipo de Movimiento</Label>
-                    <Select
-                      value={movementForm.movement_type_id}
-                      onValueChange={(value) => setMovementForm(prev => ({ ...prev, movement_type_id: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un tipo de movimiento" />
-                      </SelectTrigger>
-                      <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                        {movementTypes
-                          .filter((type) => {
-                            const typeName = type.description?.toLowerCase() || ''
-                            
-                            const isAutomaticMovement = 
-                              typeName.includes('venta') || 
-                              typeName.includes('compra de mercadería') ||
-                              typeName.includes('compra de mercaderia') ||
-                              typeName.includes('pago de cuenta corriente') ||
-                              typeName.includes('pago cuenta corriente')
-                            
-                            return !isAutomaticMovement
-                          })
-                          .map((type) => {
-                            const op = String(((type as any)?.operation_type ?? ((type as any)?.is_income ? 'entrada' : 'salida'))).toLowerCase()
-                            const label = op === 'entrada' ? '(Entrada)' : '(Salida)'
-                            return (
-                              <SelectItem key={type.id} value={type.id.toString()}>
-                                {type.description} {label}
-                              </SelectItem>
-                            )
-                          })}
-                        {movementTypes
-                          .filter((type) => {
-                            const typeName = type.description?.toLowerCase() || ''
-                            const isAutomaticMovement = 
-                              typeName.includes('venta') || 
-                              typeName.includes('compra de mercadería') ||
-                              typeName.includes('compra de mercaderia')
-                            return !isAutomaticMovement
-                          }).length === 0 && (
-                          <SelectItem value="no-movement-types" disabled>No hay tipos de movimiento disponibles</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="payment-method">Método de Pago</Label>
-                    <Select
-                      value={movementForm.payment_method_id}
-                      onValueChange={(value) => setMovementForm(prev => ({ ...prev, payment_method_id: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un método de pago" />
-                      </SelectTrigger>
-                      <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                        {paymentMethods.length === 0 && (
-                          <SelectItem value="no-payment-methods" disabled>No hay métodos de pago disponibles</SelectItem>
-                        )}
-                        {paymentMethods.map((method) => (
-                          <SelectItem key={method.id} value={method.id.toString()}>
-                            {method.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="movement-amount">Cantidad</Label>
-                    <Input
-                      id="movement-amount"
-                      type="number"
-                      placeholder="0.00"
-                      step="0.01"
-                      value={movementForm.amount}
-                      onChange={(e) => setMovementForm(prev => ({ ...prev, amount: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="movement-description">Descripción</Label>
-                    <Textarea
-                      id="movement-description"
-                      placeholder="Descripción del movimiento"
-                      value={movementForm.description}
-                      onChange={(e) => setMovementForm(prev => ({ ...prev, description: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setOpenNewMovementDialog(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleAddMovement} disabled={hookLoading}>
-                    {hookLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Guardando...
-                      </>
-                    ) : (
-                      'Guardar Movimiento'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
+              )}
 
-          {/* Botón para cerrar caja (solo con permiso) */}
-          {currentRegister && canOpenCloseCashRegister && (
-            <Dialog open={openCloseCashDialog} onOpenChange={setOpenCloseCashDialog}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
+              {currentRegister && canOpenCloseCashRegister && !selectedBranchForAction && (
+                <Button variant="outline" onClick={() => setOpenCloseCashDialog(true)}>
                   <Wallet className="mr-2 h-4 w-4" />
                   Cerrar Caja
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Cerrar Caja</DialogTitle>
-                  <DialogDescription>Ingresa los detalles para cerrar la caja actual.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Información de Apertura</Label>
-                    <div className="bg-blue-50 p-3 rounded-md space-y-1">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-blue-700 font-medium">Caja:</span>
-                        <span>{currentRegister.branch?.description || 'Caja Principal'}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-blue-700 font-medium">Apertura:</span>
-                        <span>{formatDate(currentRegister.opened_at)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-blue-700 font-medium">Operador:</span>
-                        <span>{currentRegister.user?.full_name || currentRegister.user?.username || 'N/A'}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-blue-700 font-medium">Monto Inicial:</span>
-                        <span className="font-semibold">{formatCurrency(parseFloat(currentRegister.initial_amount) || 0)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>
-                      Desglose por Método de Pago (Sistema)
-                    </Label>
-                    <div className="bg-gray-50 p-3 rounded-md space-y-2">
-                      {(() => {
-                        const opening = parseFloat(currentRegister.initial_amount) || 0
-                        let paymentBreakdown: Record<string, number> = {}
-                        
-                        if (optimizedCashRegister?.payment_method_totals) {
-                          paymentBreakdown = { ...optimizedCashRegister.payment_method_totals }
-                          
-                          if (paymentBreakdown['Efectivo']) {
-                            paymentBreakdown['Efectivo'] += opening
-                          } else if (opening > 0) {
-                            paymentBreakdown['Efectivo'] = opening
-                          }
-                        } else {
-                          paymentBreakdown = movements.reduce((acc, movement) => {
-                            const paymentMethod = getPaymentMethod(movement)
-                            
-                            if (!acc[paymentMethod]) acc[paymentMethod] = 0
-                            
-                            const amount = parseFloat(movement.amount) || 0
-                            const opRaw = (movement.movement_type as any)?.operation_type
-                            const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
-                            
-                            acc[paymentMethod] += isIncome ? Math.abs(amount) : -Math.abs(amount)
-                            
-                            return acc
-                          }, {} as Record<string, number>)
-                          
-                          if (paymentBreakdown['Efectivo']) {
-                            paymentBreakdown['Efectivo'] += opening
-                          } else if (opening > 0) {
-                            paymentBreakdown['Efectivo'] = opening
-                          }
-                        }
-                        
-                        return Object.entries(paymentBreakdown)
-                          .filter(([_, amount]) => Math.abs(amount) > 0.01)
-                          .sort(([a], [b]) => {
-                            if (a === 'Efectivo') return -1
-                            if (b === 'Efectivo') return 1
-                            return a.localeCompare(b)
-                          })
-                          .map(([method, amount]) => (
-                            <div key={method} className="flex justify-between items-center text-sm">
-                              <span className={method === 'Efectivo' ? 'font-semibold text-green-700' : ''}>{method}:</span>
-                              <span className={`font-medium ${amount >= 0 ? 'text-green-600' : 'text-red-600'} ${method === 'Efectivo' ? 'font-semibold' : ''}`}>
-                                {amount >= 0 ? formatCurrency(amount) : `-${formatCurrency(Math.abs(amount))}`}
-                              </span>
-                            </div>
-                          ))
-                      })()}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="final-amount">Efectivo Contado (Conteo Físico)</Label>
-                    <Input
-                      id="final-amount"
-                      type="number"
-                      placeholder="0.00"
-                      step="0.01"
-                      value={closingForm.closing_balance}
-                      onChange={(e) => setClosingForm(prev => ({ ...prev, closing_balance: e.target.value }))}
-                    />
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Coins className="h-3 w-3" /> Ingresa la cantidad de efectivo que contaste físicamente en la caja
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="closing-notes">Observaciones</Label>
-                    <Textarea
-                      id="closing-notes"
-                      placeholder="Observaciones sobre el cierre de caja"
-                      value={closingForm.notes}
-                      onChange={(e) => setClosingForm(prev => ({ ...prev, notes: e.target.value }))}
-                    />
-                  </div>
-                  {closingForm.closing_balance && (
-                    <div className="space-y-2">
-                      <Label>Diferencia de Efectivo</Label>
-                      {(() => {
-                        const finalAmount = parseFloat(closingForm.closing_balance) || 0
-                        const systemBalance = calculateCashOnlyBalance()
-                        const difference = finalAmount - systemBalance
-                        
-                        return (
-                          <div>
-                            <p className={`text-sm font-medium ${
-                              Math.abs(difference) < 0.01
-                                ? 'text-blue-600' 
-                                : difference > 0 
-                                  ? 'text-green-600' 
-                                  : 'text-red-600'
-                            }`}>
-                              {formatCurrency(difference)}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                              {Math.abs(difference) < 0.01 ? (
-                                <>
-                                  <CheckCircle className="h-3 w-3 text-blue-600" />
-                                  Perfecto! El conteo coincide con el sistema
-                                </>
-                              ) : difference > 0 ? (
-                                <>
-                                  <TrendingUp className="h-3 w-3 text-green-600" />
-                                  Hay más efectivo del esperado (sobrante)
-                                </>
-                              ) : (
-                                <>
-                                  <TrendingDown className="h-3 w-3 text-red-600" />
-                                  Hay menos efectivo del esperado (faltante)
-                                </>
-                              )}
-                            </p>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setOpenCloseCashDialog(false)}>
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleCloseCashRegister} disabled={hookLoading}>
-                    {hookLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Procesando...
-                      </>
-                    ) : (
-                      'Cerrar Caja'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+              )}
+            </>
           )}
+
+          {/* Botones para múltiples sucursales */}
+          {selectedBranchIdsArray.length > 1 && (
+            <>
+              <Button variant="outline" onClick={handleRefresh} title="Actualizar todas">
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                Actualizar
+              </Button>
+              
+              {canCreateMovements && (
+                <Button onClick={() => setOpenMultiBranchMovementDialog(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Nuevo Movimiento
+                  </Button>
+              )}
+
+
+            </>
+          )}
+        </div>
         </div>
       </div>
 
-      {!currentRegister && !canOpenCloseCashRegister && (
+      {selectedBranchIdsArray.length === 1 && !currentRegister && !canOpenCloseCashRegister && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -1007,7 +1104,7 @@ export default function CajaPage() {
         </Alert>
       )}
 
-      {!currentRegister && canOpenCloseCashRegister && (
+      {selectedBranchIdsArray.length === 1 && !currentRegister && canOpenCloseCashRegister && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
@@ -1016,6 +1113,429 @@ export default function CajaPage() {
         </Alert>
       )}
 
+      {/* Tabs principales para múltiples sucursales */}
+      {selectedBranchIdsArray.length > 1 ? (
+        <Tabs value={multiBranchTab} onValueChange={setMultiBranchTab} className="space-y-6 mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <TabsList className="grid w-full sm:w-fit grid-cols-2 sm:grid-cols-4">
+              <TabsTrigger 
+                value="general" 
+                disabled={!canViewMovements}
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+              >
+                <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">General</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="estados" 
+                disabled={!canOpenCloseCashRegister}
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+              >
+                <Wallet className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Estados Individuales</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="historial" 
+                disabled={!canViewMovements}
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+              >
+                <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Historial de Movimientos</span>
+              </TabsTrigger>
+              <TabsTrigger 
+                value="historial-cajas" 
+                disabled={!canViewHistory}
+                className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm"
+              >
+                <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Historial de Cajas</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="general" className="space-y-6">
+            {!canViewMovements ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No tienes permisos para ver los movimientos de caja.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+            <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">General</h3>
+              <p className="text-sm text-gray-600">
+                    Vista consolidada de las {selectedBranchIdsArray.length} sucursales seleccionadas con estadísticas y movimientos recientes
+              </p>
+            </div>
+            
+            {/* Stats Cards */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <StatCard
+                title="Balance Total (Todas las Sucursales)"  
+                value={formatCurrency(calculateMultipleBranchesBalance())}
+                description={`Suma de balances de ${selectedBranchIdsArray.length} sucursales`}
+                icon={Coins}
+                colorClass="bg-orange-100 text-orange-700"
+              />
+              <StatCard
+                title="Entradas Totales"
+                value={formatCurrency(calculateMultipleBranchesIncome())}
+                description="Total de ingresos de todas las sucursales"
+                icon={ArrowDownIcon}
+                colorClass="bg-blue-100 text-blue-700"
+              />
+              <StatCard
+                title="Salidas Totales"
+                value={formatCurrency(calculateMultipleBranchesExpenses())}
+                description="Total de egresos de todas las sucursales"
+                icon={ArrowUpIcon}
+                colorClass="bg-amber-100 text-amber-700"
+              />
+              <StatCard
+                title="Saldo Total"
+                value={formatCurrency(calculateMultipleBranchesSaldo())}
+                description={`Suma de saldos de ${selectedBranchIdsArray.length} sucursales`}
+                icon={DollarSign}
+                colorClass="bg-violet-100 text-violet-700"
+              />
+            </div>
+
+
+            {/* Movimientos recientes de cajas abiertas */}
+            <div className="mt-8">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4">Movimientos Recientes (Cajas Abiertas)</h4>
+              <MovementsTable
+                movements={getMovementsFromOpenCashRegisters.slice(0, 10)} // Solo los primeros 10 movimientos de cajas abiertas
+                loading={allMovementsLoading}
+                canDeleteMovements={false}
+                isCashPaymentMethod={isCashPaymentMethod}
+                getBranchInfo={getBranchInfo}
+                showBranchColumn={true}
+                currentPage={1}
+                lastPage={1}
+                total={Math.min(getMovementsFromOpenCashRegisters.length, 10)}
+                onPageChange={() => {}}
+                pageLoading={isPageLoading || hookLoading}
+              />
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="estados" className="space-y-6">
+            {!canOpenCloseCashRegister ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No tienes permisos para abrir o cerrar cajas.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Estados Individuales de Cajas</h3>
+              <p className="text-sm text-gray-600">
+                Gestión detallada de cada sucursal con opciones de apertura y cierre
+              </p>
+            </div>
+            
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {selectedBranchIdsArray.sort((a, b) => a - b).map(branchId => (
+                <div key={`cash-status-${branchId}-${statusRefreshKey}`} className="relative">
+                  {multipleCashRegistersLoading[branchId] && (
+                    <div className="absolute inset-0 bg-white/90 flex items-center justify-center z-10 rounded-lg backdrop-blur-sm">
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <span className="text-sm font-medium">Cargando...</span>
+                      </div>
+                    </div>
+                  )}
+                  <CashRegisterStatusCard 
+                    branchId={branchId}
+                    cashRegister={multipleCashRegisters[branchId]}
+                    canOpenCloseCashRegister={canOpenCloseCashRegister}
+                    onRefresh={() => loadCashRegisterForBranch(branchId)}
+                    onOpenCashRegister={handleOpenCashRegisterForBranch}
+                    onCloseCashRegister={handleCloseCashRegisterForBranch}
+                    branchInfo={getBranchInfo(branchId)}
+                    onViewBranchDetails={handleViewBranchDetails}
+                  />
+                </div>
+              ))}
+            </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="historial" className="space-y-6">
+            {!canViewMovements ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No tienes permisos para ver el historial de movimientos.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Historial de Movimientos</h3>
+                <p className="text-sm text-gray-600">
+                  Filtra, analiza y exporta el historial completo de movimientos de todas las sucursales seleccionadas
+                </p>
+              </div>
+              
+              <Button 
+                variant="outline" 
+                onClick={() => setOpenExportDialog(true)}
+                className="flex items-center gap-2 w-full sm:w-auto"
+              >
+                <FileText className="h-4 w-4" />
+                Exportar
+              </Button>
+            </div>
+
+            {/* Filtros avanzados */}
+            <MultiBranchFilters
+              searchTerm={multiBranchSearchTerm}
+              onSearchChange={setMultiBranchSearchTerm}
+              movementTypeFilter={multiBranchMovementTypeFilter}
+              onMovementTypeChange={setMultiBranchMovementTypeFilter}
+              branchFilter={branchFilter}
+              onBranchFilterChange={setBranchFilter}
+              dateRangeFilter={dateRangeFilter}
+              onDateRangeChange={setDateRangeFilter}
+              customDateRange={customDateRange}
+              onCustomDateRangeChange={setCustomDateRange}
+              movementTypes={movementTypes}
+              availableBranches={availableBranchesForFilters}
+              onClearFilters={clearAllFilters}
+            />
+
+            {/* Tabla de movimientos con paginación completa - TODOS los movimientos de la historia */}
+            <MovementsTable
+              movements={allMovements.slice((movementsPage - 1) * movementsPerPage, movementsPage * movementsPerPage)}
+              loading={allMovementsLoading}
+              canDeleteMovements={false}
+              isCashPaymentMethod={isCashPaymentMethod}
+              getBranchInfo={getBranchInfo}
+              showBranchColumn={selectedBranchIdsArray.length > 1}
+              currentPage={movementsPage}
+              lastPage={Math.ceil(allMovements.length / movementsPerPage)}
+              total={allMovements.length}
+              onPageChange={(page: number) => {
+                console.log('🔄 onPageChange llamado con página:', page)
+                setMovementsPage(page)
+              }}
+              pageLoading={isPageLoading || hookLoading}
+            />
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="historial-cajas" className="space-y-6">
+            {!canViewHistory ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No tienes permisos para ver el historial de cajas.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Historial de Cajas</h3>
+                <p className="text-sm text-gray-600">
+                  Consulta el historial de aperturas y cierres de cajas de todas las sucursales seleccionadas
+                </p>
+              </div>
+            </div>
+
+            {/* Filtros para historial de cajas */}
+            <div className="bg-white p-4 rounded-lg border space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Rango de fechas
+                  </label>
+                  <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar rango" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las fechas</SelectItem>
+                      <SelectItem value="today">Hoy</SelectItem>
+                      <SelectItem value="yesterday">Ayer</SelectItem>
+                      <SelectItem value="week">Esta semana</SelectItem>
+                      <SelectItem value="month">Este mes</SelectItem>
+                      <SelectItem value="custom">Rango personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {dateRangeFilter === 'custom' && (
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Fechas personalizadas
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="date"
+                        value={customDateRange?.from ? customDateRange.from.toISOString().split('T')[0] : ''}
+                        onChange={(e) => setCustomDateRange(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : undefined }))}
+                        className="flex-1"
+                      />
+                      <Input
+                        type="date"
+                        value={customDateRange?.to ? customDateRange.to.toISOString().split('T')[0] : ''}
+                        onChange={(e) => setCustomDateRange(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : undefined }))}
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Tabla de historial de cajas */}
+            <div className="bg-white rounded-lg border">
+              <div className="p-4 border-b">
+                <h4 className="font-medium text-gray-900">Registros de Cajas</h4>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Sucursal
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Usuario
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Apertura
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Cierre
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Saldo Inicial
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Saldo Final
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Diferencia
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Estado
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {cashRegistersHistoryLoading ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                          <div className="flex items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            Cargando historial de cajas...
+                          </div>
+                        </td>
+                      </tr>
+                    ) : cashRegistersHistory.length > 0 ? (
+                      cashRegistersHistory.map((cashRegister) => {
+                        const branchInfo = getBranchInfo(cashRegister.branch_id)
+                        const branchColor = branchInfo?.color || '#6b7280'
+                        
+                        return (
+                          <tr key={cashRegister.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex items-center gap-2">
+                                <div 
+                                  className="w-3 h-3 rounded-full flex-shrink-0"
+                                  style={{ backgroundColor: branchColor }}
+                                />
+                                <span className="text-black font-semibold">
+                                  {cashRegister.branch_name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                              {cashRegister.user_name}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                              {formatDate(cashRegister.opened_at)}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                              {cashRegister.closed_at ? formatDate(cashRegister.closed_at) : 'En curso'}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                              {formatCurrency(cashRegister.initial_amount || 0)}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                              {cashRegister.status === 'open' ? '-' : formatCurrency(cashRegister.final_amount || 0)}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                              {cashRegister.status === 'open' ? (
+                                '-'
+                              ) : (
+                                (() => {
+                                  // Calcular la diferencia entre lo que el sistema esperaba y lo que se contó físicamente
+                                  const expectedAmount = parseFloat(cashRegister.expected_cash_balance) || 0
+                                  const countedAmount = parseFloat(cashRegister.final_amount) || 0
+                                  const difference = countedAmount - expectedAmount
+                                  
+                                  return (
+                                    <span className={`${
+                                      Math.abs(difference) < 0.01 
+                                        ? 'text-blue-600' 
+                                        : difference > 0 
+                                          ? 'text-green-600' 
+                                          : 'text-red-600'
+                                    }`}>
+                                      {Math.abs(difference) < 0.01 
+                                        ? 'Sin diferencia' 
+                                        : difference > 0 
+                                          ? `+${formatCurrency(difference)} (sobrante)`
+                                          : `${formatCurrency(difference)} (faltante)`
+                                      }
+                                    </span>
+                                  )
+                                })()
+                              )}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                cashRegister.status === 'open' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                          No hay registros de cajas para mostrar
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+              </>
+            )}
+          </TabsContent>
+
+        </Tabs>
+      ) : (
       <CashRegisterStatusBadge 
         key={`cash-status-${statusRefreshKey}`}
         branchId={currentBranchId}
@@ -1026,8 +1546,10 @@ export default function CajaPage() {
         showOpenButton={false}
         className="mb-4"
       />
+      )}
 
-      {/* Stats Cards */}
+      {/* Stats Cards - Solo para una sucursal */}
+      {selectedBranchIdsArray.length === 1 && (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Balance Esperado"  
@@ -1059,25 +1581,53 @@ export default function CajaPage() {
         <StatCard
           title="Saldo desde apertura"
           value={formatCurrency(calculateBalanceSinceOpening())}
-          description={currentRegister ? `Desde ${formatDate(currentRegister.opened_at)}` : 'Sin caja abierta'}
+            description={
+              currentRegister 
+                ? `Desde ${formatDate(currentRegister.opened_at)}` 
+                : 'Sin caja abierta'
+            }
           icon={DollarSign}
           colorClass="bg-violet-100 text-violet-700"
         />
       </div>
+      )}
 
+      {/* Tabs de Historial y Reportes - Solo para una sucursal */}
+      {selectedBranchIdsArray.length === 1 && (
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="w-fit">
-          <TabsTrigger value="history" disabled={!canViewMovements}>
-            <FileText className="w-4 h-4 mr-2" />
-            Historial
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <TabsList className="grid w-full sm:w-fit grid-cols-3">
+            <TabsTrigger value="current" disabled={!canViewMovements} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Movimientos Actuales</span>
+              <span className="sm:hidden">Actuales</span>
           </TabsTrigger>
-          <TabsTrigger value="dailyreports" disabled={!canViewHistory}>
-            <BarChart3 className="w-4 h-4 mr-2" />
-            Reportes y Cajas
+            <TabsTrigger value="history" disabled={!canViewMovements} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Historial de Movimientos</span>
+              <span className="sm:hidden">Historial</span>
+            </TabsTrigger>
+            <TabsTrigger value="dailyreports" disabled={!canViewHistory} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+              <Clock className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Historial de Cajas</span>
+              <span className="sm:hidden">Cajas</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="history" className="space-y-4">
+          {/* Botón de exportar para monosucursal */}
+          {activeTab === "history" && (
+            <Button 
+              variant="outline" 
+              onClick={() => setOpenExportDialog(true)}
+              className="flex items-center gap-2 w-full sm:w-auto"
+            >
+              <FileText className="h-4 w-4" />
+              Exportar
+            </Button>
+          )}
+        </div>
+
+        <TabsContent value="current" className="space-y-4">
           {!canViewMovements ? (
             <Alert>
               <AlertCircle className="h-4 w-4" />
@@ -1087,6 +1637,13 @@ export default function CajaPage() {
             </Alert>
           ) : (
             <>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Movimientos Actuales</h3>
+                <p className="text-sm text-gray-600">
+                  Movimientos de la caja actualmente abierta en esta sucursal
+                </p>
+              </div>
+
               <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
                 <div className="flex flex-1 items-center space-x-2">
                   <div className="relative w-full md:w-80">
@@ -1134,196 +1691,77 @@ export default function CajaPage() {
                 </div>
               </div>
 
-              <div className="rounded-md border">
-                <Table ref={movementsTableRef}>
-                  <TableHeader>
-                    <TableRow>
-                      <ResizableTableHeader
-                        columnId="type"
-                        getResizeHandleProps={getMovementsResizeHandleProps}
-                        getColumnHeaderProps={getMovementsColumnHeaderProps}
-                      >
-                        Tipo
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="description"
-                        getResizeHandleProps={getMovementsResizeHandleProps}
-                        getColumnHeaderProps={getMovementsColumnHeaderProps}
-                      >
-                        Descripción
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="method"
-                        getResizeHandleProps={getMovementsResizeHandleProps}
-                        getColumnHeaderProps={getMovementsColumnHeaderProps}
-                        className="hidden md:table-cell"
-                      >
-                        Método
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="date"
-                        getResizeHandleProps={getMovementsResizeHandleProps}
-                        getColumnHeaderProps={getMovementsColumnHeaderProps}
-                        className="hidden md:table-cell"
-                      >
-                        Fecha
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="amount"
-                        getResizeHandleProps={getMovementsResizeHandleProps}
-                        getColumnHeaderProps={getMovementsColumnHeaderProps}
-                        className="text-right"
-                      >
-                        Monto
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="user"
-                        getResizeHandleProps={getMovementsResizeHandleProps}
-                        getColumnHeaderProps={getMovementsColumnHeaderProps}
-                        className="hidden md:table-cell"
-                      >
-                        Usuario
-                      </ResizableTableHeader>
-                      {canDeleteMovements && (
-                        <ResizableTableHeader
-                          columnId="actions"
-                          getResizeHandleProps={getMovementsResizeHandleProps}
-                          getColumnHeaderProps={getMovementsColumnHeaderProps}
-                          className="text-center"
-                        >
-                          Acciones
-                        </ResizableTableHeader>
-                      )}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {!currentRegister && (
-                      <TableRow>
-                        <TableCell colSpan={canDeleteMovements ? 7 : 6} className="h-24 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <Wallet className="h-8 w-8 text-muted-foreground mb-2 opacity-40" />
-                            <span className="text-muted-foreground">No hay una caja abierta</span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {currentRegister && filteredMovements.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={canDeleteMovements ? 7 : 6} className="h-24 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <FileText className="h-8 w-8 text-muted-foreground mb-2 opacity-40" />
-                            <span className="text-muted-foreground">No se encontraron movimientos</span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {filteredMovements.map((movement) => {
-                      const amount = parseFloat(movement.amount) || 0
-                      const opRaw = (movement.movement_type as any)?.operation_type
-                      const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
-                      const userLabel = movement.user?.name || movement.user?.full_name || movement.user?.username || movement.user?.email || 'N/A'
-                      const isSaleRef = (movement as any)?.reference_type === 'sale' && 
-                        ((movement as any)?.reference_id || (movement as any)?.metadata?.sale_id) ||
-                        movement.description.includes('Venta #')
-                      const isPurchaseOrderRef = (movement as any)?.reference_type === 'purchase_order' && (movement as any)?.reference_id
-                      const cleanedDescription = typeof movement.description === 'string'
-                        ? movement.description.replace(/\s*-\s*Pago:\s*.*/i, '')
-                        : movement.description
-                      const typeLabel = movement.movement_type?.description || 'N/A'
-                      const affectsBalance = movement.affects_balance !== false
-                      
-                      return (
-                        <TableRow 
-                          key={movement.id}
-                          className={!affectsBalance ? 'bg-gray-100 opacity-75' : ''}
-                        >
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Badge
-                                variant="outline"
-                                className={
-                                  isIncome
-                                    ? "bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700"
-                                    : "bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700"
-                                }
-                              >
-                                {typeLabel}
-                              </Badge>
-                              {!affectsBalance && (
-                                <Badge 
-                                  variant="outline" 
-                                  className="bg-gray-100 text-gray-600 text-xs"
-                                  title="Este movimiento NO afecta el balance de la caja"
-                                >
-                                  Informativo
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{cleanedDescription}</TableCell>
-                          <TableCell className="hidden md:table-cell">{getPaymentMethod(movement)}</TableCell>
-                          <TableCell className="hidden md:table-cell">{formatDate(movement.created_at)}</TableCell>
-                          <TableCell className="text-right font-medium">
-                            <span className={isIncome ? 'text-green-600' : 'text-red-600'}>
-                              {isIncome ? '+' : '-'} {formatCurrency(Math.abs(amount))}
-                            </span>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            {userLabel}
-                          </TableCell>
-                          {canDeleteMovements && (
-                            <TableCell className="text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                {isSaleRef && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleViewSaleFromMovement(movement)}
-                                    title="Ver detalle de venta"
-                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {isPurchaseOrderRef && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleViewPurchaseOrderFromMovement(movement)}
-                                    title="Ver orden de compra"
-                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteMovement(movement.id)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                  title="Eliminar movimiento"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+              <MovementsTable
+                movements={selectedBranchIdsArray.length > 1 ? filteredMovements : allMovements.slice((movementsPage - 1) * movementsPerPage, movementsPage * movementsPerPage)}
+                loading={selectedBranchIdsArray.length > 1 ? false : allMovementsLoading}
+                canDeleteMovements={canDeleteMovements}
+                onViewSale={handleViewSaleFromMovement}
+                onViewPurchaseOrder={handleViewPurchaseOrderFromMovement}
+                onDeleteMovement={handleDeleteMovement}
+                isCashPaymentMethod={isCashPaymentMethod}
+                currentPage={selectedBranchIdsArray.length > 1 ? movementsMeta.currentPage : movementsPage}
+                lastPage={selectedBranchIdsArray.length > 1 ? movementsMeta.lastPage : Math.ceil(allMovements.length / movementsPerPage)}
+                total={selectedBranchIdsArray.length > 1 ? movementsMeta.total : allMovements.length}
+                onPageChange={(page: number) => {
+                console.log('🔄 onPageChange llamado con página:', page)
+                setMovementsPage(page)
+              }}
+                pageLoading={isPageLoading || hookLoading}
+              />
+            </>
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          {!canViewMovements ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No tienes permisos para ver los movimientos de caja.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Historial de Movimientos</h3>
+                <p className="text-sm text-gray-600">
+                  Historial completo de movimientos con filtros avanzados y opciones de exportación
+                </p>
               </div>
-              {currentRegister && (
-                <Pagination
-                  currentPage={movementsMeta.currentPage}
-                  lastPage={movementsMeta.lastPage}
-                  total={movementsMeta.total}
-                  itemName="movimientos"
-                  onPageChange={setMovementsPage}
-                  disabled={isPageLoading || hookLoading}
-                />
-              )}
+
+              {/* Filtros avanzados para monosucursal */}
+              <MultiBranchFilters
+                searchTerm={multiBranchSearchTerm}
+                onSearchChange={setMultiBranchSearchTerm}
+                movementTypeFilter={multiBranchMovementTypeFilter}
+                onMovementTypeChange={setMultiBranchMovementTypeFilter}
+                branchFilter={branchFilter}
+                onBranchFilterChange={setBranchFilter}
+                dateRangeFilter={dateRangeFilter}
+                onDateRangeChange={setDateRangeFilter}
+                customDateRange={customDateRange}
+                onCustomDateRangeChange={setCustomDateRange}
+                movementTypes={movementTypes}
+                availableBranches={availableBranchesForFilters}
+                onClearFilters={clearAllFilters}
+              />
+
+              <MovementsTable
+                movements={allMovements.slice((movementsPage - 1) * movementsPerPage, movementsPage * movementsPerPage)}
+                loading={allMovementsLoading}
+                canDeleteMovements={false}
+                isCashPaymentMethod={isCashPaymentMethod}
+                getBranchInfo={getBranchInfo}
+                showBranchColumn={false}
+                currentPage={movementsPage}
+                lastPage={Math.ceil(allMovements.length / movementsPerPage)}
+                total={allMovements.length}
+                onPageChange={(page: number) => {
+                console.log('🔄 onPageChange llamado con página:', page)
+                setMovementsPage(page)
+              }}
+                pageLoading={isPageLoading || hookLoading}
+              />
             </>
           )}
         </TabsContent>
@@ -1338,226 +1776,248 @@ export default function CajaPage() {
             </Alert>
           ) : (
             <>
-              <div className="rounded-md border">
-                <Table ref={historyTableRef}>
-                  <TableHeader>
-                    <TableRow>
-                      <ResizableTableHeader
-                        columnId="status"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                      >
-                        Estado
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="opening"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="hidden md:table-cell"
-                      >
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Historial de Cajas</h3>
+                <p className="text-sm text-gray-600">
+                  Consulta el historial de aperturas y cierres de cajas de esta sucursal
+                </p>
+              </div>
+
+              {/* Filtros para historial de cajas */}
+              <div className="bg-white p-4 rounded-lg border space-y-4">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Rango de fechas
+                    </label>
+                    <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Seleccionar rango" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas las fechas</SelectItem>
+                        <SelectItem value="today">Hoy</SelectItem>
+                        <SelectItem value="yesterday">Ayer</SelectItem>
+                        <SelectItem value="week">Esta semana</SelectItem>
+                        <SelectItem value="month">Este mes</SelectItem>
+                        <SelectItem value="custom">Rango personalizado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {dateRangeFilter === 'custom' && (
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Fechas personalizadas
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="date"
+                          value={customDateRange?.from ? customDateRange.from.toISOString().split('T')[0] : ''}
+                          onChange={(e) => setCustomDateRange(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : undefined }))}
+                          className="flex-1"
+                        />
+                        <Input
+                          type="date"
+                          value={customDateRange?.to ? customDateRange.to.toISOString().split('T')[0] : ''}
+                          onChange={(e) => setCustomDateRange(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : undefined }))}
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tabla de historial de cajas */}
+              <div className="bg-white rounded-lg border">
+                <div className="p-4 border-b">
+                  <h4 className="font-medium text-gray-900">Registros de Cajas</h4>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Usuario
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Apertura
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="closing"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="hidden md:table-cell"
-                      >
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Cierre
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="initial_amount"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="text-right"
-                      >
-                        Monto Inicial
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="system_amount"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="text-right"
-                      >
-                        <span title="Monto que debería haber según movimientos del sistema">
-                          Sistema
-                        </span>
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="counted_cash"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="text-right"
-                      >
-                        Efectivo Contado
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="difference"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="text-right hidden md:table-cell"
-                      >
-                        <span title="Diferencia entre efectivo contado y lo que debería haber según movimientos del sistema">
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Saldo Inicial
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Saldo Final
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Diferencia
-                        </span>
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="user"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="hidden md:table-cell"
-                      >
-                        Usuario
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="observations"
-                        getResizeHandleProps={getHistoryResizeHandleProps}
-                        getColumnHeaderProps={getHistoryColumnHeaderProps}
-                        className="hidden lg:table-cell"
-                      >
-                        Observaciones
-                      </ResizableTableHeader>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {registerHistory.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={9} className="h-24 text-center">
-                          <div className="flex flex-col items-center justify-center">
-                            <FileText className="h-8 w-8 text-muted-foreground mb-2 opacity-40" />
-                            <span className="text-muted-foreground">No se encontraron registros de caja</span>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Estado
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {isPageLoading || hookLoading ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                            <div className="flex items-center justify-center">
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              Cargando historial de cajas...
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {pagedRegisterHistory.map((register) => {
-                      const openingBalance = parseFloat((register as any).opening_balance || register.initial_amount) || 0
-                      const closingBalance = parseFloat(((register as any).closing_balance || (register as any).final_amount || '0')) || 0
-                      
-                      let expectedCashBalance = openingBalance
-                      let difference = 0
-                      
-                      if (currentRegister && register.id === currentRegister.id && optimizedCashRegister) {
-                        expectedCashBalance = optimizedCashRegister.expected_cash_balance || calculateCashOnlyBalance()
-                        difference = optimizedCashRegister.cash_difference !== undefined 
-                          ? optimizedCashRegister.cash_difference 
-                          : closingBalance - expectedCashBalance
-                      } else {
-                        expectedCashBalance = (register as any).calculated_expected_cash_balance || 
-                                            (register as any).expected_cash_balance || 
-                                            openingBalance
-                        difference = (register as any).calculated_cash_difference || 
-                                   (register as any).cash_difference || 
-                                   (closingBalance - expectedCashBalance)
-                      }
+                          </td>
+                        </tr>
+                      ) : pagedRegisterHistory.length > 0 ? (
+                        pagedRegisterHistory.map((cashRegister) => (
+                          <tr key={cashRegister.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                              {cashRegister.user?.username || 'N/A'}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                              {formatDate(cashRegister.opened_at)}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                              {cashRegister.closed_at ? formatDate(cashRegister.closed_at) : 'En curso'}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                              {formatCurrency(Number(cashRegister.initial_amount) || 0)}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                              {cashRegister.status === 'open' ? '-' : formatCurrency(Number(cashRegister.closing_balance) || 0)}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                              {cashRegister.status === 'open' ? (
+                                '-'
+                              ) : (
+                                (() => {
+                                  // Calcular la diferencia entre lo que el sistema esperaba y lo que se contó físicamente
+                                  const expectedAmount = parseFloat((cashRegister as any).expected_cash_balance) || 0
+                                  const countedAmount = parseFloat(cashRegister.closing_balance || '0') || 0
+                                  const difference = countedAmount - expectedAmount
                       
                       return (
-                        <TableRow key={register.id}>
-                          <ResizableTableCell
-                            columnId="status"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                          >
-                            <Badge className={register.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
-                              {register.status === 'open' ? 'Abierta' : 'Cerrada'}
-                            </Badge>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="opening"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className="hidden md:table-cell"
-                          >
-                            <span className="truncate" title={formatDate(register.opened_at)}>
-                              {formatDate(register.opened_at)}
-                            </span>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="closing"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className="hidden md:table-cell"
-                          >
-                            <span className="truncate" title={register.closed_at ? formatDate(register.closed_at as string) : '-'}>
-                              {register.closed_at ? formatDate(register.closed_at as string) : '-'}
-                            </span>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="initial_amount"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className="text-right"
-                          >
-                            <span className="truncate" title={formatCurrency(openingBalance)}>
-                              {formatCurrency(openingBalance)}
-                            </span>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="system_amount"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className="text-right font-medium text-blue-600"
-                          >
-                            <span className="truncate" title={formatCurrency(expectedCashBalance)}>
-                              {formatCurrency(expectedCashBalance)}
-                            </span>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="counted_cash"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className="text-right"
-                          >
-                            <span className="truncate" title={formatCurrency(closingBalance)}>
-                              {formatCurrency(closingBalance)}
-                            </span>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="difference"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className={`text-right hidden md:table-cell font-semibold ${
+                                    <span className={`${
                               Math.abs(difference) < 0.01
-                                ? "text-blue-600"
+                                        ? 'text-blue-600' 
                                 : difference > 0
-                                  ? "text-green-600"
-                                  : "text-red-600"
-                            }`}
-                          >
-                            <span className="truncate" title={formatCurrency(difference)}>
-                              {formatCurrency(difference)}
+                                          ? 'text-green-600' 
+                                          : 'text-red-600'
+                                    }`}>
+                                      {Math.abs(difference) < 0.01 
+                                        ? 'Sin diferencia' 
+                                        : difference > 0 
+                                          ? `+${formatCurrency(difference)} (sobrante)`
+                                          : `${formatCurrency(difference)} (faltante)`
+                                      }
                             </span>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="user"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className="hidden md:table-cell"
-                          >
-                            <span className="truncate" title={(register as any)?.user?.name || (register as any)?.user?.full_name || (register as any)?.user?.username || 'N/A'}>
-                              {(register as any)?.user?.name || (register as any)?.user?.full_name || (register as any)?.user?.username || 'N/A'}
+                                  )
+                                })()
+                              )}
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                cashRegister.status === 'open' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
                             </span>
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="observations"
-                            getColumnCellProps={getHistoryColumnCellProps}
-                            className="hidden lg:table-cell"
-                          >
-                            <span className="truncate" title={(register as any)?.closing_notes || (register as any)?.notes || ''}>
-                              {(register as any)?.closing_notes || (register as any)?.notes || 
-                               (register.status === 'open' ? '-' : 'Sin observaciones')}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                            No hay registros de cajas para mostrar
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* Paginación */}
+                {registerHistoryTotalPages > 1 && (
+                  <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
+                    <div className="text-sm text-gray-700">
+                      Mostrando {((registerHistoryPage - 1) * registerHistoryPerPage) + 1} a {Math.min(registerHistoryPage * registerHistoryPerPage, registerHistory.length)} de {registerHistory.length} registros
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRegisterHistoryPage(prev => Math.max(1, prev - 1))}
+                        disabled={registerHistoryPage === 1}
+                      >
+                        Anterior
+                      </Button>
+                      <span className="text-sm text-gray-700">
+                        Página {registerHistoryPage} de {registerHistoryTotalPages}
                             </span>
-                          </ResizableTableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRegisterHistoryPage(prev => Math.min(registerHistoryTotalPages, prev + 1))}
+                        disabled={registerHistoryPage === registerHistoryTotalPages}
+                      >
+                        Siguiente
+                      </Button>
               </div>
-              <Pagination
-                currentPage={registerHistoryPage}
-                lastPage={registerHistoryTotalPages}
-                total={registerHistory.length}
-                itemName="registros de caja"
-                onPageChange={setRegisterHistoryPage}
-                disabled={isPageLoading || hookLoading}
-              />
+                  </div>
+                )}
+              </div>
             </>
           )}
         </TabsContent>
       </Tabs>
+      )}
+
+      {/* Diálogos */}
+      <ExportDialog
+        open={openExportDialog}
+        onOpenChange={setOpenExportDialog}
+        onExport={handleExportData}
+        loading={isPageLoading}
+        availableBranches={availableBranchesForFilters}
+        selectedBranchIds={selectedBranchIdsArray}
+      />
+
+      <OpenCashRegisterDialog
+        open={openCashRegisterDialog}
+        onOpenChange={setOpenCashRegisterDialog}
+        onOpenCashRegister={handleOpenCashRegister}
+        loading={hookLoading}
+        selectedBranchForAction={selectedBranchForAction}
+        branchInfo={getBranchInfo}
+      />
+
+      <CloseCashRegisterDialog
+        open={openCloseCashDialog}
+        onOpenChange={setOpenCloseCashDialog}
+        onCloseCashRegister={handleCloseCashRegister}
+        loading={hookLoading}
+        currentRegister={currentRegister}
+        multipleCashRegisters={multipleCashRegisters}
+        selectedBranchForAction={selectedBranchForAction}
+        branchInfo={getBranchInfo}
+        movements={movements}
+        allMovements={allMovements}
+        calculateCashOnlyBalance={calculateCashOnlyBalance}
+        isCashPaymentMethod={isCashPaymentMethod}
+      />
+
+      <NewMovementDialog
+        open={openNewMovementDialog}
+        onOpenChange={setOpenNewMovementDialog}
+        onAddMovement={handleAddMovement}
+        loading={hookLoading}
+        movementTypes={movementTypes}
+        paymentMethods={paymentMethods}
+      />
 
       {/* Modal de detalle de venta */}
       <ViewSaleDialog
@@ -1608,6 +2068,21 @@ export default function CajaPage() {
         open={openPurchaseOrderDialog}
         onOpenChange={setOpenPurchaseOrderDialog}
         purchaseOrderId={selectedPurchaseOrderId}
+      />
+
+      {/* Diálogo para nuevo movimiento desde múltiples sucursales */}
+      <MultiBranchNewMovementDialog
+        open={openMultiBranchMovementDialog}
+        onOpenChange={setOpenMultiBranchMovementDialog}
+        onAddMovement={handleAddMovementFromMultiBranch}
+        loading={isPageLoading}
+        movementTypes={movementTypes}
+        paymentMethods={paymentMethods}
+        availableBranches={selectedBranchIdsArray.map(branchId => ({
+          id: branchId,
+          name: getBranchInfo(branchId)?.description || `Sucursal ${branchId}`,
+          hasOpenCashRegister: multipleCashRegisters[branchId] && multipleCashRegisters[branchId].status === 'open'
+        }))}
       />
     </div>
   )

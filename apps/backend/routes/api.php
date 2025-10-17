@@ -258,6 +258,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/close', [CashRegisterController::class, 'close']);
         Route::get('/current', [CashRegisterController::class, 'current']);
         Route::get('/current-optimized', [CashRegisterController::class, 'currentOptimized']);
+        Route::get('/multiple-branches', [CashRegisterController::class, 'multipleBranches']);
+        Route::get('/cash-registers-history', [CashRegisterController::class, 'cashRegistersHistory']);
         Route::get('/payment-methods-optimized', [CashRegisterController::class, 'getPaymentMethodsOptimized']);
         Route::get('/check-status', [CashRegisterController::class, 'checkStatus']);
         Route::get('/history', [CashRegisterController::class, 'history']);
@@ -267,6 +269,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/reports/movements', [CashRegisterController::class, 'reportsMovements']);
         Route::get('/reports/closures', [CashRegisterController::class, 'reportsClosures']);
         Route::get('/reports/financial', [CashRegisterController::class, 'reportsFinancial']);
+        Route::get('/export', [CashRegisterController::class, 'export']);
 
         Route::get('/{id}', [CashRegisterController::class, 'show']);
     });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -16,7 +17,7 @@ import type { PurchaseOrder as APIPurchaseOrder } from "@/lib/api/purchaseOrderS
 import { toast } from "sonner"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import type { DateRange } from "@/components/ui/date-range-picker"
-import { format } from "date-fns"
+import { format, startOfMonth } from "date-fns"
 import { Label } from "@/components/ui/label"
 import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus"
 import { useAuth } from "@/hooks/useAuth"
@@ -25,7 +26,13 @@ import Pagination from "@/components/ui/pagination"
 
 export default function PurchaseOrderPage() {
   const { hasPermission, currentBranch } = useAuth();
+  const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("")
+  
+  // Estados para filtros de sucursales desde Caja
+  const [filteredBranchIds, setFilteredBranchIds] = useState<number[]>([])
+  const [preselectedBranchId, setPreselectedBranchId] = useState<number | undefined>(undefined)
+  const [disableBranchSelection, setDisableBranchSelection] = useState(false)
 
   // Configuración de columnas redimensionables para órdenes de compra
   const orderColumnConfig = [
@@ -34,7 +41,7 @@ export default function PurchaseOrderPage() {
     { id: 'date', minWidth: 100, maxWidth: 180, defaultWidth: 140 },
     { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
     { id: 'total', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
-    { id: 'actions', minWidth: 180, maxWidth: 300, defaultWidth: 240 }
+    { id: 'actions', minWidth: 280, maxWidth: 400, defaultWidth: 320 }
   ];
 
   const {
@@ -66,18 +73,48 @@ export default function PurchaseOrderPage() {
   const [summary, setSummary] = useState<{ ARS?: number; USD?: number }>({})
   const [summaryPeriod, setSummaryPeriod] = useState<{ from: string; to: string } | null>(null)
   const [dateRange, setDateRange] = useState<DateRange>({
-    from: new Date(2025, 8, 1),
-    to: new Date(2025, 8, 30),
+    from: startOfMonth(new Date()),
+    to: new Date(),
   })
 
   // Obtener el estado de la caja abierta para la sucursal seleccionada
   const branchId = currentBranch?.id ? Number(currentBranch.id) : 1;
   const { status: cashRegisterStatus, isOpen: isCashRegisterOpen } = useCashRegisterStatus(branchId);
 
+  // Leer parámetros de URL para filtros de sucursales
+  useEffect(() => {
+    const branchIds = searchParams.get('branch_ids')
+    const preselectedBranch = searchParams.get('preselected_branch_id')
+    const disableSelection = searchParams.get('disable_branch_selection')
+    
+    if (branchIds) {
+      const ids = branchIds.split(',').map(id => parseInt(id)).filter(id => !isNaN(id))
+      setFilteredBranchIds(ids)
+    }
+    
+    if (preselectedBranch) {
+      const branchId = parseInt(preselectedBranch)
+      if (!isNaN(branchId)) {
+        setPreselectedBranchId(branchId)
+      }
+    }
+    
+    if (disableSelection === 'true') {
+      setDisableBranchSelection(true)
+    }
+  }, [searchParams])
+
   // Fetch purchase orders from backend
   useEffect(() => {
     loadPurchaseOrders(1)
   }, [])
+
+  // Recargar órdenes cuando cambien los filtros de sucursales
+  useEffect(() => {
+    if (filteredBranchIds.length > 0) {
+      loadPurchaseOrders(1)
+    }
+  }, [filteredBranchIds])
 
   useEffect(() => {
     const fetchSummary = async () => {
@@ -98,7 +135,7 @@ export default function PurchaseOrderPage() {
     fetchSummary()
   }, [dateRange])
 
-  // Modificar loadPurchaseOrders para aceptar fechas
+  // Modificar loadPurchaseOrders para aceptar fechas y filtros de sucursales
   const loadPurchaseOrders = async (page = 1, from?: string, to?: string) => {
     try {
       setLoading(true)
@@ -106,16 +143,38 @@ export default function PurchaseOrderPage() {
       if (from) params.from = from;
       if (to) params.to = to;
       
+      // Si hay sucursales filtradas, aplicar el filtro
+      if (filteredBranchIds.length > 0) {
+        // Si solo hay una sucursal, filtrar por esa específica
+        if (filteredBranchIds.length === 1) {
+          params.branch_id = filteredBranchIds[0];
+        }
+        // Si hay múltiples sucursales, el backend debería manejar esto
+        // Por ahora, usamos la primera sucursal como fallback
+        else {
+          params.branch_id = filteredBranchIds[0];
+        }
+      }
+      
       console.log('Cargando órdenes con parámetros:', params);
       const orders = await getPurchaseOrders(params);
       console.log('Órdenes recibidas:', orders.length);
+      
+      // Si hay múltiples sucursales filtradas, filtrar en el frontend
+      let filteredOrders = orders;
+      if (filteredBranchIds.length > 1) {
+        filteredOrders = orders.filter(order => 
+          order.branch_id && filteredBranchIds.includes(order.branch_id)
+        );
+      }
+      
       const startIndex = (page - 1) * PO_PAGE_SIZE;
       const endIndex = startIndex + PO_PAGE_SIZE;
-      const paginatedOrders = orders.slice(startIndex, endIndex);
+      const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
       setPurchaseOrders(paginatedOrders);
-      setTotalPOItems(orders.length);
+      setTotalPOItems(filteredOrders.length);
       setCurrentPOPage(page);
-      setTotalPOPages(Math.ceil(orders.length / PO_PAGE_SIZE));
+      setTotalPOPages(Math.ceil(filteredOrders.length / PO_PAGE_SIZE));
     } catch (error) {
       console.error('Error loading purchase orders:', error);
       toast.error("Error al cargar órdenes de compra");
@@ -403,7 +462,7 @@ export default function PurchaseOrderPage() {
                   <ResizableTableHeader columnId="date" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Fecha</ResizableTableHeader>
                   <ResizableTableHeader columnId="status" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Estado</ResizableTableHeader>
                   <ResizableTableHeader columnId="total" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Total</ResizableTableHeader>
-                  <ResizableTableHeader columnId="actions" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps} className="text-center">Acciones</ResizableTableHeader>
+                  <ResizableTableHeader columnId="actions" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps} className="text-center min-w-[280px]">Acciones</ResizableTableHeader>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -426,7 +485,7 @@ export default function PurchaseOrderPage() {
                     <ResizableTableCell columnId="total" getColumnCellProps={getOrderColumnCellProps}>
                       {formatCurrency(getOrderTotalNumber(order))}
                     </ResizableTableCell>
-                    <ResizableTableCell columnId="actions" getColumnCellProps={getOrderColumnCellProps} className="text-center">
+                    <ResizableTableCell columnId="actions" getColumnCellProps={getOrderColumnCellProps} className="text-center min-w-[280px]">
                       <div className="flex gap-1 justify-center">
                         {hasPermission('ver_ordenes_compra') && (
                           <Button
@@ -496,7 +555,13 @@ export default function PurchaseOrderPage() {
         />
       </div>
 
-      <NewPurchaseOrderDialog open={openNewPurchaseOrder} onOpenChange={setOpenNewPurchaseOrder} onSaved={handlePurchaseOrderSaved} />
+      <NewPurchaseOrderDialog 
+        open={openNewPurchaseOrder} 
+        onOpenChange={setOpenNewPurchaseOrder} 
+        onSaved={handlePurchaseOrderSaved}
+        preselectedBranchId={preselectedBranchId}
+        disableBranchSelection={disableBranchSelection}
+      />
       <ViewPurchaseOrderDialog 
         open={viewPurchaseOrderDialogOpen} 
         onOpenChange={setViewPurchaseOrderDialogOpen} 

@@ -51,6 +51,7 @@ export interface Branch {
   description?: string;
   address: string;
   phone: string;
+  color?: string;
   email?: string | null;
   created_at: string;
   updated_at: string;

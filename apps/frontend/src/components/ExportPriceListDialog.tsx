@@ -356,7 +356,15 @@ export const ExportPriceListDialog: React.FC<ExportPriceListDialogProps> = ({
                             />
                             <div className="flex items-center gap-2 flex-1">
                               <div className="flex flex-col flex-1">
-                                <span className="font-medium text-sm">{branch.description || branch.name || 'Sucursal'}</span>
+                                <div className="flex items-center gap-2">
+                                  {branch.color && (
+                                    <div 
+                                      className="w-3 h-3 rounded-full border"
+                                      style={{ backgroundColor: branch.color }}
+                                    />
+                                  )}
+                                  <span className="font-medium text-sm">{branch.description || branch.name || 'Sucursal'}</span>
+                                </div>
                               </div>
                             </div>
                           </div>

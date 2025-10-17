@@ -31,9 +31,8 @@ class PermissionRoleSeeder extends Seeder
                 'abrir_cerrar_caja',
                 'ver_movimientos_caja',
                 'crear_movimientos_caja',
+                    'eliminar_movimientos_caja',
                 'ver_historico_caja',
-                'ver_perfil',
-                'editar_perfil',
                 'ver_clientes',
                 'crear_clientes',
                 'editar_clientes',
@@ -96,8 +95,11 @@ class PermissionRoleSeeder extends Seeder
                 'ajustar_stock',
                 'ver_alertas_stock',
                 'realizar_inventario',
-                'ver_perfil',
-                'editar_perfil',
+                'abrir_cerrar_caja',
+                'ver_movimientos_caja',
+                'crear_movimientos_caja',
+                'eliminar_movimientos_caja',
+                'ver_historico_caja',
                 'cambiar_password'
             ])->get();
             $supervisor->permissions()->sync($supervisorPermissions->pluck('id'));

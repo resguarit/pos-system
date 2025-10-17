@@ -37,7 +37,15 @@ export function BranchSwitcher() {
         <SelectContent>
           {branches.map((branch) => (
             <SelectItem key={branch.id} value={branch.id.toString()}>
-              {branch.description}
+              <div className="flex items-center gap-2">
+                {branch.color && (
+                  <div 
+                    className="w-3 h-3 rounded-full border"
+                    style={{ backgroundColor: branch.color }}
+                  />
+                )}
+                <span>{branch.description}</span>
+              </div>
             </SelectItem>
           ))}
         </SelectContent>

@@ -10,7 +10,7 @@ import { EditProductDialog } from "@/components/edit-product-dialog"
 import { ViewProductDialog } from "@/components/view-product-dialog"
 import useApi from "@/hooks/useApi"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import type { Product, Branch, Stock, Category as ProductCategoryType } from "@/types/product"
+import type { Product, Stock, Category as ProductCategoryType, Branch } from "@/types/product"
 import { DeleteProductDialog } from "@/components/delete-product-dialog"
 import { useEntityContext } from "@/context/EntityContext"
 import { useSearchParams } from "react-router-dom"
@@ -39,6 +39,11 @@ export default function InventarioPage() {
   const [categories, setCategories] = useState<ProductCategoryType[]>([])
   const [parentCategories, setParentCategories] = useState<ProductCategoryType[]>([])
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
+  
+  // Debug: Log when selectedBranches changes
+  useEffect(() => {
+    console.log("🔄 SELECTED BRANCHES CHANGED:", selectedBranches)
+  }, [selectedBranches])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState<string>("")
@@ -211,19 +216,38 @@ export default function InventarioPage() {
   }
 
   const fetchBranches = async (signal?: AbortSignal) => {
+    console.log("🚀 FETCHING BRANCHES - START")
     try {
       const response = await request({
         method: "GET",
         url: "/branches",
         signal,
       })
+      console.log("🚀 FETCHING BRANCHES - RESPONSE:", response)
       const branchesData = Array.isArray(response?.data?.data) ? response.data.data : 
                           Array.isArray(response?.data) ? response.data : 
                           Array.isArray(response) ? response : []
+      
+      // Debug: Log branch data to see the structure
+      console.log("=== BRANCHES LOADED ===")
+      console.log("Total branches loaded:", branchesData.length)
+      branchesData.forEach((branch: any, index: number) => {
+        console.log(`Branch ${index + 1}:`, {
+          id: branch.id,
+          description: branch.description,
+          color: branch.color,
+          idType: typeof branch.id
+        })
+      })
+      console.log("=== END BRANCHES LOADED ===")
+      
       setBranches(branchesData)
       dispatch({ type: "SET_ENTITIES", entityType: "branches", entities: branchesData })
       if (branchesData.length > 0) {
         setSelectedBranches([String(branchesData[0].id)])
+        console.log("=== SELECTED BRANCHES ===")
+        console.log("Selected branches:", [String(branchesData[0].id)])
+        console.log("=== END SELECTED BRANCHES ===")
       }
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message === 'canceled') {
@@ -341,12 +365,30 @@ export default function InventarioPage() {
   const applyFilters = (productList: Product[]) => {
     let filtered = [...productList]
 
+    console.log("🔍 APPLYING FILTERS")
+    console.log("🔍 Selected branches:", selectedBranches)
+    console.log("🔍 Total products before filter:", productList.length)
+
     if (selectedBranches.length > 0) {
       filtered = filtered.filter((product) => {
-        if (!product.stocks || !Array.isArray(product.stocks)) return false
-        return product.stocks.some((stock) => selectedBranches.includes(String(stock.branch_id)))
+        if (!product.stocks || !Array.isArray(product.stocks)) {
+          console.log("🔍 Product has no stocks:", product.description)
+          return false
+        }
+        
+        const hasMatchingBranch = product.stocks.some((stock) => {
+          const matches = selectedBranches.includes(String(stock.branch_id))
+          console.log(`🔍 Product "${product.description}" stock branch_id: ${stock.branch_id}, matches: ${matches}`)
+          return matches
+        })
+        
+        console.log(`🔍 Product "${product.description}" has matching branch: ${hasMatchingBranch}`)
+        return hasMatchingBranch
       })
     }
+
+    console.log("🔍 Products after branch filter:", filtered.length)
+    console.log("🔍 END APPLYING FILTERS")
 
     if (selectedCategories.length > 0) {
       const getAllCategoryIds = (selectedCategoryIds: string[]): string[] => {
@@ -482,6 +524,44 @@ export default function InventarioPage() {
     }
   }
 
+  const getBranchDisplayForProduct = (product: Product) => {
+    if (!product.stocks || !Array.isArray(product.stocks) || product.stocks.length === 0) {
+      return { branches: [], text: "Sin sucursal asignada" }
+    }
+
+    let stocksToShow = product.stocks
+
+    // If specific branches are selected, filter to show only those
+    if (selectedBranches.length > 0 && selectedBranches[0] !== "all") {
+      const selectedSet = new Set(selectedBranches.map(String))
+      stocksToShow = product.stocks.filter((s) => selectedSet.has(String(s.branch_id)))
+    }
+
+    if (stocksToShow.length === 0) {
+      return { branches: [], text: "Sin sucursal asignada" }
+    }
+
+    const branchDisplays = stocksToShow.map(stock => {
+      const branchInfo = branches.find(b => String(b.id) === String(stock.branch_id))
+      return {
+        id: stock.branch_id,
+        name: resolveBranchName(Number(stock.branch_id), (stock as any).branch ?? null),
+        color: branchInfo?.color || '#0ea5e9'
+      }
+    })
+
+    let text = ""
+    if (branchDisplays.length === 1) {
+      text = branchDisplays[0].name
+    } else if (branchDisplays.length === 2) {
+      text = `${branchDisplays[0].name} y ${branchDisplays[1].name}`
+    } else {
+      text = `${branchDisplays[0].name} y ${branchDisplays.length - 1} más`
+    }
+
+    return { branches: branchDisplays, text }
+  }
+
   const getStockStatus = (product: Product) => {
     const stock = getProductStock(product)
     if (stock.current > stock.min) {
@@ -512,10 +592,16 @@ export default function InventarioPage() {
     onChange: (values: string[]) => void
   }) => {
     const toggle = (value: string) => {
+      console.log("🔄 TOGGLE BRANCH:", value)
+      console.log("🔄 CURRENT SELECTED:", selected)
       if (selected.includes(value)) {
-        onChange(selected.filter((v) => v !== value))
+        const newSelected = selected.filter((v) => v !== value)
+        console.log("🔄 REMOVING BRANCH, NEW SELECTED:", newSelected)
+        onChange(newSelected)
       } else {
-        onChange([...selected, value])
+        const newSelected = [...selected, value]
+        console.log("🔄 ADDING BRANCH, NEW SELECTED:", newSelected)
+        onChange(newSelected)
       }
     }
 
@@ -993,7 +1079,26 @@ export default function InventarioPage() {
                                   className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
                                 >
                                   <div className="flex items-center">
-                                    <span className={`mr-2 h-2 w-2 rounded-full ${!p.status ? "bg-gray-400" : "bg-[#0ea5e9]"}`}></span>
+                                    {(() => {
+                                      const branchInfo = branches.find(b => String(b.id) === String(stock.branch_id));
+                                      const branchColor = branchInfo?.color || '#0ea5e9';
+                                      
+                                      // Debug logs
+                                      console.log("=== PER-BRANCH VIEW COLOR DEBUG ===");
+                                      console.log("Product:", p.description);
+                                      console.log("Stock branch_id:", stock.branch_id, typeof stock.branch_id);
+                                      console.log("Found branch:", branchInfo);
+                                      console.log("Branch color from DB:", branchInfo?.color);
+                                      console.log("Final color used:", branchColor);
+                                      console.log("=== END PER-BRANCH DEBUG ===");
+                                      
+                                      return (
+                                        <span 
+                                          className={`mr-2 h-2 w-2 rounded-full ${!p.status ? "bg-gray-400" : ""}`}
+                                          style={!p.status ? {} : { backgroundColor: branchColor }}
+                                        ></span>
+                                      );
+                                    })()}
                                     <span className="truncate">{row.branchName}</span>
                                   </div>
                                 </ResizableTableCell>
@@ -1211,8 +1316,36 @@ export default function InventarioPage() {
                                 className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
                               >
                                 <div className="flex items-center">
-                                  <span className={`mr-2 h-2 w-2 rounded-full ${!product.status ? "bg-gray-400" : "bg-[#0ea5e9]"}`}></span>
-                                  <span className="truncate">{getBranchNameForProduct(product)}</span>
+                                  {(() => {
+                                    const branchDisplay = getBranchDisplayForProduct(product);
+                                    
+                                    // Debug logs for product view
+                                    console.log("=== PRODUCT VIEW BRANCH COLOR DEBUG ===");
+                                    console.log("Product:", product.description);
+                                    console.log("Branch display:", branchDisplay);
+                                    console.log("=== END PRODUCT VIEW DEBUG ===");
+                                    
+                                    if (branchDisplay.branches.length === 0) {
+                                      return (
+                                        <span className={`mr-2 h-2 w-2 rounded-full ${!product.status ? "bg-gray-400" : "bg-gray-300"}`}></span>
+                                      );
+                                    }
+                                    
+                                    // Show multiple branch colors
+                                    return (
+                                      <div className="flex items-center gap-1">
+                                        {branchDisplay.branches.map((branch) => (
+                                          <span 
+                                            key={branch.id}
+                                            className={`h-2 w-2 rounded-full ${!product.status ? "bg-gray-400" : ""}`}
+                                            style={!product.status ? {} : { backgroundColor: branch.color }}
+                                            title={branch.name}
+                                          ></span>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
+                                  <span className="truncate ml-2">{getBranchNameForProduct(product)}</span>
                                 </div>
                               </ResizableTableCell>
                             )}
