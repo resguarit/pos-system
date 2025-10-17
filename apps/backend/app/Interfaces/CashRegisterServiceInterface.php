@@ -9,6 +9,7 @@ interface CashRegisterServiceInterface
     public function openCashRegister(array $data);
     public function closeCashRegister(int $id, array $data);
     public function getCurrentCashRegister(int $branchId);
+    public function getMultipleBranchesCashRegisterStatus(array $branchIds);
     public function getCashRegisterHistory(Request $request);
     public function getCashRegisterById(int $id);
 }

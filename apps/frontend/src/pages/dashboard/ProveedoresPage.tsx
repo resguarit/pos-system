@@ -24,8 +24,8 @@ export default function ProveedoresPage() {
 
   // Configuración de columnas redimensionables para proveedores
   const supplierColumnConfig = [
-    { id: 'name', minWidth: 200, maxWidth: 400, defaultWidth: 250 },
-    { id: 'contact', minWidth: 150, maxWidth: 300, defaultWidth: 200 },
+    { id: 'name', minWidth: 100, maxWidth: 400, defaultWidth: 250 },
+    { id: 'contact', minWidth: 100, maxWidth: 300, defaultWidth: 200 },
     { id: 'phone', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
     { id: 'status', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
     { id: 'actions', minWidth: 120, maxWidth: 180, defaultWidth: 150 }

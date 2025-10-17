@@ -6,7 +6,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
@@ -46,11 +45,15 @@ import { type SaleHeader } from "@/types/sale";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import CashRegisterStatusBadge from "@/components/cash-register-status-badge";
+import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status";
 import { useLocation } from "react-router-dom";
 import { useBranch } from "@/context/BranchContext";
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Definimos el tamaño de página para cargar más ventas
 const PAGE_SIZE = 5; // Temporalmente reducido para probar paginación
@@ -58,7 +61,7 @@ const PAGE_SIZE = 5; // Temporalmente reducido para probar paginación
 export default function VentasPage() {
   const { request } = useApi();
   const { hasPermission, isAdmin } = useAuth();
-  const { selectionChangeToken, selectedBranch } = useBranch();
+  const { selectionChangeToken, selectedBranch, selectedBranchIds, branches } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [stats, setStats] = useState({
     total_sales: 0,
@@ -324,6 +327,32 @@ export default function VentasPage() {
 
   const getItemsCount = (sale: SaleHeader) => sale.items_count || 0;
 
+  const getBranchColor = (sale: SaleHeader) => {
+    let branchId: number | null = null;
+    
+    if (typeof sale.branch === 'object' && sale.branch?.id) {
+      branchId = Number(sale.branch.id);
+    } else if (typeof sale.branch === 'string') {
+      // Si es string, buscar por descripción
+      const branch = branches.find(b => b.description === sale.branch);
+      branchId = branch?.id ? Number(branch.id) : null;
+    }
+    
+    if (branchId) {
+      const branch = branches.find(b => Number(b.id) === branchId);
+      return branch?.color || '#6b7280';
+    }
+    
+    return '#6b7280'; // Color por defecto
+  };
+
+  const getBranchName = (sale: SaleHeader) => {
+    if (typeof sale.branch === 'string') {
+      return sale.branch;
+    }
+    return sale.branch?.description || 'N/A';
+  };
+
   const receiptTypeColors: Record<string, string> = {
     'FACTURAS A': 'bg-purple-50 text-purple-700 hover:bg-purple-50 hover:text-purple-700',
     'NOTAS DE DEBITO A': 'bg-orange-50 text-orange-700 hover:bg-orange-50 hover:text-orange-700',
@@ -384,6 +413,7 @@ export default function VentasPage() {
   };
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'annulled'>('all');
+  const [branchFilter, setBranchFilter] = useState<string>('all');
 
   const filteredSales = sales.filter((sale: SaleHeader) => {
     const receiptTypeInfo = getReceiptType(sale);
@@ -402,7 +432,19 @@ export default function VentasPage() {
       statusFilter === 'active' ? sale.status !== 'annulled' :
       sale.status === 'annulled';
 
-    return matchesSearch && matchesStatus;
+    const matchesBranch = branchFilter === 'all' ? true : 
+      (() => {
+        let branchId: number | null = null;
+        if (typeof sale.branch === 'object' && sale.branch?.id) {
+          branchId = Number(sale.branch.id);
+        } else if (typeof sale.branch === 'string') {
+          const branch = branches.find(b => b.description === sale.branch);
+          branchId = branch?.id ? Number(branch.id) : null;
+        }
+        return branchId ? branchId.toString() === branchFilter : false;
+      })();
+
+    return matchesSearch && matchesStatus && matchesBranch;
   });
   
   const handleDateRangeChange = (range: DateRange | undefined) => {
@@ -673,14 +715,22 @@ export default function VentasPage() {
         allowMultipleBranches={true}
       >
         <div className="h-full w-full flex flex-col gap-4 p-4 md:p-6">
-      {/* Cash Register Status Badge */}
-      <CashRegisterStatusBadge 
-        branchId={currentBranchId}
-        compact={true}
-        showOperator={false}
-        showOpenTime={false}
-        className="mb-2"
-      />
+      {/* Cash Register Status - Show appropriate component based on selection */}
+      {selectedBranchIds.length > 1 ? (
+        <MultipleBranchesCashStatus 
+          className="mb-2"
+          showOpenButton={true}
+          compact={false}
+        />
+      ) : (
+        <CashRegisterStatusBadge 
+          branchId={currentBranchId}
+          compact={true}
+          showOperator={false}
+          showOpenTime={false}
+          className="mb-2"
+        />
+      )}
       
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -822,22 +872,52 @@ export default function VentasPage() {
       </div>
 
       {/* Status Filter Tabs */}
-      <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'annulled')} className="w-fit">
-        <TabsList>
-          <TabsTrigger value="all">
-            <FileText className="w-4 h-4 mr-2" />
-            Todas
-          </TabsTrigger>
-          <TabsTrigger value="active">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            Vigentes
-          </TabsTrigger>
-          <TabsTrigger value="annulled">
-            <X className="w-4 h-4 mr-2" />
-            Anuladas
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
+        <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'annulled')} className="w-fit">
+          <TabsList>
+            <TabsTrigger value="all">
+              <FileText className="w-4 h-4 mr-2" />
+              Todas
+            </TabsTrigger>
+            <TabsTrigger value="active">
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Vigentes
+            </TabsTrigger>
+            <TabsTrigger value="annulled">
+              <X className="w-4 h-4 mr-2" />
+              Anuladas
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {/* Branch Filter - Only show when multiple branches are selected */}
+        {selectedBranchIds.length > 1 && (
+          <div className="flex items-center gap-2">
+            <Label className="text-sm font-medium">Filtrar por sucursal:</Label>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Todas las sucursales" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las sucursales</SelectItem>
+                {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      {branch.color && (
+                        <div 
+                          className="w-3 h-3 rounded-full border"
+                          style={{ backgroundColor: branch.color }}
+                        />
+                      )}
+                      <span>{branch.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
 
       {/* Chart Section */}
       {showChart && (
@@ -874,7 +954,7 @@ export default function VentasPage() {
                 columnId="branch"
                 getResizeHandleProps={getResizeHandleProps}
                 getColumnHeaderProps={getColumnHeaderProps}
-                className="hidden md:table-cell"
+                className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
               >
                 Sucursal
               </ResizableTableHeader>
@@ -960,20 +1040,26 @@ export default function VentasPage() {
                   <ResizableTableCell
                     columnId="branch"
                     getColumnCellProps={getColumnCellProps}
-                    className="hidden md:table-cell"
+                    className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
                   >
-                    <div
-                      className={`truncate ${sale.status === 'annulled' ? 'text-red-600' : ''}`}
-                      title={
-                        typeof sale.branch === 'string'
-                          ? sale.branch
-                          : sale.branch?.description || 'N/A'
-                      }
-                    >
-                      {typeof sale.branch === 'string'
-                        ? sale.branch
-                        : sale.branch?.description || 'N/A'}
-                    </div>
+                    {(() => {
+                      const branchColor = getBranchColor(sale);
+                      const branchName = getBranchName(sale);
+                      
+                      return (
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs border-2 font-medium ${sale.status === 'annulled' ? 'opacity-60' : ''}`}
+                          style={{
+                            borderColor: branchColor,
+                            color: branchColor,
+                            backgroundColor: `${branchColor}10`
+                          }}
+                        >
+                          {branchName}
+                        </Badge>
+                      );
+                    })()}
                   </ResizableTableCell>
                   <ResizableTableCell
                     columnId="items"

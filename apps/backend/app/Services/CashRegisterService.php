@@ -63,6 +63,89 @@ class CashRegisterService implements CashRegisterServiceInterface
             ->first();
     }
 
+    /**
+     * Obtener el estado de caja para múltiples sucursales
+     */
+    public function getMultipleBranchesCashRegisterStatus(array $branchIds): array
+    {
+        if (empty($branchIds)) {
+            return $this->getEmptyStatusResponse();
+        }
+
+        $openRegisters = $this->getOpenCashRegistersForBranches($branchIds);
+        $closedBranchIds = $this->getClosedBranchIds($branchIds, $openRegisters);
+        
+        return $this->buildStatusResponse($branchIds, $openRegisters, $closedBranchIds);
+    }
+
+    /**
+     * Obtener cajas abiertas para las sucursales especificadas
+     */
+    private function getOpenCashRegistersForBranches(array $branchIds)
+    {
+        return CashRegister::with(['branch', 'user'])
+            ->whereIn('branch_id', $branchIds)
+            ->where('status', 'open')
+            ->get();
+    }
+
+    /**
+     * Obtener IDs de sucursales con caja cerrada
+     */
+    private function getClosedBranchIds(array $branchIds, $openRegisters): array
+    {
+        $openBranchIds = $openRegisters->pluck('branch_id')->toArray();
+        return array_diff($branchIds, $openBranchIds);
+    }
+
+    /**
+     * Construir respuesta de estado
+     */
+    private function buildStatusResponse(array $branchIds, $openRegisters, array $closedBranchIds): array
+    {
+        $totalBranches = count($branchIds);
+        $openCount = $openRegisters->count();
+        $closedCount = count($closedBranchIds);
+
+        return [
+            'open_registers' => $openRegisters,
+            'closed_branches' => $this->formatClosedBranches($closedBranchIds),
+            'total_branches' => $totalBranches,
+            'open_count' => $openCount,
+            'closed_count' => $closedCount,
+            'all_open' => $openCount === $totalBranches,
+            'all_closed' => $openCount === 0,
+            'mixed_status' => $openCount > 0 && $openCount < $totalBranches
+        ];
+    }
+
+    /**
+     * Formatear sucursales cerradas
+     */
+    private function formatClosedBranches(array $closedBranchIds): array
+    {
+        return array_map(function ($branchId) {
+            return ['branch_id' => $branchId];
+        }, $closedBranchIds);
+    }
+
+    /**
+     * Respuesta vacía para cuando no hay sucursales
+     */
+    private function getEmptyStatusResponse(): array
+    {
+        return [
+            'open_registers' => collect(),
+            'closed_branches' => [],
+            'total_branches' => 0,
+            'open_count' => 0,
+            'closed_count' => 0,
+            'all_open' => false,
+            'all_closed' => true,
+            'mixed_status' => false
+        ];
+    }
+
     public function getCashRegisterHistory(Request $request)
     {
         $query = CashRegister::with(['branch', 'user'])

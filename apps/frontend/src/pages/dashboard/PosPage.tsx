@@ -29,7 +29,8 @@ import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus"
 import CustomerForm from "@/components/customers/customer-form"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExchangeRateUpdates } from "@/hooks/useExchangeRateUpdates"
-import SelectBranchPlaceholder from "@/components/ui/select-branch-placeholder"
+import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status"
+import { Building } from "lucide-react"
 
 type CartItem = {
   id: string
@@ -66,11 +67,14 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const [paymentMethods, setPaymentMethods] = useState<any[]>([])
   const { request } = useApi()
-  const { selectedBranch, selectionChangeToken } = useBranch()
+  const { selectedBranch, selectionChangeToken, selectedBranchIds, branches, setSelectedBranchIds } = useBranch()
   const { user, hasPermission } = useAuth()
 
   // Funciones para manejar localStorage del carrito
   const CART_STORAGE_KEY = 'pos_cart'
+  
+  // Estado para manejar memoria de sucursales (igual que en Caja)
+  const [originalBranchSelection, setOriginalBranchSelection] = useState<string[]>([])
   
   const saveCartToStorage = (cartData: CartItem[]) => {
       localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartData))
@@ -97,8 +101,20 @@ export default function POSPage() {
     }
   }
 
+  
+
   // Cash register validation hook y refresco manual
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(selectedBranch?.id) || 1)
+
+  // Función para cambiar sucursal desde el POS
+  const handleBranchChange = (branchId: string) => {
+    if (!branchId) return;
+    setSelectedBranchIds([branchId]);
+    toast.success('Sucursal cambiada', {
+      description: `Ahora trabajas en ${branches.find(b => b.id.toString() === branchId)?.description || 'la sucursal seleccionada'}`
+    });
+  };
+
 
   const [productCodeInput, setProductCodeInput] = useState("")
 
@@ -157,6 +173,51 @@ export default function POSPage() {
       toast.info(`Carrito restaurado: ${savedCart.length} producto${savedCart.length > 1 ? 's' : ''} encontrado${savedCart.length > 1 ? 's' : ''}`)
     }
   }, [])
+
+  // Efecto para manejar memoria de sucursales (igual que en Caja)
+  useEffect(() => {
+    // Si hay múltiples sucursales seleccionadas, guardar la selección original
+    if (selectedBranchIds.length > 1 && originalBranchSelection.length === 0) {
+      console.log('🔄 Guardando selección original:', selectedBranchIds)
+      setOriginalBranchSelection([...selectedBranchIds])
+    }
+    
+    // Si no hay sucursal seleccionada y tenemos selección original, restaurar
+    if (selectedBranchIds.length === 0 && originalBranchSelection.length > 0) {
+      console.log('🔄 Restaurando selección original:', originalBranchSelection)
+      setSelectedBranchIds([...originalBranchSelection])
+    }
+  }, [selectedBranchIds, originalBranchSelection])
+
+  // Efecto para detectar cuando el usuario sale del POS y restaurar selección original
+  useEffect(() => {
+    // Si estamos en una sola sucursal pero tenemos selección original guardada con múltiples sucursales,
+    // significa que el usuario está trabajando en el POS
+    // Cuando el componente se desmonte (navegación a otra página), restaurar la selección
+    if (selectedBranchIds.length === 1 && originalBranchSelection.length > 1) {
+      console.log('🔄 Usuario en POS, preparando restauración automática')
+      
+      // Función de cleanup que se ejecutará cuando el componente se desmonte
+      const cleanup = () => {
+        console.log('🔄 Usuario salió del POS, restaurando selección original:', originalBranchSelection)
+        setSelectedBranchIds([...originalBranchSelection])
+        setOriginalBranchSelection([])
+      }
+      
+      // Agregar listener para detectar navegación
+      const handleBeforeUnload = () => {
+        cleanup()
+      }
+      
+      window.addEventListener('beforeunload', handleBeforeUnload)
+      
+      // Cleanup del listener cuando el componente se desmonte
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload)
+        cleanup() // Ejecutar cleanup al desmontar
+      }
+    }
+  }, [selectedBranchIds.length, originalBranchSelection])
 
   // Guardar carrito en localStorage cada vez que cambie
   useEffect(() => {
@@ -533,6 +594,14 @@ export default function POSPage() {
   const handleConfirmSale = async () => {
     if (isProcessingSale) return; // Prevenir doble envío
     
+    // Validar que hay una sucursal seleccionada
+    if (!selectedBranch) {
+      toast.error('Debe seleccionar una sucursal antes de realizar la venta', {
+        description: 'Use el selector de sucursal en la parte superior del POS'
+      });
+      return;
+    }
+    
     setIsProcessingSale(true);
     
     try {
@@ -638,15 +707,50 @@ export default function POSPage() {
     .filter(p => p.amount && parseFloat(p.amount || '0') > 0)
     .every(p => p.payment_method_id);
 
-  if (!selectedBranch) {
-    return <SelectBranchPlaceholder description="Debes seleccionar una sucursal para poder usar el POS." />;
-  }
-
   return (
     <ProtectedRoute permissions={['crear_ventas']} requireAny={true}>
       <div className="flex h-[calc(100vh-4rem)] flex-col md:flex-row">
         <div className="flex-1 overflow-auto p-4">
-            {/* Cash Register Status Badge - más compacto */}
+          {/* Branch Selector for POS */}
+          <div className="mb-4 flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Building className="h-5 w-5 text-muted-foreground" />
+              <Label className="text-sm font-medium">Sucursal:</Label>
+            </div>
+            <Select
+              value={selectedBranch?.id?.toString() ?? ''}
+              onValueChange={handleBranchChange}
+              disabled={!branches || branches.length <= 1}
+            >
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Seleccionar sucursal" />
+              </SelectTrigger>
+              <SelectContent>
+                {branches?.map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      {branch.color && (
+                        <div 
+                          className="w-3 h-3 rounded-full border"
+                          style={{ backgroundColor: branch.color }}
+                        />
+                      )}
+                      <span>{branch.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Cash Register Status - Show appropriate component based on selection */}
+          {selectedBranchIds.length > 1 ? (
+            <MultipleBranchesCashStatus 
+              className="mb-2"
+              showOpenButton={true}
+              compact={false}
+            />
+          ) : (
             <CashRegisterStatusBadge 
               branchId={Number(selectedBranch?.id) || 1}
               compact={false}
@@ -655,6 +759,7 @@ export default function POSPage() {
               showRefreshButton={true}
               className="mb-2"
             />
+          )}
             
             <div className="mb-4 flex flex-col md:flex-row items-center gap-4">
                 <div className="relative w-full md:w-auto md:flex-grow flex">
@@ -1172,7 +1277,7 @@ export default function POSPage() {
                      {(() => {
                        const paid = payments.reduce((s, p) => s + (parseFloat(p.amount || '0') || 0), 0);
                        const diff = round2(total - paid);
-                       const canConfirm = (cart.length > 0 && receiptTypeId !== undefined && diff === 0 && allPaymentsValid);
+                       const canConfirm = (cart.length > 0 && receiptTypeId !== undefined && diff === 0 && allPaymentsValid && selectedBranch);
                        return (
                          <Button 
                            className="cursor-pointer" 

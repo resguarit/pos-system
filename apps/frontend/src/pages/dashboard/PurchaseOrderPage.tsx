@@ -23,9 +23,11 @@ import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus"
 import { useAuth } from "@/hooks/useAuth"
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper"
 import Pagination from "@/components/ui/pagination"
+import { useBranch } from "@/context/BranchContext"
 
 export default function PurchaseOrderPage() {
   const { hasPermission, currentBranch } = useAuth();
+  const { selectedBranchIds, branches } = useBranch();
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("")
   
@@ -33,11 +35,13 @@ export default function PurchaseOrderPage() {
   const [filteredBranchIds, setFilteredBranchIds] = useState<number[]>([])
   const [preselectedBranchId, setPreselectedBranchId] = useState<number | undefined>(undefined)
   const [disableBranchSelection, setDisableBranchSelection] = useState(false)
+  const [branchFilter, setBranchFilter] = useState<string>('all')
 
   // Configuración de columnas redimensionables para órdenes de compra
   const orderColumnConfig = [
     { id: 'number', minWidth: 60, maxWidth: 180, defaultWidth: 140 },
-    { id: 'supplier', minWidth: 200, maxWidth: 350, defaultWidth: 250 },
+    { id: 'supplier', minWidth: 120, maxWidth: 350, defaultWidth: 200 },
+    { id: 'branch', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
     { id: 'date', minWidth: 100, maxWidth: 180, defaultWidth: 140 },
     { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
     { id: 'total', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
@@ -311,12 +315,30 @@ export default function PurchaseOrderPage() {
     const matchesSearch = (order.supplier?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (order.id?.toString() || '').includes(searchTerm)
     const matchesStatus = statusFilter === 'all' || (order.status || '').toLowerCase() === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesBranch = branchFilter === 'all' ? true : 
+      (order.branch_id ? order.branch_id.toString() === branchFilter : false)
+    return matchesSearch && matchesStatus && matchesBranch
   })
 
   const pendingOrders = purchaseOrders.filter(order => isPending(order.status)).length
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount)
+
+  const getBranchColor = (order: APIPurchaseOrder) => {
+    if (order.branch_id) {
+      const branch = branches.find(b => Number(b.id) === order.branch_id);
+      return branch?.color || '#6b7280';
+    }
+    return '#6b7280'; // Color por defecto
+  };
+
+  const getBranchName = (order: APIPurchaseOrder) => {
+    if (order.branch_id) {
+      const branch = branches.find(b => Number(b.id) === order.branch_id);
+      return branch?.description || 'N/A';
+    }
+    return 'N/A';
+  };
 
   return (
     <BranchRequiredWrapper 
@@ -445,6 +467,31 @@ export default function PurchaseOrderPage() {
                 <SelectItem value="cancelled">Canceladas</SelectItem>
               </SelectContent>
             </Select>
+            
+            {/* Branch Filter - Only show when multiple branches are selected */}
+            {selectedBranchIds.length > 1 && (
+              <Select value={branchFilter} onValueChange={setBranchFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Todas las sucursales" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las sucursales</SelectItem>
+                  {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        {branch.color && (
+                          <div 
+                            className="w-3 h-3 rounded-full border"
+                            style={{ backgroundColor: branch.color }}
+                          />
+                        )}
+                        <span>{branch.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 
@@ -459,6 +506,7 @@ export default function PurchaseOrderPage() {
                 <TableRow>
                   <ResizableTableHeader columnId="number" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>N° Orden</ResizableTableHeader>
                   <ResizableTableHeader columnId="supplier" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Proveedor</ResizableTableHeader>
+                  <ResizableTableHeader columnId="branch" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps} className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}>Sucursal</ResizableTableHeader>
                   <ResizableTableHeader columnId="date" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Fecha</ResizableTableHeader>
                   <ResizableTableHeader columnId="status" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Estado</ResizableTableHeader>
                   <ResizableTableHeader columnId="total" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Total</ResizableTableHeader>
@@ -473,6 +521,30 @@ export default function PurchaseOrderPage() {
                     </ResizableTableCell>
                     <ResizableTableCell columnId="supplier" getColumnCellProps={getOrderColumnCellProps}>
                       <span className="truncate" title={order.supplier?.name || "-"}>{order.supplier?.name || "-"}</span>
+                    </ResizableTableCell>
+                    <ResizableTableCell 
+                      columnId="branch" 
+                      getColumnCellProps={getOrderColumnCellProps}
+                      className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
+                    >
+                      {(() => {
+                        const branchColor = getBranchColor(order);
+                        const branchName = getBranchName(order);
+                        
+                        return (
+                          <Badge 
+                            variant="outline" 
+                            className="text-xs border-2 font-medium"
+                            style={{
+                              borderColor: branchColor,
+                              color: branchColor,
+                              backgroundColor: `${branchColor}10`
+                            }}
+                          >
+                            {branchName}
+                          </Badge>
+                        );
+                      })()}
                     </ResizableTableCell>
                     <ResizableTableCell columnId="date" getColumnCellProps={getOrderColumnCellProps}>
                       {new Date(order.order_date).toLocaleDateString('es-ES')}

@@ -262,6 +262,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cash-registers-history', [CashRegisterController::class, 'cashRegistersHistory']);
         Route::get('/payment-methods-optimized', [CashRegisterController::class, 'getPaymentMethodsOptimized']);
         Route::get('/check-status', [CashRegisterController::class, 'checkStatus']);
+        Route::get('/check-multiple-branches-status', [CashRegisterController::class, 'checkMultipleBranchesStatus']);
         Route::get('/history', [CashRegisterController::class, 'history']);
         Route::get('/transactions/history', [CashRegisterController::class, 'transactionsHistory']);
         

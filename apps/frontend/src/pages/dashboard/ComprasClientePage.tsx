@@ -13,6 +13,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Badge } from "@/components/ui/badge";
 import useApi from "@/hooks/useApi";
 import { useAuth } from "@/context/AuthContext";
+import { useBranch } from "@/context/BranchContext";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
 import { type SaleHeader } from "@/types/sale";
@@ -30,10 +31,12 @@ export default function CustomerPurchasesPage() {
   const params = useParams()
   const { request } = useApi()
   const { hasPermission } = useAuth();
+  const { selectedBranchIds, branches } = useBranch();
   const [customer, setCustomer] = useState<any>(null)
   const [purchases, setPurchases] = useState<SaleHeader[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [receiptTypeFilter, setReceiptTypeFilter] = useState("all")
+  const [branchFilter, setBranchFilter] = useState("all")
   const [dateRange, setDateRange] = useState<DateRange>({ from: new Date(), to: new Date() })
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
@@ -175,6 +178,8 @@ export default function CustomerPurchasesPage() {
       (getReceiptType(purchase).displayName || "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesReceiptType = receiptTypeFilter === "all" || 
       getReceiptType(purchase).filterKey === receiptTypeFilter;
+    const matchesBranch = branchFilter === "all" || 
+      (typeof purchase.branch === 'object' ? purchase.branch?.id?.toString() === branchFilter : false);
     let matchesDate = true;
     if (dateRange && dateRange.from instanceof Date) {
       const purchaseDate = new Date(purchase.date);
@@ -193,7 +198,7 @@ export default function CustomerPurchasesPage() {
         toDate.setHours(23, 59, 59, 999);
         matchesDate = purchaseDate <= toDate;
     }
-    return matchesSearch && matchesReceiptType && matchesDate;
+    return matchesSearch && matchesReceiptType && matchesBranch && matchesDate;
   })
 
   const handleExportCSV = () => {
@@ -233,6 +238,32 @@ export default function CustomerPurchasesPage() {
   const getItemsCount = (purchase: SaleHeader) => {
     return purchase.items?.length || 0
   }
+
+  const getBranchColor = (purchase: SaleHeader) => {
+    let branchId: number | null = null;
+    
+    if (typeof purchase.branch === 'object' && purchase.branch?.id) {
+      branchId = Number(purchase.branch.id);
+    } else if (typeof purchase.branch === 'string') {
+      // Si es string, buscar por descripción
+      const branch = branches.find(b => b.description === purchase.branch);
+      branchId = branch?.id ? Number(branch.id) : null;
+    }
+    
+    if (branchId) {
+      const branch = branches.find(b => Number(b.id) === branchId);
+      return branch?.color || '#6b7280';
+    }
+    
+    return '#6b7280'; // Color por defecto
+  };
+
+  const getBranchName = (purchase: SaleHeader) => {
+    if (typeof purchase.branch === 'string') {
+      return purchase.branch;
+    }
+    return purchase.branch?.description || 'N/A';
+  };
 
   const handleViewDetail = (sale: SaleHeader) => {
     setSelectedSale(sale)
@@ -373,6 +404,32 @@ export default function CustomerPurchasesPage() {
               ))}
             </SelectContent>
           </Select>
+          
+          {/* Branch Filter - Only show when multiple branches are selected */}
+          {selectedBranchIds.length > 1 && (
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-full md:w-[200px]">
+                <SelectValue placeholder="Todas las sucursales" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las sucursales</SelectItem>
+                {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id.toString()}>
+                    <div className="flex items-center gap-2">
+                      {branch.color && (
+                        <div 
+                          className="w-3 h-3 rounded-full border"
+                          style={{ backgroundColor: branch.color }}
+                        />
+                      )}
+                      <span>{branch.description}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          
           <DatePickerWithRange className="w-full md:w-auto" selected={dateRange} onSelect={range => setDateRange(range ?? { from: new Date(), to: new Date() })} />
         </div>
       </div>
@@ -401,7 +458,26 @@ export default function CustomerPurchasesPage() {
                     {getReceiptTypeBadge(getReceiptType(purchase))}
                   </TableCell>
                   <TableCell>{formatDate(purchase.date)}</TableCell>
-                  <TableCell className="hidden md:table-cell">{typeof purchase.branch === 'object' ? purchase.branch?.description || "N/A" : purchase.branch || "N/A"}</TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {(() => {
+                      const branchColor = getBranchColor(purchase);
+                      const branchName = getBranchName(purchase);
+                      
+                      return (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs border-2 font-medium"
+                          style={{
+                            borderColor: branchColor,
+                            color: branchColor,
+                            backgroundColor: `${branchColor}10`
+                          }}
+                        >
+                          {branchName}
+                        </Badge>
+                      );
+                    })()}
+                  </TableCell>
                   <TableCell className="hidden md:table-cell">{getItemsCount(purchase)}</TableCell>
                   <TableCell className="hidden lg:table-cell">{formatCurrency(purchase.subtotal)}</TableCell>
                   <TableCell className="hidden lg:table-cell">{formatCurrency(purchase.total_iva_amount)}</TableCell>
@@ -440,7 +516,7 @@ export default function CustomerPurchasesPage() {
             : (
               <TableRow>
                 <TableCell colSpan={9} className="h-24 text-center">
-                  {searchTerm || receiptTypeFilter !== "all" || dateRange?.from
+                  {searchTerm || receiptTypeFilter !== "all" || branchFilter !== "all" || dateRange?.from
                     ? "No se encontraron comprobantes con los filtros aplicados"
                     : "Este cliente no tiene comprobantes registrados"}
                 </TableCell>

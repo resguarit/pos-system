@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Interfaces\CashRegisterServiceInterface;
+use App\Services\CashRegisterStatusMessageService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -15,10 +16,14 @@ use Barryvdh\DomPDF\Facade\Pdf as PDF;
 class CashRegisterController extends Controller
 {
     protected CashRegisterServiceInterface $cashRegisterService;
+    protected CashRegisterStatusMessageService $messageService;
 
-    public function __construct(CashRegisterServiceInterface $cashRegisterService)
-    {
+    public function __construct(
+        CashRegisterServiceInterface $cashRegisterService,
+        CashRegisterStatusMessageService $messageService
+    ) {
         $this->cashRegisterService = $cashRegisterService;
+        $this->messageService = $messageService;
     }
 
     public function open(Request $request): JsonResponse
@@ -224,6 +229,64 @@ class CashRegisterController extends Controller
                 'error_code' => 'CASH_REGISTER_CHECK_ERROR'
             ], 500);
         }
+    }
+
+    /**
+     * Verificar el estado de caja para múltiples sucursales
+     */
+    public function checkMultipleBranchesStatus(Request $request): JsonResponse
+    {
+        $validator = $this->validateMultipleBranchesRequest($request);
+        
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator->errors());
+        }
+
+        $branchIds = $request->input('branch_ids');
+        
+        try {
+            $status = $this->cashRegisterService->getMultipleBranchesCashRegisterStatus($branchIds);
+            $message = $this->messageService->generateStatusMessage($status);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $status
+            ]);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Error al verificar el estado de las cajas: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Validar request para múltiples sucursales
+     */
+    private function validateMultipleBranchesRequest(Request $request)
+    {
+        return Validator::make($request->all(), [
+            'branch_ids' => 'required|array',
+            'branch_ids.*' => 'integer|exists:branches,id',
+        ]);
+    }
+
+    /**
+     * Respuesta de error de validación
+     */
+    private function validationErrorResponse($errors): JsonResponse
+    {
+        return response()->json(['errors' => $errors], 422);
+    }
+
+    /**
+     * Respuesta de error genérica
+     */
+    private function errorResponse(string $message): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'message' => $message,
+            'data' => ['error' => $message]
+        ], 500);
     }
 
     public function transactionsHistory(Request $request): JsonResponse

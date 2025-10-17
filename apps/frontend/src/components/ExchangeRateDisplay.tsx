@@ -54,18 +54,25 @@ export function ExchangeRateDisplay({
   const formatRate = (rateValue: any): string => {
     try {
       // Verificar si es null, undefined, o no es un número
-      if (rateValue === null || rateValue === undefined || typeof rateValue !== 'number' || isNaN(rateValue)) {
-        console.warn('formatRate: valor inválido recibido:', rateValue);
+      if (rateValue === null || rateValue === undefined) {
         return '1.00';
       }
+      
+      // Convertir a número si es string
+      const numericValue = typeof rateValue === 'string' ? parseFloat(rateValue) : rateValue;
+      
+      // Verificar si es un número válido
+      if (typeof numericValue !== 'number' || isNaN(numericValue)) {
+        return '1.00';
+      }
+      
       // Asegurar que es un número válido y finito
-      if (!isFinite(rateValue) || rateValue <= 0) {
-        console.warn('formatRate: número no finito o negativo:', rateValue);
+      if (!isFinite(numericValue) || numericValue <= 0) {
         return '1.00';
       }
-      return Number(rateValue).toFixed(2);
+      
+      return Number(numericValue).toFixed(2);
     } catch (error) {
-      console.error('Error en formatRate:', error, 'rateValue:', rateValue);
       return '1.00';
     }
   };
