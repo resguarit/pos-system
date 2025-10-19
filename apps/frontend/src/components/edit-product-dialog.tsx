@@ -371,6 +371,16 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         web: formData.web === "1",
       };
 
+      // Solo enviar la descripción si ha cambiado
+      if (formData.description === product.description) {
+        delete submitData.description;
+      }
+
+      // Solo enviar el código si ha cambiado
+      if (formData.code === product.code) {
+        delete submitData.code;
+      }
+
       // Eliminar campos vacíos
       Object.keys(submitData).forEach(key => {
         if (submitData[key as keyof typeof submitData] === '') {

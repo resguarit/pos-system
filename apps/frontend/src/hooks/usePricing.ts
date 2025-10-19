@@ -120,22 +120,21 @@ export function usePricing({
   }, [convertUsdToArs]);
 
   /**
-   * Actualiza el precio unitario y recalcula el precio de venta Y el markup
+   * Actualiza el precio unitario manteniendo el markup y recalculando solo el precio de venta
    */
   const updateUnitPrice = useCallback((newUnitPrice: number) => {
     const newSalePrice = calculateSalePrice(newUnitPrice, pricing.currency, pricing.markup, pricing.ivaRate);
-    const newMarkup = calculateMarkup(newUnitPrice, pricing.currency, pricing.salePrice, pricing.ivaRate);
     setPricing(prev => ({
       ...prev,
       unitPrice: newUnitPrice,
       salePrice: newSalePrice,
-      markup: newMarkup,
+      // markup se mantiene igual (no se recalcula)
       hasChanged: true
     }));
-  }, [pricing.currency, pricing.markup, pricing.ivaRate, pricing.salePrice, calculateSalePrice, calculateMarkup]);
+  }, [pricing.currency, pricing.markup, pricing.ivaRate, calculateSalePrice]);
 
   /**
-   * Actualiza el markup y recalcula el precio de venta
+   * Actualiza el markup manteniendo el precio unitario y recalculando solo el precio de venta
    */
   const updateMarkup = useCallback((newMarkup: number) => {
     const newSalePrice = calculateSalePrice(pricing.unitPrice, pricing.currency, newMarkup, pricing.ivaRate);
@@ -143,12 +142,13 @@ export function usePricing({
       ...prev,
       markup: newMarkup,
       salePrice: newSalePrice,
+      // unitPrice se mantiene igual (no se recalcula)
       hasChanged: true
     }));
   }, [pricing.unitPrice, pricing.currency, pricing.ivaRate, calculateSalePrice]);
 
   /**
-   * Actualiza el precio de venta y recalcula el markup
+   * Actualiza el precio de venta manteniendo el precio unitario y recalculando solo el markup
    */
   const updateSalePrice = useCallback((newSalePrice: number) => {
     const newMarkup = calculateMarkup(pricing.unitPrice, pricing.currency, newSalePrice, pricing.ivaRate);
@@ -156,6 +156,7 @@ export function usePricing({
       ...prev,
       markup: newMarkup,
       salePrice: newSalePrice,
+      // unitPrice se mantiene igual (no se recalcula)
       hasChanged: true
     }));
   }, [pricing.unitPrice, pricing.currency, pricing.ivaRate, calculateMarkup]);
