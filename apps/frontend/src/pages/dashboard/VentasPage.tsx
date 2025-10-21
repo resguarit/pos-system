@@ -61,6 +61,9 @@ const PAGE_SIZE = 5; // Temporalmente reducido para probar paginación
 export default function VentasPage() {
   const { request } = useApi();
   const { hasPermission, isAdmin, user } = useAuth();
+  
+  // Debug inmediato para verificar que el código se ejecuta
+  console.log('🚀 VentasPage cargado - Versión con debug de anular ventas');
   const { selectionChangeToken, selectedBranch, selectedBranchIds, branches } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [stats, setStats] = useState({
@@ -130,6 +133,7 @@ export default function VentasPage() {
       return; // wait for next render with valid dates
     }
 
+    console.log('🔄 Cargando ventas - useEffect ejecutado');
     setPageLoading(true);
     setCurrentPage(1);
     setAllSales([]); // Limpiar caché cuando cambien las fechas
