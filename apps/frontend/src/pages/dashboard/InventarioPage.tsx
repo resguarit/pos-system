@@ -40,10 +40,6 @@ export default function InventarioPage() {
   const [parentCategories, setParentCategories] = useState<ProductCategoryType[]>([])
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
   
-  // Debug: Log when selectedBranches changes
-  useEffect(() => {
-    console.log("🔄 SELECTED BRANCHES CHANGED:", selectedBranches)
-  }, [selectedBranches])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState<string>("")
@@ -216,38 +212,20 @@ export default function InventarioPage() {
   }
 
   const fetchBranches = async (signal?: AbortSignal) => {
-    console.log("🚀 FETCHING BRANCHES - START")
     try {
       const response = await request({
         method: "GET",
         url: "/branches",
         signal,
       })
-      console.log("🚀 FETCHING BRANCHES - RESPONSE:", response)
       const branchesData = Array.isArray(response?.data?.data) ? response.data.data : 
                           Array.isArray(response?.data) ? response.data : 
                           Array.isArray(response) ? response : []
-      
-      // Debug: Log branch data to see the structure
-      console.log("=== BRANCHES LOADED ===")
-      console.log("Total branches loaded:", branchesData.length)
-      branchesData.forEach((branch: any, index: number) => {
-        console.log(`Branch ${index + 1}:`, {
-          id: branch.id,
-          description: branch.description,
-          color: branch.color,
-          idType: typeof branch.id
-        })
-      })
-      console.log("=== END BRANCHES LOADED ===")
       
       setBranches(branchesData)
       dispatch({ type: "SET_ENTITIES", entityType: "branches", entities: branchesData })
       if (branchesData.length > 0) {
         setSelectedBranches([String(branchesData[0].id)])
-        console.log("=== SELECTED BRANCHES ===")
-        console.log("Selected branches:", [String(branchesData[0].id)])
-        console.log("=== END SELECTED BRANCHES ===")
       }
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message === 'canceled') {
@@ -365,30 +343,20 @@ export default function InventarioPage() {
   const applyFilters = (productList: Product[]) => {
     let filtered = [...productList]
 
-    console.log("🔍 APPLYING FILTERS")
-    console.log("🔍 Selected branches:", selectedBranches)
-    console.log("🔍 Total products before filter:", productList.length)
-
     if (selectedBranches.length > 0) {
       filtered = filtered.filter((product) => {
         if (!product.stocks || !Array.isArray(product.stocks)) {
-          console.log("🔍 Product has no stocks:", product.description)
           return false
         }
         
         const hasMatchingBranch = product.stocks.some((stock) => {
           const matches = selectedBranches.includes(String(stock.branch_id))
-          console.log(`🔍 Product "${product.description}" stock branch_id: ${stock.branch_id}, matches: ${matches}`)
           return matches
         })
         
-        console.log(`🔍 Product "${product.description}" has matching branch: ${hasMatchingBranch}`)
         return hasMatchingBranch
       })
     }
-
-    console.log("🔍 Products after branch filter:", filtered.length)
-    console.log("🔍 END APPLYING FILTERS")
 
     if (selectedCategories.length > 0) {
       const getAllCategoryIds = (selectedCategoryIds: string[]): string[] => {
@@ -592,15 +560,11 @@ export default function InventarioPage() {
     onChange: (values: string[]) => void
   }) => {
     const toggle = (value: string) => {
-      console.log("🔄 TOGGLE BRANCH:", value)
-      console.log("🔄 CURRENT SELECTED:", selected)
       if (selected.includes(value)) {
         const newSelected = selected.filter((v) => v !== value)
-        console.log("🔄 REMOVING BRANCH, NEW SELECTED:", newSelected)
         onChange(newSelected)
       } else {
         const newSelected = [...selected, value]
-        console.log("🔄 ADDING BRANCH, NEW SELECTED:", newSelected)
         onChange(newSelected)
       }
     }
@@ -1083,14 +1047,6 @@ export default function InventarioPage() {
                                       const branchInfo = branches.find(b => String(b.id) === String(stock.branch_id));
                                       const branchColor = branchInfo?.color || '#0ea5e9';
                                       
-                                      // Debug logs
-                                      console.log("=== PER-BRANCH VIEW COLOR DEBUG ===");
-                                      console.log("Product:", p.description);
-                                      console.log("Stock branch_id:", stock.branch_id, typeof stock.branch_id);
-                                      console.log("Found branch:", branchInfo);
-                                      console.log("Branch color from DB:", branchInfo?.color);
-                                      console.log("Final color used:", branchColor);
-                                      console.log("=== END PER-BRANCH DEBUG ===");
                                       
                                       return (
                                         <span 
@@ -1319,11 +1275,6 @@ export default function InventarioPage() {
                                   {(() => {
                                     const branchDisplay = getBranchDisplayForProduct(product);
                                     
-                                    // Debug logs for product view
-                                    console.log("=== PRODUCT VIEW BRANCH COLOR DEBUG ===");
-                                    console.log("Product:", product.description);
-                                    console.log("Branch display:", branchDisplay);
-                                    console.log("=== END PRODUCT VIEW DEBUG ===");
                                     
                                     if (branchDisplay.branches.length === 0) {
                                       return (

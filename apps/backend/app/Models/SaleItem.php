@@ -12,6 +12,8 @@ class SaleItem extends Model
     protected $fillable = [
         'sale_header_id',
         'product_id',
+        'combo_id',
+        'is_combo',
         'quantity',
         'unit_price',
         'discount_type',
@@ -32,6 +34,7 @@ class SaleItem extends Model
         'item_subtotal' => 'decimal:3',
         'item_iva' => 'decimal:3',
         'item_total' => 'decimal:3',
+        'is_combo' => 'boolean',
     ];
 
     public function saleHeader()
@@ -47,5 +50,33 @@ class SaleItem extends Model
     public function iva()
     {
         return $this->belongsTo(Iva::class);
+    }
+
+    /**
+     * Relación con el combo (si es un item de combo)
+     */
+    public function combo()
+    {
+        return $this->belongsTo(Combo::class);
+    }
+
+    /**
+     * Verificar si este item es un combo
+     */
+    public function isCombo(): bool
+    {
+        return $this->is_combo && $this->combo_id !== null;
+    }
+
+    /**
+     * Obtener el nombre del producto o combo
+     */
+    public function getItemName(): string
+    {
+        if ($this->isCombo()) {
+            return $this->combo->name;
+        }
+        
+        return $this->product->description ?? 'Producto eliminado';
     }
 }

@@ -30,6 +30,7 @@ use App\Http\Controllers\MovementTypeController;
 use App\Http\Controllers\RepairController; // Added
 use App\Http\Controllers\ExchangeRateController; // **SOLUCIÓN BUG #2**
 use App\Http\Controllers\SaleAnnulmentController;
+use App\Http\Controllers\ComboController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -321,6 +322,19 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/status', [RepairController::class, 'updateStatus'])->whereNumber('id');
         Route::patch('/{id}/assign', [RepairController::class, 'assign'])->whereNumber('id');
         Route::post('/{id}/notes', [RepairController::class, 'addNote'])->whereNumber('id');
+    });
+
+    // Combos Routes
+    Route::prefix('combos')->group(function () {
+        Route::get('/', [ComboController::class, 'index']);
+        Route::get('/statistics', [ComboController::class, 'statistics']);
+        Route::get('/available-in-branch', [ComboController::class, 'getAvailableInBranch']);
+        Route::get('/{combo}', [ComboController::class, 'show']);
+        Route::post('/', [ComboController::class, 'store']);
+        Route::put('/{combo}', [ComboController::class, 'update']);
+        Route::delete('/{combo}', [ComboController::class, 'destroy']);
+        Route::get('/{combo}/calculate-price', [ComboController::class, 'calculatePrice']);
+        Route::post('/{combo}/check-availability', [ComboController::class, 'checkAvailability']);
     });
 
 });

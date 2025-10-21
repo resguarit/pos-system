@@ -12,6 +12,7 @@ export const FEATURES = {
   sucursales: true,
   usuarios: true,
   roles: true,
+  combos: true,
   configuracionSistema: false,
   purchaseOrders: true,
   

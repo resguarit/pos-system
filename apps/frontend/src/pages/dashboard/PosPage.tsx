@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Info, Loader2, AlertTriangle } from 'lucide-react'
+import { Cart } from "@/components/Cart"
 import { DEFAULT_RECEIPT_TYPES, findReceiptTypeByAfipCode, type ReceiptType } from '@/lib/constants/afipCodes'
 import { toast } from "sonner"
 import {
@@ -30,24 +30,10 @@ import CustomerForm from "@/components/customers/customer-form"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExchangeRateUpdates } from "@/hooks/useExchangeRateUpdates"
 import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status"
-import { Building } from "lucide-react"
-
-type CartItem = {
-  id: string
-  code: string
-  name: string
-  price: number // Precio unitario sin IVA
-  price_with_iva: number // Precio unitario con IVA
-  sale_price: number
-  iva_rate: number
-  quantity: number
-  image: string
-  currency: string // Moneda del producto
-  iva?: { id: number; rate: number; };
-  // Descuento por ítem (opcional)
-  discount_type?: 'percent' | 'amount'
-  discount_value?: number
-}
+import { Building, Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Info, Loader2, AlertTriangle, Package } from "lucide-react"
+import { ComboSection } from "@/components/ComboSection"
+import { useCombosInPOS } from "@/hooks/useCombosInPOS"
+import type { Combo, CartItem } from "@/types/combo"
 
 interface CustomerOption {
   id: number;
@@ -141,6 +127,9 @@ export default function POSPage() {
   // Descuento global (opcional)
   const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('')
   const [globalDiscountValue, setGlobalDiscountValue] = useState<string>('')
+
+  // Hook para manejar combos en POS
+  const { getComboPriceDetails } = useCombosInPOS()
 
   // Ref para almacenar la función fetchProducts
   const fetchProductsRef = useRef<(() => Promise<void>) | null>(null);
@@ -425,13 +414,123 @@ export default function POSPage() {
     const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1)
     
     setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.id === product.id)
-      if (existingItem) {
-        return prevCart.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + quantityToAdd } : item))
+      // ✅ Solo buscar productos individuales (no de combos) con el mismo ID
+      const existingIndividualItem = prevCart.find((item) => 
+        item.id === product.id && !item.is_from_combo
+      );
+      
+      if (existingIndividualItem) {
+        return prevCart.map((item) => 
+          item.id === product.id && !item.is_from_combo
+            ? { ...item, quantity: item.quantity + quantityToAdd } 
+            : item
+        );
       } else {
-        return [...prevCart, { ...product, quantity: quantityToAdd }]
+        // ✅ Asegurar que siempre tenga product_id y que sea un producto individual
+        const cartItem: CartItem = { 
+          ...product, 
+          quantity: quantityToAdd,
+          product_id: product.product_id || parseInt(product.id), // Fallback si no tiene product_id
+          is_from_combo: false, // ✅ Asegurar que sea un producto individual
+          // ✅ Limpiar cualquier descuento que pueda haber heredado
+          discount_type: undefined,
+          discount_value: undefined,
+          combo_id: undefined,
+          combo_name: undefined,
+          original_combo_price: undefined,
+          combo_discount_applied: undefined
+        }
+        return [...prevCart, cartItem]
       }
     })
+  }
+
+  /**
+   * Agregar combo al carrito descomponiéndolo en productos individuales
+   * Cada producto del combo se agrega con descuento pre-configurado
+   * 
+   * @param combo - El combo a agregar
+   * @param quantity - Cantidad del combo a agregar
+   */
+  const addComboToCart = async (combo: Combo, quantity: number) => {
+    try {
+      // Obtener detalles de precio del combo
+      const priceDetails = await getComboPriceDetails(combo.id);
+      
+      // Calcular el descuento total aplicado
+      const totalDiscount = priceDetails.discount_amount;
+      const totalBasePrice = priceDetails.base_price;
+      
+      // Calcular el factor de descuento proporcional
+      const discountFactor = totalBasePrice > 0 ? totalDiscount / totalBasePrice : 0;
+      
+      // Agregar cada producto del combo al carrito con descuento aplicado
+      const comboItems = priceDetails.items_breakdown.map((item) => {
+        // Calcular precio con descuento proporcional aplicado
+        const discountedPrice = item.total_price * (1 - discountFactor);
+        const discountedUnitPrice = item.unit_price * (1 - discountFactor);
+        
+        // Calcular el porcentaje de descuento aplicado a este producto
+        const itemDiscountPercentage = item.unit_price > 0 ? 
+          ((item.unit_price - discountedUnitPrice) / item.unit_price) * 100 : 0;
+        
+        return {
+          id: `combo-${combo.id}-${item.product.id}`,
+          product_id: item.product.id, // ✅ Campo requerido para el backend
+          code: item.product.code || item.product.id.toString(),
+          name: item.product.description,
+          price: item.unit_price, // Precio original sin descuento
+          price_with_iva: item.unit_price, // Precio original sin descuento
+          sale_price: discountedUnitPrice, // Precio con descuento aplicado
+          iva_rate: 0, // Se puede obtener del producto si es necesario
+          quantity: item.quantity * quantity, // Multiplicar por la cantidad del combo
+          image: '', // Se puede obtener del producto si tiene imagen
+          currency: 'ARS', // Se puede obtener del producto
+          // Campos de descuento para el formulario de venta
+          discount_type: 'percent' as const,
+          discount_value: itemDiscountPercentage,
+          // Campos específicos para identificar que viene de un combo
+          is_from_combo: true,
+          combo_id: combo.id,
+          combo_name: combo.name,
+          original_combo_price: item.total_price,
+          combo_discount_applied: item.total_price - discountedPrice
+        };
+      });
+
+      // Agregar cada producto al carrito
+      setCart((prevCart) => {
+        let newCart = [...prevCart];
+        
+        comboItems.forEach((comboItem) => {
+          // ✅ Solo buscar items de combos con el mismo ID exacto
+          const existingComboItem = newCart.find((item) => 
+            item.id === comboItem.id && item.is_from_combo
+          );
+          
+          if (existingComboItem) {
+            // Si el producto de combo ya existe, sumar la cantidad
+            newCart = newCart.map((item) =>
+              item.id === comboItem.id
+                ? { ...item, quantity: item.quantity + comboItem.quantity, product_id: comboItem.product_id }
+                : item
+            );
+          } else {
+            // Si no existe, agregarlo como nuevo item de combo
+            newCart.push(comboItem);
+          }
+        });
+        
+        return newCart;
+      });
+
+      toast.success("Combo agregado al carrito", {
+        description: `${combo.name} x${quantity} se descompuso en ${comboItems.length} productos con descuento aplicado.`,
+      });
+    } catch (error) {
+      console.error("Error adding combo to cart:", error);
+      toast.error("Error al agregar combo al carrito");
+    }
   }
 
   const searchAndAddProduct = () => {
@@ -447,7 +546,7 @@ export default function POSPage() {
     if (foundProduct) {
       addToCart(foundProduct, addQtyPerClick);
       toast.success("Producto agregado", {
-        description: `${foundProduct.name} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
+        description: `${foundProduct.description} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
       });
       setProductCodeInput("");
     } else {
@@ -637,14 +736,44 @@ export default function POSPage() {
       ...(globalDiscountType && Number(globalDiscountValue) > 0
         ? { discount_type: globalDiscountType, discount_value: Number(globalDiscountValue) }
         : {}),
-      items: cart.map(item => ({
-        product_id: parseInt(item.id),
-        quantity: item.quantity,
-        unit_price: Number(item.price || 0), // Sin round2, usar el precio exacto
-        ...(item.discount_type && (item.discount_value ?? 0) > 0
-          ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
-          : {}),
-      })),
+      items: cart.map((item, index) => {
+        // ✅ Función robusta para extraer product_id
+        let productId: number;
+        
+        if (item.product_id && !isNaN(item.product_id)) {
+          // Si ya tiene product_id válido, usarlo
+          productId = item.product_id;
+        } else if (item.id.startsWith('combo-')) {
+          // Si es un producto de combo, extraer el product_id del ID
+          // Formato: combo-{comboId}-{productId}
+          const parts = item.id.split('-');
+          if (parts.length >= 3) {
+            productId = parseInt(parts[2]); // Tercera parte es el product_id
+          } else {
+            productId = parseInt(parts[parts.length - 1]); // Fallback: última parte
+          }
+        } else {
+          // Si es un producto individual, parsear el ID
+          productId = parseInt(item.id);
+        }
+        
+        // Validar que productId sea válido
+        if (isNaN(productId) || productId <= 0) {
+          console.error(`Invalid product_id for item ${item.id}:`, productId);
+          throw new Error(`Invalid product_id for item ${item.id}`);
+        }
+        
+        const mappedItem = {
+          product_id: productId,
+          quantity: item.quantity,
+          unit_price: Number(item.price || 0),
+          ...(item.discount_type && (item.discount_value ?? 0) > 0
+            ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
+            : {}),
+        };
+        
+        return mappedItem;
+      }),
       payments: payments.map(p => ({
         payment_method_id: parseInt(p.payment_method_id),
         amount: parseFloat(p.amount || '0') || 0, // Sin round2, usar el monto exacto
@@ -709,7 +838,7 @@ export default function POSPage() {
 
   return (
     <ProtectedRoute permissions={['crear_ventas']} requireAny={true}>
-      <div className="flex h-[calc(100vh-4rem)] flex-col md:flex-row">
+      <div className="flex h-[calc(100vh-4rem)] flex-col lg:flex-row">
         <div className="flex-1 overflow-auto p-4">
           {/* Branch Selector for POS */}
           <div className="mb-4 flex items-center gap-4">
@@ -761,8 +890,8 @@ export default function POSPage() {
             />
           )}
             
-            <div className="mb-4 flex flex-col md:flex-row items-center gap-4">
-                <div className="relative w-full md:w-auto md:flex-grow flex">
+            <div className="mb-4 flex flex-col sm:flex-row items-center gap-4">
+                <div className="relative w-full sm:w-auto sm:flex-grow flex">
                     <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
                     <Input
                         type="text"
@@ -829,7 +958,7 @@ export default function POSPage() {
                 </div>
 
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="w-full md:w-[200px]">
+                    <SelectTrigger className="w-full sm:w-[200px]">
                     <SelectValue placeholder="Categoría" />
                     </SelectTrigger>
                     <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
@@ -848,7 +977,21 @@ export default function POSPage() {
                 </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+            {/* Espaciado adicional */}
+            <div className="mb-6"></div>
+
+            {/* Sección de Combos - Movida al principio para mejor visibilidad */}
+            <ComboSection
+              branchId={selectedBranch?.id || null}
+              addQtyPerClick={addQtyPerClick}
+              formatCurrency={formatCurrency}
+              onComboAdded={addComboToCart}
+            />
+
+            {/* Separador visual */}
+            <div className="my-8 border-t border-gray-200"></div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredProducts.map((product) => {
               const ui = getStockUi(product.id)
               return (
@@ -858,19 +1001,19 @@ export default function POSPage() {
                   onClick={() => addToCart(product, addQtyPerClick)}
                 >
                   <CardContent className={`p-3 flex-1 ${ui.content}`}>
-                    <h3 className="font-medium text-sm">{product.name}</h3>
-                    <p className="text-muted-foreground text-sm">{formatCurrency(product.sale_price)}</p>
+                    <h3 className="font-medium text-sm mb-1 leading-tight">{product.description}</h3>
+                    <p className="text-muted-foreground text-sm mb-2 font-semibold">{formatCurrency(product.sale_price)}</p>
                     {/* Mostrar stock con indicador */}
-                    <p className="text-xs mt-1 flex items-center">
+                    <p className="text-xs flex items-center">
                       <span className={`inline-block w-2 h-2 rounded-full mr-2 ${ui.dot}`} />
                       Stock: {stocksMap[product.id]?.current ?? 'N/D'}
                     </p>
                   </CardContent>
-                  <CardFooter className="p-2 pt-0 mt-auto">
+                  <CardFooter className="p-3 pt-2 mt-auto">
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className={`w-full cursor-pointer ${ui.button}`} 
+                      className={`w-full h-8 cursor-pointer ${ui.button}`} 
                       onClick={(e) => { e.stopPropagation(); addToCart(product, addQtyPerClick); }}
                     >
                       Agregar x{Math.max(1, addQtyPerClick)}
@@ -882,108 +1025,126 @@ export default function POSPage() {
             </div>
         </div>
 
-        <div className="w-full border-t md:w-[500px] md:border-l md:border-t-0">
-            <div className="flex h-full flex-col">
-                <div className="flex items-center justify-between border-b p-4">
-                    <div className="flex items-center">
-                    <ShoppingCart className="mr-2 h-5 w-5" />
-                    <h2 className="text-lg font-semibold">Carrito</h2>
-                    <Badge variant="secondary" className="ml-2">
-                        {cart.length}
-                    </Badge>
-                    {cart.length > 0 && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                            (guardado automáticamente)
-                        </span>
-                    )}
-                    </div>
-                    {cart.length > 0 && (
-                    <Button variant="ghost" size="sm" onClick={clearCart}>
-                        <X className="mr-1 h-4 w-4" />
-                        Limpiar
-                    </Button>
-                    )}
+        <div className="w-full border-t lg:w-[400px] xl:w-[500px] lg:border-l lg:border-t-0 h-full flex flex-col">
+            {/* Header del carrito - Fijo */}
+            <div className="flex items-center justify-between border-b p-2 sm:p-3 lg:p-4 flex-shrink-0">
+                <div className="flex items-center flex-1 min-w-0">
+                <ShoppingCart className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 flex-shrink-0" />
+                <h2 className="text-xs sm:text-sm lg:text-base font-semibold">Carrito</h2>
+                <Badge variant="secondary" className="ml-1 sm:ml-2 flex-shrink-0 text-xs">
+                    {cart.length}
+                </Badge>
+                {cart.length > 0 && (
+                    <span className="ml-1 sm:ml-2 text-xs text-muted-foreground hidden lg:inline">
+                        (guardado automáticamente)
+                    </span>
+                )}
                 </div>
+                {cart.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={clearCart} className="flex-shrink-0 h-6 sm:h-7 px-1 sm:px-2">
+                    <X className="h-3 w-3" />
+                    <span className="hidden sm:inline ml-1">Limpiar</span>
+                </Button>
+                )}
+            </div>
 
-                <div className="flex-1 overflow-auto p-4">
-                    {cart.length === 0 ? (
-                    <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground">
-                        <ShoppingCart className="mb-2 h-12 w-12" />
-                        <h3 className="text-lg font-medium">Tu carrito está vacío</h3>
-                        <p>Agrega productos para comenzar.</p>
+            {/* Contenido del carrito - Deslizable */}
+            <div className="flex-1 overflow-y-auto min-h-0">
+                {cart.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground py-6 sm:py-12 lg:py-16">
+                    <div className="mb-3 sm:mb-4 lg:mb-6 p-3 sm:p-4 lg:p-6 bg-gray-50 rounded-full">
+                        <ShoppingCart className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 text-gray-400" />
                     </div>
-                    ) : (
-                        <Table>
-                        <TableHeader>
-                        <TableRow>
-                            <TableHead>Producto</TableHead>
-                            <TableHead className="text-center">Cant.</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {cart.map((item) => {
-                            return (
-                            <TableRow key={item.id}>
-                                <TableCell className="font-medium">
-                                <div>{item.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {formatCurrency(item.sale_price)} c/u
-                                  {item.discount_type && (item.discount_value ?? 0) > 0 && (
-                                    <span className="ml-2 text-amber-700">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
+                    <h3 className="text-sm sm:text-base lg:text-lg font-medium text-gray-600 mb-2">Tu carrito está vacío</h3>
+                    <p className="text-xs sm:text-sm lg:text-base text-gray-500 leading-relaxed px-2">Agrega productos o combos para comenzar tu venta</p>
+                </div>
+                ) : (
+                    <div className="p-2 sm:p-4 lg:p-6">
+                    <Table>
+                    <TableHeader>
+                    <TableRow>
+                        <TableHead className="min-w-[100px] sm:min-w-[120px] text-xs sm:text-sm">Producto</TableHead>
+                        <TableHead className="text-center w-[60px] sm:w-[80px] text-xs sm:text-sm">Cant.</TableHead>
+                        <TableHead className="text-right w-[80px] sm:w-[100px] text-xs sm:text-sm">Total</TableHead>
+                        <TableHead className="w-[40px] sm:w-[50px]"></TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                     {cart.map((item, index) => {
+                         return (
+                         <TableRow key={`${item.id}-${index}`}>
+                            <TableCell className="font-medium py-1 sm:py-2">
+                            <div className="text-xs sm:text-sm truncate">{item.name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatCurrency(item.sale_price)} c/u
+                              {item.discount_type && (item.discount_value ?? 0) > 0 && (
+                                <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
+                              )}
+                              {item.is_from_combo && (
+                                <div className="text-xs text-blue-600 mt-1">
+                                  <Package className="h-3 w-3 inline mr-1" />
+                                  De combo: {item.combo_name}
+                                  {item.combo_discount_applied && item.combo_discount_applied > 0 && (
+                                    <span className="ml-1 text-green-600">
+                                      (Descuento: {formatCurrency(item.combo_discount_applied)})
+                                    </span>
                                   )}
                                 </div>
-                                </TableCell>
-                                <TableCell>
-                                <div className="flex items-center justify-center">
-                                    <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                                    <Minus className="h-3 w-3" />
-                                    </Button>
-                                    <span className="w-8 text-center">{item.quantity}</span>
-                                    <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                                    <Plus className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                                </TableCell>
-                                <TableCell className="text-right">{formatCurrency(item.sale_price)}</TableCell>
-                                <TableCell>
-                                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeFromCart(item.id)}>
-                                    <Trash2 className="h-4 w-4" />
+                              )}
+                            </div>
+                            </TableCell>
+                            <TableCell className="py-1 sm:py-2">
+                            <div className="flex items-center justify-center">
+                                <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                                <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
                                 </Button>
-                                </TableCell>
-                            </TableRow>
-                            );
-                        })}
-                        </TableBody>
-                    </Table>
-                    )}
+                                <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
+                                <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                                <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
+                                </Button>
+                            </div>
+                            </TableCell>
+                            <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price)}</TableCell>
+                            <TableCell className="py-1 sm:py-2">
+                            <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                            </Button>
+                            </TableCell>
+                        </TableRow>
+                        );
+                    })}
+                    </TableBody>
+                </Table>
                 </div>
+                )}
+            </div>
 
-                <div className="border-t p-4">
-                    <div className="space-y-1.5">
-                    <div className="flex justify-between">
-                        <span>Subtotal (sin IVA)</span>
-                        <span>{formatCurrency(subtotalNet)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                        <span>Impuestos (IVA)</span>
-                        <span>{formatCurrency(totalIva)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>Descuentos</span>
-                        <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
-                    </div>
-                    <div className="flex justify-between text-lg font-bold">
+            {/* Resumen y botón - Fijo */}
+            <div className="border-t p-2 sm:p-4 lg:p-6 flex-shrink-0">
+                <div className="space-y-1 sm:space-y-2 lg:space-y-3">
+                <div className="flex justify-between py-1">
+                    <span className="text-xs sm:text-sm text-gray-600">Subtotal (sin IVA)</span>
+                    <span className="text-xs sm:text-sm font-medium">{formatCurrency(subtotalNet)}</span>
+                </div>
+                <div className="flex justify-between py-1">
+                    <span className="text-xs sm:text-sm text-gray-600">Impuestos (IVA)</span>
+                    <span className="text-xs sm:text-sm font-medium">{formatCurrency(totalIva)}</span>
+                </div>
+                <div className="flex justify-between py-1 text-xs sm:text-sm text-muted-foreground">
+                    <span>Descuentos</span>
+                    <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
+                </div>
+                <div className="border-t pt-2 sm:pt-3 mt-2 sm:mt-3">
+                    <div className="flex justify-between text-sm sm:text-base lg:text-lg font-bold">
                         <span>Total</span>
                         <span>{formatCurrency(total)}</span>
                     </div>
-                    </div>
-
-                    <Button className="mt-4 w-full cursor-pointer" size="lg" disabled={cart.length === 0} onClick={() => setShowAdvancedSaleModal(true)}>
-                      Completar Venta
-                    </Button>
                 </div>
+                </div>
+
+                <Button className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" size="sm" disabled={cart.length === 0} onClick={() => setShowAdvancedSaleModal(true)}>
+                  Completar Venta
+                </Button>
             </div>
 
             <Dialog open={showAdvancedSaleModal} onOpenChange={setShowAdvancedSaleModal}>

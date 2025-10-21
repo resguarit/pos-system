@@ -102,6 +102,16 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
+              {hasPermission('gestionar_combos') && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/dashboard/combos"} tooltip="Combos">
+                  <Link to="/dashboard/combos">
+                    <Package className="h-4 w-4" />
+                    <span>Combos</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              )}
               {FEATURES.ventas && hasPermission('ver_ventas') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/ventas"} tooltip="Ventas">

@@ -22,6 +22,18 @@ export const PERMISSIONS_CONFIG = {
     ]
   },
   
+  // Combos
+  combos: {
+    feature: 'combos',
+    permissions: [
+      'gestionar_combos',
+      'ver_combos',
+      'crear_combos',
+      'editar_combos',
+      'eliminar_combos'
+    ]
+  },
+  
   // Categorías
   categorias: {
     feature: 'categorias',

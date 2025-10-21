@@ -44,6 +44,7 @@ import VerUsuarioPage from '@/pages/dashboard/VerUsuarioPage'
 import ViewCategoryPage from '@/pages/dashboard/categories/ViewCategoryPage'
 import ZonasEntregaPage from '@/pages/dashboard/ZonasEntregaPage'
 import ReparacionesPage from '@/pages/dashboard/ReparacionesPage'
+import CombosPage from '@/pages/dashboard/CombosPage'
 import { FEATURES } from '@/config/features'
 
 
@@ -63,6 +64,7 @@ function App() {
           {FEATURES.categorias && <Route path="categorias/:id" element={<ProtectedRoute permissions={['editar_categorias']}><EditCategoryPage /></ProtectedRoute>} />}
           {FEATURES.categorias && <Route path="categorias/:id/ver" element={<ProtectedRoute permissions={['ver_categorias']}><ViewCategoryPage /></ProtectedRoute>} />}
           {FEATURES.categorias && <Route path="categorias/nuevo" element={<ProtectedRoute permissions={['crear_categorias']}><NewCategoryPage /></ProtectedRoute>} />}
+          <Route path="combos" element={<ProtectedRoute permissions={['gestionar_combos']}><CombosPage /></ProtectedRoute>} />
           {FEATURES.clientes && <Route path="clientes" element={<ProtectedRoute permissions={['ver_clientes']}><ClientesPage /></ProtectedRoute>} />}
           {FEATURES.clientes && <Route path="clientes/:id/compras" element={<ProtectedRoute permissions={['ver_clientes', 'ver_ventas']} requireAny={false}><ComprasClientePage /></ProtectedRoute>} />}
           {FEATURES.clientes && <Route path="clientes/:id/cuenta-corriente" element={<ProtectedRoute permissions={['ver_cuentas_corrientes']}><CuentaCorrienteClientePage /></ProtectedRoute>} />}
