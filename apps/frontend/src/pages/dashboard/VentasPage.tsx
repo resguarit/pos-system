@@ -1154,39 +1154,17 @@ export default function VentasPage() {
                           <Printer className="h-4 w-4" />
                         )}
                       </Button>
-                      {(() => {
-                        const canAnnul = hasPermission('anular_ventas');
-                        // Las ventas pueden anularse si están 'active' o 'completed'
-                        const canBeAnnulled = sale.status === 'active' || sale.status === 'completed';
-                        const shouldShow = canAnnul && canBeAnnulled;
-                        
-                        // Debug temporal para producción
-                        if (sale.id === sales[0]?.id) {
-                          console.log('🔍 DEBUG ANULAR VENTA:', {
-                            saleId: sale.id,
-                            saleStatus: sale.status,
-                            canAnnul,
-                            canBeAnnulled,
-                            shouldShow,
-                            userRole: user?.role?.name,
-                            userPermissions: user?.permissions,
-                            hasAnularVentas: user?.permissions?.includes('anular_ventas')
-                          });
-                        }
-                        
-                        return shouldShow ? (
-                          <Button
-                            variant="ghost"
-                            className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
-                            size="icon"
-                            onClick={() => handleAnnulSale(sale)}
-                            title="Anular Venta"
-                            type="button"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        ) : null;
-                      })()}
+                      {/* TEMPORAL: Mostrar botón siempre para verificar si el problema es de permisos */}
+                      <Button
+                        variant="ghost"
+                        className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                        size="icon"
+                        onClick={() => handleAnnulSale(sale)}
+                        title="Anular Venta"
+                        type="button"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                   </ResizableTableCell>
                 </TableRow>
