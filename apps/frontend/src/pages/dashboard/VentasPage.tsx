@@ -1150,28 +1150,18 @@ export default function VentasPage() {
                           <Printer className="h-4 w-4" />
                         )}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        className={`text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 ${
-                          hasPermission('anular_ventas') && sale.status === 'completed'
-                            ? 'cursor-pointer'
-                            : 'invisible cursor-default'
-                        }`}
-                        size="icon"
-                        onClick={
-                          hasPermission('anular_ventas') && sale.status === 'completed'
-                            ? () => handleAnnulSale(sale)
-                            : undefined
-                        }
-                        title={
-                          hasPermission('anular_ventas') && sale.status === 'completed'
-                            ? 'Anular Venta'
-                            : ''
-                        }
-                        type="button"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      {hasPermission('anular_ventas') && sale.status === 'completed' && (
+                        <Button
+                          variant="ghost"
+                          className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                          size="icon"
+                          onClick={() => handleAnnulSale(sale)}
+                          title="Anular Venta"
+                          type="button"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </ResizableTableCell>
                 </TableRow>
