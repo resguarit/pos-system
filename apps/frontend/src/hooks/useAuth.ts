@@ -98,7 +98,19 @@ export function useAuth() {
       return true;
     }
     
-    return state.permissions.includes(permission);
+    const hasPerm = state.permissions.includes(permission);
+    
+    // Debug para anular_ventas
+    if (permission === 'anular_ventas') {
+      console.log('🔍 Debug anular_ventas:', {
+        user: state.user.email,
+        role: state.user.role?.name,
+        permissions: state.permissions,
+        hasPermission: hasPerm
+      });
+    }
+    
+    return hasPerm;
   };
 
   const hasAnyPermission = (permissions: string[]): boolean => {

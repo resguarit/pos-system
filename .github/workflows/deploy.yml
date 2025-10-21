@@ -17,7 +17,7 @@ on:
         type: boolean
 
 jobs:
-  deploy-frontend:
+  deployFrontend:
     if: ${{ github.event.inputs.deploy_frontend != 'false' }}
     runs-on: ubuntu-latest
     
@@ -36,7 +36,7 @@ jobs:
       run: |
         echo "Frontend deployment completed"
 
-  deploy-backend:
+  deployBackend:
     if: ${{ github.event.inputs.deploy_backend != 'false' }}
     runs-on: ubuntu-latest
     
