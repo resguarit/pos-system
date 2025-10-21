@@ -30,7 +30,6 @@ class PermissionSeeder extends Seeder
             
             // Combos
             ['name' => 'gestionar_combos', 'description' => 'Gestionar combos de productos', 'module' => 'combos'],
-            ['name' => 'ver_combos', 'description' => 'Ver combos disponibles', 'module' => 'combos'],
             ['name' => 'crear_combos', 'description' => 'Crear nuevo combo', 'module' => 'combos'],
             ['name' => 'editar_combos', 'description' => 'Editar combo existente', 'module' => 'combos'],
             ['name' => 'eliminar_combos', 'description' => 'Eliminar combo', 'module' => 'combos'],

@@ -27,7 +27,6 @@ export const PERMISSIONS_CONFIG = {
     feature: 'combos',
     permissions: [
       'gestionar_combos',
-      'ver_combos',
       'crear_combos',
       'editar_combos',
       'eliminar_combos'

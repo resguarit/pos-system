@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   Plus, 
   Search, 
@@ -22,9 +21,8 @@ import { toast } from "sonner";
 import { ComboManagementDialog } from "@/components/ComboManagementDialog";
 import { ComboDetailsDialog } from "@/components/ComboDetailsDialog";
 import { DeleteComboDialog } from "@/components/DeleteComboDialog";
-import { getAllCombos, deleteCombo } from "@/lib/api/comboService";
+import { getAllCombos } from "@/lib/api/comboService";
 import type { Combo } from "@/types/combo";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 
 export default function CombosPage() {
@@ -37,7 +35,6 @@ export default function CombosPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCombo, setSelectedCombo] = useState<Combo | null>(null);
-  const [deletingCombo, setDeletingCombo] = useState<number | null>(null);
 
   // Cargar combos
   const loadCombos = async () => {
@@ -123,21 +120,21 @@ export default function CombosPage() {
     return `$${combo.discount_value} OFF`;
   };
 
-  // Verificar permisos
+  // Verificar permisos específicos de combos
   const canManageCombos = user?.permissions?.some(p => 
     p === 'gestionar_combos' || p === 'administrar_sistema'
   );
   
   const canCreateCombos = user?.permissions?.some(p => 
-    p === 'crear_combos' || p === 'gestionar_combos' || p === 'administrar_sistema'
+    p === 'crear_combos' || p === 'administrar_sistema'
   );
   
   const canEditCombos = user?.permissions?.some(p => 
-    p === 'editar_combos' || p === 'gestionar_combos' || p === 'administrar_sistema'
+    p === 'editar_combos' || p === 'administrar_sistema'
   );
   
   const canDeleteCombos = user?.permissions?.some(p => 
-    p === 'eliminar_combos' || p === 'gestionar_combos' || p === 'administrar_sistema'
+    p === 'eliminar_combos' || p === 'administrar_sistema'
   );
 
   if (!canManageCombos) {
@@ -316,9 +313,9 @@ export default function CombosPage() {
 
                       <div className="flex gap-2">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          className="flex-1"
+                          className="flex-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 border border-blue-200 hover:border-blue-300"
                           onClick={() => handleViewDetails(combo)}
                         >
                           <Eye className="h-3 w-3 mr-1" />
@@ -326,9 +323,9 @@ export default function CombosPage() {
                         </Button>
                         {canEditCombos && (
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="flex-1"
+                            className="flex-1 text-orange-500 hover:text-orange-700 hover:bg-orange-50 border border-orange-200 hover:border-orange-300"
                             onClick={() => handleEditCombo(combo)}
                           >
                             <Edit className="h-3 w-3 mr-1" />
@@ -337,17 +334,13 @@ export default function CombosPage() {
                         )}
                         {canDeleteCombos && (
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            className="flex-1 text-red-500 hover:text-red-700 hover:bg-red-50 border border-red-200 hover:border-red-300"
                             onClick={() => handleDeleteCombo(combo)}
-                            disabled={deletingCombo === combo.id}
                           >
-                            {deletingCombo === combo.id ? (
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600"></div>
-                            ) : (
-                              <Trash2 className="h-3 w-3" />
-                            )}
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Eliminar
                           </Button>
                         )}
                       </div>

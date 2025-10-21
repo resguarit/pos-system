@@ -100,7 +100,12 @@ class PermissionRoleSeeder extends Seeder
                 'crear_movimientos_caja',
                 'eliminar_movimientos_caja',
                 'ver_historico_caja',
-                'cambiar_password'
+                'cambiar_password',
+                // Permisos de combos
+                'gestionar_combos',
+                'crear_combos',
+                'editar_combos',
+                'eliminar_combos'
             ])->get();
             $supervisor->permissions()->sync($supervisorPermissions->pluck('id'));
         }

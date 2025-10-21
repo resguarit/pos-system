@@ -33,6 +33,10 @@ export function ComboSection({
 
   const [combos, setCombos] = useState<Combo[]>([]);
 
+  // Los combos en el POS son visibles para todos los usuarios
+  // No necesitamos verificar permisos específicos aquí
+  // Solo verificamos que el usuario esté autenticado
+
   // Cargar combos cuando cambie la sucursal
   useEffect(() => {
     const loadCombos = async () => {
