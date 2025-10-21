@@ -1156,6 +1156,20 @@ export default function VentasPage() {
                         const canBeAnnulled = sale.status === 'active' || sale.status === 'completed';
                         const shouldShow = canAnnul && canBeAnnulled;
                         
+                        // Debug temporal para producción
+                        if (sale.id === sales[0]?.id) {
+                          console.log('🔍 DEBUG ANULAR VENTA:', {
+                            saleId: sale.id,
+                            saleStatus: sale.status,
+                            canAnnul,
+                            canBeAnnulled,
+                            shouldShow,
+                            userRole: user?.role?.name,
+                            userPermissions: user?.permissions,
+                            hasAnularVentas: user?.permissions?.includes('anular_ventas')
+                          });
+                        }
+                        
                         return shouldShow ? (
                           <Button
                             variant="ghost"
