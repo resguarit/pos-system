@@ -719,6 +719,11 @@ export default function VentasPage() {
         allowMultipleBranches={true}
       >
         <div className="h-full w-full flex flex-col gap-4 p-4 md:p-6">
+          {/* DEBUG VISUAL TEMPORAL */}
+          <div className="bg-red-500 text-white p-4 rounded-lg text-center font-bold text-xl">
+            🚨 VERSIÓN CON DEBUG - Si ves esto, el código nuevo se está ejecutando 🚨
+          </div>
+          
       {/* Cash Register Status - Show appropriate component based on selection */}
       {selectedBranchIds.length > 1 ? (
         <MultipleBranchesCashStatus 
