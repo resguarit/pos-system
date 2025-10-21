@@ -62,8 +62,6 @@ export default function VentasPage() {
   const { request } = useApi();
   const { hasPermission, isAdmin, user } = useAuth();
   
-  // Debug inmediato para verificar que el código se ejecuta
-  console.log('🚀 VentasPage cargado - Versión con debug de anular ventas');
   const { selectionChangeToken, selectedBranch, selectedBranchIds, branches } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [stats, setStats] = useState({
@@ -133,7 +131,6 @@ export default function VentasPage() {
       return; // wait for next render with valid dates
     }
 
-    console.log('🔄 Cargando ventas - useEffect ejecutado');
     setPageLoading(true);
     setCurrentPage(1);
     setAllSales([]); // Limpiar caché cuando cambien las fechas
@@ -718,11 +715,6 @@ export default function VentasPage() {
         allowMultipleBranches={true}
       >
         <div className="h-full w-full flex flex-col gap-4 p-4 md:p-6">
-          {/* DEBUG VISUAL TEMPORAL */}
-          <div className="bg-red-500 text-white p-4 rounded-lg text-center font-bold text-xl">
-            🚨 VERSIÓN CON DEBUG - {new Date().toLocaleTimeString()} - Si ves esto, el código nuevo se está ejecutando 🚨
-          </div>
-          
       {/* Cash Register Status - Show appropriate component based on selection */}
       {selectedBranchIds.length > 1 ? (
         <MultipleBranchesCashStatus 
@@ -1158,17 +1150,18 @@ export default function VentasPage() {
                           <Printer className="h-4 w-4" />
                         )}
                       </Button>
-                      {/* TEMPORAL: Mostrar botón siempre para verificar si el problema es de permisos */}
-                      <Button
-                        variant="ghost"
-                        className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
-                        size="icon"
-                        onClick={() => handleAnnulSale(sale)}
-                        title="Anular Venta"
-                        type="button"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      {hasPermission('anular_ventas') && (sale.status === 'active' || sale.status === 'completed') && (
+                        <Button
+                          variant="ghost"
+                          className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                          size="icon"
+                          onClick={() => handleAnnulSale(sale)}
+                          title="Anular Venta"
+                          type="button"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </ResizableTableCell>
                 </TableRow>
