@@ -56,7 +56,7 @@ jobs:
         echo "Backend deployment completed"
 
   notify:
-    needs: [deploy-frontend, deploy-backend]
+    needs: [deploy_frontend, deploy-backend]
     runs-on: ubuntu-latest
     if: always()
     
@@ -64,6 +64,6 @@ jobs:
     - name: Deployment Summary
       run: |
         echo "=== POS System Deployment Summary ==="
-        echo "Frontend: ${{ needs.deploy-frontend.result }}"
+        echo "Frontend: ${{ needs.deploy_frontend.result }}"
         echo "Backend: ${{ needs.deploy-backend.result }}"
         echo "====================================="
