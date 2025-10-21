@@ -100,7 +100,6 @@ export function useAuth() {
     
     const hasPerm = state.permissions.includes(permission);
     
-    // Debug para anular_ventas
     if (permission === 'anular_ventas') {
       console.log('🔍 Debug anular_ventas:', {
         user: state.user.email,
