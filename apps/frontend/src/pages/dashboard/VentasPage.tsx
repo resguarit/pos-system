@@ -60,7 +60,7 @@ const PAGE_SIZE = 5; // Temporalmente reducido para probar paginación
 
 export default function VentasPage() {
   const { request } = useApi();
-  const { hasPermission, isAdmin } = useAuth();
+  const { hasPermission, isAdmin, user } = useAuth();
   const { selectionChangeToken, selectedBranch, selectedBranchIds, branches } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [stats, setStats] = useState({
@@ -1150,18 +1150,25 @@ export default function VentasPage() {
                           <Printer className="h-4 w-4" />
                         )}
                       </Button>
-                      {hasPermission('anular_ventas') && sale.status === 'completed' && (
-                        <Button
-                          variant="ghost"
-                          className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
-                          size="icon"
-                          onClick={() => handleAnnulSale(sale)}
-                          title="Anular Venta"
-                          type="button"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
+                      {(() => {
+                        const canAnnul = hasPermission('anular_ventas');
+                        // Las ventas pueden anularse si están 'active' o 'completed'
+                        const canBeAnnulled = sale.status === 'active' || sale.status === 'completed';
+                        const shouldShow = canAnnul && canBeAnnulled;
+                        
+                        return shouldShow ? (
+                          <Button
+                            variant="ghost"
+                            className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                            size="icon"
+                            onClick={() => handleAnnulSale(sale)}
+                            title="Anular Venta"
+                            type="button"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        ) : null;
+                      })()}
                     </div>
                   </ResizableTableCell>
                 </TableRow>
