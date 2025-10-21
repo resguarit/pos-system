@@ -687,7 +687,6 @@ export default function VentasPage() {
       
       // Si tenemos todas las ventas cargadas, hacer paginación del cliente
       if (allSales.length > 0) {
-        // Calcular datos para la página solicitada
         const startIndex = (pageNumber - 1) * PAGE_SIZE;
         const endIndex = startIndex + PAGE_SIZE;
         const paginatedSales = allSales.slice(startIndex, endIndex);
