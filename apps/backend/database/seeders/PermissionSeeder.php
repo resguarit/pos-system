@@ -51,12 +51,8 @@ class PermissionSeeder extends Seeder
             ['name' => 'crear_usuarios', 'description' => 'Crear usuario', 'module' => 'usuarios'],
             ['name' => 'editar_usuarios', 'description' => 'Editar usuario', 'module' => 'usuarios'],
             ['name' => 'eliminar_usuarios', 'description' => 'Eliminar usuario', 'module' => 'usuarios'],
-            ['name' => 'asignar_roles', 'description' => 'Asignar roles a usuarios', 'module' => 'usuarios'],
-            ['name' => 'asignar_sucursales', 'description' => 'Asignar sucursales a usuarios', 'module' => 'usuarios'],
-            ['name' => 'ver_sesiones_usuario', 'description' => 'Ver sesiones activas de usuarios', 'module' => 'usuarios'],
             ['name' => 'ver_ventas_usuario', 'description' => 'Ver historial de ventas por usuario', 'module' => 'usuarios'],
             ['name' => 'ver_estadisticas_usuario', 'description' => 'Ver estadísticas de ventas por usuario', 'module' => 'usuarios'],
-            ['name' => 'ver_desempeno_usuario', 'description' => 'Ver página completa de desempeño de usuario', 'module' => 'usuarios'],
             
             // Roles y Permisos
             ['name' => 'ver_roles', 'description' => 'Ver roles', 'module' => 'roles'],

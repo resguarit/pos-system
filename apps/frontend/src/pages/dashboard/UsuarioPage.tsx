@@ -469,19 +469,19 @@ export default function UsuariosPage() {
                             </Link>
                           </Button>
                         )}
-                        {hasPermission('ver_desempeno_usuario') && (
+                        {hasPermission('ver_estadisticas_usuario') && (
                           <Button
                             variant="ghost"
                             size="icon"
                             title="Ver Desempeño"
-                            className="hover:bg-blue-100 group cursor-pointer"
+                            className="hover:bg-emerald-100 group cursor-pointer"
                             asChild
                           >
                             <Link 
                               to={`/dashboard/usuarios/${user.id}/desempeno`}
                               onClick={() => console.log('Navigating to user performance for user ID:', user.id)}
                             >
-                              <BarChart3 className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
+                              <BarChart3 className="h-4 w-4 text-emerald-600 group-hover:text-emerald-700" />
                             </Link>
                           </Button>
                         )}

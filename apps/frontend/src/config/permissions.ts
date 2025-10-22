@@ -149,8 +149,7 @@ export const PERMISSIONS_CONFIG = {
       'editar_usuarios',
       'eliminar_usuarios',
       'cambiar_password_usuario',
-      'activar_desactivar_usuario',
-      'ver_desempeno_usuario'
+      'activar_desactivar_usuario'
     ]
   },
   

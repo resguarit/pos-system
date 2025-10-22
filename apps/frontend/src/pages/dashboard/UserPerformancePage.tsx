@@ -105,13 +105,21 @@ export default function UserPerformancePage() {
 
   // Debug: Mostrar información del usuario actual y parámetros
   console.log('Current user:', currentUser);
-  console.log('Has ver_desempeno_usuario permission:', hasPermission('ver_desempeno_usuario'));
+  console.log('Has ver_estadisticas_usuario permission:', hasPermission('ver_estadisticas_usuario'));
   console.log('URL params:', useParams());
   console.log('Current URL:', window.location.href);
 
   // Estados principales
   const [user, setUser] = useState<User | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [salesPagination, setSalesPagination] = useState<{
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number;
+    to: number;
+  } | null>(null);
   const [statistics, setStatistics] = useState<SalesStatistics | null>(null);
   const [dailySales, setDailySales] = useState<DailySales[]>([]);
   const [monthlySales, setMonthlySales] = useState<MonthlySales[]>([]);
@@ -236,11 +244,16 @@ export default function UserPerformancePage() {
   };
 
   const fetchSalesData = async () => {
+    // Solo cargar datos de ventas si el usuario tiene el permiso
+    if (!hasPermission('ver_ventas_usuario')) {
+      return;
+    }
+
     try {
       setLoadingData(true);
       const params: any = {
         page: currentPage,
-        per_page: perPage,
+        per_page: 10,
       };
 
       if (dateRange.from && dateRange.to) {
@@ -260,7 +273,17 @@ export default function UserPerformancePage() {
 
       if (response?.data) {
         setSales(response.data);
-        setTotalPages(response.last_page || 1);
+        if (response.pagination) {
+          setSalesPagination({
+            current_page: response.pagination.current_page || 1,
+            last_page: response.pagination.last_page || 1,
+            per_page: response.pagination.per_page || 10,
+            total: response.pagination.total || 0,
+            from: response.pagination.from || 0,
+            to: response.pagination.to || 0,
+          });
+          setTotalPages(response.pagination.last_page || 1);
+        }
       }
     } catch (error) {
       console.error('Error fetching sales:', error);
@@ -771,7 +794,9 @@ export default function UserPerformancePage() {
       <Tabs defaultValue="charts" className="space-y-4">
         <TabsList>
           <TabsTrigger value="charts">Gráficos</TabsTrigger>
-          <TabsTrigger value="history">Historial</TabsTrigger>
+          {hasPermission('ver_ventas_usuario') && (
+            <TabsTrigger value="history">Historial</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="charts" className="space-y-4">
@@ -963,13 +988,14 @@ export default function UserPerformancePage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historial de Ventas</CardTitle>
-              <CardDescription>Lista detallada de todas las ventas</CardDescription>
-            </CardHeader>
-            <CardContent>
+        {hasPermission('ver_ventas_usuario') && (
+          <TabsContent value="history" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Historial de Ventas</CardTitle>
+                <CardDescription>Lista detallada de todas las ventas</CardDescription>
+              </CardHeader>
+              <CardContent>
               <Table>
                 <TableHeader>
                   {columnConfig.map((column) => (
@@ -1078,11 +1104,16 @@ export default function UserPerformancePage() {
                 </TableBody>
               </Table>
 
-              {/* Paginación */}
-              {totalPages > 1 && (
+              {/* Información de paginación mejorada */}
+              {salesPagination && (
                 <div className="flex items-center justify-between mt-4">
                   <div className="text-sm text-muted-foreground">
-                    Página {currentPage} de {totalPages}
+                    Mostrando {salesPagination.from} a {salesPagination.to} de {salesPagination.total} ventas
+                    {salesPagination.total > 0 && (
+                      <span className="ml-2">
+                        (Página {salesPagination.current_page} de {salesPagination.last_page})
+                      </span>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -1098,7 +1129,7 @@ export default function UserPerformancePage() {
                       variant="outline"
                       size="sm"
                       onClick={() => goToPage(currentPage + 1)}
-                      disabled={currentPage === totalPages || loadingData}
+                      disabled={currentPage >= totalPages || loadingData}
                       className="cursor-pointer"
                     >
                       Siguiente
@@ -1109,6 +1140,7 @@ export default function UserPerformancePage() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
       </Tabs>
     </div>
   );

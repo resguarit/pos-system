@@ -52,8 +52,8 @@ import { useAuth } from "@/hooks/useAuth";
 const { hasPermission, isAdmin } = useAuth();
 
 // Verificar un permiso específico
-if (hasPermission('anular_ventas')) {
-  // Mostrar botón de anular
+if (hasPermission('ver_estadisticas_usuario')) {
+  // Mostrar estadísticas de usuario
 }
 
 // Verificar si es admin
@@ -71,16 +71,29 @@ Los permisos también se validan en el backend para garantizar la seguridad:
 $user = auth()->user();
 $hasPermission = $user->role
     ->permissions()
-    ->where('name', 'anular_ventas')
+    ->where('name', 'ver_estadisticas_usuario')
     ->exists();
 
 if (!$hasPermission) {
     return response()->json([
         'success' => false,
-        'message' => 'No tienes permiso para realizar esta acción'
+        'message' => 'No tienes permiso para ver estadísticas de usuarios'
     ], 403);
 }
 ```
+
+### Permisos de Estadísticas de Usuario
+
+El permiso `ver_estadisticas_usuario` controla el acceso a:
+- Ver estadísticas de ventas por usuario (`/users/{id}/sales/statistics`)
+- Ver ventas diarias por usuario (`/users/{id}/sales/daily`)
+- Ver ventas mensuales por usuario (`/users/{id}/sales/monthly`)
+- Ver productos más vendidos por usuario (`/users/{id}/sales/top-products`)
+- Acceder a la página de desempeño de usuario (`/dashboard/usuarios/{id}/desempeno`)
+
+**Roles que tienen este permiso:**
+- Admin (acceso completo automático)
+- Supervisor
 
 ## Gestión de Permisos
 

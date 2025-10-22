@@ -244,13 +244,42 @@ class UserController extends Controller
     public function getUserSales(Request $request, $id)
     {
         try {
+            // Verificar permisos
+            $currentUser = auth()->user();
+            if (!$currentUser) {
+                return response()->json([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            // Los administradores tienen acceso completo
+            $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
+            
+            if (!$isAdmin) {
+                // Verificar si el usuario tiene el permiso ver_ventas_usuario
+                $hasPermission = $currentUser->role
+                    ->permissions()
+                    ->where('name', 'ver_ventas_usuario')
+                    ->exists();
+
+                if (!$hasPermission) {
+                    return response()->json([
+                        'status' => 403,
+                        'success' => false,
+                        'message' => 'No tienes permiso para ver el historial de ventas de usuarios'
+                    ], 403);
+                }
+            }
+
             $user = User::with('person')->findOrFail($id);
             
             // Parámetros de filtrado
             $fromDate = $request->input('from_date');
             $toDate = $request->input('to_date');
             $branchIds = $request->input('branch_id');
-            $perPage = $request->input('per_page', 15);
+            $perPage = $request->input('per_page', 10);
             $page = $request->input('page', 1);
             
             // Construir query base
@@ -363,6 +392,35 @@ class UserController extends Controller
     public function getUserSalesStatistics(Request $request, $id)
     {
         try {
+            // Verificar permisos
+            $currentUser = auth()->user();
+            if (!$currentUser) {
+                return response()->json([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            // Los administradores tienen acceso completo
+            $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
+            
+            if (!$isAdmin) {
+                // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
+                $hasPermission = $currentUser->role
+                    ->permissions()
+                    ->where('name', 'ver_estadisticas_usuario')
+                    ->exists();
+
+                if (!$hasPermission) {
+                    return response()->json([
+                        'status' => 403,
+                        'success' => false,
+                        'message' => 'No tienes permiso para ver estadísticas de usuarios'
+                    ], 403);
+                }
+            }
+
             $user = User::with('person')->findOrFail($id);
             
             // Parámetros de filtrado
@@ -517,6 +575,35 @@ class UserController extends Controller
     public function getUserDailySales(Request $request, $id)
     {
         try {
+            // Verificar permisos
+            $currentUser = auth()->user();
+            if (!$currentUser) {
+                return response()->json([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            // Los administradores tienen acceso completo
+            $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
+            
+            if (!$isAdmin) {
+                // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
+                $hasPermission = $currentUser->role
+                    ->permissions()
+                    ->where('name', 'ver_estadisticas_usuario')
+                    ->exists();
+
+                if (!$hasPermission) {
+                    return response()->json([
+                        'status' => 403,
+                        'success' => false,
+                        'message' => 'No tienes permiso para ver estadísticas de usuarios'
+                    ], 403);
+                }
+            }
+
             // Verificar que el usuario existe
             $user = \App\Models\User::find($id);
             if (!$user) {
@@ -565,6 +652,35 @@ class UserController extends Controller
     public function getUserMonthlySales(Request $request, $id)
     {
         try {
+            // Verificar permisos
+            $currentUser = auth()->user();
+            if (!$currentUser) {
+                return response()->json([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            // Los administradores tienen acceso completo
+            $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
+            
+            if (!$isAdmin) {
+                // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
+                $hasPermission = $currentUser->role
+                    ->permissions()
+                    ->where('name', 'ver_estadisticas_usuario')
+                    ->exists();
+
+                if (!$hasPermission) {
+                    return response()->json([
+                        'status' => 403,
+                        'success' => false,
+                        'message' => 'No tienes permiso para ver estadísticas de usuarios'
+                    ], 403);
+                }
+            }
+
             // Verificar que el usuario existe
             $user = \App\Models\User::find($id);
             if (!$user) {
@@ -619,6 +735,35 @@ class UserController extends Controller
     public function getUserTopProducts(Request $request, $id)
     {
         try {
+            // Verificar permisos
+            $currentUser = auth()->user();
+            if (!$currentUser) {
+                return response()->json([
+                    'status' => 401,
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            // Los administradores tienen acceso completo
+            $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
+            
+            if (!$isAdmin) {
+                // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
+                $hasPermission = $currentUser->role
+                    ->permissions()
+                    ->where('name', 'ver_estadisticas_usuario')
+                    ->exists();
+
+                if (!$hasPermission) {
+                    return response()->json([
+                        'status' => 403,
+                        'success' => false,
+                        'message' => 'No tienes permiso para ver estadísticas de usuarios'
+                    ], 403);
+                }
+            }
+
             // Verificar que el usuario existe
             $user = \App\Models\User::find($id);
             if (!$user) {
