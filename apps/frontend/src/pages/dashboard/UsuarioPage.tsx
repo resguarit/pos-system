@@ -5,7 +5,7 @@ import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, RotateCw, Search, Shield, Eye, Pencil, Trash2, UserCheck, ShoppingBag } from "lucide-react"
+import { Plus, RotateCw, Search, Shield, Eye, Pencil, Trash2, UserCheck, ShoppingBag, BarChart3 } from "lucide-react"
 import { useEffect, useState, useCallback } from "react" 
 import useApi from "@/hooks/useApi"
 import { useAuth } from "@/hooks/useAuth"
@@ -21,7 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner" 
+import { toast } from "sonner"
 
 interface User {
   id: string
@@ -53,8 +53,8 @@ export default function UsuariosPage() {
 
   // Configuración de columnas redimensionables
   const columnConfig = [
-    { id: 'name', minWidth: 200, maxWidth: 400, defaultWidth: 250 },
-    { id: 'email', minWidth: 200, maxWidth: 350, defaultWidth: 250 },
+    { id: 'name', minWidth: 120, maxWidth: 400, defaultWidth: 200 },
+    { id: 'email', minWidth: 150, maxWidth: 350, defaultWidth: 200 },
     { id: 'role', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
     { id: 'status', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
     { id: 'branches', minWidth: 150, maxWidth: 300, defaultWidth: 200 },
@@ -79,6 +79,7 @@ export default function UsuariosPage() {
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
+  
   
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1)
@@ -209,6 +210,7 @@ export default function UsuariosPage() {
     }
   }
 
+
   // Funciones de paginación
   const goToPage = (pageNumber: number) => {
     if (pageNumber >= 1 && pageNumber <= totalPages && pageNumber !== currentPage && !loading) {
@@ -223,11 +225,11 @@ export default function UsuariosPage() {
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Usuarios del Sistema</h2>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={() => fetchUsers(currentPage)} disabled={loading} title="Refrescar">
+          <Button variant="outline" size="icon" onClick={() => fetchUsers(currentPage)} disabled={loading} title="Refrescar" className="cursor-pointer">
             <RotateCw className={loading ? "animate-spin h-4 w-4" : "h-4 w-4"} />
           </Button>
           {hasPermission('crear_usuarios') && (
-            <Button asChild>
+            <Button asChild className="cursor-pointer">
               <Link to="/dashboard/usuarios/nuevo">
                 <Plus className="mr-2 h-4 w-4" />
                 Nuevo Usuario
@@ -461,9 +463,25 @@ export default function UsuariosPage() {
                     >
                       <div className="flex justify-end gap-1">
                         {hasPermission('ver_usuarios') && (
-                          <Button variant="ghost" size="icon" title="Ver" className="hover:bg-blue-100 group" asChild>
+                          <Button variant="ghost" size="icon" title="Ver" className="hover:bg-blue-100 group cursor-pointer" asChild>
                             <Link to={`/dashboard/usuarios/${user.id}/ver`}>
                               <Eye className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
+                            </Link>
+                          </Button>
+                        )}
+                        {hasPermission('ver_desempeno_usuario') && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Ver Desempeño"
+                            className="hover:bg-blue-100 group cursor-pointer"
+                            asChild
+                          >
+                            <Link 
+                              to={`/dashboard/usuarios/${user.id}/desempeno`}
+                              onClick={() => console.log('Navigating to user performance for user ID:', user.id)}
+                            >
+                              <BarChart3 className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
                             </Link>
                           </Button>
                         )}
@@ -472,7 +490,7 @@ export default function UsuariosPage() {
                             variant="ghost"
                             size="icon"
                             title="Editar"
-                            className="text-orange-500 hover:text-orange-700 hover:bg-orange-50"
+                            className="text-orange-500 hover:text-orange-700 hover:bg-orange-50 cursor-pointer"
                             asChild
                           >
                             <Link to={`/dashboard/usuarios/${user.id}`}>
@@ -485,7 +503,7 @@ export default function UsuariosPage() {
                             variant="ghost"
                             size="icon"
                             title="Eliminar"
-                            className="hover:bg-red-100 group"
+                            className="hover:bg-red-100 group cursor-pointer"
                             onClick={() => handleDeleteClick(user.id)}
                           >
                             <Trash2 className="h-4 w-4 text-red-600 group-hover:text-red-700" />

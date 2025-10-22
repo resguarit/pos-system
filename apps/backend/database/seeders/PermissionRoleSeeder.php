@@ -105,7 +105,12 @@ class PermissionRoleSeeder extends Seeder
                 'gestionar_combos',
                 'crear_combos',
                 'editar_combos',
-                'eliminar_combos'
+                'eliminar_combos',
+                // Permisos de usuarios y ventas por usuario
+                'ver_usuarios',
+                'ver_ventas_usuario',
+                'ver_estadisticas_usuario',
+                'ver_desempeno_usuario'
             ])->get();
             $supervisor->permissions()->sync($supervisorPermissions->pluck('id'));
         }

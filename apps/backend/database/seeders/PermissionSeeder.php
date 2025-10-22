@@ -54,6 +54,9 @@ class PermissionSeeder extends Seeder
             ['name' => 'asignar_roles', 'description' => 'Asignar roles a usuarios', 'module' => 'usuarios'],
             ['name' => 'asignar_sucursales', 'description' => 'Asignar sucursales a usuarios', 'module' => 'usuarios'],
             ['name' => 'ver_sesiones_usuario', 'description' => 'Ver sesiones activas de usuarios', 'module' => 'usuarios'],
+            ['name' => 'ver_ventas_usuario', 'description' => 'Ver historial de ventas por usuario', 'module' => 'usuarios'],
+            ['name' => 'ver_estadisticas_usuario', 'description' => 'Ver estadísticas de ventas por usuario', 'module' => 'usuarios'],
+            ['name' => 'ver_desempeno_usuario', 'description' => 'Ver página completa de desempeño de usuario', 'module' => 'usuarios'],
             
             // Roles y Permisos
             ['name' => 'ver_roles', 'description' => 'Ver roles', 'module' => 'roles'],
@@ -98,10 +101,10 @@ class PermissionSeeder extends Seeder
             ['name' => 'eliminar_movimientos_caja', 'description' => 'Eliminar movimientos de caja', 'module' => 'caja'],
             ['name' => 'ver_historico_caja', 'description' => 'Ver histórico y reportes de caja', 'module' => 'caja'],
             
-            // // Reportes
-            // ['name' => 'ver_reportes', 'description' => 'Ver reportes', 'module' => 'reportes'],
+            // Reportes
+            ['name' => 'ver_reportes', 'description' => 'Ver reportes', 'module' => 'reportes'],
             ['name' => 'generar_reportes', 'description' => 'Generar reportes personalizados', 'module' => 'reportes'],
-            // ['name' => 'exportar_reportes', 'description' => 'Exportar reportes', 'module' => 'reportes'],
+            ['name' => 'exportar_reportes', 'description' => 'Exportar reportes', 'module' => 'reportes'],
             // ['name' => 'programar_reportes', 'description' => 'Programar reportes automáticos', 'module' => 'reportes'],
             
             // // IVA y Fiscal

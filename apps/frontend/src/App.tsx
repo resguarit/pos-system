@@ -35,6 +35,7 @@ import SolicitudesPage from '@/pages/dashboard/SolicitudesPage'
 import SucursalesPage from '@/pages/dashboard/SucursalesPage'
 import TurnosPage from '@/pages/dashboard/TurnosPage'
 import UsuarioPage from '@/pages/dashboard/UsuarioPage'
+import UserPerformancePage from '@/pages/dashboard/UserPerformancePage'
 import VentasPage from '@/pages/dashboard/VentasPage'
 import VentasSucursalPage from '@/pages/dashboard/VentasSucursalPage'
 import VerClientePage from '@/pages/dashboard/VerClientePage'
@@ -97,6 +98,7 @@ function App() {
           {FEATURES.usuarios && <Route path="usuarios" element={<ProtectedRoute permissions={['ver_usuarios']}><UsuarioPage /></ProtectedRoute>} />}
           {FEATURES.usuarios && <Route path="usuarios/:id" element={<ProtectedRoute permissions={['editar_usuarios']}><EditarUsuarioPage /></ProtectedRoute>} />}
           {FEATURES.usuarios && <Route path="usuarios/:id/ver" element={<ProtectedRoute permissions={['ver_usuarios']}><VerUsuarioPage /></ProtectedRoute>} />}
+          {FEATURES.usuarios && <Route path="usuarios/:id/desempeno" element={<ProtectedRoute permissions={['ver_usuarios']}><UserPerformancePage /></ProtectedRoute>} />}
           {FEATURES.usuarios && <Route path="usuarios/nuevo" element={<ProtectedRoute permissions={['crear_usuarios']}><NuevoUsuarioPage /></ProtectedRoute>} />}
           {FEATURES.ventas && <Route path="ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasPage /></ProtectedRoute>} />}
           {FEATURES.zonasEntrega && <Route path="zonas-entrega" element={<ZonasEntregaPage />} />}

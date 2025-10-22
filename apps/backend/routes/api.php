@@ -183,6 +183,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [UserController::class, 'destroy']);
         Route::get('/{id}/branches', [UserController::class, 'userBranches']);
         Route::put('/{id}/branches', [UserController::class, 'updateUserBranches']);
+        Route::get('/{id}/sales', [UserController::class, 'getUserSales']);
+        Route::get('/{id}/sales/statistics', [UserController::class, 'getUserSalesStatistics']);
+        Route::get('/{id}/sales/daily', [UserController::class, 'getUserDailySales']);
+        Route::get('/{id}/sales/monthly', [UserController::class, 'getUserMonthlySales']);
+        Route::get('/{id}/sales/top-products', [UserController::class, 'getUserTopProducts']);
     });
 
     Route::prefix('roles')->group(function () {
