@@ -600,14 +600,23 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         foreach ($allCustomersWithAccounts as $account) {
             // Calcular ventas pendientes reales para cada cliente
             $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                ->whereIn('payment_status', ['pending', 'partial'])
+                ->where(function($query) {
+                    $query->whereNull('payment_status')
+                          ->orWhereIn('payment_status', ['pending', 'partial']);
+                })
                 ->get();
             
             $customerDebt = 0;
             foreach ($pendingSales as $sale) {
-                // pending = total - paid_amount
-                $pending = $sale->total - $sale->paid_amount;
-                $customerDebt += $pending;
+                // pending = total - paid_amount (con manejo de NULL)
+                $total = (float)($sale->total ?? 0);
+                $paid = (float)($sale->paid_amount ?? 0);
+                $pending = $total - $paid;
+                
+                // Solo contar ventas que realmente tengan pendiente
+                if ($pending > 0) {
+                    $customerDebt += $pending;
+                }
             }
             
             if ($customerDebt > 0) {
@@ -638,12 +647,21 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 ->sum(function ($account) {
                     // Usar ventas pendientes en lugar de current_balance
                     $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                        ->whereIn('payment_status', ['pending', 'partial'])
+                        ->where(function($query) {
+                            $query->whereNull('payment_status')
+                                  ->orWhereIn('payment_status', ['pending', 'partial']);
+                        })
                         ->get();
                     
                     $customerDebt = 0;
                     foreach ($pendingSales as $sale) {
-                        $customerDebt += ($sale->total - $sale->paid_amount);
+                        $total = (float)($sale->total ?? 0);
+                        $paid = (float)($sale->paid_amount ?? 0);
+                        $pending = $total - $paid;
+                        
+                        if ($pending > 0) {
+                            $customerDebt += $pending;
+                        }
                     }
                     
                     return max(0, $account->credit_limit - $customerDebt);
