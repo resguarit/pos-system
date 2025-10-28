@@ -21,7 +21,7 @@ class RefreshPermissions extends Command
      *
      * @var string
      */
-    protected $description = 'Refresh permissions table intelligently: add new permissions, remove obsolete ones, preserve user-permission relationships';
+    protected $description = 'Refresh permissions table: add new permissions, remove obsolete ones. NO modifica permisos asignados a roles existentes.';
 
     /**
      * Execute the console command.
@@ -63,9 +63,10 @@ class RefreshPermissions extends Command
             $this->info("   - Permisos asignados a roles: " . count($permissionsWithRoles));
             $this->info("   - Permisos en uso por usuarios activos: " . count($permissionsInUse));
 
-            // 2. Ejecutar el seeder de permisos para obtener la lista actualizada
-            $this->info('🌱 Ejecutando seeder de permisos...');
+            // 2. Ejecutar los seeders de permisos para obtener la lista actualizada
+            $this->info('🌱 Ejecutando seeders de permisos...');
             $this->call('db:seed', ['--class' => 'PermissionSeeder']);
+            $this->call('db:seed', ['--class' => 'ShipmentPermissionSeeder']);
             
             // 3. Obtener permisos después del seeder
             $updatedPermissions = Permission::all();
@@ -109,9 +110,11 @@ class RefreshPermissions extends Command
                 Permission::whereIn('name', $obsoletePermissionsToRemove)->delete();
             }
             
-            // 7. Actualizar asignaciones de roles-permisos (solo para roles sin permisos manuales)
-            $this->info('🔗 Actualizando asignaciones de roles-permisos...');
-            $this->updateRolePermissionsIntelligently();
+            // 7. Actualizar asignaciones de roles-permisos (DESHABILITADO para preservar permisos existentes)
+            // Comentado para evitar que el comando sobrescriba permisos personalizados de roles
+            // $this->info('🔗 Actualizando asignaciones de roles-permisos...');
+            // $this->updateRolePermissionsIntelligently();
+            $this->info('⚠️ Asignaciones de roles-permisos NO modificadas para preservar configuración existente');
             
             DB::commit();
             
