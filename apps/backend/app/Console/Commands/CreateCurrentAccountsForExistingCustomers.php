@@ -63,7 +63,7 @@ class CreateCurrentAccountsForExistingCustomers extends Command
                 DB::transaction(function () use ($customer) {
                     $currentAccountData = [
                         'customer_id' => $customer->id,
-                        'credit_limit' => $customer->person->credit_limit ?? 0,
+                        'credit_limit' => null, // NULL = límite infinito
                         'notes' => 'Cuenta corriente creada automáticamente para cliente existente',
                     ];
                     

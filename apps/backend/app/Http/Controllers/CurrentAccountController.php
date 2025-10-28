@@ -639,20 +639,28 @@ class CurrentAccountController extends Controller
             $account = \App\Models\CurrentAccount::with('customer')->findOrFail($accountId);
             
             $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                ->whereIn('payment_status', ['pending', 'partial'])
+                ->where(function($query) {
+                    $query->whereNull('payment_status')
+                          ->orWhereIn('payment_status', ['pending', 'partial']);
+                })
                 ->orderBy('created_at', 'desc')
                 ->get()
+                ->filter(function($sale) {
+                    // Solo incluir ventas que realmente tengan monto pendiente
+                    return $sale->pending_amount > 0;
+                })
                 ->map(function ($sale) {
                     return [
                         'id' => $sale->id,
                         'receipt_number' => $sale->receipt_number,
-                        'date' => $sale->created_at->format('Y-m-d'),
-                        'total' => (float)$sale->total,
-                        'paid_amount' => (float)$sale->paid_amount,
-                        'pending_amount' => $sale->pending_amount,
-                        'payment_status' => $sale->payment_status,
+                        'date' => $sale->created_at ? $sale->created_at->format('Y-m-d') : 'N/A',
+                        'total' => (float)($sale->total ?? 0),
+                        'paid_amount' => (float)($sale->paid_amount ?? 0),
+                        'pending_amount' => (float)$sale->pending_amount,
+                        'payment_status' => $sale->payment_status ?? 'pending',
                     ];
-                });
+                })
+                ->values(); // Re-indexar el array después del filter
             
             return response()->json([
                 'status' => 200,
@@ -660,7 +668,10 @@ class CurrentAccountController extends Controller
                 'data' => $pendingSales
             ], 200);
         } catch (Exception $e) {
-            Log::error('Error al obtener ventas pendientes: ' . $e->getMessage());
+            Log::error('Error al obtener ventas pendientes: ' . $e->getMessage(), [
+                'account_id' => $accountId,
+                'exception' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'status' => 500,
                 'success' => false,

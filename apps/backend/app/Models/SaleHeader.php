@@ -138,7 +138,9 @@ class SaleHeader extends Model
      */
     public function getPendingAmountAttribute(): float
     {
-        return max(0, (float)$this->total - (float)$this->paid_amount);
+        $total = (float)($this->total ?? 0);
+        $paid = (float)($this->paid_amount ?? 0);
+        return max(0, $total - $paid);
     }
 
     /**
