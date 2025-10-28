@@ -75,20 +75,24 @@ class CurrentAccount extends Model
 
     /**
      * Obtener límite de crédito desde el cliente
+     * 
+     * IMPORTANTE: Si credit_limit en la tabla es NULL, significa límite infinito
+     * NO debe obtener el valor de person->credit_limit como fallback
      */
     public function getCreditLimitAttribute(): ?float
     {
-        // Primero intentar desde la cuenta corriente (legacy)
-        if ($this->attributes['credit_limit'] !== null) {
-            return (float) $this->attributes['credit_limit'];
+        // Si credit_limit está definido explícitamente (no es null), usarlo
+        if (isset($this->attributes['credit_limit'])) {
+            $value = $this->attributes['credit_limit'];
+            // Si es null explícitamente, retornar null (límite infinito)
+            if ($value === null) {
+                return null;
+            }
+            return (float) $value;
         }
         
-        // Si no hay límite en la cuenta, obtenerlo del cliente
-        if ($this->customer && $this->customer->person) {
-            return $this->customer->person->credit_limit ? (float) $this->customer->person->credit_limit : null;
-        }
-        
-        return null; // Límite infinito
+        // No hay atributo definido, retornar null (límite infinito por defecto)
+        return null;
     }
 
     /**
