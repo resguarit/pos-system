@@ -12,20 +12,31 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('current_accounts', function (Blueprint $table) {
-            // Agregar nuevos campos
-            $table->timestamp('opened_at')->nullable()->after('notes');
-            $table->timestamp('closed_at')->nullable()->after('opened_at');
-            $table->timestamp('last_movement_at')->nullable()->after('closed_at');
-            
-            // Agregar soft deletes si no existe
-            if (!Schema::hasColumn('current_accounts', 'deleted_at')) {
-                $table->softDeletes();
+            // Verificar y agregar campos solo si no existen
+            if (!Schema::hasColumn('current_accounts', 'opened_at')) {
+                $table->timestamp('opened_at')->nullable()->after('notes');
             }
             
-            // Agregar índices para mejorar el rendimiento
-            $table->index(['customer_id', 'status']);
-            $table->index(['status', 'current_balance']);
-            $table->index('last_movement_at');
+            if (!Schema::hasColumn('current_accounts', 'closed_at')) {
+                $table->timestamp('closed_at')->nullable()->after('opened_at');
+            }
+            
+            if (!Schema::hasColumn('current_accounts', 'last_movement_at')) {
+                $table->timestamp('last_movement_at')->nullable()->after('closed_at');
+            }
+        });
+        
+        // Agregar índices solo si no existen
+        Schema::table('current_accounts', function (Blueprint $table) {
+            // Verificar e índice de customer_id + status
+            $columns = Schema::getColumnListing('current_accounts');
+            if (!in_array('customer_id', $columns) || Schema::hasIndex('current_accounts', 'current_accounts_customer_id_status_index') === false) {
+                try {
+                    $table->index(['customer_id', 'status']);
+                } catch (\Exception $e) {
+                    // Índice ya existe, ignorar
+                }
+            }
         });
     }
 
