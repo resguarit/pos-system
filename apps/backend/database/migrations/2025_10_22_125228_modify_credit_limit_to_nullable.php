@@ -11,15 +11,28 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('people', function (Blueprint $table) {
-            // Cambiar credit_limit para permitir NULL (límite infinito)
-            $table->decimal('credit_limit', 12, 2)->nullable()->change();
-        });
+        // Solo ejecutar si las tablas y columnas existen
+        if (Schema::hasTable('people') && Schema::hasColumn('people', 'credit_limit')) {
+            try {
+                Schema::table('people', function (Blueprint $table) {
+                    // Cambiar credit_limit para permitir NULL (límite infinito)
+                    $table->decimal('credit_limit', 12, 2)->nullable()->change();
+                });
+            } catch (\Exception $e) {
+                // Ya es nullable o error, ignorar
+            }
+        }
         
-        Schema::table('current_accounts', function (Blueprint $table) {
-            // Cambiar credit_limit para permitir NULL (límite infinito)
-            $table->decimal('credit_limit', 12, 2)->nullable()->change();
-        });
+        if (Schema::hasTable('current_accounts') && Schema::hasColumn('current_accounts', 'credit_limit')) {
+            try {
+                Schema::table('current_accounts', function (Blueprint $table) {
+                    // Cambiar credit_limit para permitir NULL (límite infinito)
+                    $table->decimal('credit_limit', 12, 2)->nullable()->change();
+                });
+            } catch (\Exception $e) {
+                // Ya es nullable o error, ignorar
+            }
+        }
     }
 
     /**
