@@ -29,8 +29,8 @@ class UpdateCurrentAccountsToInfiniteLimit extends Command
             DB::statement("ALTER TABLE current_accounts MODIFY COLUMN credit_limit DECIMAL(12, 2) NULL");
             $this->info('✅ credit_limit ahora acepta NULL');
             
-            // Contar cuentas
-            $totalAccounts = CurrentAccount::count();
+            // Contar cuentas (usar DB directo para evitar soft deletes)
+            $totalAccounts = DB::table('current_accounts')->count();
             $this->info("Cuentas encontradas: {$totalAccounts}");
             
             if ($totalAccounts === 0) {
@@ -39,12 +39,14 @@ class UpdateCurrentAccountsToInfiniteLimit extends Command
             }
             
             // Actualizar todas las cuentas para que tengan credit_limit = NULL
-            $updated = CurrentAccount::query()->update(['credit_limit' => null]);
+            $updated = DB::table('current_accounts')->update(['credit_limit' => null]);
             
             $this->info("✅ {$updated} cuentas actualizadas a límite infinito");
             
-            // Verificar
-            $nullLimitCount = CurrentAccount::whereNull('credit_limit')->count();
+            // Verificar con DB directo
+            $nullLimitCount = DB::table('current_accounts')
+                ->whereNull('credit_limit')
+                ->count();
             $this->info("Cuentas con límite infinito: {$nullLimitCount}");
             
             $this->info('✅ Proceso completado exitosamente');
