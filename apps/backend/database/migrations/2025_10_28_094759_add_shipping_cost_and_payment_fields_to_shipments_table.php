@@ -11,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Solo ejecutar si la tabla existe
+        if (!Schema::hasTable('shipments')) {
+            return;
+        }
+        
         Schema::table('shipments', function (Blueprint $table) {
             if (!Schema::hasColumn('shipments', 'shipping_cost')) {
                 $table->decimal('shipping_cost', 10, 2)->default(0)->after('priority');

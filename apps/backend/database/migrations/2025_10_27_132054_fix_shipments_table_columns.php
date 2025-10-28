@@ -11,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Solo ejecutar si la tabla existe
+        if (!Schema::hasTable('shipments')) {
+            return;
+        }
+        
         // Remove tracking_number if it exists (not needed)
         if (Schema::hasColumn('shipments', 'tracking_number')) {
             Schema::table('shipments', function (Blueprint $table) {
@@ -19,10 +24,7 @@ return new class extends Migration
         }
         
         // Remove any other columns that shouldn't be there
-        $columnsToRemove = ['status', 'priority', 'estimated_delivery_date', 
-                           'actual_delivery_date', 'shipping_address', 
-                           'shipping_city', 'shipping_state', 'shipping_postal_code',
-                           'shipping_country', 'notes'];
+        $columnsToRemove = ['status', 'actual_delivery_date'];
         
         foreach ($columnsToRemove as $column) {
             if (Schema::hasColumn('shipments', $column)) {

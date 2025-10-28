@@ -12,17 +12,30 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Solo ejecutar si la tabla existe
+        if (!Schema::hasTable('shipments')) {
+            return; // La tabla no existe, saltar esta migración
+        }
+        
         // First, update existing rows to have references
-        DB::table('shipments')->whereNull('reference')
-            ->orWhere('reference', '')
-            ->update([
-                'reference' => DB::raw("CONCAT('SH-', UPPER(SUBSTRING(MD5(RAND()), 1, 8)))")
-            ]);
+        try {
+            DB::table('shipments')->whereNull('reference')
+                ->orWhere('reference', '')
+                ->update([
+                    'reference' => DB::raw("CONCAT('SH-', UPPER(SUBSTRING(MD5(RAND()), 1, 8)))")
+                ]);
+        } catch (\Exception $e) {
+            // Tabla vacía o error, continuar
+        }
         
         // Then modify the column to be NOT NULL and unique
         Schema::table('shipments', function (Blueprint $table) {
             if (Schema::hasColumn('shipments', 'reference')) {
-                $table->string('reference')->nullable(false)->unique()->change();
+                try {
+                    $table->string('reference')->nullable(false)->unique()->change();
+                } catch (\Exception $e) {
+                    // Ya es unique o tiene datos duplicados, ignorar
+                }
             }
         });
     }

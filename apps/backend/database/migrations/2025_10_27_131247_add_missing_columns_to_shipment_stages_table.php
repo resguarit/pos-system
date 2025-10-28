@@ -11,6 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Solo ejecutar si la tabla existe
+        if (!Schema::hasTable('shipment_stages')) {
+            return; // La tabla no existe, saltar esta migración
+        }
+        
         Schema::table('shipment_stages', function (Blueprint $table) {
             // Add order if it doesn't exist
             if (!Schema::hasColumn('shipment_stages', 'order')) {
