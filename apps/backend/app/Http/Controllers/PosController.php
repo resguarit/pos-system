@@ -151,6 +151,9 @@ class PosController extends Controller
             ]);
         }
 
+        // Actualizar payment_status y paid_amount de la venta
+        $this->updateSalePaymentStatus($saleHeader);
+
         // --- INICIO DE LA MODIFICACIÓN ---
 
         // Buscamos el tipo de comprobante para la verificación.
@@ -182,5 +185,29 @@ class PosController extends Controller
         DB::rollBack();
         return response()->json(['message' => 'Error al crear la venta: ' . $e->getMessage()], 500);
     }
+}
+
+/**
+ * Actualizar el estado de pago de una venta basándose en sus pagos
+ */
+private function updateSalePaymentStatus(SaleHeader $saleHeader): void
+{
+    $saleHeader->load('salePayments');
+    
+    $totalPaid = (float)$saleHeader->salePayments->sum('amount');
+    $total = (float)$saleHeader->total;
+    
+    if ($totalPaid >= $total) {
+        $saleHeader->payment_status = 'paid';
+        $saleHeader->paid_amount = $total;
+    } elseif ($totalPaid > 0) {
+        $saleHeader->payment_status = 'partial';
+        $saleHeader->paid_amount = $totalPaid;
+    } else {
+        $saleHeader->payment_status = 'pending';
+        $saleHeader->paid_amount = 0;
+    }
+    
+    $saleHeader->save();
 }
 }
