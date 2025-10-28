@@ -1,5 +1,5 @@
 // Configuración completa de permisos por módulo/feature
-import { FEATURES } from './features';
+import FEATURES from './features';
 
 export const PERMISSIONS_CONFIG = {
   // Dashboard
@@ -101,7 +101,15 @@ export const PERMISSIONS_CONFIG = {
       'editar_clientes',
       'eliminar_clientes',
       'ver_historial_cliente',
-      'ver_cuentas_corrientes'
+      'gestionar_cuentas_corrientes'
+    ]
+  },
+  
+  // Cuentas Corrientes
+  cuentasCorrientes: {
+    feature: 'cuentasCorrientes',
+    permissions: [
+      'gestionar_cuentas_corrientes'
     ]
   },
   
@@ -169,11 +177,17 @@ export const PERMISSIONS_CONFIG = {
   configuracionSistema: {
     feature: 'configuracionSistema',
     permissions: [
-      'ver_configuracion',
-      'editar_configuracion',
-      'ver_auditoria',
-      'ver_logs_sistema',
-      'gestionar_backup'
+      'ver_configuracion_sistema',
+      'editar_configuracion_sistema'
+    ]
+  },
+
+  // Configuración General (deshabilitado - duplicado)
+  configuracion: {
+    feature: 'configuracionSistema', // Usa la misma feature que configuracionSistema
+    permissions: [
+      'ver_configuracion_sistema',
+      'editar_configuracion_sistema'
     ]
   },
   
@@ -275,18 +289,6 @@ export const PERMISSIONS_CONFIG = {
     ]
   },
   
-  // Cuentas Corrientes (nueva feature)
-  cuentasCorrientes: {
-    feature: 'cuentasCorrientes',
-    permissions: [
-      'ver_cuentas_corrientes',
-      'crear_movimientos_cuenta',
-      'editar_movimientos_cuenta',
-      'eliminar_movimientos_cuenta',
-      'ver_saldos_cuentas'
-    ]
-  },
-  
   // Movimientos de Stock (nueva feature)
   movimientosStock: {
     feature: 'movimientosStock',
@@ -354,6 +356,20 @@ export const PERMISSIONS_CONFIG = {
       'eliminar_reportes_personalizados',
       'programar_reportes'
     ]
+  },
+  
+  // Envíos
+  envios: {
+    feature: 'envios',
+    permissions: [
+      'ver_envios',         // Ver listado de envíos
+      'crear_envios',       // Crear nuevos envíos
+      'editar_envios',      // Editar envíos existentes
+      'cancelar_envio',     // Cancelar envíos
+      'registrar_pago_envio', // Registar pago de envío
+      'imprimir_etiqueta_envio', // Imprimir etiquetas
+      'configurar_envios'  // Configurar envíos (implementación futura)
+    ]
   }
 };
 
@@ -362,6 +378,7 @@ export function getActivePermissions() {
   const activePermissions: string[] = [];
   
   Object.entries(PERMISSIONS_CONFIG).forEach(([_, config]) => {
+    // @ts-ignore - FEATURES puede no estar completamente tipado
     if (FEATURES[config.feature as keyof typeof FEATURES]) {
       activePermissions.push(...config.permissions);
     }

@@ -110,7 +110,13 @@ export default function PurchaseOrderPage() {
 
   // Fetch purchase orders from backend
   useEffect(() => {
-    loadPurchaseOrders(1)
+    if (dateRange?.from && dateRange.to) {
+      const fromDate = format(dateRange.from, "yyyy-MM-dd");
+      const toDate = format(dateRange.to, "yyyy-MM-dd");
+      loadPurchaseOrders(1, fromDate, toDate);
+    } else {
+      loadPurchaseOrders(1);
+    }
   }, [])
 
   // Recargar órdenes cuando cambien los filtros de sucursales
@@ -192,16 +198,10 @@ export default function PurchaseOrderPage() {
 
   // Actualizar useEffect para cargar órdenes de compra al cambiar el periodo
   useEffect(() => {
-    console.log('useEffect dateRange ejecutado:', dateRange);
     if (dateRange?.from && dateRange.to) {
       const fromDate = format(dateRange.from, "yyyy-MM-dd");
       const toDate = format(dateRange.to, "yyyy-MM-dd");
-      console.log('Cargando con filtro de fechas:', { fromDate, toDate });
-      loadPurchaseOrders(1, fromDate, toDate);
-    } else {
-      // Si no hay filtro de fecha, cargar todas las órdenes
-      console.log('Cargando sin filtro de fechas');
-      loadPurchaseOrders(1);
+      loadPurchaseOrders(currentPOPage, fromDate, toDate);
     }
   }, [dateRange])
 
@@ -213,10 +213,17 @@ export default function PurchaseOrderPage() {
     }
   };
 
-  const handlePurchaseOrderSaved = async () => {
+const handlePurchaseOrderSaved = async () => {
     setOpenNewPurchaseOrder(false)
     setEditPurchaseOrderDialogOpen(false)
-    await loadPurchaseOrders(currentPOPage)
+    // Mantener el filtro de fechas al recargar
+    if (dateRange?.from && dateRange.to) {
+      const fromDate = format(dateRange.from, "yyyy-MM-dd");
+      const toDate = format(dateRange.to, "yyyy-MM-dd");
+      await loadPurchaseOrders(currentPOPage, fromDate, toDate);
+    } else {
+      await loadPurchaseOrders(currentPOPage);
+    }
   }
 
   const refreshCards = async () => {

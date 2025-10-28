@@ -110,11 +110,8 @@ class PermissionSeeder extends Seeder
             // ['name' => 'editar_tipos_comprobante', 'description' => 'Editar tipos de comprobante', 'module' => 'fiscal'],
             
             // Configuración del Sistema
-          //  ['name' => 'ver_configuracion', 'description' => 'Ver configuración general', 'module' => 'configuracion'],
-          //  ['name' => 'editar_configuracion', 'description' => 'Editar configuración general (logo, monedas, etc)', 'module' => 'configuracion'],
-           // ['name' => 'gestionar_metodos_pago', 'description' => 'CRUD de métodos de pago', 'module' => 'configuracion'],
-            // ['name' => 'gestionar_backup', 'description' => 'Gestionar copias de seguridad', 'module' => 'configuracion'],
-            // ['name' => 'ver_logs', 'description' => 'Ver logs del sistema', 'module' => 'configuracion'],
+            ['name' => 'ver_configuracion_sistema', 'description' => 'Ver configuración del sistema', 'module' => 'configuracion'],
+            ['name' => 'editar_configuracion_sistema', 'description' => 'Editar configuración del sistema (logo, título, empresa, etc.)', 'module' => 'configuracion'],
             
             // // Auditoria
             // ['name' => 'ver_auditoria', 'description' => 'Ver registros de auditoría', 'module' => 'auditoria'],
@@ -145,8 +142,10 @@ class PermissionSeeder extends Seeder
             // ['name' => 'editar_solicitudes', 'description' => 'Editar solicitud', 'module' => 'solicitudes'],
             // ['name' => 'eliminar_solicitudes', 'description' => 'Eliminar solicitud', 'module' => 'solicitudes'],
             
+            // Cuentas Corrientes - Permiso unificado
+            ['name' => 'gestionar_cuentas_corrientes', 'description' => 'Gestionar cuentas corrientes (Ver, crear, editar, procesar pagos, etc.)', 'module' => 'cuentas_corrientes'],
+            
             // Permisos adicionales identificados en la aplicación
-            ['name' => 'ver_cuentas_corrientes', 'description' => 'Ver cuentas corrientes', 'module' => 'clientes'],
             ['name' => 'exportar_lista_precios', 'description' => 'Exportar lista de precios', 'module' => 'productos'],
             ['name' => 'actualizar_precios_masivo', 'description' => 'Actualizar precios masivamente', 'module' => 'productos'],
         ];

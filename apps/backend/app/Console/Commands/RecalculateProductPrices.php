@@ -70,11 +70,18 @@ class RecalculateProductPrices extends Command
                     $oldPrice = $product->sale_price;
                     
                     // Recalcular usando PricingService
+                    // Primero obtener el IVA rate como decimal
+                    $ivaRate = null;
+                    if ($product->iva_id) {
+                        $iva = \App\Models\Iva::find($product->iva_id);
+                        $ivaRate = $iva ? $iva->rate / 100 : null;
+                    }
+                    
                     $newSalePrice = $pricingService->calculateSalePrice(
                         (float) $product->unit_price,
                         $product->currency,
                         (float) $product->markup,
-                        $product->iva_id
+                        $ivaRate
                     );
 
                     if (!$dryRun) {

@@ -59,6 +59,17 @@ class UserSeeder extends Seeder
         $adminRoleModel = Role::find($adminRoleId);
         if ($adminRoleModel && method_exists($adminRoleModel, 'permissions')) {
             $adminRoleModel->permissions()->sync($allPermissions->pluck('id'));
+            
+            if ($this->command) {
+                $this->command->info("🔐 Asignados {$allPermissions->count()} permisos al rol Admin");
+            }
+        }
+        
+        // 5. Log de confirmación
+        if ($this->command) {
+            $this->command->info("✅ Usuario admin creado/actualizado: {$adminUser->email}");
+            $this->command->info("✅ Rol asignado: {$adminRole->name}");
+            $this->command->info("✅ Sucursales asignadas: {$branches->count()}");
         }
     }
 }

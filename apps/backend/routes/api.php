@@ -31,6 +31,7 @@ use App\Http\Controllers\RepairController; // Added
 use App\Http\Controllers\ExchangeRateController; // **SOLUCIÓN BUG #2**
 use App\Http\Controllers\SaleAnnulmentController;
 use App\Http\Controllers\ComboController;
+use App\Http\Controllers\ShipmentController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -63,9 +64,17 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 // Configuración
-Route::middleware('auth:sanctum')->prefix('settings')->group(function () {
-    Route::get('/', [SettingController::class, 'index']);
-    Route::post('/', [SettingController::class, 'store']);
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('settings')->group(function () {
+        // Rutas específicas primero
+        Route::post('/upload-image', [SettingController::class, 'uploadImage']);
+        Route::get('/system', [SettingController::class, 'getSystem']);
+        Route::put('/system', [SettingController::class, 'updateSystem']);
+        Route::get('/', [SettingController::class, 'index']);
+        Route::post('/', [SettingController::class, 'store']);
+        // Ruta genérica al final
+        Route::get('/{key}', [SettingController::class, 'get']);
+    });
 });
 
 // Todas las rutas protegidas con autenticación
@@ -103,8 +112,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/export/price-list', [ProductController::class, 'exportPriceList']);
         Route::post('/bulk-update-prices', [ProductController::class, 'bulkUpdatePrices']);
         Route::post('/bulk-update-prices-by-category', [ProductController::class, 'bulkUpdatePricesByCategory']);
+        Route::post('/bulk-update-prices-by-supplier', [ProductController::class, 'bulkUpdatePricesBySupplier']);
         Route::get('/by-categories', [ProductController::class, 'getProductsByCategories']);
     });
+
+    // Rutas específicas para actualización masiva (completamente fuera del grupo de productos)
+    Route::get('/bulksearch', [ProductController::class, 'searchProductsForBulkUpdate']);
+    Route::get('/bulkstats', [ProductController::class, 'getBulkUpdateStats']);
+    Route::post('/bulksupplier', [ProductController::class, 'bulkUpdatePricesBySupplier']);
 
     Route::prefix('categories')->group(function () {
         Route::get('/', [CategoryController::class, 'index']);
@@ -291,11 +306,43 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Current Account Routes
     Route::prefix('current-accounts')->group(function () {
+            // CRUD básico
+        Route::get('/', [CurrentAccountController::class, 'index']);
         Route::post('/', [CurrentAccountController::class, 'store']);
+        Route::get('/{id}', [CurrentAccountController::class, 'show']);
+        Route::put('/{id}', [CurrentAccountController::class, 'update']);
+        Route::delete('/{id}', [CurrentAccountController::class, 'destroy']);
+        
+        // Gestión de estado
+        Route::patch('/{id}/suspend', [CurrentAccountController::class, 'suspend']);
+        Route::patch('/{id}/reactivate', [CurrentAccountController::class, 'reactivate']);
+        Route::patch('/{id}/close', [CurrentAccountController::class, 'close']);
+        
+        // Consultas específicas
         Route::get('/customer/{customerId}', [CurrentAccountController::class, 'getByCustomer']);
+        Route::get('/status/{status}', [CurrentAccountController::class, 'getByStatus']);
+        Route::get('/at-credit-limit', [CurrentAccountController::class, 'getAtCreditLimit']);
+        Route::get('/overdrawn', [CurrentAccountController::class, 'getOverdrawn']);
+        
+        // Movimientos
         Route::get('/{accountId}/movements', [CurrentAccountController::class, 'movements']);
+        Route::post('/movements', [CurrentAccountController::class, 'createMovement']);
         Route::get('/{accountId}/balance', [CurrentAccountController::class, 'balance']);
+        Route::get('/{accountId}/pending-sales', [CurrentAccountController::class, 'pendingSales']);
+        
+        // Operaciones financieras
         Route::post('/{accountId}/payments', [CurrentAccountController::class, 'processPayment']);
+        Route::post('/{accountId}/credit-purchases', [CurrentAccountController::class, 'processCreditPurchase']);
+        Route::post('/{accountId}/check-credit', [CurrentAccountController::class, 'checkAvailableCredit']);
+        
+        // Gestión de límites
+        Route::patch('/{accountId}/credit-limit', [CurrentAccountController::class, 'updateCreditLimit']);
+        
+        // Estadísticas y reportes
+        Route::get('/{accountId}/statistics', [CurrentAccountController::class, 'statistics']);
+        Route::get('/statistics/general', [CurrentAccountController::class, 'generalStatistics']);
+        Route::get('/{accountId}/export-movements', [CurrentAccountController::class, 'exportMovements']);
+        Route::get('/reports/generate', [CurrentAccountController::class, 'generateReport']);
     });
 
     Route::prefix('movement-types')->group(function () {
@@ -340,6 +387,27 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{combo}', [ComboController::class, 'destroy']);
         Route::get('/{combo}/calculate-price', [ComboController::class, 'calculatePrice']);
         Route::post('/{combo}/check-availability', [ComboController::class, 'checkAvailability']);
+    });
+
+    // Shipments Routes
+    Route::prefix('shipments')->group(function () {
+        Route::get('/', [ShipmentController::class, 'index']);
+        Route::get('/multiple-branches', [ShipmentController::class, 'multipleBranches']);
+        Route::post('/', [ShipmentController::class, 'store']);
+        Route::get('/{id}', [ShipmentController::class, 'show']);
+        Route::put('/{id}', [ShipmentController::class, 'update']);
+        Route::delete('/{id}', [ShipmentController::class, 'destroy']);
+        Route::patch('/{id}/move', [ShipmentController::class, 'move']);
+        Route::post('/{id}/webhook', [ShipmentController::class, 'webhook']);
+        Route::post('/{id}/pay', [ShipmentController::class, 'pay']);
+    });
+    
+    // Shipment Stages Routes
+    Route::prefix('shipment-stages')->group(function () {
+        Route::get('/', [ShipmentController::class, 'stages']);
+        Route::post('/', [ShipmentController::class, 'upsertStage']);
+        Route::delete('/{id}', [ShipmentController::class, 'deleteStage']);
+        Route::post('/visibility', [ShipmentController::class, 'configureVisibility']);
     });
 
 });

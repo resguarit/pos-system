@@ -403,9 +403,9 @@ export default function ClientesPage() {
                               </Link>
                             </Button>
                           )}
-                          {hasPermission('ver_cuentas_corrientes') && (
+                          {hasPermission('gestionar_cuentas_corrientes') && (
                              <Button variant="ghost" size="icon" title="Cuenta Corriente" className="hover:bg-green-100 group">
-                              <Link to={`/dashboard/clientes/${customer.id}/cuenta-corriente`}>
+                              <Link to={`/dashboard/cuentas-corrientes?filter=${encodeURIComponent(customer.person.first_name + ' ' + customer.person.last_name)}`}>
                               <Wallet className="h-4 w-4 text-green-600 group-hover:text-green-700" />
                               </Link>
                             </Button>

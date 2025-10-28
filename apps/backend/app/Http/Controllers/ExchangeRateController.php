@@ -245,47 +245,95 @@ class ExchangeRateController extends Controller
             }
 
             $updatedCount = 0;
+            $failedProducts = [];
             
             foreach ($productsInUSD as $product) {
-                // IMPORTANTE: Mantener markup, iva y unit_price originales
-                // Solo recalcular sale_price usando la nueva tasa
-                
-                // 1. Convertir unit_price de USD a ARS con nueva tasa
-                $costInArs = $product->unit_price * $newRate;
-                
-                // 2. Obtener la tasa de IVA
-                $ivaRate = 0;
-                if ($product->iva) {
-                    $ivaRate = $product->iva->rate / 100;
+                try {
+                    // IMPORTANTE: Mantener markup, iva y unit_price originales
+                    // Solo recalcular sale_price usando la nueva tasa
+                    
+                    // 1. Convertir unit_price de USD a ARS con nueva tasa
+                    $costInArs = $product->unit_price * $newRate;
+                    
+                    // Validar que el costo en ARS sea válido
+                    if ($costInArs <= 0 || !is_finite($costInArs)) {
+                        throw new \Exception("Invalid cost calculation for product {$product->id}");
+                    }
+                    
+                    // 2. Obtener la tasa de IVA
+                    $ivaRate = 0;
+                    if ($product->iva) {
+                        $ivaRate = $product->iva->rate / 100;
+                    }
+                    
+                    // 3. Aplicar IVA PRIMERO (según lógica del frontend y PricingService)
+                    $priceWithIva = $costInArs * (1 + $ivaRate);
+                    
+                    // 4. Aplicar markup DESPUÉS
+                    // NOTA: markup ya está en formato decimal (0.0425 = 4.25%)
+                    $markupMultiplier = 1 + $product->markup;
+                    
+                    // Validar que el markup sea válido
+                    if ($product->markup < -1 || !is_finite($product->markup)) {
+                        throw new \Exception("Invalid markup value: {$product->markup} for product {$product->id}");
+                    }
+                    
+                    $finalPrice = $priceWithIva * $markupMultiplier;
+                    
+                    // Validar que el precio final sea válido
+                    if ($finalPrice <= 0 || !is_finite($finalPrice)) {
+                        throw new \Exception("Invalid final price calculation for product {$product->id}");
+                    }
+                    
+                    // 5. Redondear igual que en el frontend
+                    // Para precios < 1000: múltiplos de 10, para >= 1000: múltiplos de 100
+                    $newSalePrice = $finalPrice < 1000 
+                        ? round($finalPrice / 10) * 10
+                        : round($finalPrice / 100) * 100;
+                    
+                    // Actualizar SOLO el sale_price, mantener markup, iva y unit_price
+                    $product->update(['sale_price' => $newSalePrice]);
+                    $updatedCount++;
+                    
+                } catch (\Exception $e) {
+                    \Log::error("Error updating price for product {$product->id}", [
+                        'product_id' => $product->id,
+                        'product_code' => $product->code,
+                        'product_description' => $product->description,
+                        'unit_price' => $product->unit_price,
+                        'currency' => $product->currency,
+                        'markup' => $product->markup,
+                        'iva_id' => $product->iva_id,
+                        'error' => $e->getMessage()
+                    ]);
+                    
+                    $failedProducts[] = [
+                        'id' => $product->id,
+                        'code' => $product->code,
+                        'description' => $product->description,
+                        'error' => $e->getMessage()
+                    ];
                 }
-                
-                // 3. Aplicar markup PRIMERO (según lógica del frontend)
-                // NOTA: markup ya está en formato decimal (0.0425 = 4.25%)
-                $markupMultiplier = 1 + $product->markup;
-                $priceWithMarkup = $costInArs * $markupMultiplier;
-                
-                // 4. Aplicar IVA DESPUÉS
-                $finalPrice = $priceWithMarkup * (1 + $ivaRate);
-                
-                // 5. Redondear igual que en el frontend
-                // Para precios < 1000: múltiplos de 10, para >= 1000: múltiplos de 100
-                $newSalePrice = $finalPrice < 1000 
-                    ? round($finalPrice / 10) * 10
-                    : round($finalPrice / 100) * 100;
-                
-                // Actualizar SOLO el sale_price, mantener markup, iva y unit_price
-                $product->update(['sale_price' => $newSalePrice]);
-                $updatedCount++;
             }
 
-            return response()->json([
+            $response = [
                 'success' => true,
-                'message' => "Updated prices for {$updatedCount} products",
+                'message' => "Updated prices for {$updatedCount} products" . (count($failedProducts) > 0 ? " ({count($failedProducts)} failed)" : ""),
                 'data' => [
                     'updated_count' => $updatedCount,
+                    'failed_count' => count($failedProducts),
+                    'failed_products' => $failedProducts,
                     'new_rate' => $newRate,
                 ],
-            ]);
+            ];
+            
+            // Si hay productos fallidos, marcar como parcialmente exitoso
+            if (count($failedProducts) > 0) {
+                $response['success'] = false;
+                $response['message'] .= ". Failed to update: " . implode(', ', array_column($failedProducts, 'code'));
+            }
+            
+            return response()->json($response);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -366,13 +414,13 @@ class ExchangeRateController extends Controller
                     $ivaRate = $product->iva->rate / 100;
                 }
                 
-                // 3. Aplicar markup PRIMERO (según lógica del frontend)
+                // 3. Aplicar IVA PRIMERO (según lógica del frontend y PricingService)
+                $priceWithIva = $costInArs * (1 + $ivaRate);
+                
+                // 4. Aplicar markup DESPUÉS
                 // NOTA: markup ya está en formato decimal (0.0425 = 4.25%)
                 $markupMultiplier = 1 + $product->markup;
-                $priceWithMarkup = $costInArs * $markupMultiplier;
-                
-                // 4. Aplicar IVA DESPUÉS
-                $finalPrice = $priceWithMarkup * (1 + $ivaRate);
+                $finalPrice = $priceWithIva * $markupMultiplier;
                 
                 // 5. Redondear igual que en el frontend
                 $newSalePrice = $finalPrice < 1000 

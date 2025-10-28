@@ -96,7 +96,7 @@ class User extends Authenticatable
             'cuit' => $data['cuit'] ?? null,
             'fiscal_condition_id' => $data['fiscal_condition_id'] ?? null,
             'person_type_id' => $data['person_type_id'] ?? null,
-            'credit_limit' => $data['credit_limit'] ?? 0,
+            'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
             'person_type' => 'user',
         ];
 
@@ -188,5 +188,33 @@ class User extends Authenticatable
             ->performedOn($user)
             ->withProperties(['ip' => $ip ?? request()->ip()])
             ->log('login');
+    }
+
+    /**
+     * Check if user has a specific permission
+     */
+    public function hasPermission(string $permissionName): bool
+    {
+        if (!$this->role) {
+            return false;
+        }
+
+        return $this->role->permissions()
+            ->where('name', $permissionName)
+            ->exists();
+    }
+
+    /**
+     * Check if user can perform an action (alias for authorization)
+     */
+    public function can($ability, $arguments = []): bool
+    {
+        // First check Laravel's built-in authorization
+        if (parent::can($ability, $arguments)) {
+            return true;
+        }
+
+        // Then check custom permissions
+        return $this->hasPermission($ability);
     }
 }

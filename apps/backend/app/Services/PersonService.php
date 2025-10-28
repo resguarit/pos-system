@@ -31,7 +31,7 @@ class PersonService
                 'phone' => $data['phone'] ?? null,
                 'fiscal_condition_id' => $data['fiscal_condition_id'] ?? null,
                 'person_type_id' => $data['person_type_id'] ?? null,
-                'credit_limit' => $data['credit_limit'] ?? 0,
+                'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
                 // 'person_type' might be set automatically based on context (Customer, Supplier, User)
                 // or passed explicitly if needed. Let's assume it's handled by thesi calling service for now.
             ];

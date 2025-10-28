@@ -1,7 +1,7 @@
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { FEATURES } from '@/config/features';
+import features from '@/config/features';
 import { 
   User,
   Shield, 
@@ -102,7 +102,7 @@ export function UserPermissionsDisplay({
 
       // Para reportes, mostramos si algún tipo de reporte está habilitado
       if (module === 'reportes') {
-        if (FEATURES.analisisVentas || FEATURES.reportesInventario) {
+        if (features.analisisventas || features.reportesInventario) {
           filtered[module] = perms;
         }
         return;

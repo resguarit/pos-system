@@ -2,6 +2,8 @@
 
 namespace Database\Seeders\Traits;
 
+use Illuminate\Support\Facades\DB;
+
 trait HandlesDuplicates
 {
     /**

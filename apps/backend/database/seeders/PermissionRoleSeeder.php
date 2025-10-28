@@ -38,7 +38,11 @@ class PermissionRoleSeeder extends Seeder
                 'editar_clientes',
                 'ver_productos',
                 'ver_stock',
-                'cambiar_password'
+                'cambiar_password',
+                // Permisos básicos de cuentas corrientes para cajero
+                'ver_cuentas_corrientes',
+                'ver_movimientos_cuentas_corrientes',
+                'procesar_pagos_cuentas_corrientes'
             ])->get();
             $cajero->permissions()->sync($cajeroPermissions->pluck('id'));
         }
@@ -112,7 +116,23 @@ class PermissionRoleSeeder extends Seeder
                 'editar_usuarios',
                 'eliminar_usuarios',
                 'ver_ventas_usuario',
-                'ver_estadisticas_usuario'
+                'ver_estadisticas_usuario',
+                // Permisos completos de cuentas corrientes para supervisor
+                'ver_cuentas_corrientes',
+                'crear_cuentas_corrientes',
+                'editar_cuentas_corrientes',
+                'eliminar_cuentas_corrientes',
+                'ver_movimientos_cuentas_corrientes',
+                'crear_movimientos_cuentas_corrientes',
+                'procesar_pagos_cuentas_corrientes',
+                'procesar_compras_credito',
+                'suspender_cuentas_corrientes',
+                'reactivar_cuentas_corrientes',
+                'cerrar_cuentas_corrientes',
+                'actualizar_limites_credito',
+                'ver_estadisticas_cuentas_corrientes',
+                'exportar_movimientos_cuentas_corrientes',
+                'generar_reportes_cuentas_corrientes'
             ])->get();
             $supervisor->permissions()->sync($supervisorPermissions->pluck('id'));
         }

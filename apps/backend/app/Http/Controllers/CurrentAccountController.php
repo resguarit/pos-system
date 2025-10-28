@@ -1,11 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
 use App\Interfaces\CurrentAccountServiceInterface;
+use App\Http\Resources\CurrentAccountMovementResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
+use Exception;
 
 class CurrentAccountController extends Controller
 {
@@ -16,102 +21,651 @@ class CurrentAccountController extends Controller
         $this->currentAccountService = $currentAccountService;
     }
 
+    /**
+     * Obtener todas las cuentas corrientes
+     */
+    public function index(Request $request): JsonResponse
+    {
+        try {
+            $accounts = $this->currentAccountService->getAccountsPaginated($request);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuentas corrientes obtenidas correctamente',
+                'data' => $accounts
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener cuentas corrientes: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Crear una nueva cuenta corriente
+     */
     public function store(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'customer_id' => 'nullable|integer|exists:customers,id',
-            'supplier_id' => 'nullable|integer|exists:suppliers,id',
-            'account_type' => 'required|in:customer,supplier',
-            'credit_limit' => 'numeric|min:0',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        // Validar que se proporcione customer_id o supplier_id según el tipo
-        if ($request->input('account_type') === 'customer' && !$request->input('customer_id')) {
-            return response()->json(['error' => 'customer_id es requerido para cuentas de cliente'], 422);
-        }
-        if ($request->input('account_type') === 'supplier' && !$request->input('supplier_id')) {
-            return response()->json(['error' => 'supplier_id es requerido para cuentas de proveedor'], 422);
-        }
-
         try {
             $account = $this->currentAccountService->createAccount($request->all());
+            
             return response()->json([
+                'status' => 201,
+                'success' => true,
                 'message' => 'Cuenta corriente creada exitosamente',
-                'data' => $account
+                'data' => $account->load(['customer.person'])
             ], 201);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+        } catch (Exception $e) {
+            Log::error('Error al crear cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
         }
     }
 
+    /**
+     * Obtener cuenta corriente por ID
+     */
+    public function show(int $id): JsonResponse
+    {
+        try {
+            $account = $this->currentAccountService->getAccountById($id);
+            
+            if (!$account) {
+                return response()->json([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'Cuenta corriente no encontrada'
+                ], 404);
+            }
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuenta corriente obtenida correctamente',
+                'data' => $account
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Actualizar cuenta corriente
+     */
+    public function update(Request $request, int $id): JsonResponse
+    {
+        try {
+            $account = $this->currentAccountService->updateAccount($id, $request->all());
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuenta corriente actualizada exitosamente',
+                'data' => $account
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al actualizar cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Eliminar cuenta corriente
+     */
+    public function destroy(int $id): JsonResponse
+    {
+        try {
+            $deleted = $this->currentAccountService->deleteAccount($id);
+            
+            if ($deleted) {
+                return response()->json([
+                    'status' => 200,
+                    'success' => true,
+                    'message' => 'Cuenta corriente eliminada exitosamente'
+                ], 200);
+            }
+            
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => 'No se pudo eliminar la cuenta corriente'
+            ], 400);
+        } catch (Exception $e) {
+            Log::error('Error al eliminar cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Obtener cuenta corriente por cliente
+     */
     public function getByCustomer(int $customerId): JsonResponse
     {
-        $account = $this->currentAccountService->getAccountByCustomer($customerId);
-        
-        if (!$account) {
+        try {
+            $account = $this->currentAccountService->getAccountByCustomer($customerId);
+            
             return response()->json([
-                'message' => 'No se encontró cuenta corriente para este cliente',
-                'data' => null
+                'status' => 200,
+                'success' => true,
+                'message' => $account ? 'Cuenta corriente obtenida' : 'No se encontró cuenta corriente para este cliente',
+                'data' => $account
             ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener cuenta corriente por cliente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'Cuenta corriente obtenida',
-            'data' => $account
-        ], 200);
     }
 
-    public function movements(int $accountId, Request $request): JsonResponse
+    /**
+     * Suspender cuenta corriente
+     */
+    public function suspend(Request $request, int $id): JsonResponse
+    {
+        try {
+            $reason = $request->input('reason');
+            $account = $this->currentAccountService->suspendAccount($id, $reason);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuenta corriente suspendida exitosamente',
+                'data' => $account
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al suspender cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Reactivar cuenta corriente
+     */
+    public function reactivate(int $id): JsonResponse
+    {
+        try {
+            $account = $this->currentAccountService->reactivateAccount($id);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuenta corriente reactivada exitosamente',
+                'data' => $account
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al reactivar cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Cerrar cuenta corriente
+     */
+    public function close(Request $request, int $id): JsonResponse
+    {
+        try {
+            $reason = $request->input('reason');
+            $account = $this->currentAccountService->closeAccount($id, $reason);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuenta corriente cerrada exitosamente',
+                'data' => $account
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al cerrar cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Obtener movimientos de cuenta corriente
+     */
+    public function movements(Request $request, int $accountId): JsonResponse
     {
         try {
             $movements = $this->currentAccountService->getAccountMovements($accountId, $request);
+            
             return response()->json([
-                'message' => 'Movimientos obtenidos',
-                'data' => $movements
+                'status' => 200,
+                'success' => true,
+                'message' => 'Movimientos obtenidos correctamente',
+                'data' => [
+                    'current_page' => $movements->currentPage(),
+                    'data' => CurrentAccountMovementResource::collection($movements->items()),
+                    'first_page_url' => $movements->url(1),
+                    'from' => $movements->firstItem(),
+                    'last_page' => $movements->lastPage(),
+                    'last_page_url' => $movements->url($movements->lastPage()),
+                    'links' => $movements->linkCollection()->toArray(),
+                    'next_page_url' => $movements->nextPageUrl(),
+                    'path' => $movements->path(),
+                    'per_page' => $movements->perPage(),
+                    'prev_page_url' => $movements->previousPageUrl(),
+                    'to' => $movements->lastItem(),
+                    'total' => $movements->total(),
+                ]
             ], 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Cuenta no encontrada'], 404);
+        } catch (Exception $e) {
+            Log::error('Error al obtener movimientos: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
         }
     }
 
+    /**
+     * Obtener balance de cuenta corriente
+     */
     public function balance(int $accountId): JsonResponse
     {
         try {
             $balance = $this->currentAccountService->getAccountBalance($accountId);
+            
             return response()->json([
-                'message' => 'Balance obtenido',
+                'status' => 200,
+                'success' => true,
+                'message' => 'Balance obtenido correctamente',
                 'data' => ['balance' => $balance]
             ], 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Cuenta no encontrada'], 404);
+        } catch (Exception $e) {
+            Log::error('Error al obtener balance: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
         }
     }
 
-    public function processPayment(int $accountId, Request $request): JsonResponse
+    /**
+     * Procesar pago en cuenta corriente
+     */
+    public function processPayment(Request $request, int $accountId): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:0.01',
-            'description' => 'required|string|max:500',
-            'cash_movement_id' => 'nullable|integer|exists:cash_movements,id',
-            'reference_id' => 'nullable|integer',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
         try {
-            $account = $this->currentAccountService->processPayment($accountId, $request->all());
+            $movement = $this->currentAccountService->processPayment($accountId, $request->all());
+            
             return response()->json([
+                'status' => 200,
+                'success' => true,
                 'message' => 'Pago procesado exitosamente',
+                'data' => $movement
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al procesar pago: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Procesar compra a crédito
+     */
+    public function processCreditPurchase(Request $request, int $accountId): JsonResponse
+    {
+        try {
+            $movement = $this->currentAccountService->processCreditPurchase($accountId, $request->all());
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Compra a crédito procesada exitosamente',
+                'data' => $movement
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al procesar compra a crédito: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Crear movimiento manual
+     */
+    public function createMovement(Request $request): JsonResponse
+    {
+        try {
+            $movement = $this->currentAccountService->createMovement($request->all());
+            
+            return response()->json([
+                'status' => 201,
+                'success' => true,
+                'message' => 'Movimiento creado exitosamente',
+                'data' => $movement
+            ], 201);
+        } catch (Exception $e) {
+            Log::error('Error al crear movimiento: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Verificar crédito disponible
+     */
+    public function checkAvailableCredit(Request $request, int $accountId): JsonResponse
+    {
+        try {
+            $amount = $request->input('amount', 0);
+            $available = $this->currentAccountService->checkAvailableCredit($accountId, $amount);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Verificación de crédito completada',
+                'data' => [
+                    'amount' => $amount,
+                    'available' => $available
+                ]
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al verificar crédito: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener estadísticas de cuenta corriente
+     */
+    public function statistics(int $accountId): JsonResponse
+    {
+        try {
+            $statistics = $this->currentAccountService->getAccountStatistics($accountId);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Estadísticas obtenidas correctamente',
+                'data' => $statistics
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener estadísticas: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener estadísticas generales
+     */
+    public function generalStatistics(): JsonResponse
+    {
+        try {
+            $statistics = $this->currentAccountService->getGeneralStatistics();
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Estadísticas generales obtenidas correctamente',
+                'data' => $statistics
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener estadísticas generales: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener cuentas por estado
+     */
+    public function getByStatus(string $status): JsonResponse
+    {
+        try {
+            $accounts = $this->currentAccountService->getAccountsByStatus($status);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => "Cuentas corrientes con estado '{$status}' obtenidas correctamente",
+                'data' => $accounts
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener cuentas por estado: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener cuentas con límite alcanzado
+     */
+    public function getAtCreditLimit(): JsonResponse
+    {
+        try {
+            $accounts = $this->currentAccountService->getAccountsAtCreditLimit();
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuentas corrientes con límite alcanzado obtenidas correctamente',
+                'data' => $accounts
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener cuentas con límite alcanzado: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener cuentas sobregiradas
+     */
+    public function getOverdrawn(): JsonResponse
+    {
+        try {
+            $accounts = $this->currentAccountService->getOverdrawnAccounts();
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cuentas corrientes sobregiradas obtenidas correctamente',
+                'data' => $accounts
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener cuentas sobregiradas: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Actualizar límite de crédito
+     */
+    public function updateCreditLimit(Request $request, int $accountId): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'credit_limit' => 'required|numeric|min:0',
+                'reason' => 'nullable|string|max:500'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 422,
+                    'success' => false,
+                    'message' => 'Datos de validación incorrectos',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $account = $this->currentAccountService->updateCreditLimit(
+                $accountId,
+                $request->input('credit_limit'),
+                $request->input('reason')
+            );
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Límite de crédito actualizado exitosamente',
                 'data' => $account
             ], 200);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+        } catch (Exception $e) {
+            Log::error('Error al actualizar límite de crédito: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Exportar movimientos
+     */
+    public function exportMovements(Request $request, int $accountId): JsonResponse
+    {
+        try {
+            $csv = $this->currentAccountService->exportMovements($accountId, $request);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Movimientos exportados correctamente',
+                'data' => [
+                    'csv' => $csv,
+                    'filename' => "movimientos_cuenta_{$accountId}_" . now()->format('Y-m-d') . '.csv'
+                ]
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al exportar movimientos: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Generar reporte de cuentas corrientes
+     */
+    public function generateReport(Request $request): JsonResponse
+    {
+        try {
+            $filters = $request->only(['status', 'from_date', 'to_date']);
+            $report = $this->currentAccountService->generateAccountsReport($filters);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Reporte generado correctamente',
+                'data' => $report
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al generar reporte: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener ventas pendientes de pago de una cuenta corriente
+     */
+    public function pendingSales(int $accountId): JsonResponse
+    {
+        try {
+            $account = \App\Models\CurrentAccount::with('customer')->findOrFail($accountId);
+            
+            $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
+                ->whereIn('payment_status', ['pending', 'partial'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(function ($sale) {
+                    return [
+                        'id' => $sale->id,
+                        'receipt_number' => $sale->receipt_number,
+                        'date' => $sale->created_at->format('Y-m-d'),
+                        'total' => (float)$sale->total,
+                        'paid_amount' => (float)$sale->paid_amount,
+                        'pending_amount' => $sale->pending_amount,
+                        'payment_status' => $sale->payment_status,
+                    ];
+                });
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'data' => $pendingSales
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener ventas pendientes: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error al obtener ventas pendientes'
+            ], 500);
         }
     }
 }

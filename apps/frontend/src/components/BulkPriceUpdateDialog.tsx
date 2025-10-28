@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Loader2, Calculator, Percent, DollarSign, Package } from 'lucide-react';
 import { bulkPriceService } from '@/lib/api/bulkPriceService';
+import { calculateNewPrice } from '@/utils/priceCalculations';
 import { getProducts, type Product } from '@/lib/api/productService';
 import { getCategories } from '@/lib/api/categoryService';
 import { useBranch } from '@/context/BranchContext';
@@ -68,13 +69,13 @@ export const BulkPriceUpdateDialog: React.FC<BulkPriceUpdateDialogProps> = ({
       if (Array.isArray(productsData)) {
         setProducts(productsData);
       } else if (productsData && typeof productsData === 'object' && 'data' in productsData) {
-        setProducts((productsData as any).data);
+        setProducts((productsData as { data: Product[] }).data);
       }
 
       if (Array.isArray(categoriesData)) {
         setCategories(categoriesData);
       } else if (categoriesData && typeof categoriesData === 'object' && 'data' in categoriesData) {
-        setCategories((categoriesData as any).data);
+        setCategories((categoriesData as { data: Category[] }).data);
       }
     } catch (error) {
       console.error('Error cargando datos:', error);
@@ -134,17 +135,7 @@ export const BulkPriceUpdateDialog: React.FC<BulkPriceUpdateDialogProps> = ({
     return products.filter(p => selectedProducts.includes(p.id));
   };
 
-  const calculateNewPrice = (currentPrice: number | string, type: UpdateType, value: number): number => {
-    const price = Number(currentPrice) || 0;
-    switch (type) {
-      case 'percentage':
-        return price * (1 + value / 100);
-      case 'fixed':
-        return price + value;
-      default:
-        return price;
-    }
-  };
+  // Usar función centralizada para evitar duplicación
 
   const handleUpdate = async () => {
     if (!updateValue || isNaN(Number(updateValue))) {
@@ -184,9 +175,10 @@ export const BulkPriceUpdateDialog: React.FC<BulkPriceUpdateDialogProps> = ({
       
       handleClose();
       onPricesUpdated?.(); // Refrescar la lista de productos
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error actualizando precios:', error);
-      toast.error(error.message || 'Error al actualizar precios');
+      const errorMessage = error instanceof Error ? error.message : 'Error al actualizar precios';
+      toast.error(errorMessage);
     } finally {
       setIsUpdating(false);
     }

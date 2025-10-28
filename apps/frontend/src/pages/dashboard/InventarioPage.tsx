@@ -21,7 +21,7 @@ import { useExchangeRateUpdates } from "@/hooks/useExchangeRateUpdates"
 import Pagination from "@/components/ui/pagination"
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper"
 import ExportPriceListDialog from "@/components/ExportPriceListDialog"
-import { BulkPriceUpdateDialog } from "@/components/BulkPriceUpdateDialog"
+import { BulkPriceUpdateModal } from "@/components/BulkPriceUpdate"
 import { NumberFormatter } from '@/lib/formatters/numberFormatter';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
@@ -51,7 +51,7 @@ export default function InventarioPage() {
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(10)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
-  const [bulkUpdateDialogOpen, setBulkUpdateDialogOpen] = useState(false)
+  const [advancedBulkUpdateDialogOpen, setAdvancedBulkUpdateDialogOpen] = useState(false)
 
   // Configuración de columnas redimensionables
   const columnConfig = [
@@ -760,11 +760,11 @@ export default function InventarioPage() {
               {hasPermission('actualizar_precios_masivo') && (
                 <Button
                   variant="outline"
-                  onClick={() => setBulkUpdateDialogOpen(true)}
-                  className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
+                  onClick={() => setAdvancedBulkUpdateDialogOpen(true)}
+                  className="flex gap-2 h-10 px-4 py-2 min-w-[180px]"
                 >
                   <Calculator className="h-4 w-4" />
-                  Actualizar Precios
+                  Actualización Avanzada de Precios
                 </Button>
               )}
               {hasPermission('actualizar_stock') && (
@@ -1381,10 +1381,10 @@ export default function InventarioPage() {
           open={exportDialogOpen}
           onOpenChange={setExportDialogOpen}
         />
-        <BulkPriceUpdateDialog
-          open={bulkUpdateDialogOpen}
-          onOpenChange={setBulkUpdateDialogOpen}
-          onPricesUpdated={refreshData}
+        <BulkPriceUpdateModal
+          open={advancedBulkUpdateDialogOpen}
+          onOpenChange={setAdvancedBulkUpdateDialogOpen}
+          onSuccess={refreshData}
         />
         </div>
       </BranchRequiredWrapper>

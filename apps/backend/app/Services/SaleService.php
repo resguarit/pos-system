@@ -260,15 +260,17 @@ class SaleService implements SaleServiceInterface
             return;
         }
 
-        // Determinar si es venta a crédito
-        // Una venta es a crédito si no tiene pagos asociados (se factura a cuenta corriente)
-        $isCreditSale = $sale->salePayments->isEmpty();
+        // Si la venta tiene cliente, registrar SIEMPRE en cuenta corriente
+        if ($sale->customer_id) {
+            $this->registerAllSaleMovementsInCurrentAccount($sale);
+        }
 
-        if ($isCreditSale) {
-            // Venta a crédito - registrar en cuenta corriente
-            $this->registerCurrentAccountMovement($sale);
-        } else {
-            // Venta con pagos inmediatos (efectivo, tarjetas, etc.) - registrar en caja
+        // Registrar movimientos de caja para pagos que no son cuenta corriente
+        $hasNonCreditPayments = $sale->salePayments->contains(function ($payment) {
+            return $payment->paymentMethod && $payment->paymentMethod->name !== 'Cuenta Corriente';
+        });
+        
+        if ($hasNonCreditPayments) {
             if (!$cashRegisterId) {
                 throw new \Exception('No se encontró una caja abierta para registrar la venta.');
             }
@@ -276,23 +278,6 @@ class SaleService implements SaleServiceInterface
         }
     }
 
-    /**
-     * Registra el movimiento de caja o cuenta corriente según el método de pago
-     */
-    private function registerSaleMovement(SaleHeader $sale, array $data): void
-    {
-        $cashRegisterId = $data['current_cash_register_id'] ?? null;
-        $isCreditSale = $data['is_credit_sale'] ?? false;
-
-        // Si es venta a crédito explícita, registrar en cuenta corriente
-        if ($isCreditSale) {
-            $this->registerCurrentAccountMovement($sale);
-        } else {
-            // Para ventas con pago inmediato, registrar en caja
-            // (esto incluye efectivo, tarjetas, transferencias, etc.)
-            $this->registerCashMovement($sale, $cashRegisterId);
-        }
-    }
 
     /**
      * Registra movimiento de caja para venta en efectivo
@@ -326,6 +311,12 @@ class SaleService implements SaleServiceInterface
             if ($sale->relationLoaded('salePayments') && $sale->salePayments && $sale->salePayments->count() > 0) {
                 foreach ($sale->salePayments as $payment) {
                     $paymentMethod = $payment->paymentMethod; // puede ser null si no está vinculado
+                    
+                    // IMPORTANTE: NO registrar en caja si es pago a cuenta corriente
+                    if ($paymentMethod && $paymentMethod->name === 'Cuenta Corriente') {
+                        continue;
+                    }
+                    
                     $movementType = $this->resolveMovementTypeForPaymentMethod($paymentMethod);
 
                     // Fallback final si no se encontró tipo específico: crear/obtener "Venta en efectivo"
@@ -388,54 +379,100 @@ class SaleService implements SaleServiceInterface
         }
     }
 
+
     /**
-     * Registra movimiento en cuenta corriente para venta a crédito
+     * Registra TODOS los movimientos de una venta en cuenta corriente
+     * 1. Débito (Venta) - Aumenta la deuda
+     * 2. Créditos (Pagos) - Reducen la deuda inmediatamente
      */
-    private function registerCurrentAccountMovement(SaleHeader $sale): void
+    private function registerAllSaleMovementsInCurrentAccount(SaleHeader $sale): void
     {
         if (!$sale->customer_id) {
-            throw new \Exception('No se puede registrar venta a crédito sin cliente.');
+            return; // Sin cliente, no hay cuenta corriente
         }
 
         try {
             $currentAccountService = app(CurrentAccountService::class);
             
-            // Buscar el tipo de movimiento para venta a crédito
-            $movementType = \App\Models\MovementType::where('name', 'Venta a crédito')
-                ->where('operation_type', 'entrada')
-                ->where('is_current_account_movement', true)
-                ->where('active', true)
-                ->first();
-
-            if (!$movementType) {
-                throw new \Exception('Tipo de movimiento "Venta a crédito" no encontrado.');
-            }
-
             // Buscar o crear cuenta corriente del cliente
             $currentAccount = \App\Models\CurrentAccount::firstOrCreate(
                 ['customer_id' => $sale->customer_id],
                 [
-                    'credit_limit' => 0,
+                    'credit_limit' => null,
                     'current_balance' => 0,
-                    'status' => 'active'
+                    'status' => 'active',
+                    'opened_at' => now()
                 ]
             );
 
-            $currentAccountService->create([
+            // 1. Registrar DÉBITO: Venta (aumenta la deuda)
+            $saleMovementType = \App\Models\MovementType::where('name', 'Venta')
+                ->where('operation_type', 'salida')
+                ->where('is_current_account_movement', true)
+                ->where('active', true)
+                ->first();
+
+            if (!$saleMovementType) {
+                throw new \Exception('Tipo de movimiento "Venta" no encontrado.');
+            }
+
+            $currentAccountService->createMovement([
                 'current_account_id' => $currentAccount->id,
-                'movement_type_id' => $movementType->id,
+                'movement_type_id' => $saleMovementType->id,
                 'amount' => $sale->total,
-                'description' => "Venta a crédito #{$sale->receipt_number}",
+                'description' => "Venta #{$sale->receipt_number}",
                 'reference' => $sale->receipt_number,
                 'sale_id' => $sale->id,
                 'metadata' => [
                     'sale_id' => $sale->id,
                     'receipt_number' => $sale->receipt_number,
-                    'payment_method' => 'credito'
+                    'total_sale' => $sale->total
                 ]
             ]);
+
+            // 2. Registrar CRÉDITOS: Pagos (reducen la deuda inmediatamente)
+            foreach ($sale->salePayments as $payment) {
+                $paymentMethod = $payment->paymentMethod;
+                
+                // Determinar el tipo de movimiento según el método de pago
+                $paymentTypeName = match($paymentMethod->name ?? 'Efectivo') {
+                    'Efectivo' => 'Pago en efectivo',
+                    'Tarjeta de crédito', 'Tarjeta de débito' => 'Pago con tarjeta',
+                    'Transferencia' => 'Pago con transferencia',
+                    'Cuenta Corriente' => 'Pago de cuenta corriente', // No registrar pago inmediato si es a crédito
+                    default => 'Pago de cuenta corriente'
+                };
+
+                // Si es pago a cuenta corriente, no registrar el crédito (queda pendiente)
+                if ($paymentMethod->name === 'Cuenta Corriente') {
+                    continue;
+                }
+
+                $paymentMovementType = \App\Models\MovementType::where('name', $paymentTypeName)
+                    ->where('operation_type', 'entrada')
+                    ->where('is_current_account_movement', true)
+                    ->where('active', true)
+                    ->first();
+
+                if ($paymentMovementType) {
+                    $currentAccountService->createMovement([
+                        'current_account_id' => $currentAccount->id,
+                        'movement_type_id' => $paymentMovementType->id,
+                        'amount' => $payment->amount,
+                        'description' => "Pago de venta #{$sale->receipt_number} - {$paymentMethod->name}",
+                        'reference' => $sale->receipt_number,
+                        'sale_id' => $sale->id,
+                        'metadata' => [
+                            'sale_id' => $sale->id,
+                            'receipt_number' => $sale->receipt_number,
+                            'payment_method' => $paymentMethod->name,
+                            'payment_amount' => $payment->amount
+                        ]
+                    ]);
+                }
+            }
         } catch (\Exception $e) {
-            throw new \Exception('Error al registrar movimiento de cuenta corriente: ' . $e->getMessage());
+            throw new \Exception('Error al registrar movimientos en cuenta corriente: ' . $e->getMessage());
         }
     }
     
@@ -894,9 +931,6 @@ class SaleService implements SaleServiceInterface
                   ->orWhereHas('customer.person', function($qr) use ($searchTerm){
                       $qr->where('first_name', 'like', "%{$searchTerm}%")
                          ->orWhere('last_name', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('customer', function($qr) use ($searchTerm){
-                      $qr->where('business_name', 'like', "%{$searchTerm}%");
                   })
                   ->orWhereHas('branch', function($qr) use ($searchTerm){
                       $qr->where('description', 'like', "%{$searchTerm}%");

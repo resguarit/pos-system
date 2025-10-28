@@ -8,7 +8,9 @@
         .header { border-bottom: 2px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
         .header-table { width: 100%; }
         .logo-cell { width: 180px; vertical-align: top; padding-right: 20px; }
-        .logo { max-width: 160px; max-height: 160px; width: auto; height: auto; }
+        .logo { max-width: 120px; max-height: 80px; width: auto; height: auto; object-fit: contain; }
+        .company-data { font-size: 10px; }
+        .company-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
         .header-info { vertical-align: top; }
         .branch { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
         .info-table, .items-table, .totals-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
@@ -26,14 +28,67 @@
         <table class="header-table">
             <tr>
                 <td class="logo-cell">
-                    <img src="{{ public_path('images/logo.jpg') }}" alt="Logo" class="logo">
+                    @php
+                        // Intentar obtener logo desde configuración
+                        $logoSetting = \App\Models\Setting::where('key', 'logo_url')->first();
+                        
+                        if ($logoSetting) {
+                            $logoPath = json_decode($logoSetting->value, true);
+                            
+                            // Convertir ruta relativa a path absoluto
+                            if (str_starts_with($logoPath, '/storage/')) {
+                                // Remover /storage/ y buscar en storage/app/public
+                                $filePath = str_replace('/storage/', '', $logoPath);
+                                $logoUrl = storage_path('app/public/' . $filePath);
+                            } elseif (str_starts_with($logoPath, 'storage/')) {
+                                $logoUrl = storage_path('app/public/' . $logoPath);
+                            } else {
+                                $logoUrl = public_path($logoPath);
+                            }
+                        } else {
+                            // Fallback al logo por defecto
+                            $logoUrl = public_path('images/logo.jpg');
+                        }
+                    @endphp
+                    @if(file_exists($logoUrl))
+                    <img src="{{ $logoUrl }}" alt="Logo" class="logo">
+                    @endif
                 </td>
                 <td class="header-info">
-                    <div class="branch">{{ $sale->branch->description ?? '' }}</div>
-                    <div>{{ $sale->branch->address ?? '' }}</div>
-                    @if(!empty($sale->branch->iva_condition))
-                    <div>{{ $sale->branch->iva_condition }}</div>
-                    @endif
+                    @php
+                        // Obtener datos de la empresa desde configuración
+                        $companyName = \App\Models\Setting::where('key', 'company_name')->first();
+                        $companyRuc = \App\Models\Setting::where('key', 'company_ruc')->first();
+                        $companyAddress = \App\Models\Setting::where('key', 'company_address')->first();
+                        $companyPhone = \App\Models\Setting::where('key', 'company_phone')->first();
+                        $companyEmail = \App\Models\Setting::where('key', 'company_email')->first();
+                        
+                        $name = $companyName ? json_decode($companyName->value, true) : '';
+                        $ruc = $companyRuc ? json_decode($companyRuc->value, true) : '';
+                        $address = $companyAddress ? json_decode($companyAddress->value, true) : '';
+                        $phone = $companyPhone ? json_decode($companyPhone->value, true) : '';
+                        $email = $companyEmail ? json_decode($companyEmail->value, true) : '';
+                    @endphp
+                    <div class="company-data">
+                        <div class="company-name">{{ $name ?: $sale->branch->description ?? '' }}</div>
+                        @if($ruc)
+                        <div>RUC/CUIT: {{ $ruc }}</div>
+                        @endif
+                        @if($address)
+                        <div>Dirección: {{ $address }}</div>
+                        @elseif($sale->branch->address)
+                        <div>{{ $sale->branch->address }}</div>
+                        @endif
+                        @if($phone)
+                        <div>Teléfono: {{ $phone }}</div>
+                        @endif
+                        @if($email)
+                        <div>Email: {{ $email }}</div>
+                        @endif
+                        @if(!$name && $sale->branch->iva_condition)
+                        <div>{{ $sale->branch->iva_condition }}</div>
+                        @endif
+                    </div>
                 </td>
             </tr>
         </table>

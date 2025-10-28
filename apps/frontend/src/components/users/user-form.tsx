@@ -154,7 +154,10 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
   // --- Funciones y Manejadores ---
   const populateFormWithUserData = (user: any) => {
-    setFormData({
+    // Guardar las sucursales del usuario
+    const userBranches = user.branches?.map((b: any) => String(b.id)) || [];
+    
+    setFormData(prev => ({
       firstName: user.person?.first_name || "",
       lastName: user.person?.last_name || "",
       email: user.email || "",
@@ -162,11 +165,11 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       password: "",
       roleId: String(user.role_id || ""),
       active: !!user.active,
-      branches: user.branches?.map((b: any) => String(b.id)) || [],
+      branches: userBranches, // Preservar las sucursales
       address: user.person?.address || "",
       phone: user.person?.phone || "",
       cuit: user.person?.cuit || "",
-    })
+    }))
   }
   
   // Función para verificar si el username ya existe

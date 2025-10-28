@@ -12,9 +12,42 @@ use App\Models\Stock;
 use App\Models\Branch;
 use Exception;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class ProductService implements ProductServiceInterface
 {
+    /**
+     * Helper method para recalcular el precio de venta
+     */
+    private function recalculateSalePrice($product)
+    {
+        try {
+            $pricingService = app(\App\Services\PricingService::class);
+            
+            // Obtener el IVA rate como decimal
+            $ivaRate = null;
+            if ($product->iva_id) {
+                $iva = \App\Models\Iva::find($product->iva_id);
+                $ivaRate = $iva ? $iva->rate / 100 : null;
+            }
+            
+            // Calcular el nuevo precio de venta usando el markup actual
+            $newSalePrice = $pricingService->calculateSalePrice(
+                (float) $product->unit_price,
+                $product->currency,
+                (float) $product->markup,
+                $ivaRate
+            );
+            
+            // Actualizar solo el sale_price sin disparar eventos adicionales
+            $product->setAttribute('sale_price', $newSalePrice);
+            $product->saveQuietly(); // Usar saveQuietly para evitar loops
+        } catch (Exception $e) {
+            Log::error("Error recalculando precio de venta para producto {$product->id}: " . $e->getMessage());
+            // No lanzar excepción para no interrumpir el proceso
+        }
+    }
+
     public function getAllProducts()
     {
         try {
@@ -242,5 +275,141 @@ class ProductService implements ProductServiceInterface
     public function getAllBranches()
     {
         return Branch::all();
+    }
+
+    public function bulkUpdatePrices(array $updates)
+    {
+        return DB::transaction(function () use ($updates) {
+            $updatedCount = 0;
+            $failedUpdates = [];
+
+            foreach ($updates as $update) {
+                try {
+                    $product = Product::findOrFail($update['id']);
+                    $oldPrice = $product->unit_price;
+                    
+                    // Actualizar el precio unitario
+                    $product->update([
+                        'unit_price' => $update['unit_price']
+                    ]);
+                    
+                    // Recalcular el precio de venta
+                    $this->recalculateSalePrice($product);
+
+                    Log::info('Bulk price update', [
+                        'product_id' => $product->id,
+                        'product_description' => $product->description,
+                        'old_price' => $oldPrice,
+                        'new_price' => $update['unit_price'],
+                        'new_sale_price' => $product->sale_price,
+                        'currency' => $product->currency
+                    ]);
+
+                    $updatedCount++;
+                } catch (Exception $e) {
+                    $failedUpdates[] = [
+                        'product_id' => $update['id'],
+                        'error' => $e->getMessage()
+                    ];
+                    
+                    Log::error('Failed bulk price update', [
+                        'product_id' => $update['id'],
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            return [
+                'success' => true,
+                'updated_count' => $updatedCount,
+                'failed_updates' => $failedUpdates,
+                'message' => "Se actualizaron {$updatedCount} productos correctamente"
+            ];
+        });
+    }
+
+    public function bulkUpdatePricesByCategory(array $categoryIds, string $updateType, float $value)
+    {
+        return DB::transaction(function () use ($categoryIds, $updateType, $value) {
+            $products = Product::whereIn('category_id', $categoryIds)->get();
+
+            if ($products->isEmpty()) {
+                throw new Exception('No se encontraron productos en las categorías seleccionadas');
+            }
+
+            foreach ($products as $product) {
+                $oldPrice = $product->unit_price;
+                $newPrice = $this->calculateNewPrice($oldPrice, $updateType, $value);
+                
+                // Actualizar el precio unitario
+                $product->update([
+                    'unit_price' => $newPrice
+                ]);
+                
+                // Recalcular el precio de venta
+                $this->recalculateSalePrice($product);
+
+                Log::info('Bulk category price update', [
+                    'product_id' => $product->id,
+                    'product_description' => $product->description,
+                    'category_id' => $product->category_id,
+                    'update_type' => $updateType,
+                    'value' => $value,
+                    'old_price' => $oldPrice,
+                    'new_price' => $newPrice,
+                    'new_sale_price' => $product->sale_price,
+                    'currency' => $product->currency
+                ]);
+            }
+
+            return [
+                'success' => true,
+                'updated_count' => $products->count(),
+                'message' => "Se actualizaron {$products->count()} productos de las categorías seleccionadas"
+            ];
+        });
+    }
+
+    public function bulkUpdatePricesBySupplier(array $supplierIds, string $updateType, float $value)
+    {
+        return DB::transaction(function () use ($supplierIds, $updateType, $value) {
+            $products = Product::whereIn('supplier_id', $supplierIds)->where('status', true)->get();
+
+            if ($products->isEmpty()) {
+                throw new Exception('No se encontraron productos para los proveedores especificados');
+            }
+
+            $updatedCount = 0;
+            foreach ($products as $product) {
+                $oldPrice = $product->unit_price;
+                $newPrice = $this->calculateNewPrice($oldPrice, $updateType, $value);
+                
+                // Actualizar el precio unitario
+                $product->update(['unit_price' => $newPrice]);
+                
+                // Recalcular el precio de venta
+                $this->recalculateSalePrice($product);
+                
+                $updatedCount++;
+            }
+
+            return [
+                'success' => true,
+                'updated_count' => $updatedCount,
+                'message' => "Se actualizaron {$updatedCount} productos correctamente"
+            ];
+        });
+    }
+
+    private function calculateNewPrice($currentPrice, $updateType, $value)
+    {
+        switch ($updateType) {
+            case 'percentage':
+                return $currentPrice * (1 + $value / 100);
+            case 'fixed':
+                return $currentPrice + $value;
+            default:
+                return $currentPrice;
+        }
     }
 }

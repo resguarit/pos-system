@@ -38,6 +38,22 @@ class Role extends Model
         return $this->belongsToMany(Permission::class);
     }
 
+    /**
+     * Get the shipment stages this role can access.
+     */
+    public function shipmentStages()
+    {
+        return $this->belongsToMany(ShipmentStage::class, 'shipment_stage_role', 'role_id', 'stage_id');
+    }
+
+    /**
+     * Get the visibility rules for this role.
+     */
+    public function shipmentVisibilityRules()
+    {
+        return $this->hasMany(ShipmentRoleAttributeVisibility::class);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

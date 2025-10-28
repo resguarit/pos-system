@@ -28,7 +28,7 @@ class Person extends Model
     ];
 
     protected $casts = [
-        'credit_limit' => 'decimal:2',
+        'credit_limit' => 'float',
     ];
 
     /**

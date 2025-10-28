@@ -66,6 +66,14 @@ class MovementTypeSeeder extends Seeder
                 'is_current_account_movement' => false,
                 'active' => true,
             ],
+            [
+                'name' => 'Pago de envío',
+                'description' => 'Ingreso por pago de costo de envío',
+                'operation_type' => 'entrada',
+                'is_cash_movement' => true,
+                'is_current_account_movement' => false,
+                'active' => true,
+            ],
         ];
 
         foreach ($movementTypes as $type) {

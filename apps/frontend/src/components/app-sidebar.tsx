@@ -39,14 +39,16 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { FEATURES } from "@/config/features"
+import features from "@/config/features"
 import { useAuth } from "@/hooks/useAuth"
+import { useSystemConfigContext } from "@/context/SystemConfigContext"
 import { cn } from "@/lib/utils"
 
 export function AppSidebar({ className }: { className?: string }) {
   const location = useLocation()
   const pathname = location.pathname
   const { hasPermission } = useAuth()
+  const { config } = useSystemConfigContext()
   const { isMobile, setOpenMobile } = useSidebar()
 
   // Cerrar sidebar en móviles cuando cambia la ruta
@@ -55,6 +57,8 @@ export function AppSidebar({ className }: { className?: string }) {
       setOpenMobile(false)
     }
   }, [pathname, isMobile, setOpenMobile])
+
+  const systemTitle = config?.system_title || 'RG Gestión'
 
   return (
     <Sidebar className={cn(
@@ -65,13 +69,51 @@ export function AppSidebar({ className }: { className?: string }) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-blue-600 text-white">
-                <Store className="size-4" />
-              </div>
+            <SidebarMenuButton 
+              size="lg" 
+              className="rounded-lg border"
+              style={{ 
+                backgroundColor: config?.primary_color ? `${config.primary_color}20` : '#EFF6FF',
+                borderColor: config?.primary_color ? `${config.primary_color}40` : '#BFDBFE',
+              }}
+              onMouseEnter={(e) => {
+                if (config?.primary_color) {
+                  e.currentTarget.style.backgroundColor = `${config.primary_color}30`
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (config?.primary_color) {
+                  e.currentTarget.style.backgroundColor = `${config.primary_color}20`
+                }
+              }}
+            >
+              {config?.logo_url ? (
+                <img 
+                  src={config.logo_url} 
+                  alt={systemTitle}
+                  className="w-8 h-8 rounded-lg object-contain bg-white p-1"
+                  onError={(e) => {
+                    console.error('Error loading logo:', config.logo_url);
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div 
+                  className="flex aspect-square size-8 items-center justify-center rounded-lg text-white"
+                  style={{ 
+                    backgroundColor: config?.primary_color || '#3B82F6'
+                  }}
+                >
+                  <Store className="size-4" />
+                </div>
+              )}
               <div className="flex flex-col gap-0.5 leading-none">
-                <span className="font-semibold text-blue-900">RG Gestión</span>
-                <span className="text-xs text-blue-700">v1.0.0</span>
+                <span className="font-semibold text-gray-800">
+                  {systemTitle}
+                </span>
+                <span className="text-xs text-gray-600">
+                  v1.0.0
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -82,7 +124,7 @@ export function AppSidebar({ className }: { className?: string }) {
           <SidebarGroupLabel>Navegación</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {FEATURES.dashboard && hasPermission('ver_dashboard') && (
+              {features.dashboard && hasPermission('ver_dashboard') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard"} tooltip="Dashboard">
                   <Link to="/dashboard">
@@ -92,7 +134,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.inventario && hasPermission('ver_productos') && (
+              {features.inventario && hasPermission('ver_productos') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/inventario"} tooltip="Inventario">
                   <Link to="/dashboard/inventario">
@@ -112,7 +154,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.ventas && hasPermission('ver_ventas') && (
+              {features.ventas && hasPermission('ver_ventas') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/ventas"} tooltip="Ventas">
                   <Link to="/dashboard/ventas">
@@ -122,7 +164,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.pos && hasPermission('crear_ventas') && (
+              {features.pos && hasPermission('crear_ventas') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/pos"} tooltip="Punto de Venta">
                   <Link to="/dashboard/pos">
@@ -132,7 +174,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.caja && (hasPermission('abrir_cerrar_caja') || hasPermission('ver_movimientos_caja') || hasPermission('crear_movimientos_caja') || hasPermission('ver_historico_caja')) && (
+              {features.caja && (hasPermission('abrir_cerrar_caja') || hasPermission('ver_movimientos_caja') || hasPermission('crear_movimientos_caja') || hasPermission('ver_historico_caja')) && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/caja"} tooltip="Caja">
                   <Link to="/dashboard/caja">
@@ -142,7 +184,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.turnos && hasPermission('ver_turnos') && (
+              {features.turnos && hasPermission('ver_turnos') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/turnos"} tooltip="Turnos">
                   <Link to="/dashboard/turnos">
@@ -152,7 +194,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.repairs && hasPermission('ver_reparaciones') && (
+              {features.repairs && hasPermission('ver_reparaciones') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/reparaciones"} tooltip="Reparaciones">
                   <Link to="/dashboard/reparaciones">
@@ -170,7 +212,7 @@ export function AppSidebar({ className }: { className?: string }) {
           <SidebarGroupLabel>Clientes</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {FEATURES.clientes && hasPermission('ver_clientes') && (
+              {features.clientes && hasPermission('ver_clientes') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/clientes"} tooltip="Clientes">
                   <Link to="/dashboard/clientes">
@@ -180,7 +222,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.cuentasCorrientes && hasPermission('ver_cuentas_corrientes') && (
+              {features.cuentasCorrientes && hasPermission('gestionar_cuentas_corrientes') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/cuentas-corrientes"} tooltip="Cuentas Corrientes">
                   <Link to="/dashboard/cuentas-corrientes">
@@ -198,7 +240,7 @@ export function AppSidebar({ className }: { className?: string }) {
           <SidebarGroupLabel>Compras</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {FEATURES.proveedores && hasPermission('ver_proveedores') && (
+              {features.proveedores && hasPermission('ver_proveedores') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/proveedores")} tooltip="Proveedores">
                   <Link to="/dashboard/proveedores">
@@ -208,7 +250,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.purchaseOrders && hasPermission('ver_ordenes_compra') && (
+              {features.purchaseOrders && hasPermission('ver_ordenes_compra') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/purchase-orders"} tooltip="Órdenes de Compra">
                   <Link to="/dashboard/purchase-orders">
@@ -236,7 +278,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.sucursales && hasPermission('ver_sucursales') && (
+              {features.sucursales && hasPermission('ver_sucursales') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/sucursales"} tooltip="Sucursales">
                   <Link to="/dashboard/sucursales">
@@ -246,7 +288,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.zonasEntrega && (
+              {features.zonasEntrega && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/zonas-entrega"} tooltip="Delivery">
                   <Link to="/dashboard/zonas-entrega">
@@ -256,7 +298,17 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.usuarios && hasPermission('ver_usuarios') && (
+              {features.shipments && hasPermission('ver_envios') && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/dashboard/envios"} tooltip="Envíos">
+                  <Link to="/dashboard/envios">
+                    <Package className="h-4 w-4" />
+                    <span>Envíos</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              )}
+              {features.usuarios && hasPermission('ver_usuarios') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/usuarios"} tooltip="Usuarios">
                   <Link to="/dashboard/usuarios">
@@ -266,7 +318,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.roles && hasPermission('ver_roles') && (
+              {features.roles && hasPermission('ver_roles') && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/roles")} tooltip="Roles">
                   <Link to="/dashboard/roles">
@@ -276,7 +328,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
-              {FEATURES.solicitudes && (
+              {features.solicitudes && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/solicitudes"} tooltip="Solicitudes">
                   <Link to="/dashboard/solicitudes">
@@ -289,8 +341,8 @@ export function AppSidebar({ className }: { className?: string }) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        {((FEATURES.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas')) || 
-          (FEATURES.reportesInventario && hasPermission('generar_reportes'))) && (
+        {((features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas')) || 
+          (features.reportesInventario && hasPermission('generar_reportes'))) && (
           <>
             <SidebarSeparator />
             <SidebarGroup>
@@ -298,7 +350,7 @@ export function AppSidebar({ className }: { className?: string }) {
               <SidebarGroupContent>
                 <SidebarMenu>
 
-                  {FEATURES.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas') && (
+                  {features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas') && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={pathname === "/dashboard/analisis-ventas"} tooltip="Análisis de Ventas">
                         <Link to="/dashboard/analisis-ventas">
@@ -308,7 +360,7 @@ export function AppSidebar({ className }: { className?: string }) {
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )}
-                  {FEATURES.reportesInventario && hasPermission('generar_reportes') && (
+                  {features.reportesInventario && hasPermission('generar_reportes') && (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={pathname === "/dashboard/reportes-inventario"} tooltip="Reportes de Inventario">
                         <Link to="/dashboard/reportes-inventario">
@@ -323,17 +375,16 @@ export function AppSidebar({ className }: { className?: string }) {
             </SidebarGroup>
           </>
         )}
-        {(FEATURES.perfil || 
-          FEATURES.configuracionUsuario || 
-          (FEATURES.facturacion && hasPermission('ver_ventas')) || 
-          (FEATURES.configuracionSistema && hasPermission('ver_configuracion'))) && (
+        {(features.perfil || 
+          features.configuracionUsuario || 
+          (features.configuracionSistema && hasPermission('ver_configuracion_sistema'))) && (
           <>
             <SidebarSeparator />
             <SidebarGroup>
               <SidebarGroupLabel>Cuenta</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {FEATURES.perfil && (
+                  {features.perfil && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === "/dashboard/perfil"} tooltip="Mi Perfil">
                       <Link to="/dashboard/perfil">
@@ -343,7 +394,7 @@ export function AppSidebar({ className }: { className?: string }) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   )}
-                  {FEATURES.configuracionUsuario && (
+                  {features.configuracionUsuario && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion-usuario"} tooltip="Configuración Usuario">
                       <Link to="/dashboard/configuracion-usuario">
@@ -353,7 +404,7 @@ export function AppSidebar({ className }: { className?: string }) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   )}
-                  {FEATURES.facturacion && hasPermission('ver_ventas') && (
+                  {features.facturacion && hasPermission('ver_ventas') && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname === "/dashboard/facturacion"} tooltip="Facturación">
                       <Link to="/dashboard/facturacion">
@@ -363,12 +414,12 @@ export function AppSidebar({ className }: { className?: string }) {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   )}
-                  {FEATURES.configuracionSistema && hasPermission('ver_configuracion') && (
+                  {features.configuracionSistema && hasPermission('ver_configuracion_sistema') && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion"} tooltip="Configuración Sistema">
-                      <Link to="/dashboard/configuracion">
-                        <Settings className="h-4 w-4" />
-                        <span>Configuración Sistema</span>
+                    <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion-sistema"} tooltip="Configuración">
+                      <Link to="/dashboard/configuracion-sistema">
+                        <Settings className="w-4 h-4" />
+                        <span>Configuración</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

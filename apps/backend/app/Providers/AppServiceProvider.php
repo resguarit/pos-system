@@ -44,6 +44,11 @@ use App\Interfaces\FiscalConditionServiceInterface;
 use App\Services\FiscalConditionService;
 use App\Interfaces\RepairServiceInterface;
 use App\Services\RepairService;
+use App\Interfaces\ShipmentServiceInterface;
+use App\Services\ShipmentService;
+use App\Interfaces\ShipmentStageServiceInterface;
+use App\Services\ShipmentStageService;
+use App\Services\SearchService;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 class AppServiceProvider extends ServiceProvider
@@ -79,6 +84,13 @@ class AppServiceProvider extends ServiceProvider
         
         // Repairs bindings
         $this->app->bind(RepairServiceInterface::class, RepairService::class);
+        
+        // Shipment bindings
+        $this->app->bind(ShipmentServiceInterface::class, ShipmentService::class);
+        $this->app->bind(ShipmentStageServiceInterface::class, ShipmentStageService::class);
+        
+        // Search Service binding
+        $this->app->singleton(SearchService::class);
     }
 
     /**

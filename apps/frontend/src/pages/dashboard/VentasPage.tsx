@@ -136,7 +136,7 @@ export default function VentasPage() {
     setAllSales([]); // Limpiar caché cuando cambien las fechas
     const timer = setTimeout(() => {
       Promise.all([
-        fetchSales(dateRange.from!, dateRange.to!, 1),
+        fetchSales(dateRange.from!, dateRange.to!, 1, searchTerm),
         fetchStats(dateRange.from!, dateRange.to!)
       ]).finally(() => {
         setPageLoading(false);
@@ -165,13 +165,28 @@ export default function VentasPage() {
     setPageLoading(true);
     setAllSales([]); // Limpiar caché cuando cambie la sucursal
     Promise.all([
-      fetchSales(dateRange.from!, dateRange.to!, 1),
+      fetchSales(dateRange.from!, dateRange.to!, 1, searchTerm),
       fetchStats(dateRange.from!, dateRange.to!),
     ]).finally(() => setPageLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionChangeToken]);
 
-  const fetchSales = async (fromDate?: Date, toDate?: Date, currentPage = 1) => {
+  // Refetch cuando cambie el término de búsqueda
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPageLoading(true);
+      setCurrentPage(1);
+      setAllSales([]);
+      fetchSales(dateRange.from!, dateRange.to!, 1, searchTerm).finally(() => {
+        setPageLoading(false);
+      });
+    }, 300); // Debounce de 300ms
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  const fetchSales = async (fromDate?: Date, toDate?: Date, currentPage = 1, search = "") => {
     try {
       // Para la primera carga, verificamos si necesitamos paginación del servidor
       const apiParams: any = {};
@@ -179,6 +194,11 @@ export default function VentasPage() {
       if (fromDate && toDate) {
         apiParams.from_date = format(fromDate, "yyyy-MM-dd");
         apiParams.to_date = format(toDate, "yyyy-MM-dd");
+      }
+      
+      // Agregar búsqueda al backend
+      if (search) {
+        apiParams.search = search;
       }
       
       // Solo agregar parámetros de paginación si es la primera carga o si sabemos que hay paginación del servidor
@@ -416,18 +436,8 @@ export default function VentasPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'annulled'>('all');
   const [branchFilter, setBranchFilter] = useState<string>('all');
 
+  // Ya no filtramos del lado del cliente, el backend hace la búsqueda
   const filteredSales = sales.filter((sale: SaleHeader) => {
-    const receiptTypeInfo = getReceiptType(sale);
-    const matchesSearch =
-      searchTerm === "" ||
-      sale.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getCustomerName(sale).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (receiptTypeInfo.displayName || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      (typeof sale.branch === 'string' ? sale.branch.toLowerCase() : (sale.branch?.description || "").toLowerCase())
-        .includes(searchTerm.toLowerCase());
-
     const matchesStatus =
       statusFilter === 'all' ? true :
       statusFilter === 'active' ? sale.status !== 'annulled' :
@@ -445,7 +455,7 @@ export default function VentasPage() {
         return branchId ? branchId.toString() === branchFilter : false;
       })();
 
-    return matchesSearch && matchesStatus && matchesBranch;
+    return matchesStatus && matchesBranch;
   });
   
   const handleDateRangeChange = (range: DateRange | undefined) => {

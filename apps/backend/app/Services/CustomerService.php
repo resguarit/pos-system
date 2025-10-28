@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Interfaces\CustomerServiceInterface;
+use App\Interfaces\CurrentAccountServiceInterface;
 use App\Models\Customer;
 use App\Models\Person;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,12 @@ use App\Models\SaleHeader; // Asegúrate de incluir el modelo SaleHeader
 
 class CustomerService implements CustomerServiceInterface
 {
+    protected $currentAccountService;
+
+    public function __construct(CurrentAccountServiceInterface $currentAccountService)
+    {
+        $this->currentAccountService = $currentAccountService;
+    }
     public function getAllCustomers()
     {
         return Customer::with(['person.fiscalCondition'])->get();
@@ -36,7 +43,7 @@ class CustomerService implements CustomerServiceInterface
                 'person_type_id' => isset($data['person_type_id']) && $data['person_type_id'] ? $data['person_type_id'] : 1, // Default a 1 si es nulo o 0
                 'document_type_id' => isset($data['document_type_id']) && $data['document_type_id'] ? $data['document_type_id'] : 1,
                 'documento' => isset($data['documento']) && $data['documento'] ? $data['documento'] : 0,
-                'credit_limit' => $data['credit_limit'] ?? 0,
+                'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
             ];
             
             $person = Person::create($personData);
@@ -47,6 +54,15 @@ class CustomerService implements CustomerServiceInterface
                 'active' => $data['active'] ?? true,
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            // Crear cuenta corriente automáticamente
+            $currentAccountData = [
+                'customer_id' => $customer->id,
+                'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
+                'notes' => 'Cuenta corriente creada automáticamente al crear el cliente',
+            ];
+            
+            $this->currentAccountService->createAccount($currentAccountData);
 
             return $customer->load('person');
         });

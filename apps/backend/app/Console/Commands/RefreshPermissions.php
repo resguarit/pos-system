@@ -109,9 +109,9 @@ class RefreshPermissions extends Command
                 Permission::whereIn('name', $obsoletePermissionsToRemove)->delete();
             }
             
-            // 7. Actualizar asignaciones de roles-permisos
+            // 7. Actualizar asignaciones de roles-permisos (solo para roles sin permisos manuales)
             $this->info('🔗 Actualizando asignaciones de roles-permisos...');
-            $this->call('db:seed', ['--class' => 'PermissionRoleSeeder']);
+            $this->updateRolePermissionsIntelligently();
             
             DB::commit();
             
@@ -149,5 +149,142 @@ class RefreshPermissions extends Command
             $this->error('❌ Error al refrescar permisos: ' . $e->getMessage());
             return 1;
         }
+    }
+
+    /**
+     * Actualiza las asignaciones de permisos a roles de manera inteligente,
+     * preservando los permisos manuales y solo aplicando los del seeder
+     * para roles que no han sido modificados manualmente.
+     */
+    private function updateRolePermissionsIntelligently()
+    {
+        // Obtener los permisos predeterminados del seeder
+        $defaultRolePermissions = $this->getDefaultRolePermissions();
+        
+        foreach ($defaultRolePermissions as $roleName => $permissionNames) {
+            $role = Role::where('name', $roleName)->first();
+            
+            if (!$role) {
+                $this->warn("⚠️ Rol '{$roleName}' no encontrado, saltando...");
+                continue;
+            }
+            
+            // Verificar si el rol tiene permisos personalizados
+            $currentPermissions = $role->permissions->pluck('name')->toArray();
+            $defaultPermissions = $permissionNames;
+            
+            // Si el rol tiene más permisos que los predeterminados, asumimos que fue modificado manualmente
+            $hasCustomPermissions = count($currentPermissions) > count($defaultPermissions) || 
+                                  !empty(array_diff($currentPermissions, $defaultPermissions));
+            
+            if ($hasCustomPermissions) {
+                $this->info("🔒 Preservando permisos personalizados para rol '{$roleName}' ({$role->permissions->count()} permisos)");
+                continue;
+            }
+            
+            // Si el rol tiene exactamente los permisos predeterminados o menos, aplicar los del seeder
+            $this->info("🔄 Aplicando permisos predeterminados para rol '{$roleName}'");
+            $permissions = Permission::whereIn('name', $permissionNames)->get();
+            $role->permissions()->sync($permissions->pluck('id'));
+            
+            $this->info("   ✅ {$roleName}: " . $permissions->count() . " permisos asignados");
+        }
+    }
+
+    /**
+     * Obtiene los permisos predeterminados para cada rol según el seeder.
+     */
+    private function getDefaultRolePermissions(): array
+    {
+        return [
+            'Admin' => Permission::all()->pluck('name')->toArray(),
+            
+            'Cajero' => [
+                'ver_dashboard',
+                'ver_ventas',
+                'crear_ventas',
+                'reimprimir_comprobantes',
+                'aplicar_descuentos',
+                'abrir_cerrar_caja',
+                'ver_movimientos_caja',
+                'crear_movimientos_caja',
+                'eliminar_movimientos_caja',
+                'ver_historico_caja',
+                'ver_clientes',
+                'crear_clientes',
+                'editar_clientes',
+                'ver_productos',
+                'ver_stock',
+                'cambiar_password'
+            ],
+            
+            'Supervisor' => [
+                'ver_dashboard',
+                'ver_estadisticas',
+                'ver_productos',
+                'crear_productos',
+                'editar_productos',
+                'eliminar_productos',
+                'actualizar_stock',
+                'ver_stock',
+                'exportar_lista_precios',
+                'actualizar_precios_masivo',
+                'ver_categorias',
+                'crear_categorias',
+                'editar_categorias',
+                'eliminar_categorias',
+                'ver_proveedores',
+                'crear_proveedores',
+                'editar_proveedores',
+                'eliminar_proveedores',
+                'ver_ordenes_compra',
+                'crear_ordenes_compra',
+                'editar_ordenes_compra',
+                'eliminar_ordenes_compra',
+                'ver_historial_compras',
+                'ver_reportes',
+                'generar_reportes',
+                'exportar_reportes',
+                'ver_ventas',
+                'anular_ventas',
+                'reimprimir_comprobantes',
+                'ver_clientes',
+                'crear_clientes',
+                'editar_clientes',
+                'ver_reparaciones',
+                'crear_reparaciones',
+                'editar_reparaciones',
+                'repairs.create',
+                'repairs.view',
+                'repairs.edit',
+                'repairs.link_sale',
+                'ver_turnos',
+                'crear_turnos',
+                'editar_turnos',
+                'appointments.create',
+                'ver_sucursales',
+                'ver_personal_sucursal',
+                'ver_historial_ventas_sucursal',
+                'ajustar_stock',
+                'ver_alertas_stock',
+                'realizar_inventario',
+                'abrir_cerrar_caja',
+                'ver_movimientos_caja',
+                'crear_movimientos_caja',
+                'eliminar_movimientos_caja',
+                'ver_historico_caja',
+                'cambiar_password',
+                'gestionar_combos',
+                'crear_combos',
+                'editar_combos',
+                'eliminar_combos',
+                'ver_usuarios',
+                'crear_usuarios',
+                'editar_usuarios',
+                'eliminar_usuarios',
+                'ver_ventas_usuario',
+                'ver_estadisticas_usuario'
+            ]
+        ];
     }
 }

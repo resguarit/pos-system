@@ -1,39 +1,35 @@
-export const FEATURES = {
-  // Módulos principales (siempre activos)
+const features = {
+  // Core features
   dashboard: true,
-  inventario: true,
-  ventas: true,
-  historialVentas: true,
-  pos: true,
+  roles: true,
+  
+  categorias: true,
+  combos: true,
+  repairs: false,
+  
+  analisisventas: false,
   caja: true,
   clientes: true,
-  proveedores: true,
-  categorias: true,
-  sucursales: true,
-  usuarios: true,
-  roles: true,
-  combos: true,
-  configuracionSistema: false,
-  purchaseOrders: true,
-  
-  // Módulos opcionales (pueden deshabilitarse)
-  turnos: false ,
-  repairs: false, 
-  zonasEntrega: false,
-  solicitudes: false,
-  analisisVentas: false,
-  reportesInventario: false,
-  perfil: false,
   configuracionUsuario: false,
+  configuracionSistema: true,
+  cuentasCorrientes: true,
   facturacion: false,
+  historialVentas: true,
+  inventario: true,
+  perfil: false,
+  pos: true,
+  proveedores: true,
+  purchaseOrders: true,
+  reportesInventario: false,
+  solicitudes: false,
+  sucursales: true,
+  turnos: false,
+  usuarios: true,
+  ventas: true,
+  zonasEntrega: false,
   
-  // Features adicionales que pueden agregarse
-  cuentasCorrientes: false,
-  movimientosStock: true,
-  auditoria: true,
-  backup: false,
-  notificaciones: false,
-  integracionAfip: false,
-  reportesAvanzados: false,
-  analisisventas: false,
-};
+  shipments: true,
+} as const;
+
+export default features;
+export type FeatureFlags = typeof features;

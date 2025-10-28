@@ -18,12 +18,7 @@ import useApi from "@/hooks/useApi"
 // Iconos
 import { ArrowLeft, Save, Loader2 } from "lucide-react"
 
-interface CategoryFormProps {
-  categoryId?: string
-  viewOnly?: boolean
-}
-
-export default function CategoryForm({ viewOnly = false }: CategoryFormProps) {
+export default function CategoryForm() {
   const navigate = useNavigate()
   const { request } = useApi()
   const { id: categoryId } = useParams()
@@ -259,11 +254,10 @@ export default function CategoryForm({ viewOnly = false }: CategoryFormProps) {
             </Link>
           </Button>
           <h2 className="text-3xl font-bold tracking-tight">
-            {viewOnly ? "Ver Categoría" : categoryId ? "Editar Categoría" : "Nueva Categoría"}
+            {categoryId ? "Editar Categoría" : "Nueva Categoría"}
           </h2>
         </div>
-        {!viewOnly && (
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
+        <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -271,7 +265,6 @@ export default function CategoryForm({ viewOnly = false }: CategoryFormProps) {
             )}
             {categoryId ? "Guardar Cambios" : "Crear Categoría"}
           </Button>
-        )}
       </div>
       
       <div className="flex-1 overflow-y-auto min-h-0 py-4">
@@ -280,7 +273,7 @@ export default function CategoryForm({ viewOnly = false }: CategoryFormProps) {
             <CardHeader>
               <CardTitle>Información de la Categoría</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {viewOnly ? "Información general de la categoría." : "Completa los datos de la categoría. Los campos marcados con * son obligatorios."}
+                Completa los datos de la categoría. Los campos marcados con * son obligatorios.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -294,7 +287,7 @@ export default function CategoryForm({ viewOnly = false }: CategoryFormProps) {
                     name="name" 
                     value={formData.name} 
                     onChange={handleInputChange} 
-                    disabled={viewOnly || isSubmitting} 
+                    disabled={isSubmitting} 
                     required 
                     className={nameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                     style={{ borderColor: nameError ? '#ef4444' : undefined }}
@@ -313,7 +306,7 @@ export default function CategoryForm({ viewOnly = false }: CategoryFormProps) {
                   name="description" 
                   value={formData.description} 
                   onChange={handleInputChange} 
-                  disabled={viewOnly || isSubmitting} 
+                  disabled={isSubmitting} 
                   rows={3}
                 />
               </div>
@@ -323,7 +316,7 @@ export default function CategoryForm({ viewOnly = false }: CategoryFormProps) {
                 <Select
                   value={formData.parent_id ? String(formData.parent_id) : "none"}
                   onValueChange={handleParentChange}
-                  disabled={viewOnly || isSubmitting}
+                  disabled={isSubmitting}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona una categoría padre (opcional)" />

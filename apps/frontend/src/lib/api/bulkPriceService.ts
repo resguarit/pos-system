@@ -19,6 +19,38 @@ export interface BulkPriceUpdateResponse {
   message: string;
 }
 
+export interface ProductSearchParams {
+  search?: string;
+  supplier_ids?: number[];
+  category_ids?: number[];
+  product_ids?: number[];
+  page?: number;
+  per_page?: number;
+  branch_id?: number;
+}
+
+export interface ProductSearchResponse {
+  success: boolean;
+  data: any[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number | null;
+    to: number | null;
+  };
+}
+
+export interface BulkUpdateStatsResponse {
+  success: boolean;
+  stats: {
+    total_products: number;
+    total_value: number;
+    average_price: number;
+  };
+}
+
 export const bulkPriceService = {
   /**
    * Actualiza precios de múltiples productos de forma masiva
@@ -61,6 +93,72 @@ export const bulkPriceService = {
       }
       
       throw new Error('Error al actualizar precios por categoría');
+    }
+  },
+
+  /**
+   * Actualiza precios por proveedor
+   */
+  async updatePricesBySupplier(
+    supplierIds: number[], 
+    updateType: 'percentage' | 'fixed', 
+    value: number
+  ): Promise<BulkPriceUpdateResponse> {
+    try {
+      const response = await api.post('/bulksupplier', {
+        supplier_ids: supplierIds,
+        update_type: updateType,
+        value: value
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error en actualización masiva por proveedor:', error);
+      
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      
+      throw new Error('Error al actualizar precios por proveedor');
+    }
+  },
+
+  /**
+   * Búsqueda optimizada de productos para actualización masiva
+   */
+  async searchProducts(params: ProductSearchParams): Promise<ProductSearchResponse> {
+    try {
+      const response = await api.get('/bulksearch', {
+        params: params
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error buscando productos:', error);
+      
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      
+      throw new Error('Error al buscar productos');
+    }
+  },
+
+  /**
+   * Obtiene estadísticas de productos para filtros
+   */
+  async getStats(params: Omit<ProductSearchParams, 'page' | 'per_page' | 'product_ids'>): Promise<BulkUpdateStatsResponse> {
+    try {
+      const response = await api.get('/bulkstats', {
+        params: params
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Error obteniendo estadísticas:', error);
+      
+      if (error.response?.data?.message) {
+        throw new Error(error.response.data.message);
+      }
+      
+      throw new Error('Error al obtener estadísticas');
     }
   },
 

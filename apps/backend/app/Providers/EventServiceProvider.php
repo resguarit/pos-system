@@ -8,6 +8,11 @@ use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvi
 use Illuminate\Support\Facades\Event;
 use App\Events\CashMovementCreated;
 use App\Listeners\UpdateCashRegisterCalculatedFields;
+use App\Events\ShipmentCreated;
+use App\Events\ShipmentMoved;
+use App\Events\ShipmentFailed;
+use App\Listeners\ShipmentEventListener;
+use App\Listeners\ShipmentWebhookListener;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -22,6 +27,18 @@ class EventServiceProvider extends ServiceProvider
         ],
         CashMovementCreated::class => [
             UpdateCashRegisterCalculatedFields::class,
+        ],
+        ShipmentCreated::class => [
+            ShipmentEventListener::class,
+            ShipmentWebhookListener::class,
+        ],
+        ShipmentMoved::class => [
+            ShipmentEventListener::class,
+            ShipmentWebhookListener::class,
+        ],
+        ShipmentFailed::class => [
+            ShipmentEventListener::class,
+            ShipmentWebhookListener::class,
         ],
     ];
 

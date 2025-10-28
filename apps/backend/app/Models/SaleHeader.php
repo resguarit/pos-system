@@ -39,6 +39,8 @@ class SaleHeader extends Model
         'annulled_at',
         'annulled_by',
         'annulment_reason',
+        'paid_amount',
+        'payment_status',
     ];
 
     protected $casts = [
@@ -50,12 +52,15 @@ class SaleHeader extends Model
         'discount_value' => 'decimal:2',
         'discount_amount' => 'decimal:3',
         'total' => 'decimal:3',
+        'paid_amount' => 'decimal:3',
         'cae_expiration_date' => 'date',
         'service_from_date' => 'date',
         'service_to_date' => 'date',
         'service_due_date' => 'date',
         'annulled_at' => 'datetime',
     ];
+
+    protected $appends = ['pending_amount'];
 
     public function receiptType()
     {
@@ -126,5 +131,38 @@ class SaleHeader extends Model
     public function currentAccountMovements()
     {
         return $this->hasMany(CurrentAccountMovement::class, 'sale_id');
+    }
+
+    /**
+     * Accessor para monto pendiente
+     */
+    public function getPendingAmountAttribute(): float
+    {
+        return max(0, (float)$this->total - (float)$this->paid_amount);
+    }
+
+    /**
+     * Registrar pago en la venta
+     */
+    public function recordPayment(float $amount): void
+    {
+        $this->paid_amount = (float)$this->paid_amount + $amount;
+        
+        if ($this->paid_amount >= $this->total) {
+            $this->payment_status = 'paid';
+            $this->paid_amount = $this->total;
+        } elseif ($this->paid_amount > 0) {
+            $this->payment_status = 'partial';
+        }
+        
+        $this->save();
+    }
+
+    /**
+     * Get the shipments associated with this sale.
+     */
+    public function shipments()
+    {
+        return $this->belongsToMany(Shipment::class, 'shipment_sale');
     }
 }

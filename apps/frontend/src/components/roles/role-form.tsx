@@ -1,5 +1,5 @@
 import type React from "react"
-import { FEATURES } from "@/config/features"
+import features from "@/config/features"
 import { PERMISSIONS_CONFIG, getActivePermissions } from "@/config/permissions"
 import { useState, useEffect, useCallback } from "react"
 import { useNavigate, Link } from "react-router-dom"
@@ -50,7 +50,7 @@ function formatPermissionName(name: string): string {
 
 // --- Mapeo de módulos a features ---
 function getFeatureForModule(moduleName: string): boolean {
-  const moduleToFeature: Record<string, keyof typeof FEATURES> = {
+  const moduleToFeature: Record<string, keyof typeof features> = {
     'dashboard': 'dashboard',
     'inventario': 'inventario',
     'productos': 'inventario',
@@ -63,6 +63,8 @@ function getFeatureForModule(moduleName: string): boolean {
     'reparaciones': 'repairs',
     'repairs': 'repairs',
     'clientes': 'clientes',
+    'cuentas corrientes': 'cuentasCorrientes',
+    'cuentas_corrientes': 'cuentasCorrientes',
     'proveedores': 'proveedores',
     'categorías': 'categorias',
     'categorias': 'categorias',
@@ -73,9 +75,9 @@ function getFeatureForModule(moduleName: string): boolean {
     'solicitudes': 'solicitudes',
     'usuarios': 'usuarios',
     'roles': 'roles',
-    'análisis de ventas': 'analisisVentas',
-    'analisis de ventas': 'analisisVentas',
-    'analisisVentas': 'analisisVentas',
+    'análisis de ventas': 'analisisventas',
+    'analisis de ventas': 'analisisventas',
+    'analisisventas': 'analisisventas',
     'reportes de inventario': 'reportesInventario',
     'reportesInventario': 'reportesInventario',
     'perfil': 'perfil',
@@ -84,30 +86,34 @@ function getFeatureForModule(moduleName: string): boolean {
     'configuracionUsuario': 'configuracionUsuario',
     'facturación': 'facturacion',
     'facturacion': 'facturacion',
+    'configuración': 'configuracionSistema',
     'configuración sistema': 'configuracionSistema',
+    'configuracion': 'configuracionSistema',
     'configuracionSistema': 'configuracionSistema',
     'órdenes de compra': 'purchaseOrders',
     'ordenes de compra': 'purchaseOrders',
     'purchase orders': 'purchaseOrders',
     'purchaseOrders': 'purchaseOrders',
+    'envios': 'shipments',
+    'envíos': 'shipments',
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();
   
   // Buscar coincidencia exacta primero
   if (moduleToFeature[normalizedModuleName]) {
-    return FEATURES[moduleToFeature[normalizedModuleName]];
+    return features[moduleToFeature[normalizedModuleName]];
   }
 
   // Buscar coincidencias parciales como fallback
   for (const [key, feature] of Object.entries(moduleToFeature)) {
     if (normalizedModuleName.includes(key) || key.includes(normalizedModuleName)) {
-      return FEATURES[feature];
+      return features[feature];
     }
   }
 
-  // Si no encuentra coincidencia, mostrar por defecto (para módulos no mapeados)
-  return true;
+  // Si no encuentra coincidencia, retornar false para módulos no mapeados (más seguro)
+  return false;
 }
 
 export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
@@ -185,7 +191,6 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         }
       } catch (error: any) {
         if (!axios.isCancel(error)) {
-          console.error("Error fetching role data:", error);
           toast.error("Error al cargar datos", { description: "No se pudieron obtener los datos para el formulario de roles." });
         }
       } finally {
@@ -289,9 +294,15 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         // Actualizar permisos del rol
         await request({ method: 'PUT', url: `/roles/${roleId}/permissions`, data: { permissions: formData.permissions.map(Number) } });
         toast.success("Rol actualizado con éxito.");
+        
+        // Marcar que hubo cambios en roles para forzar recarga de permisos
+        localStorage.setItem('roles_updated', Date.now().toString());
       } else {
         await request({ method: 'POST', url: '/roles', data: payload });
         toast.success("Rol creado con éxito.");
+        
+        // Marcar que hubo cambios en roles
+        localStorage.setItem('roles_updated', Date.now().toString());
       }
       navigate('/dashboard/roles');
     } catch (error: any) {
@@ -315,7 +326,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const filteredModules = modules.filter(module => getFeatureForModule(module.name));
 
   return (
-    <div className="flex flex-col h-screen w-full p-4 pt-6 md:p-8 overflow-hidden box-border">
+    <div className="flex flex-col h-full max-h-screen w-full p-4 pt-6 md:p-8">
       <div className="flex items-center justify-between flex-shrink-0 mb-4">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
@@ -333,8 +344,8 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         )}
       </div>
       
-      <div className="flex-1 overflow-y-auto overflow-x-hidden pr-2">
-        <form onSubmit={handleSubmit} className="space-y-4 pb-4 pr-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <form onSubmit={handleSubmit} className="space-y-4 pb-4">
           <Card>
             <CardHeader><CardTitle>Información del Rol</CardTitle></CardHeader>
             <CardContent className="space-y-4">

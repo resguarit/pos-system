@@ -50,7 +50,7 @@ class Customer extends Model
             'cuit' => $data['cuit'] ?? null,
             'fiscal_condition_id' => $data['fiscal_condition_id'] ?? null,
             'person_type_id' => $data['person_type_id'] ?? null,
-            'credit_limit' => $data['credit_limit'] ?? 0,
+            'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
             'person_type' => 'customer',
         ];
 

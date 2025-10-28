@@ -1,5 +1,5 @@
-import CategoryForm from "@/components/categories/category-form"
+import CategoryDetails from "@/components/categories/category-details"
 
 export default function ViewCategoryPage() {
-  return <CategoryForm viewOnly={true} />
+  return <CategoryDetails />
 }

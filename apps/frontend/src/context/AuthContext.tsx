@@ -1,6 +1,7 @@
-import React, { createContext, useState, useEffect, useCallback, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import api from '@/lib/api';
 import { getAuthToken, saveAuthToken } from '@/lib/auth';
 import type { User } from '@/types/user';
@@ -39,12 +40,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const hasLoadedProfile = useRef(false);
 
   /**
    * Cierra la sesión, limpia TODO el localStorage de la aplicación y redirige al login.
    * Se usa useCallback para evitar que la función se recree innecesariamente.
    */
-  const logout = useCallback(() => {
+  const logout = () => {
     setUser(null);
     
     // ¡ACCIÓN DE LIMPIEZA!
@@ -56,7 +58,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // removeAuthToken();
 
     navigate('/login', { replace: true });
-  }, [navigate]);
+  };
 
   /**
    * Carga el perfil del usuario si existe un token.
@@ -78,13 +80,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         permissions: response.data.permissions || []
       };
       
+      // Establecer el usuario directamente
       setUser(userWithPermissions);
     } catch (error: any) {
       console.error("No se pudo cargar el perfil:", error);
       
       // Si es un error 401 o 403, cerrar sesión
       if (error?.response?.status === 401 || error?.response?.status === 403) {
-        logout();
+        // Llamar logout directamente sin dependencia
+        setUser(null);
+        localStorage.clear();
+        navigate('/login', { replace: true });
       } else {
         // Para otros errores, simplemente mostrar que no se pudo cargar
         setLoading(false);
@@ -95,40 +101,89 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLoading(false);
       }
     }
-  }, [logout]);
+  }, [navigate]);
 
   /**
    * Inicia sesión, guarda el token y carga el perfil.
    */
-  const login = async (token: string) => {
+  const login = useCallback(async (token: string) => {
     setLoading(true);
     saveAuthToken(token);
     await loadProfile();
     navigate('/'); // Redirige al dashboard principal después del login
-  };
+  }, [loadProfile, navigate]);
 
   /**
    * Verifica si el usuario tiene un permiso específico.
    */
-  const hasPermission = useCallback((permission: string): boolean => {
-    if (!user || !user.permissions) return false;
+  const hasPermission = (permission: string): boolean => {
+    if (!user || !user.permissions) {
+      return false;
+    }
+    
+    // Los administradores tienen todos los permisos
+    if (user.role?.name === 'Admin' || user.role?.name === 'admin') {
+      return true;
+    }
+    
     return user.permissions.includes(permission);
-  }, [user]);
+  };
 
   /**
    * Verifica si el usuario tiene al menos uno de los permisos especificados.
    */
-  const hasAnyPermission = useCallback((permissions: string[]): boolean => {
+  const hasAnyPermission = (permissions: string[]): boolean => {
     if (!user || !user.permissions || permissions.length === 0) return false;
+    
+    // Los administradores tienen todos los permisos
+    if (user.role?.name === 'Admin' || user.role?.name === 'admin') {
+      return true;
+    }
+    
     return permissions.some(permission => user.permissions.includes(permission));
-  }, [user]);
+  };
 
   /**
    * Al montar el componente, intenta cargar el perfil del usuario.
    */
   useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+    if (!hasLoadedProfile.current) {
+      hasLoadedProfile.current = true;
+      loadProfile();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo ejecutar una vez al montar
+
+  /**
+   * Detectar cambios en roles y recargar página completa
+   */
+  useEffect(() => {
+    if (!user) return;
+
+    const checkRolesUpdate = () => {
+      const rolesUpdated = localStorage.getItem('roles_updated');
+      if (rolesUpdated) {
+        // Mostrar mensaje y recargar página completa para actualizar sidebar y layout
+        toast.success('Permisos actualizados', { 
+          description: 'Recargando la página para aplicar los cambios...' 
+        });
+        
+        // Limpiar la marca
+        localStorage.removeItem('roles_updated');
+        
+        // Recargar página completa después de un breve delay
+        setTimeout(() => {
+          window.location.reload();
+        }, 100);
+      }
+    };
+
+    // Verificar cada 2 segundos si hay cambios en roles
+    const interval = setInterval(checkRolesUpdate, 2000);
+    
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{

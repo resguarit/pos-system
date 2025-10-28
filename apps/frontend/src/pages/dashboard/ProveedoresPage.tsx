@@ -61,6 +61,17 @@ export default function ProveedoresPage() {
     loadSuppliers(1)
   }, [])
 
+  // Refetch cuando cambie el término de búsqueda
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      loadSuppliers(1);
+    }, 300); // Debounce de 300ms
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm])
+
   const loadSuppliers = async (page = 1) => {
     setLoading(true)
     try {

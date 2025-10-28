@@ -37,7 +37,12 @@ const exchangeRateService = {
         }
       }
       return 1; // Valor por defecto
-    } catch (error) {
+    } catch (error: any) {
+      // Si es un error 404 o no hay datos, usar valor por defecto sin mostrar error
+      if (error?.response?.status === 404 || error?.response?.data?.message?.includes('No exchange rate found')) {
+        return 1; // Valor por defecto
+      }
+      console.warn('Error al obtener tasa de cambio:', error?.response?.data?.message || error?.message);
       return 1; // Valor por defecto en caso de error
     }
   },

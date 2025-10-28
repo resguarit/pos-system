@@ -11,6 +11,7 @@ import { BranchProvider } from "@/context/BranchContext"
 import { RefreshProvider } from "@/context/RefreshContext"
 import { ExchangeRateProvider } from "@/context/ExchangeRateContext"
 import { CashRegisterProvider } from "@/context/CashRegisterContext"
+import { SystemConfigProvider } from "@/context/SystemConfigContext"
 import EnterSubmitProvider from "@/components/enter-submit-provider"
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -23,9 +24,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <RefreshProvider>
                 <ExchangeRateProvider>
                   <CashRegisterProvider>
-                    <App />
-                    <Toaster />
-                    <EnterSubmitProvider />
+                    <SystemConfigProvider>
+                      <App />
+                      <Toaster />
+                      <EnterSubmitProvider />
+                    </SystemConfigProvider>
                   </CashRegisterProvider>
                 </ExchangeRateProvider>
               </RefreshProvider>

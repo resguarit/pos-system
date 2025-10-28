@@ -25,4 +25,10 @@ interface ProductServiceInterface
     public function getAllSuppliers();
 
     public function getAllBranches();
+
+    public function bulkUpdatePrices(array $updates);
+
+    public function bulkUpdatePricesByCategory(array $categoryIds, string $updateType, float $value);
+
+    public function bulkUpdatePricesBySupplier(array $supplierIds, string $updateType, float $value);
 }

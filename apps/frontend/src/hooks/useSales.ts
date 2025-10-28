@@ -5,6 +5,7 @@ interface Sale {
   id: number
   date: string
   total: number
+  receipt_number?: string
   customer?: {
     id: number
     person?: {

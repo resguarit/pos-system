@@ -32,6 +32,22 @@ class Branch extends Model
         return $this->belongsToMany(User::class);
     }
 
+    /**
+     * Get the cash registers for this branch.
+     */
+    public function cashRegisters()
+    {
+        return $this->hasMany(CashRegister::class);
+    }
+
+    /**
+     * Get the cash movements for this branch.
+     */
+    public function cashMovements()
+    {
+        return $this->hasManyThrough(CashMovement::class, CashRegister::class);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

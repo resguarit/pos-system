@@ -76,7 +76,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     cuit: "",
     fiscal_condition_id: "1", 
     person_type_id: "1", 
-    credit_limit: "0",
+    credit_limit: "",
     active: true,
     notes: "",
     document_type_id: "", 
@@ -169,11 +169,13 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       cuit: customer.person.cuit ?? "",
       fiscal_condition_id: (customer.person.fiscal_condition_id ?? "1").toString(),
       person_type_id: (customer.person.person_type_id ?? "1").toString(),
-      credit_limit: (customer.person.credit_limit ?? "0").toString(),
+      credit_limit: customer.person.credit_limit !== null && customer.person.credit_limit !== undefined 
+        ? customer.person.credit_limit.toString() 
+        : "",
       active: customer.active,
       notes: customer.notes ?? "",
-      document_type_id: (customer.person.document_type_id ?? "").toString(),
-      documento: (customer.person.documento ?? "").toString(),
+      document_type_id: customer.person.document_type_id ? customer.person.document_type_id.toString() : "",
+      documento: customer.person.documento || "",
     });
   }
   // --- FIN DE MODIFICACIÓN ---
@@ -269,7 +271,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         cuit: formData.cuit,
         fiscal_condition_id: formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1, 
         person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,  
-        credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : 0,
+        credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
         document_type_id: formData.document_type_id ? parseInt(formData.document_type_id, 10) : null, 
         documento: formData.documento || null,
       }
@@ -595,7 +597,11 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             value={formData.credit_limit}
                             onChange={handleInputChange}
                             disabled={viewOnly || isLoading}
+                            placeholder="Dejar vacío para límite infinito"
                           />
+                          <p className="text-sm text-muted-foreground">
+                            Dejar vacío para permitir crédito ilimitado
+                          </p>
                         </div>
                       </div>
 

@@ -11,6 +11,7 @@ import ConfiguracionUsuarioPage from '@/pages/dashboard/ConfiguracionUsuarioPage
 import CurrentAccountsPage from '@/pages/dashboard/CurrentAccountsPage'
 import CuentaCorrienteClientePage from '@/pages/dashboard/CuentaCorrienteClientePage'
 import ConfiguracionPage from '@/pages/dashboard/ConfiguracionPage'
+import ConfiguracionSistemaPage from '@/pages/dashboard/ConfiguracionSistemaPage'
 import DashboardPage from '@/pages/dashboard/DashboardPage'
 import EditarClientePage from '@/pages/dashboard/EditarClientePage'
 import EditarRolPage from '@/pages/dashboard/EditarRolPage'
@@ -46,7 +47,10 @@ import ViewCategoryPage from '@/pages/dashboard/categories/ViewCategoryPage'
 import ZonasEntregaPage from '@/pages/dashboard/ZonasEntregaPage'
 import ReparacionesPage from '@/pages/dashboard/ReparacionesPage'
 import CombosPage from '@/pages/dashboard/CombosPage'
-import { FEATURES } from '@/config/features'
+import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
+import ShipmentStagesPage from '@/pages/shipments/ShipmentStagesPage'
+import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
+import features from '@/config/features'
 
 
 function App() {
@@ -59,49 +63,53 @@ function App() {
         {/* Rutas anidadas del Dashboard */}
         <Route path="/dashboard" element={<LayoutDashboard />}>
           <Route index element={<DashboardPage />} />
-          {FEATURES.analisisventas && <Route path="analisis-ventas" element={<ProtectedRoute permissions={['ver_ventas', 'ver_estadisticas']} requireAny={false}><AnalisisVentasPage /></ProtectedRoute>} />}
-          {FEATURES.caja && <Route path="caja" element={<ProtectedRoute permissions={['abrir_cerrar_caja', 'ver_movimientos_caja', 'crear_movimientos_caja', 'ver_historico_caja']} requireAny={true}><CajaPage /></ProtectedRoute>} />}
-          {FEATURES.categorias && <Route path="categorias" element={<ProtectedRoute permissions={['ver_categorias']}><CategoriesPage /></ProtectedRoute>} />}
-          {FEATURES.categorias && <Route path="categorias/:id" element={<ProtectedRoute permissions={['editar_categorias']}><EditCategoryPage /></ProtectedRoute>} />}
-          {FEATURES.categorias && <Route path="categorias/:id/ver" element={<ProtectedRoute permissions={['ver_categorias']}><ViewCategoryPage /></ProtectedRoute>} />}
-          {FEATURES.categorias && <Route path="categorias/nuevo" element={<ProtectedRoute permissions={['crear_categorias']}><NewCategoryPage /></ProtectedRoute>} />}
-          <Route path="combos" element={<ProtectedRoute permissions={['gestionar_combos']}><CombosPage /></ProtectedRoute>} />
-          {FEATURES.clientes && <Route path="clientes" element={<ProtectedRoute permissions={['ver_clientes']}><ClientesPage /></ProtectedRoute>} />}
-          {FEATURES.clientes && <Route path="clientes/:id/compras" element={<ProtectedRoute permissions={['ver_clientes', 'ver_ventas']} requireAny={false}><ComprasClientePage /></ProtectedRoute>} />}
-          {FEATURES.clientes && <Route path="clientes/:id/cuenta-corriente" element={<ProtectedRoute permissions={['ver_cuentas_corrientes']}><CuentaCorrienteClientePage /></ProtectedRoute>} />}
-          {FEATURES.clientes && <Route path="clientes/:id/editar" element={<ProtectedRoute permissions={['editar_clientes']}><EditarClientePage /></ProtectedRoute>} />}
-          {FEATURES.clientes && <Route path="clientes/:id/ver" element={<ProtectedRoute permissions={['ver_clientes']}><VerClientePage /></ProtectedRoute>} />}
-          {FEATURES.clientes && <Route path="clientes/nuevo" element={<ProtectedRoute permissions={['crear_clientes']}><NuevoClientePage /></ProtectedRoute>} />}
-          {FEATURES.configuracionUsuario && <Route path="configuracion-usuario" element={<ConfiguracionUsuarioPage />} />}
-          {FEATURES.configuracionSistema && <Route path="configuracion" element={<ProtectedRoute permissions={['ver_configuracion']}><ConfiguracionPage /></ProtectedRoute>} />}
-          {FEATURES.cuentasCorrientes && <Route path="cuentas-corrientes" element={<ProtectedRoute permissions={['ver_cuentas_corrientes']}><CurrentAccountsPage /></ProtectedRoute>} />}
-          {FEATURES.facturacion && <Route path="facturacion" element={<ProtectedRoute permissions={['ver_ventas']}><FacturacionPage /></ProtectedRoute>} />}
-          {FEATURES.historialVentas && <Route path="historial-ventas" element={<ProtectedRoute permissions={['ver_ventas']}><HistorialVentasPage /></ProtectedRoute>} />}
-          {FEATURES.inventario && <Route path="inventario" element={<ProtectedRoute permissions={['ver_productos']}><InventarioPage /></ProtectedRoute>} />}
-          {FEATURES.perfil && <Route path="perfil" element={<PerfilPage />} />}
-          {FEATURES.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
-          {FEATURES.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
-          {FEATURES.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
-          {FEATURES.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}
-          {FEATURES.roles && <Route path="roles" element={<ProtectedRoute permissions={['ver_roles']}><RolesPage /></ProtectedRoute>} />}
-          {FEATURES.roles && <Route path="roles/:id" element={<ProtectedRoute permissions={['editar_roles']}><EditarRolPage /></ProtectedRoute>} />}
-          {FEATURES.roles && <Route path="roles/:id/ver" element={<ProtectedRoute permissions={['ver_roles']}><VerRolPage /></ProtectedRoute>} />}
-          {FEATURES.roles && <Route path="roles/nuevo" element={<ProtectedRoute permissions={['crear_roles']}><NuevoRolPage /></ProtectedRoute>} />}
-          {FEATURES.repairs && <Route path="reparaciones" element={<ProtectedRoute permissions={['ver_reparaciones']}><ReparacionesPage /></ProtectedRoute>} />}
-          {FEATURES.solicitudes && <Route path="solicitudes" element={<SolicitudesPage />} />}
-          {FEATURES.sucursales && <Route path="sucursales" element={<ProtectedRoute permissions={['ver_sucursales']}><SucursalesPage /></ProtectedRoute>} />}
-          {FEATURES.sucursales && <Route path="sucursales/:id/editar" element={<ProtectedRoute permissions={['editar_sucursales']}><EditarSucursalPage /></ProtectedRoute>} />}
-          {FEATURES.sucursales && <Route path="sucursales/:id/ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasSucursalPage /></ProtectedRoute>} />}
-          {FEATURES.sucursales && <Route path="sucursales/:id/ver" element={<ProtectedRoute permissions={['ver_sucursales']}><VerSucursalPage /></ProtectedRoute>} />}
-          {FEATURES.sucursales && <Route path="sucursales/nuevo" element={<ProtectedRoute permissions={['crear_sucursales']}><NuevaSucursalPage /></ProtectedRoute>} />}
-          {FEATURES.turnos && <Route path="turnos" element={<ProtectedRoute permissions={['ver_turnos']}><TurnosPage /></ProtectedRoute>} />}
-          {FEATURES.usuarios && <Route path="usuarios" element={<ProtectedRoute permissions={['ver_usuarios']}><UsuarioPage /></ProtectedRoute>} />}
-          {FEATURES.usuarios && <Route path="usuarios/:id" element={<ProtectedRoute permissions={['editar_usuarios']}><EditarUsuarioPage /></ProtectedRoute>} />}
-          {FEATURES.usuarios && <Route path="usuarios/:id/ver" element={<ProtectedRoute permissions={['ver_usuarios']}><VerUsuarioPage /></ProtectedRoute>} />}
-          {FEATURES.usuarios && <Route path="usuarios/:id/desempeno" element={<ProtectedRoute permissions={['ver_estadisticas_usuario']}><UserPerformancePage /></ProtectedRoute>} />}
-          {FEATURES.usuarios && <Route path="usuarios/nuevo" element={<ProtectedRoute permissions={['crear_usuarios']}><NuevoUsuarioPage /></ProtectedRoute>} />}
-          {FEATURES.ventas && <Route path="ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasPage /></ProtectedRoute>} />}
-          {FEATURES.zonasEntrega && <Route path="zonas-entrega" element={<ZonasEntregaPage />} />}
+          {features.analisisventas && <Route path="analisis-ventas" element={<ProtectedRoute permissions={['ver_ventas', 'ver_estadisticas']} requireAny={false}><AnalisisVentasPage /></ProtectedRoute>} />}
+          {features.caja && <Route path="caja" element={<ProtectedRoute permissions={['abrir_cerrar_caja', 'ver_movimientos_caja', 'crear_movimientos_caja', 'ver_historico_caja']} requireAny={true}><CajaPage /></ProtectedRoute>} />}
+          {features.categorias && <Route path="categorias" element={<ProtectedRoute permissions={['ver_categorias']}><CategoriesPage /></ProtectedRoute>} />}
+          {features.categorias && <Route path="categorias/:id" element={<ProtectedRoute permissions={['editar_categorias']}><EditCategoryPage /></ProtectedRoute>} />}
+          {features.categorias && <Route path="categorias/:id/ver" element={<ProtectedRoute permissions={['ver_categorias']}><ViewCategoryPage /></ProtectedRoute>} />}
+          {features.categorias && <Route path="categorias/nuevo" element={<ProtectedRoute permissions={['crear_categorias']}><NewCategoryPage /></ProtectedRoute>} />}
+          {features.combos && <Route path="combos" element={<ProtectedRoute permissions={['gestionar_combos']}><CombosPage /></ProtectedRoute>} />}
+          {features.clientes && <Route path="clientes" element={<ProtectedRoute permissions={['ver_clientes']}><ClientesPage /></ProtectedRoute>} />}
+          {features.clientes && <Route path="clientes/:id/compras" element={<ProtectedRoute permissions={['ver_clientes', 'ver_ventas']} requireAny={false}><ComprasClientePage /></ProtectedRoute>} />}
+          {features.clientes && <Route path="clientes/:id/cuenta-corriente" element={<ProtectedRoute permissions={['gestionar_cuentas_corrientes']}><CuentaCorrienteClientePage /></ProtectedRoute>} />}
+          {features.clientes && <Route path="clientes/:id/editar" element={<ProtectedRoute permissions={['editar_clientes']}><EditarClientePage /></ProtectedRoute>} />}
+          {features.clientes && <Route path="clientes/:id/ver" element={<ProtectedRoute permissions={['ver_clientes']}><VerClientePage /></ProtectedRoute>} />}
+          {features.clientes && <Route path="clientes/nuevo" element={<ProtectedRoute permissions={['crear_clientes']}><NuevoClientePage /></ProtectedRoute>} />}
+          {features.configuracionUsuario && <Route path="configuracion-usuario" element={<ConfiguracionUsuarioPage />} />}
+          {features.configuracionSistema && <Route path="configuracion" element={<ProtectedRoute permissions={['ver_configuracion_sistema']}><ConfiguracionPage /></ProtectedRoute>} />}
+          {features.configuracionSistema && <Route path="configuracion-sistema" element={<ProtectedRoute permissions={['ver_configuracion_sistema']}><ConfiguracionSistemaPage /></ProtectedRoute>} />}
+          {features.cuentasCorrientes && <Route path="cuentas-corrientes" element={<ProtectedRoute permissions={['gestionar_cuentas_corrientes']}><CurrentAccountsPage /></ProtectedRoute>} />}
+          {features.facturacion && <Route path="facturacion" element={<ProtectedRoute permissions={['ver_ventas']}><FacturacionPage /></ProtectedRoute>} />}
+          {features.historialVentas && <Route path="historial-ventas" element={<ProtectedRoute permissions={['ver_ventas']}><HistorialVentasPage /></ProtectedRoute>} />}
+          {features.inventario && <Route path="inventario" element={<ProtectedRoute permissions={['ver_productos']}><InventarioPage /></ProtectedRoute>} />}
+          {features.perfil && <Route path="perfil" element={<PerfilPage />} />}
+          {features.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
+          {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
+          {features.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
+          {features.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}
+          {features.roles && <Route path="roles" element={<ProtectedRoute permissions={['ver_roles']}><RolesPage /></ProtectedRoute>} />}
+          {features.roles && <Route path="roles/:id" element={<ProtectedRoute permissions={['editar_roles']}><EditarRolPage /></ProtectedRoute>} />}
+          {features.roles && <Route path="roles/:id/ver" element={<ProtectedRoute permissions={['ver_roles']}><VerRolPage /></ProtectedRoute>} />}
+          {features.roles && <Route path="roles/nuevo" element={<ProtectedRoute permissions={['crear_roles']}><NuevoRolPage /></ProtectedRoute>} />}
+          {features.repairs && <Route path="reparaciones" element={<ProtectedRoute permissions={['ver_reparaciones']}><ReparacionesPage /></ProtectedRoute>} />}
+          {features.solicitudes && <Route path="solicitudes" element={<SolicitudesPage />} />}
+          {features.sucursales && <Route path="sucursales" element={<ProtectedRoute permissions={['ver_sucursales']}><SucursalesPage /></ProtectedRoute>} />}
+          {features.sucursales && <Route path="sucursales/:id/editar" element={<ProtectedRoute permissions={['editar_sucursales']}><EditarSucursalPage /></ProtectedRoute>} />}
+          {features.sucursales && <Route path="sucursales/:id/ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasSucursalPage /></ProtectedRoute>} />}
+          {features.sucursales && <Route path="sucursales/:id/ver" element={<ProtectedRoute permissions={['ver_sucursales']}><VerSucursalPage /></ProtectedRoute>} />}
+          {features.sucursales && <Route path="sucursales/nuevo" element={<ProtectedRoute permissions={['crear_sucursales']}><NuevaSucursalPage /></ProtectedRoute>} />}
+          {features.turnos && <Route path="turnos" element={<ProtectedRoute permissions={['ver_turnos']}><TurnosPage /></ProtectedRoute>} />}
+          {features.usuarios && <Route path="usuarios" element={<ProtectedRoute permissions={['ver_usuarios']}><UsuarioPage /></ProtectedRoute>} />}
+          {features.usuarios && <Route path="usuarios/:id" element={<ProtectedRoute permissions={['editar_usuarios']}><EditarUsuarioPage /></ProtectedRoute>} />}
+          {features.usuarios && <Route path="usuarios/:id/ver" element={<ProtectedRoute permissions={['ver_usuarios']}><VerUsuarioPage /></ProtectedRoute>} />}
+          {features.usuarios && <Route path="usuarios/:id/desempeno" element={<ProtectedRoute permissions={['ver_estadisticas_usuario']}><UserPerformancePage /></ProtectedRoute>} />}
+          {features.usuarios && <Route path="usuarios/nuevo" element={<ProtectedRoute permissions={['crear_usuarios']}><NuevoUsuarioPage /></ProtectedRoute>} />}
+          {features.ventas && <Route path="ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasPage /></ProtectedRoute>} />}
+          {features.zonasEntrega && <Route path="zonas-entrega" element={<ZonasEntregaPage />} />}
+          {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
+          {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
+          {features.shipments && <Route path="shipments/stages" element={<ProtectedRoute permissions={['configurar_envios']}><ShipmentStagesPage /></ProtectedRoute>} />}
         </Route>
 
         {/* Redirección por defecto */}

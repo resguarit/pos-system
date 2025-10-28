@@ -836,6 +836,14 @@ export default function POSPage() {
     .filter(p => p.amount && parseFloat(p.amount || '0') > 0)
     .every(p => p.payment_method_id);
 
+  // Validar si hay pagos a cuenta corriente sin cliente seleccionado
+  const hasCurrentAccountPayment = payments.some(p => {
+    const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id);
+    return paymentMethod && paymentMethod.name === 'Cuenta Corriente' && parseFloat(p.amount || '0') > 0;
+  });
+
+  const currentAccountPaymentValid = !hasCurrentAccountPayment || selectedCustomer !== null;
+
   return (
     <ProtectedRoute permissions={['crear_ventas']} requireAny={true}>
       <div className="flex h-[calc(100vh-4rem)] flex-col lg:flex-row">
@@ -1346,6 +1354,14 @@ export default function POSPage() {
                            ))}
                            <Button variant="outline" onClick={addPayment}>Agregar método de pago</Button>
                        </div>
+                       
+                       {/* Mensaje de error para cuenta corriente sin cliente */}
+                       {hasCurrentAccountPayment && !selectedCustomer && (
+                         <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 mt-2">
+                           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                           <p>Para usar "Cuenta Corriente" como método de pago, debes seleccionar un cliente.</p>
+                         </div>
+                       )}
                      </div>
                    </div>
 
@@ -1438,7 +1454,7 @@ export default function POSPage() {
                      {(() => {
                        const paid = payments.reduce((s, p) => s + (parseFloat(p.amount || '0') || 0), 0);
                        const diff = round2(total - paid);
-                       const canConfirm = (cart.length > 0 && receiptTypeId !== undefined && diff === 0 && allPaymentsValid && selectedBranch);
+                       const canConfirm = (cart.length > 0 && receiptTypeId !== undefined && diff === 0 && allPaymentsValid && currentAccountPaymentValid && selectedBranch);
                        return (
                          <Button 
                            className="cursor-pointer" 

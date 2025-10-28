@@ -281,23 +281,27 @@ export default function CategoriesPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={category.parent_id ? "secondary" : "default"}>
-                        {category.parent_id ? "Subcategoría" : "Categoría Principal"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
                       <span className="text-muted-foreground">
                         {category.description || "Sin descripción"}
                       </span>
                     </TableCell>
                     <TableCell>
-                      {new Date(category.created_at).toLocaleString('es-AR', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {category.parent ? (
+                        <Badge variant="secondary">
+                          {category.parent.name}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {category.children && category.children.length > 0 ? (
+                        <Badge variant="outline">
+                          {category.children.length} subcategoría{category.children.length > 1 ? 's' : ''}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">

@@ -1,5 +1,5 @@
 import type React from "react"
-import { FEATURES } from "@/config/features"
+import features from "@/config/features"
 import { useState, useEffect, useCallback } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import axios from "axios"; 
