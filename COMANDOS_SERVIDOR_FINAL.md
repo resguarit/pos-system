@@ -35,6 +35,8 @@ Este comando:
 php artisan migrate
 ```
 
+**IMPORTANTE:** Esto creará las tablas `shipment_stages`, `shipments`, `shipment_events`, etc.
+
 ## 4. Corregir el estado de pagos de las ventas antiguas
 
 ```bash
