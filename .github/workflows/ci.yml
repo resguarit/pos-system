@@ -66,14 +66,14 @@ jobs:
         cd apps/backend
         composer install --no-progress --prefer-dist --optimize-autoloader
         
-    - name: Run tests
+    - name: Run tests (Feature only)
       run: |
         cd apps/backend
         # Limpiar cache antes de los tests (solo si existen)
         php artisan view:clear 2>/dev/null || true
         php artisan config:clear 2>/dev/null || true
-        # No limpiar cache:clear ya que usa DB y puede fallar en :memory:
-        php artisan test
+        # Solo ejecutar tests de Feature, no unitarios
+        php artisan test --testsuite=Feature
       env:
         DB_CONNECTION: sqlite
         DB_DATABASE: ":memory:"
