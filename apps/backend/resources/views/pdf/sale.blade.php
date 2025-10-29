@@ -29,25 +29,25 @@
             <tr>
                 <td class="logo-cell">
                     @php
-                        // Intentar obtener logo desde configuración
-                        $logoSetting = \App\Models\Setting::where('key', 'logo_url')->first();
+                        // Usar directamente public/images/logo.jpg como estaba antes
+                        $logoUrl = public_path('images/logo.jpg');
                         
-                        if ($logoSetting) {
+                        // Si existe logo_url en settings y apunta a storage, intentar usarlo
+                        $logoSetting = \App\Models\Setting::where('key', 'logo_url')->first();
+                        if ($logoSetting && !empty($logoSetting->value)) {
                             $logoPath = json_decode($logoSetting->value, true);
                             
-                            // Convertir ruta relativa a path absoluto
-                            if (str_starts_with($logoPath, '/storage/')) {
-                                // Remover /storage/ y buscar en storage/app/public
+                            // Solo si es una ruta de storage, usar storage_path
+                            if (is_string($logoPath) && str_starts_with($logoPath, '/storage/')) {
                                 $filePath = str_replace('/storage/', '', $logoPath);
-                                $logoUrl = storage_path('app/public/' . $filePath);
-                            } elseif (str_starts_with($logoPath, 'storage/')) {
-                                $logoUrl = storage_path('app/public/' . $logoPath);
-                            } else {
-                                $logoUrl = public_path($logoPath);
+                                $storageLogoUrl = storage_path('app/public/' . $filePath);
+                                // Solo usar si el archivo existe en storage
+                                if (file_exists($storageLogoUrl)) {
+                                    $logoUrl = $storageLogoUrl;
+                                }
                             }
-                        } else {
-                            // Fallback al logo por defecto
-                            $logoUrl = public_path('images/logo.jpg');
+                            // Si es /images/logo.jpg (ruta relativa), mantener el default
+                            // Si es URL completa (http), no podemos usarla en PDF, mantener default
                         }
                     @endphp
                     @if(file_exists($logoUrl))
