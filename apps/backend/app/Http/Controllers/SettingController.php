@@ -107,21 +107,26 @@ class SettingController extends Controller
             
             foreach (['logo_url', 'favicon_url'] as $urlKey) {
                 if (!empty($config[$urlKey]) && is_string($config[$urlKey])) {
-                    // If it's a relative path starting with /storage, make it a full URL
-                    if (str_starts_with($config[$urlKey], '/storage')) {
-                        $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
-                    }
-                    // If it's already a full URL, keep it as is
-                    // If it's JSON encoded, decode and process
-                    elseif (!str_starts_with($config[$urlKey], 'http')) {
+                    // Handle JSON encoded values
+                    if (!str_starts_with($config[$urlKey], 'http') && !str_starts_with($config[$urlKey], '/')) {
                         $decoded = json_decode($config[$urlKey], true);
                         if (json_last_error() === JSON_ERROR_NONE && is_string($decoded)) {
-                            if (str_starts_with($decoded, '/storage')) {
-                                $config[$urlKey] = rtrim($baseUrl, '/') . $decoded;
-                            } else {
-                                $config[$urlKey] = $decoded;
-                            }
+                            $config[$urlKey] = $decoded;
                         }
+                    }
+                    
+                    // Convert relative paths to full URLs
+                    if (is_string($config[$urlKey]) && str_starts_with($config[$urlKey], '/')) {
+                        // Check if file exists in public/images (easier access)
+                        $filename = basename($config[$urlKey]);
+                        if (file_exists(public_path("images/$filename"))) {
+                            $config[$urlKey] = rtrim($baseUrl, '/') . "/images/$filename";
+                        } 
+                        // Otherwise use storage path
+                        elseif (str_starts_with($config[$urlKey], '/storage')) {
+                            $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
+                        }
+                        // If it's already a full URL, keep it
                     }
                 }
             }
