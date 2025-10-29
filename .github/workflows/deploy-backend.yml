@@ -14,7 +14,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Deploy to VPS
+    - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -22,14 +22,31 @@ jobs:
         username: ${{ secrets.VPS_USERNAME }}
         key: ${{ secrets.VPS_SSH_KEY }}
         script: |
-          cd ${{ secrets.BACKEND_DEPLOY_PATH }}
-          git pull origin master
+          # Forzar actualización del código (descartar cambios locales)
+          cd /home/api.heroedelwhisky.com.ar/public_html
+          git fetch origin
+          git reset --hard origin/master
+          
+          # Ir al directorio backend
+          cd apps/backend
+          
+          # Actualizar dependencias
           composer install --no-dev --optimize-autoloader
+          
+          # Limpiar caché
+          php artisan config:clear
+          php artisan cache:clear
+          
+          # Reconstruir configuración
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
+          
+          # Crear symlink de storage
+          php artisan storage:link || true
+          
+          # Ejecutar migraciones
           php artisan migrate --force
-          php artisan storage:link
           
     - name: Notify deployment
       if: always()
