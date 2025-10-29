@@ -170,6 +170,12 @@ class SettingController extends Controller
             // Create directory if it doesn't exist
             $directory = 'system/' . $type . 's';
             
+            // Ensure the storage directory exists
+            $fullDirectory = storage_path('app/public/' . $directory);
+            if (!file_exists($fullDirectory)) {
+                mkdir($fullDirectory, 0755, true);
+            }
+            
             // Store file and get path
             $path = $file->store($directory, 'public');
             
