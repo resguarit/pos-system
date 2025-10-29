@@ -80,11 +80,8 @@ class SettingController extends Controller
                 $baseUrl = str_replace('/api', '', $baseUrl);
             }
             
-            // Default logo URL if file exists in public/images
-            $defaultLogoUrl = null;
-            if (file_exists(public_path('images/logo.jpg'))) {
-                $defaultLogoUrl = rtrim($baseUrl, '/') . '/images/logo.jpg';
-            }
+            // Default logo URL - siempre usa public/images/logo.jpg como estaba antes
+            $defaultLogoUrl = rtrim($baseUrl, '/') . '/images/logo.jpg';
             
             $defaults = [
                 'system_title' => 'RG Gestión',
@@ -128,17 +125,24 @@ class SettingController extends Controller
                     
                     // Convert relative paths to full URLs
                     if (is_string($config[$urlKey]) && str_starts_with($config[$urlKey], '/')) {
-                        // Check if file exists in public/images (easier access)
-                        $filename = basename($config[$urlKey]);
-                        if (file_exists(public_path("images/$filename"))) {
-                            $config[$urlKey] = rtrim($baseUrl, '/') . "/images/$filename";
+                        // If it's a full URL already, keep it
+                        if (str_starts_with($config[$urlKey], 'http')) {
+                            // Already a full URL, keep it
                         } 
-                        // Otherwise use storage path
+                        // If it starts with /storage, convert to full URL
                         elseif (str_starts_with($config[$urlKey], '/storage')) {
                             $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
                         }
-                        // If it's already a full URL, keep it
+                        // Otherwise assume it's relative to public (like /images/logo.jpg)
+                        else {
+                            $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
+                        }
                     }
+                }
+                
+                // Si logo_url está vacío o null, usar el default (public/images/logo.jpg)
+                if ($urlKey === 'logo_url' && empty($config[$urlKey])) {
+                    $config[$urlKey] = $defaultLogoUrl;
                 }
             }
 
