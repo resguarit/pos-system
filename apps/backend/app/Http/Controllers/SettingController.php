@@ -183,14 +183,14 @@ class SettingController extends Controller
             $directory = 'system/' . $type . 's';
             $fullDirectoryPath = storage_path('app/public/' . $directory);
             
-            // Ensure directory exists with proper permissions
+            // Ensure directory exists (permissions should be set by server admin)
             if (!file_exists($fullDirectoryPath)) {
                 mkdir($fullDirectoryPath, 0775, true);
             }
             
-            // Verify directory is writable
+            // Verify directory is writable (don't try to change permissions, just check)
             if (!is_writable($fullDirectoryPath)) {
-                chmod($fullDirectoryPath, 0775);
+                throw new \Exception('Directory is not writable: ' . $fullDirectoryPath . '. Please check file permissions on the server.');
             }
             
             // Store file and get path
