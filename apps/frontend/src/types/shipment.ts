@@ -36,7 +36,7 @@ export interface ShipmentStage {
   description?: string;
   order: number;
   config: Record<string, any>;
-  active: boolean;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -105,7 +105,7 @@ export interface UpsertShipmentStageRequest {
   description?: string;
   order?: number;
   config?: Record<string, any>;
-  active?: boolean;
+  is_active?: boolean;
 }
 
 export interface ConfigureVisibilityRequest {

@@ -395,7 +395,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                   {/* @ts-ignore */}
                   <SelectContent>
                     {stages
-                      .filter(stage => stage.active)
+                      .filter(stage => stage.is_active)
                       .sort((a, b) => a.order - b.order)
                       .map((stage) => (
                         /* @ts-ignore */

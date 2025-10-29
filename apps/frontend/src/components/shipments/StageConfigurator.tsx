@@ -29,8 +29,8 @@ const StageConfigurator: React.FC<StageConfiguratorProps> = ({ stages, roles, on
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   {stage.name}
-                  <Badge variant={stage.active ? "default" : "secondary"}>
-                    {stage.active ? "Activa" : "Inactiva"}
+                  <Badge variant={stage.is_active ? "default" : "secondary"}>
+                    {stage.is_active ? "Activa" : "Inactiva"}
                   </Badge>
                   <Badge variant="outline">Orden: {stage.order}</Badge>
                 </CardTitle>
