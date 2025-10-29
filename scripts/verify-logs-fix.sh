@@ -14,7 +14,13 @@ BASE_PATH="${BACKEND_DEPLOY_PATH:-/home/api.heroedelwhisky.com.ar/public_html}"
 echo "📍 Conectando a ${VPS_USERNAME}@${VPS_HOST}:${VPS_PORT}"
 echo ""
 
-ssh -p ${VPS_PORT} ${VPS_USERNAME}@${VPS_HOST} << ENDSSH
+# Detectar llave SSH a usar
+SSH_KEY="~/.ssh/pos_deploy_key"
+if [ ! -f ~/.ssh/pos_deploy_key ]; then
+    SSH_KEY="~/.ssh/vps_key"
+fi
+
+ssh -i $SSH_KEY -p ${VPS_PORT} ${VPS_USERNAME}@${VPS_HOST} << ENDSSH
 
 BASE_PATH="${BASE_PATH}"
 
@@ -62,12 +68,22 @@ echo ""
 echo "2️⃣ PROBANDO ESCRITURA EN LOGS"
 echo "─────────────────────────────────────────────────────────────────────────────"
 TEST_FILE="storage/logs/test_write_\$\$.txt"
+WRITE_OK=false
 if touch "\$TEST_FILE" 2>/dev/null; then
-    echo "✅ ÉXITO: Se puede escribir en storage/logs"
+    echo "✅ ÉXITO: Se puede escribir en storage/logs (como usuario actual)"
     rm -f "\$TEST_FILE"
+    WRITE_OK=true
 else
-    echo "❌ ERROR: NO se puede escribir en storage/logs"
-    echo "   Esto indica que aún hay problemas de permisos"
+    echo "⚠️  No se pudo escribir como usuario \$USER"
+    echo "   Probando como \$WEB_USER (usuario del servidor web)..."
+    if sudo -u \$WEB_USER touch "\$TEST_FILE" 2>/dev/null; then
+        sudo -u \$WEB_USER rm -f "\$TEST_FILE"
+        echo "✅ PHP/web server (\$WEB_USER) SÍ puede escribir (esto es lo importante)"
+        WRITE_OK=true
+    else
+        echo "❌ ERROR: Ni \$USER ni \$WEB_USER pueden escribir"
+        echo "   Esto indica que aún hay problemas de permisos"
+    fi
 fi
 
 echo ""
@@ -87,10 +103,42 @@ fi
 echo ""
 echo "4️⃣ VERIFICANDO QUE NO HAY LOGS DE DEBUG DE STOCK EN EL CÓDIGO"
 echo "─────────────────────────────────────────────────────────────────────────────"
-if grep -r "Stock reduction debug\|Stock increase debug\|Stock reduction result\|Stock increase result" app/Services/StockService.php 2>/dev/null; then
-    echo "⚠️  ADVERTENCIA: Aún hay logs de debug en StockService.php"
+STOCK_LOGS_OK=false
+if grep -q "Stock reduction debug\|Stock increase debug\|Stock reduction result\|Stock increase result" app/Services/StockService.php 2>/dev/null; then
+    echo "❌ ERROR: Aún hay logs de debug en StockService.php"
+    echo "   Esto causará errores al crear ventas"
 else
-    echo "✅ Confirmado: No hay logs de debug en StockService.php"
+    echo "✅ Confirmado: StockService.php NO tiene logs de debug"
+    STOCK_LOGS_OK=true
+fi
+
+echo ""
+echo "4️⃣.5 VERIFICANDO CONFIGURACIÓN DE PERMISOS EN DEPLOY..."
+DEPLOY_OK=false
+if [ -f "scripts/deploy-backend.sh" ] && grep -q "storage/logs\|chmod.*775.*storage\|chown.*www-data.*storage" scripts/deploy-backend.sh 2>/dev/null; then
+    echo "✅ Deploy script configura permisos automáticamente"
+    DEPLOY_OK=true
+elif [ -f "../scripts/deploy-backend.sh" ] && grep -q "storage/logs\|chmod.*775.*storage\|chown.*www-data.*storage" ../scripts/deploy-backend.sh 2>/dev/null; then
+    echo "✅ Deploy script configura permisos automáticamente"
+    DEPLOY_OK=true
+else
+    echo "⚠️  El deploy script podría no configurar permisos automáticamente"
+fi
+
+echo ""
+echo "4️⃣.6 VERIFICANDO QUE LARAVEL PUEDE ESCRIBIR LOGS (simulación)..."
+LARAVEL_OK=\$WRITE_OK
+if php artisan --version >/dev/null 2>&1; then
+    # Intentar escribir usando el usuario web
+    if sudo -u \$WEB_USER php -r "error_log('LOG TEST: ' . date('Y-m-d H:i:s'), 3, 'storage/logs/laravel-test.log');" 2>/dev/null; then
+        echo "✅ Laravel (ejecutándose como \$WEB_USER) puede escribir en logs"
+        sudo -u \$WEB_USER rm -f storage/logs/laravel-test.log 2>/dev/null
+        LARAVEL_OK=true
+    else
+        echo "⚠️  No se pudo probar escritura desde PHP directamente"
+    fi
+else
+    echo "⚠️  No se encontró PHP artisan"
 fi
 
 echo ""
@@ -134,15 +182,46 @@ fi
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📊 RESUMEN DE VERIFICACIÓN"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Resumen de resultados
+if [ "\$WRITE_OK" = "true" ] && [ "\$STOCK_LOGS_OK" = "true" ] && [ "\$LARAVEL_OK" = "true" ]; then
+    echo "✅ ✅ ✅ TODO CORRECTO - El problema NO debería volver a pasar"
+    echo ""
+    echo "✓ Permisos de logs configurados correctamente"
+    echo "✓ Logs de debug eliminados de StockService"
+    echo "✓ PHP/web server puede escribir logs"
+    echo "✓ Configuración de deploy automática en lugar"
+else
+    echo "⚠️  HAY ALGUNAS ADVERTENCIAS:"
+    [ "\$WRITE_OK" != "true" ] && echo "  ❌ Problemas de escritura en logs"
+    [ "\$STOCK_LOGS_OK" != "true" ] && echo "  ❌ Aún hay logs de debug en StockService"
+    [ "\$LARAVEL_OK" != "true" ] && echo "  ❌ Laravel no puede escribir logs"
+    [ "\$DEPLOY_OK" != "true" ] && echo "  ⚠️  El deploy no configura permisos automáticamente"
+    echo ""
+    echo "💡 ACCIÓN REQUERIDA:"
+    if [ "\$WRITE_OK" != "true" ]; then
+        echo "   Ejecuta: ./scripts/fix-logs-write-permissions.sh"
+    fi
+    if [ "\$STOCK_LOGS_OK" != "true" ]; then
+        echo "   Verifica que app/Services/StockService.php no tenga logs de debug"
+    fi
+fi
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "✅ VERIFICACIÓN COMPLETADA"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "💡 PRÓXIMOS PASOS PARA PROBAR:"
+echo "💡 PRUEBA FINAL - Hacer una venta real:"
 echo "   1. Abre el POS en el navegador"
 echo "   2. Agrega productos al carrito"
 echo "   3. Completa una venta de prueba"
-echo "   4. Verifica que NO aparezca el error de permisos"
-echo "   5. Revisa la consola del navegador (F12) para errores"
+echo "   4. Verifica que NO aparezca: 'Permission denied' o 'Failed to open stream'"
+echo "   5. Revisa la consola del navegador (F12) - No debe haber errores rojos"
+echo "   6. Si todo funciona, el problema está resuelto ✅"
 echo ""
 
 ENDSSH

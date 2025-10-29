@@ -102,11 +102,25 @@ else
     fi
 fi
 
+# Asegurar que posdeployer está en el grupo www-data para poder escribir
+echo ""
+echo "5️⃣ Asegurando que posdeployer pueda escribir..."
+if groups \$USER | grep -q "www-data"; then
+    echo "✅ Usuario \$USER ya está en grupo www-data"
+else
+    echo "⚠️  Agregando usuario \$USER al grupo www-data..."
+    sudo usermod -aG \$WEB_USER \$USER 2>/dev/null || true
+    echo "💡 Nota: Puede que necesites cerrar sesión y volver a conectarte para que el cambio de grupo tome efecto"
+fi
+
 # También asegurar permisos de todo el directorio storage
 echo ""
-echo "5️⃣ Configurando permisos de todo storage..."
-chmod -R 775 storage 2>/dev/null || true
-chmod -R 775 bootstrap/cache 2>/dev/null || true
+echo "6️⃣ Configurando permisos de todo storage..."
+chmod -R 775 storage 2>/dev/null || sudo chmod -R 775 storage || true
+chmod -R 775 bootstrap/cache 2>/dev/null || sudo chmod -R 775 bootstrap/cache || true
+
+# Configurar setgid para que los nuevos archivos hereden el grupo
+chmod g+s storage/logs 2>/dev/null || sudo chmod g+s storage/logs || true
 
 # Intentar cambiar ownership de storage completo si es posible
 if [ -w "storage" ]; then
@@ -116,7 +130,7 @@ fi
 
 # Verify permissions
 echo ""
-echo "6️⃣ Verificando permisos..."
+echo "7️⃣ Verificando permisos..."
 echo "📁 Permisos de storage/logs:"
 ls -ld storage/logs 2>/dev/null || echo "⚠️ No se pudo listar storage/logs"
 
@@ -127,9 +141,14 @@ else
     echo "📄 Archivo laravel.log no existe aún (se creará automáticamente cuando Laravel lo necesite)"
 fi
 
+# Verificar grupos del usuario actual
+echo ""
+echo "👥 Grupos del usuario \$USER:"
+groups \$USER 2>/dev/null || id -Gn \$USER 2>/dev/null || echo "No se pudieron obtener grupos"
+
 # Test write permission
 echo ""
-echo "7️⃣ Probando escritura..."
+echo "8️⃣ Probando escritura..."
 TEST_FILE="storage/logs/test_write_\$\$.txt"
 if touch "\$TEST_FILE" 2>/dev/null; then
     rm -f "\$TEST_FILE"
