@@ -170,19 +170,20 @@ class SettingController extends Controller
             // Create directory if it doesn't exist
             $directory = 'system/' . $type . 's';
             
+            // Generate unique filename to avoid conflicts
+            $filename = uniqid() . '.' . $file->getClientOriginalExtension();
+            
             // Store file and get path
-            $path = $file->store($directory, 'public');
+            $path = $file->storeAs($directory, $filename, 'public');
             
-            // Generate public URL pointing to backend domain
-            // Frontend and backend are on different domains, so we need full URL
-            $backendUrl = config('app.url');
-            $url = rtrim($backendUrl, '/') . '/storage/' . $path;
+            // Generate full URL using asset helper
+            $url = asset('storage/' . $path);
             
-            // Save setting
+            // Save setting (don't json_encode the URL)
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
             Setting::updateOrCreate(
                 ['key' => $key],
-                ['value' => json_encode($url)]
+                ['value' => $url]
             );
 
             return response()->json([

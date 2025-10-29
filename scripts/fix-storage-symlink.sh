@@ -65,7 +65,15 @@ ls -la storage/app/public/
 echo ""
 echo "🔐 Configurando permisos..."
 chmod -R 775 storage
+chmod -R 775 bootstrap/cache
 chown -R www-data:www-data storage
+chown -R www-data:www-data bootstrap/cache
+
+# Verificar que public/storage tiene los permisos correctos
+if [ -L "public/storage" ] || [ -d "public/storage" ]; then
+    chmod -R 775 public/storage
+    chown -R www-data:www-data public/storage
+fi
 
 # Verificar que hay archivos de logo
 if [ -d "storage/app/public/system/logos" ]; then
