@@ -185,15 +185,20 @@ class SettingController extends Controller
                 throw new \Exception('Failed to store file');
             }
             
-            // Generate public URL using Storage facade
-            // This returns a URL like: https://api.heroedelwhisky.com.ar/storage/system/logos/filename.jpg
-            $url = Storage::url($path);
+            // Generate public URL manually to ensure it's correct
+            // Storage::url() might have issues with APP_URL configuration
+            $baseUrl = config('app.url');
+            // Remove /api if present in APP_URL
+            if (str_ends_with($baseUrl, '/api')) {
+                $baseUrl = str_replace('/api', '', $baseUrl);
+            }
             
-            // Remove /api from URL if present (storage is served from domain root)
-            $url = str_replace('/api/storage/', '/storage/', $url);
+            // Construct the full URL
+            $url = rtrim($baseUrl, '/') . '/storage/' . $path;
             
             Log::info('Storage URL generated', [
                 'path' => $path,
+                'baseUrl' => $baseUrl,
                 'url' => $url
             ]);
             
