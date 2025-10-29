@@ -170,20 +170,21 @@ class SettingController extends Controller
             // Create directory if it doesn't exist
             $directory = 'system/' . $type . 's';
             
-            // Generate unique filename to avoid conflicts
-            $filename = uniqid() . '.' . $file->getClientOriginalExtension();
-            
             // Store file and get path
-            $path = $file->storeAs($directory, $filename, 'public');
+            $path = $file->store($directory, 'public');
             
-            // Generate full URL using asset helper
-            $url = asset('storage/' . $path);
+            // Generate public URL using Storage facade
+            // This returns a URL like: https://api.heroedelwhisky.com.ar/storage/system/logos/filename.jpg
+            $url = Storage::url($path);
             
-            // Save setting (don't json_encode the URL)
+            // Remove /api from URL if present (storage is served from domain root)
+            $url = str_replace('/api/storage/', '/storage/', $url);
+            
+            // Save setting (json_encode to match getSystem behavior)
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
             Setting::updateOrCreate(
                 ['key' => $key],
-                ['value' => $url]
+                ['value' => json_encode($url)]
             );
 
             return response()->json([
