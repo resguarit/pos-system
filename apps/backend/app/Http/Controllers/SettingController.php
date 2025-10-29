@@ -99,7 +99,13 @@ class SettingController extends Controller
             }
 
             // Ensure logo and favicon URLs are absolute and use API endpoint
-            $appUrl = env('APP_URL', 'http://localhost:8000');
+            $appUrl = config('app.url');
+            
+            // If app_url is localhost in production, use the correct domain
+            if (config('app.env') === 'production' && str_contains($appUrl, 'localhost')) {
+                $appUrl = 'https://api.heroedelwhisky.com.ar';
+            }
+            
             foreach (['logo_url', 'favicon_url'] as $urlKey) {
                 if (!empty($config[$urlKey])) {
                     // Normalize URL to use /api/storage/ endpoint
@@ -117,6 +123,9 @@ class SettingController extends Controller
                         // Absolute URL with /storage/, convert to /api/storage/
                         $url = str_replace('/storage/', '/api/storage/', $url);
                         $config[$urlKey] = $url;
+                    } elseif (str_contains($url, 'localhost') && config('app.env') === 'production') {
+                        // Replace localhost with production URL
+                        $config[$urlKey] = str_replace('http://localhost:8000', 'https://api.heroedelwhisky.com.ar', $url);
                     }
                 }
             }
@@ -198,7 +207,14 @@ class SettingController extends Controller
             
             // Generate absolute URL for the stored file
             // Use /api/storage/ instead of /storage/ so it goes through Laravel
-            $appUrl = env('APP_URL', 'http://localhost:8000');
+            $appUrl = config('app.url');
+            
+            // If app_url is localhost in production, use the correct domain
+            if (config('app.env') === 'production' && str_contains($appUrl, 'localhost')) {
+                // Force to use the production API URL
+                $appUrl = 'https://api.heroedelwhisky.com.ar';
+            }
+            
             $url = $appUrl . '/api/storage/' . $path;
             
             // Save setting
