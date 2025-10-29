@@ -12,7 +12,7 @@ class CustomerFactory extends Factory
     public function definition(): array
     {
         return [
-            'person_id' => 1, // Ajusta si necesitas randomizar
+            'person_id' => \App\Models\Person::factory(),
             'email' => $this->faker->unique()->safeEmail(),
             'active' => true,
             'notes' => $this->faker->sentence(),

@@ -46,9 +46,10 @@ class ShipmentTest extends TestCase
             $this->role->permissions()->attach($permission);
         }
 
-        // Create test user
+        // Create test user (factory will create Person automatically)
+        $person = \App\Models\Person::factory()->create();
         $this->user = User::create([
-            'person_id' => 1, // Assuming person exists
+            'person_id' => $person->id,
             'email' => 'test@example.com',
             'username' => 'testuser',
             'password' => bcrypt('password'),

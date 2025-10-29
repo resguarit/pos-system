@@ -25,8 +25,10 @@ class ShipmentServiceTest extends TestCase
 
         $this->shipmentService = app(ShipmentServiceInterface::class);
 
+        // Create Person first, then User
+        $person = \App\Models\Person::factory()->create();
         $this->user = User::create([
-            'person_id' => 1,
+            'person_id' => $person->id,
             'email' => 'test@example.com',
             'username' => 'testuser',
             'password' => bcrypt('password'),

@@ -24,9 +24,9 @@ class ComboServiceTest extends TestCase
     {
         parent::setUp();
         
-        // Crear datos base para los tests
-        Iva::factory()->create(['rate' => 21.00]);
-        Branch::factory()->create(['id' => 1, 'description' => 'Main Branch']);
+        // Crear datos base para los tests (usar firstOrCreate para evitar unique constraint)
+        Iva::firstOrCreate(['rate' => 21.00], ['rate' => 21.00]);
+        Branch::firstOrCreate(['id' => 1], ['description' => 'Main Branch']);
         
         // Resolver el servicio desde el container
         $this->comboService = $this->app->make(ComboServiceInterface::class);
@@ -96,7 +96,7 @@ class ComboServiceTest extends TestCase
 
     public function test_calculate_combo_price_percentage_discount(): void
     {
-        $iva = Iva::factory()->create(['rate' => 21.00]);
+        $iva = Iva::firstOrCreate(['rate' => 21.00], ['rate' => 21.00]);
         $product1 = Product::factory()->create(['sale_price' => 100, 'currency' => 'ARS', 'iva_id' => $iva->id]);
         $product2 = Product::factory()->create(['sale_price' => 50, 'currency' => 'ARS', 'iva_id' => $iva->id]);
 
@@ -119,7 +119,7 @@ class ComboServiceTest extends TestCase
 
     public function test_calculate_combo_price_fixed_amount_discount(): void
     {
-        $iva = Iva::factory()->create(['rate' => 21.00]);
+        $iva = Iva::firstOrCreate(['rate' => 21.00], ['rate' => 21.00]);
         $product1 = Product::factory()->create(['sale_price' => 100, 'currency' => 'ARS', 'iva_id' => $iva->id]);
         $product2 = Product::factory()->create(['sale_price' => 50, 'currency' => 'ARS', 'iva_id' => $iva->id]);
 

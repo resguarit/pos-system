@@ -18,7 +18,7 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'person_id' => $this->faker->numberBetween(1, 10),
+            'person_id' => \App\Models\Person::factory(),
             'email' => $this->faker->unique()->safeEmail(),
             'username' => $this->faker->unique()->userName(),
             'email_verified_at' => now(),
