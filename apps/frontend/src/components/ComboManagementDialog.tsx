@@ -36,7 +36,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed_amount'>('percentage');
   const [discountValue, setDiscountValue] = useState(0);
   const [items, setItems] = useState<ComboItemForm[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -309,13 +309,13 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="discountType">Tipo de Descuento</Label>
-              <Select value={discountType} onValueChange={(value: 'percentage' | 'fixed') => setDiscountType(value)}>
+              <Select value={discountType} onValueChange={(value: 'percentage' | 'fixed_amount') => setDiscountType(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="percentage">Porcentaje</SelectItem>
-                  <SelectItem value="fixed">Monto Fijo</SelectItem>
+                  <SelectItem value="fixed_amount">Monto Fijo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
