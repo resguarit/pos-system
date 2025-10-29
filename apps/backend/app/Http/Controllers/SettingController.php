@@ -98,6 +98,15 @@ class SettingController extends Controller
                 }
             }
 
+            // Ensure logo and favicon URLs are absolute
+            $appUrl = env('APP_URL', 'http://localhost:8000');
+            foreach (['logo_url', 'favicon_url'] as $urlKey) {
+                if (!empty($config[$urlKey]) && !str_starts_with($config[$urlKey], 'http')) {
+                    // Convert relative to absolute URL
+                    $config[$urlKey] = $appUrl . '/' . ltrim($config[$urlKey], '/');
+                }
+            }
+
             return response()->json($config);
         } catch (\Exception $e) {
             Log::error('Error getting system configuration', ['error' => $e->getMessage()]);
@@ -173,9 +182,19 @@ class SettingController extends Controller
             // Store file and get path
             $path = $file->store($directory, 'public');
             
-            // Generate public URL (relative path for frontend access)
-            // Frontend will resolve /storage/ through vite proxy or relative paths
-            $url = Storage::url($path);
+            // Generate absolute URL for the stored file
+            $url = Storage::disk('public')->url($path);
+            
+            // In production, ensure the URL is absolute
+            if (env('APP_ENV') === 'production') {
+                // The url is already absolute from filesystems.php config
+                // But let's make sure it's formatted correctly
+                $appUrl = env('APP_URL', 'http://localhost:8000');
+                // If the URL doesn't start with http, add the app URL
+                if (!str_starts_with($url, 'http')) {
+                    $url = $appUrl . $url;
+                }
+            }
             
             // Save setting
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
