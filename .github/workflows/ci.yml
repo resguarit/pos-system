@@ -68,4 +68,4 @@ jobs:
         php artisan test
       env:
         DB_CONNECTION: sqlite
-        DB_DATABASE: :memory:
+        DB_DATABASE: ":memory:"
