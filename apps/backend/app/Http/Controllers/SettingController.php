@@ -188,17 +188,29 @@ class SettingController extends Controller
                 mkdir($fullDirectoryPath, 0775, true);
             }
             
-            // Verify directory is writable (don't try to change permissions from PHP)
-            if (!is_writable($fullDirectoryPath)) {
+            // Verify directory is writable
+            // Try to write a test file instead of using is_writable() which can be unreliable
+            $testFile = $fullDirectoryPath . '/.test_write_' . uniqid();
+            $isWritable = @file_put_contents($testFile, 'test');
+            if ($isWritable !== false) {
+                @unlink($testFile);
+            } else {
                 // Get more diagnostic information
                 $owner = fileowner($fullDirectoryPath);
                 $group = filegroup($fullDirectoryPath);
                 $perms = substr(sprintf('%o', fileperms($fullDirectoryPath)), -4);
+                $currentUser = get_current_user();
+                $processUser = function_exists('posix_getpwuid') && function_exists('posix_geteuid') 
+                    ? posix_getpwuid(posix_geteuid())['name'] 
+                    : 'unknown';
+                $processGid = function_exists('posix_getegid') ? posix_getegid() : 'unknown';
                 
                 throw new \Exception(
                     'Directory is not writable: ' . $fullDirectoryPath . 
                     '. Owner: ' . $owner . ', Group: ' . $group . ', Perms: ' . $perms .
-                    '. Please check file permissions on the server. The directory needs to be writable by the web server user (usually www-data).'
+                    '. PHP Process User: ' . $processUser . ' (UID: ' . (function_exists('posix_geteuid') ? posix_geteuid() : 'N/A') . 
+                    ', GID: ' . $processGid . ')' .
+                    '. Please check file permissions on the server.'
                 );
             }
             
