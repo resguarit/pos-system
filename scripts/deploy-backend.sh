@@ -34,6 +34,25 @@ php artisan migrate --force
 echo "🔗 Creando symlink de storage..."
 php artisan storage:link
 
+# Asegurar permisos de storage y logs
+echo "🔐 Configurando permisos de storage y logs..."
+mkdir -p storage/logs
+touch storage/logs/laravel.log 2>/dev/null || true
+
+# Detectar usuario del servidor web
+WEB_USER="www-data"
+if id nginx >/dev/null 2>&1; then
+    WEB_USER="nginx"
+elif id apache >/dev/null 2>&1; then
+    WEB_USER="apache"
+fi
+
+# Configurar permisos (usando sudo si es necesario)
+chmod -R 775 storage 2>/dev/null || sudo chmod -R 775 storage
+chmod -R 775 bootstrap/cache 2>/dev/null || sudo chmod -R 775 bootstrap/cache
+chown -R $WEB_USER:$WEB_USER storage 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage 2>/dev/null || true
+chown -R $WEB_USER:$WEB_USER bootstrap/cache 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER bootstrap/cache 2>/dev/null || true
+
 # Optimizar para producción
 echo "⚡ Optimizando para producción..."
 php artisan config:cache
