@@ -28,8 +28,17 @@ class FixSalesPaymentStatus extends Command
 
         foreach ($sales as $sale) {
             try {
-                // Calcular total pagado
-                $totalPaid = (float)$sale->salePayments->sum('amount');
+                // Cargar relación con paymentMethod
+                $sale->load('salePayments.paymentMethod');
+                
+                // IMPORTANTE: Solo contar pagos que afectan caja (afects_cash = true)
+                // Los pagos a cuenta corriente NO deben contar como pagos efectivos
+                $totalPaid = (float)$sale->salePayments
+                    ->filter(function ($payment) {
+                        return $payment->paymentMethod && $payment->paymentMethod->affects_cash === true;
+                    })
+                    ->sum('amount');
+                
                 $total = (float)$sale->total;
                 
                 // Actualizar payment_status y paid_amount

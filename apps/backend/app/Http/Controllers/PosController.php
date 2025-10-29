@@ -192,9 +192,17 @@ class PosController extends Controller
  */
 private function updateSalePaymentStatus(SaleHeader $saleHeader): void
 {
-    $saleHeader->load('salePayments');
+    $saleHeader->load('salePayments.paymentMethod');
     
-    $totalPaid = (float)$saleHeader->salePayments->sum('amount');
+    // IMPORTANTE: Solo contar pagos que afectan caja (afects_cash = true)
+    // Los pagos a cuenta corriente NO deben contar como pagos efectivos
+    $totalPaid = (float)$saleHeader->salePayments
+        ->filter(function ($payment) {
+            // Solo contar pagos cuyo método de pago tenga affects_cash = true
+            return $payment->paymentMethod && $payment->paymentMethod->affects_cash === true;
+        })
+        ->sum('amount');
+    
     $total = (float)$saleHeader->total;
     
     if ($totalPaid >= $total) {
