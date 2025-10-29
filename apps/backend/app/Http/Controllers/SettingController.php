@@ -194,7 +194,12 @@ class SettingController extends Controller
             return response()->json([
                 'message' => 'Imagen subida correctamente',
                 'url' => $url,
-                'path' => $path
+                'path' => $path,
+                'debug' => [
+                    'apiBaseUrl' => config('app.url'),
+                    'storageUrl' => $storageUrl,
+                    'finalUrl' => $url
+                ]
             ]);
         } catch (\Exception $e) {
             Log::error('Error uploading image', ['error' => $e->getMessage()]);
