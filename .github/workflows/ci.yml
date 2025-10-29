@@ -22,10 +22,10 @@ jobs:
     - name: Install dependencies
       run: |
         cd apps/frontend
-        # Limpiar node_modules y cache antes de instalar
-        rm -rf node_modules package-lock.json
+        # Limpiar solo node_modules y cache para forzar reinstalación de binarios nativos
+        rm -rf node_modules
         npm cache clean --force
-        npm install
+        npm ci || npm install
         
     - name: Run linting
       run: |
