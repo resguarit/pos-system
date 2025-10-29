@@ -19,21 +19,36 @@ PUBLIC_DIR="/home/heroedelwhisky.com.ar/public_html"
 
 echo "📥 Obteniendo últimos cambios del repositorio..."
 cd "$REPO_DIR"
-git fetch origin master
 
-# Arreglar permisos antes de hacer reset
+# Arreglar permisos antes de hacer git operations
 echo "🔧 Arreglando permisos de archivos..."
-find . -type f -name ".gitignore" -exec chmod 664 {} \; 2>/dev/null || true
+# Hacer los archivos escritibles para poder actualizarlos
+find . -type f -exec chmod 664 {} \; 2>/dev/null || true
 find . -type d -exec chmod 775 {} \; 2>/dev/null || true
 
-# Intentar reset, si falla por permisos, arreglar y reintentar
+# Intentar obtener cambios
+git fetch origin master
+
+# Forzar actualización del código (descartar cambios locales si hay conflictos)
+# Si falla por permisos, intentar con chown
 if ! git reset --hard origin/master 2>/dev/null; then
-    echo "⚠️  Reset falló, arreglando permisos y reintentando..."
-    # Usar sudo si está disponible, o chown/chmod según el usuario
-    sudo chown -R "$USER:$USER" . 2>/dev/null || chown -R "$USER:$USER" . 2>/dev/null || true
-    find . -type f -exec chmod 664 {} \; 2>/dev/null || true
-    find . -type d -exec chmod 775 {} \; 2>/dev/null || true
-    git reset --hard origin/master
+    echo "⚠️  Reset falló, arreglando ownership y reintentando..."
+    # Determinar el usuario y grupo correctos
+    CURRENT_USER=$(whoami)
+    # Intentar con sudo si está disponible
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        sudo chown -R "$CURRENT_USER:$CURRENT_USER" . 2>/dev/null || true
+    else
+        # Intentar sin sudo
+        chown -R "$CURRENT_USER:$CURRENT_USER" . 2>/dev/null || true
+    fi
+    # Reintentar reset
+    git reset --hard origin/master || {
+        echo "❌ No se pudo hacer reset. Intentando limpiar archivos problemáticos..."
+        # Eliminar archivos .gitignore problemáticos manualmente
+        find apps/backend/storage -name ".gitignore" -type f -delete 2>/dev/null || true
+        git reset --hard origin/master
+    }
 fi
 
 if [ ! -d "$FRONTEND_SRC" ]; then
