@@ -42,6 +42,10 @@ APP_KEY=base64:your-production-key-here
 APP_DEBUG=false
 APP_URL=https://api.heroedelwhisky.com.ar
 
+# IMPORTANTE: URL del frontend para configuración de CORS
+# Esta variable debe coincidir con el dominio del frontend
+FRONTEND_URL=https://heroedelwhisky.com.ar
+
 DB_CONNECTION=mysql
 DB_HOST=localhost
 DB_PORT=3306
@@ -49,6 +53,11 @@ DB_DATABASE=pos_system
 DB_USERNAME=pos_user
 DB_PASSWORD=your-secure-password
 ```
+
+**⚠️ Nota importante para múltiples clientes:**
+- Cada cliente debe tener su propia variable `FRONTEND_URL` configurada
+- Esta variable se usa para configurar CORS automáticamente
+- Debe incluir el protocolo (https://) y no tener trailing slash
 
 ## Testing Environment
 

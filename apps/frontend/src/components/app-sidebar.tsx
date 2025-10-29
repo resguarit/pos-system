@@ -89,8 +89,11 @@ export function AppSidebar({ className }: { className?: string }) {
             >
               {(() => {
                 // Usar directamente /images/logo.jpg del backend (igual que PDFs)
-                const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://api.heroedelwhisky.com.ar/api';
-                const baseUrl = apiBaseUrl.replace('/api', '') || 'https://api.heroedelwhisky.com.ar';
+                // Usa window.location.origin si no hay VITE_API_URL configurado (para producción)
+                const apiBaseUrl = import.meta.env.VITE_API_URL || 
+                  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
+                const baseUrl = apiBaseUrl.replace('/api', '') || 
+                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
                 const logoUrl = config?.logo_url || `${baseUrl}/images/logo.jpg`;
                 return (
                   <img 

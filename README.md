@@ -194,6 +194,14 @@ php artisan db:seed      # Seed database
 
 ## 🚀 Deployment
 
+### Multi-Client Deployment
+
+El sistema está preparado para desplegarse en múltiples clientes. **No hay referencias hardcodeadas** más allá del logo configurable.
+
+📖 **[Ver Guía Completa de Deployment Multi-Cliente](./docs/MULTI_CLIENT_DEPLOYMENT.md)**
+
+Para deployment usando **CyberPanel Git**, la guía incluye instrucciones paso a paso.
+
 ### Automated Deployment (Recommended)
 
 The project includes GitHub Actions workflows for automated deployment:

@@ -16,8 +16,11 @@ export const getLogoUrl = (logoUrl?: string | null): string => {
   }
   
   // Default: usar directamente /images/logo.jpg del backend (igual que PDFs)
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://api.heroedelwhisky.com.ar/api';
-  const baseUrl = apiBaseUrl.replace('/api', '') || 'https://api.heroedelwhisky.com.ar';
+  // Usa window.location.origin si no hay VITE_API_URL configurado (para producción)
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 
+    (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
+  const baseUrl = apiBaseUrl.replace('/api', '') || 
+    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
   return `${baseUrl}/images/logo.jpg`;
 }
 

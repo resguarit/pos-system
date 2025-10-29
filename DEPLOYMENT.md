@@ -376,6 +376,50 @@ For additional support, refer to the main [README.md](./README.md) or create an 
 
 ---
 
+## 🌐 Deployment Multi-Cliente
+
+Para desplegar el mismo sistema a múltiples clientes en diferentes dominios, consulta la guía detallada:
+
+📖 **[Guía Completa de Deployment Multi-Cliente](./docs/MULTI_CLIENT_DEPLOYMENT.md)**
+
+### Resumen Rápido
+
+El sistema está preparado para múltiples clientes. Los cambios realizados incluyen:
+
+1. **CORS configurable**: Usa la variable `FRONTEND_URL` en el `.env` del backend
+2. **Sin hardcodeo**: Frontend usa `window.location.origin` como fallback
+3. **Logo configurable**: Se configura desde la base de datos
+
+### Configuración Esencial por Cliente
+
+Cada cliente necesita en su `.env` del backend:
+
+```env
+APP_URL=https://api.cliente.com.ar
+FRONTEND_URL=https://cliente.com.ar  # Importante para CORS
+DB_DATABASE=cliente_pos_db
+DB_USERNAME=cliente_db_user
+DB_PASSWORD=contraseña_segura
+```
+
+Y en el frontend al compilar:
+
+```env
+VITE_API_URL=https://api.cliente.com.ar/api
+```
+
+### Usando CyberPanel Git
+
+CyberPanel incluye una funcionalidad "Manage Git" que facilita el deployment:
+
+1. En CyberPanel: **Version Management → Manage Git**
+2. Selecciona el dominio del backend (ej: `api.cliente.com.ar`)
+3. Selecciona la carpeta: `/home/api.cliente.com.ar/public_html`
+4. Usa "Attach Existing Repo" para conectar el repositorio
+5. Sigue la [guía completa](./docs/MULTI_CLIENT_DEPLOYMENT.md) para configurar todo
+
+---
+
 ## 🤖 CI/CD Automático (Implementación Real en Producción)
 
 Esta sección documenta exactamente el proceso que FUNCIONA actualmente para el despliegue automático (frontend y backend) del sistema POS en el VPS.
