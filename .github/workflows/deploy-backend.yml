@@ -24,11 +24,19 @@ jobs:
         script: |
           cd ${{ secrets.BACKEND_DEPLOY_PATH }}
           git pull origin master
+          cd apps/backend
+          if [ ! -L public/storage ]; then
+            php artisan storage:link
+          fi
+          php artisan config:clear
+          php artisan cache:clear
+          php artisan route:clear
+          php artisan view:clear
           composer install --no-dev --optimize-autoloader
+          php artisan migrate --force
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          php artisan migrate --force
           
     - name: Notify deployment
       if: always()
