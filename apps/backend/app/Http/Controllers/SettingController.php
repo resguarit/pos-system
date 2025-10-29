@@ -74,15 +74,7 @@ class SettingController extends Controller
                 ->pluck('value', 'key')
                 ->toArray();
 
-            // Set defaults for missing settings
-            $baseUrl = config('app.url');
-            if (str_ends_with($baseUrl, '/api')) {
-                $baseUrl = str_replace('/api', '', $baseUrl);
-            }
-            
-            // Default logo URL - siempre usa public/images/logo.jpg como estaba antes
-            $defaultLogoUrl = rtrim($baseUrl, '/') . '/images/logo.jpg';
-            
+            // Set defaults for missing settings (como estaba antes)
             $defaults = [
                 'system_title' => 'RG Gestión',
                 'primary_color' => '#3B82F6',
@@ -91,8 +83,7 @@ class SettingController extends Controller
                 'company_address' => '',
                 'company_email' => '',
                 'company_phone' => '',
-                'logo_url' => $defaultLogoUrl,
-                'favicon_url' => null,
+                // logo_url y favicon_url no están en defaults - se manejan después
             ];
 
             $config = array_merge($defaults, $settings);
@@ -107,42 +98,35 @@ class SettingController extends Controller
                 }
             }
             
-            // Ensure logo_url and favicon_url are full URLs if they're relative paths
-            $baseUrl = config('app.url');
-            if (str_ends_with($baseUrl, '/api')) {
-                $baseUrl = str_replace('/api', '', $baseUrl);
-            }
-            
+            // Para logo_url y favicon_url: solo incluir si existe en settings
+            // Si no existe, no se incluye (frontend usará /images/logo.jpg directamente como antes)
             foreach (['logo_url', 'favicon_url'] as $urlKey) {
-                if (!empty($config[$urlKey]) && is_string($config[$urlKey])) {
-                    // Handle JSON encoded values
-                    if (!str_starts_with($config[$urlKey], 'http') && !str_starts_with($config[$urlKey], '/')) {
-                        $decoded = json_decode($config[$urlKey], true);
-                        if (json_last_error() === JSON_ERROR_NONE && is_string($decoded)) {
-                            $config[$urlKey] = $decoded;
+                if (isset($config[$urlKey]) && !empty($config[$urlKey])) {
+                    // Si tiene valor, convertirlo a URL completa si es necesario
+                    if (is_string($config[$urlKey])) {
+                        // Si no empieza con http, puede ser JSON encoded
+                        if (!str_starts_with($config[$urlKey], 'http') && !str_starts_with($config[$urlKey], '/')) {
+                            $decoded = json_decode($config[$urlKey], true);
+                            if (json_last_error() === JSON_ERROR_NONE && is_string($decoded)) {
+                                $config[$urlKey] = $decoded;
+                            }
+                        }
+                        
+                        // Convertir rutas relativas a URLs completas
+                        if (str_starts_with($config[$urlKey], '/')) {
+                            if (!str_starts_with($config[$urlKey], 'http')) {
+                                $baseUrl = config('app.url');
+                                if (str_ends_with($baseUrl, '/api')) {
+                                    $baseUrl = str_replace('/api', '', $baseUrl);
+                                }
+                                $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
+                            }
                         }
                     }
-                    
-                    // Convert relative paths to full URLs
-                    if (is_string($config[$urlKey]) && str_starts_with($config[$urlKey], '/')) {
-                        // If it's a full URL already, keep it
-                        if (str_starts_with($config[$urlKey], 'http')) {
-                            // Already a full URL, keep it
-                        } 
-                        // If it starts with /storage, convert to full URL
-                        elseif (str_starts_with($config[$urlKey], '/storage')) {
-                            $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
-                        }
-                        // Otherwise assume it's relative to public (like /images/logo.jpg)
-                        else {
-                            $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
-                        }
-                    }
-                }
-                
-                // Si logo_url está vacío o null, usar el default (public/images/logo.jpg)
-                if ($urlKey === 'logo_url' && empty($config[$urlKey])) {
-                    $config[$urlKey] = $defaultLogoUrl;
+                } else {
+                    // Si no existe o está vacío, no incluir en el response
+                    // El frontend usará /images/logo.jpg como fallback
+                    unset($config[$urlKey]);
                 }
             }
 

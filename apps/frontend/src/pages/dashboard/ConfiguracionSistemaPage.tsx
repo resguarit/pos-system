@@ -192,29 +192,29 @@ export default function ConfiguracionSistemaPage() {
               <div className="space-y-3">
                 <Label htmlFor="logo">Logo del Sistema</Label>
                 <div className="flex flex-col items-center gap-4 p-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                  {config.logo_url ? (
-                    <img
-                      src={config.logo_url}
-                      alt="Logo"
-                      className="w-24 h-24 rounded-lg bg-white p-2"
-                      style={{ 
-                        objectFit: 'contain',
-                        width: '96px',
-                        height: '96px',
-                        display: 'block'
-                      }}
-                      onError={(e) => {
-                        console.error('Error loading logo:', config.logo_url);
-                      }}
-                      onLoad={() => {
-                        console.log('Logo cargado exitosamente:', config.logo_url);
-                      }}
-                    />
-                  ) : (
-                    <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                      <ImageIcon className="w-12 h-12 text-gray-400" />
-                    </div>
-                  )}
+                  {(() => {
+                    // Usar logo_url si existe, sino usar directamente /images/logo.jpg del backend (como antes)
+                    const logoUrl = config.logo_url || `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://api.heroedelwhisky.com.ar'}/images/logo.jpg`;
+                    return (
+                      <img
+                        src={logoUrl}
+                        alt="Logo"
+                        className="w-24 h-24 rounded-lg bg-white p-2"
+                        style={{ 
+                          objectFit: 'contain',
+                          width: '96px',
+                          height: '96px',
+                          display: 'block'
+                        }}
+                        onError={(e) => {
+                          console.error('Error loading logo:', logoUrl);
+                        }}
+                        onLoad={() => {
+                          console.log('Logo cargado exitosamente:', logoUrl);
+                        }}
+                      />
+                    );
+                  })()}
                   <div className="text-center">
                     <Input
                       id="logo"

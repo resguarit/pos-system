@@ -87,26 +87,35 @@ export function AppSidebar({ className }: { className?: string }) {
                 }
               }}
             >
-              {config?.logo_url ? (
-                <img 
-                  src={config.logo_url} 
-                  alt={systemTitle}
-                  className="w-8 h-8 rounded-lg object-contain bg-white p-1"
-                  onError={(e) => {
-                    console.error('Error loading logo:', config.logo_url);
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              ) : (
-                <div 
-                  className="flex aspect-square size-8 items-center justify-center rounded-lg text-white"
-                  style={{ 
-                    backgroundColor: config?.primary_color || '#3B82F6'
-                  }}
-                >
-                  <Store className="size-4" />
-                </div>
-              )}
+              {(() => {
+                // Usar logo_url si existe, sino usar directamente /images/logo.jpg del backend (como antes)
+                const logoUrl = config?.logo_url || `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://api.heroedelwhisky.com.ar'}/images/logo.jpg`;
+                return (
+                  <img 
+                    src={logoUrl} 
+                    alt={systemTitle}
+                    className="w-8 h-8 rounded-lg object-contain bg-white p-1"
+                    onError={(e) => {
+                      console.error('Error loading logo:', logoUrl);
+                      // Si falla, mostrar inicial
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      const fallback = parent?.querySelector('.logo-fallback') as HTMLElement;
+                      if (fallback) fallback.style.display = 'flex';
+                    }}
+                  />
+                );
+              })()}
+              <div 
+                className="logo-fallback flex aspect-square size-8 items-center justify-center rounded-lg text-white"
+                style={{ 
+                  display: config?.logo_url ? 'none' : 'flex',
+                  backgroundColor: config?.primary_color || '#3B82F6'
+                }}
+              >
+                <Store className="size-4" />
+              </div>
               <div className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold text-gray-800">
                   {systemTitle}
