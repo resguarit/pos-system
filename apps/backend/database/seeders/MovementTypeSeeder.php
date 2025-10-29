@@ -27,6 +27,38 @@ class MovementTypeSeeder extends Seeder
                 'active' => true,
             ],
             [
+                'name' => 'Venta',
+                'description' => 'Venta registrada en cuenta corriente (aumenta la deuda del cliente)',
+                'operation_type' => 'salida',
+                'is_cash_movement' => false,
+                'is_current_account_movement' => true,
+                'active' => true,
+            ],
+            [
+                'name' => 'Pago en efectivo',
+                'description' => 'Pago recibido en efectivo que reduce la deuda en cuenta corriente',
+                'operation_type' => 'entrada',
+                'is_cash_movement' => false,
+                'is_current_account_movement' => true,
+                'active' => true,
+            ],
+            [
+                'name' => 'Pago con tarjeta',
+                'description' => 'Pago recibido con tarjeta que reduce la deuda en cuenta corriente',
+                'operation_type' => 'entrada',
+                'is_cash_movement' => false,
+                'is_current_account_movement' => true,
+                'active' => true,
+            ],
+            [
+                'name' => 'Pago con transferencia',
+                'description' => 'Pago recibido por transferencia que reduce la deuda en cuenta corriente',
+                'operation_type' => 'entrada',
+                'is_cash_movement' => false,
+                'is_current_account_movement' => true,
+                'active' => true,
+            ],
+            [
                 'name' => 'Pago de cuenta corriente',
                 'description' => 'Pago recibido de cliente por cuenta corriente',
                 'operation_type' => 'entrada',
@@ -77,7 +109,7 @@ class MovementTypeSeeder extends Seeder
         ];
 
         foreach ($movementTypes as $type) {
-            MovementType::firstOrCreate(
+            MovementType::updateOrCreate(
                 ['name' => $type['name']], 
                 $type
             );
