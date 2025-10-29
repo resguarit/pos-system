@@ -57,7 +57,19 @@ export default function ConfiguracionSistemaPage() {
       setLoading(true)
       const response = await api.get('/settings/system')
       if (response.data) {
-        setConfig(response.data)
+        // Limpiar valores "null" string que vengan del backend
+        const cleanedData = Object.entries(response.data).reduce((acc, [key, value]) => {
+          // Si el valor es "null" como string o null real, usar string vacío
+          if (value === 'null' || value === null) {
+            acc[key] = ''
+          } else if (typeof value === 'string' && value.trim() === 'null') {
+            acc[key] = ''
+          } else {
+            acc[key] = value
+          }
+          return acc
+        }, {} as SystemConfig)
+        setConfig(cleanedData)
       }
     } catch (error) {
       console.error("Error loading configuration:", error)
@@ -173,70 +185,29 @@ export default function ConfiguracionSistemaPage() {
       </div>
 
       <div className="space-y-6 max-w-5xl">
-        {/* Logo y Favicon */}
-        <Card>
+        {/* Logo y Favicon - Próximamente */}
+        <Card className="opacity-60">
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-orange-600/10 rounded-lg flex items-center justify-center">
                 <ImageIcon className="w-5 h-5 text-orange-600" />
               </div>
               <div>
-                <CardTitle>Identidad Visual</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  Identidad Visual
+                  <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full font-normal">Próximamente</span>
+                </CardTitle>
                 <CardDescription>Logo y favicon de tu sistema</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 gap-6">
-              {/* Logo Upload */}
-              <div className="space-y-3">
-                <Label htmlFor="logo">Logo del Sistema</Label>
-                <div className="flex flex-col items-center gap-4 p-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
-                  {(() => {
-                    // Usar directamente /images/logo.jpg del backend (igual que PDFs)
-                    const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://api.heroedelwhisky.com.ar/api';
-                    const baseUrl = apiBaseUrl.replace('/api', '') || 'https://api.heroedelwhisky.com.ar';
-                    const logoUrl = config.logo_url || `${baseUrl}/images/logo.jpg`;
-                    return (
-                      <img
-                        src={logoUrl}
-                        alt="Logo"
-                        className="w-24 h-24 rounded-lg bg-white p-2"
-                        style={{ 
-                          objectFit: 'contain',
-                          width: '96px',
-                          height: '96px',
-                          display: 'block'
-                        }}
-                        onError={(e) => {
-                          console.error('Error loading logo:', logoUrl);
-                        }}
-                        onLoad={() => {
-                          console.log('Logo cargado exitosamente:', logoUrl);
-                        }}
-                      />
-                    );
-                  })()}
-                  <div className="text-center">
-                    <Input
-                      id="logo"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                      disabled={!hasPermission('editar_configuracion_sistema')}
-                    />
-                    <Label htmlFor="logo" className="cursor-pointer">
-                      <div className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-                        <Upload className="w-4 h-4" />
-                        <span className="text-sm">Subir Logo</span>
-                      </div>
-                    </Label>
-                    <p className="text-xs text-gray-500 mt-2">PNG, JPG hasta 2MB</p>
-                  </div>
-                </div>
-              </div>
-
+            <div className="flex items-center justify-center p-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <p className="text-gray-500 dark:text-gray-400 text-center">
+                Esta funcionalidad estará disponible próximamente.
+                <br />
+                <span className="text-sm">Por ahora el logo se maneja directamente desde el servidor.</span>
+              </p>
             </div>
           </CardContent>
         </Card>

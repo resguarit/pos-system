@@ -88,22 +88,47 @@ class SettingController extends Controller
 
             $config = array_merge($defaults, $settings);
 
-            // Convert json values
+            // Convert json values and clean null strings
             foreach ($config as $key => $value) {
                 if (is_string($value)) {
                     $decoded = json_decode($value, true);
-                    if (json_last_error() === JSON_ERROR_NONE && !is_null($decoded)) {
-                        $config[$key] = $decoded;
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        // Si decodifica a null o string "null", usar valor vacío
+                        if ($decoded === null || $decoded === 'null') {
+                            $config[$key] = '';
+                        } else {
+                            $config[$key] = $decoded;
+                        }
+                    } elseif ($value === 'null' || $value === '') {
+                        // Si el string es literalmente "null" o vacío, usar string vacío
+                        $config[$key] = '';
+                    }
+                    // Si el valor es "null" como string, convertirlo a string vacío
+                    if ($config[$key] === 'null') {
+                        $config[$key] = '';
                     }
                 }
             }
             
-            // Para logo_url y favicon_url: solo incluir si existe en settings
+            // Limpiar valores null string que puedan haber quedado
+            foreach (['company_ruc', 'company_email', 'company_phone', 'company_address', 'company_name'] as $key) {
+                if (isset($config[$key]) && ($config[$key] === 'null' || $config[$key] === null)) {
+                    $config[$key] = '';
+                }
+            }
+            
+            // Para logo_url y favicon_url: solo incluir si existe en settings y no es null/empty
             // Si no existe, no se incluye (frontend usará /images/logo.jpg directamente como antes)
             foreach (['logo_url', 'favicon_url'] as $urlKey) {
                 if (isset($config[$urlKey]) && !empty($config[$urlKey])) {
                     // Si tiene valor, convertirlo a URL completa si es necesario
                     if (is_string($config[$urlKey])) {
+                        // Si contiene "null" en la URL (como "http://localhost:8000/null"), no incluir
+                        if (str_contains($config[$urlKey], '/null') || $config[$urlKey] === 'null') {
+                            unset($config[$urlKey]);
+                            continue;
+                        }
+                        
                         // Si no empieza con http, puede ser JSON encoded
                         if (!str_starts_with($config[$urlKey], 'http') && !str_starts_with($config[$urlKey], '/')) {
                             $decoded = json_decode($config[$urlKey], true);
@@ -162,9 +187,15 @@ class SettingController extends Controller
 
             foreach ($request->all() as $key => $value) {
                 if (in_array($key, self::SYSTEM_KEYS)) {
+                    // Normalizar valores: si es null, string vacío, o string "null", usar string vacío
+                    $normalizedValue = '';
+                    if ($value !== null && $value !== '' && $value !== 'null') {
+                        $normalizedValue = $value;
+                    }
+                    
                     Setting::updateOrCreate(
                         ['key' => $key],
-                        ['value' => json_encode($value)]
+                        ['value' => json_encode($normalizedValue)]
                     );
                 }
             }
