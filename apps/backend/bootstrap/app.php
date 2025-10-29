@@ -25,6 +25,18 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Prevent infinite logging loops - don't report logging exceptions
+        $exceptions->report(function (\Throwable $e) {
+            // Don't report errors related to file writing (like log permissions)
+            $message = $e->getMessage();
+            if (str_contains($message, 'Permission denied') || 
+                str_contains($message, 'Failed to open stream') ||
+                str_contains($message, 'laravel.log')) {
+                return false; // Don't report this exception
+            }
+            return null; // Continue with normal reporting
+        });
+        
         // Ensure all API exception responses include CORS headers
         $exceptions->render(function (\Throwable $e, Request $request) {
             // Only handle API routes

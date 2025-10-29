@@ -168,12 +168,16 @@ class SettingController extends Controller
             $file = $request->file('file');
             $type = $request->input('type');
             
-            Log::info('Starting file upload', [
-                'type' => $type,
-                'originalName' => $file->getClientOriginalName(),
-                'size' => $file->getSize(),
-                'mimeType' => $file->getMimeType()
-            ]);
+            try {
+                Log::info('Starting file upload', [
+                    'type' => $type,
+                    'originalName' => $file->getClientOriginalName(),
+                    'size' => $file->getSize(),
+                    'mimeType' => $file->getMimeType()
+                ]);
+            } catch (\Exception $logException) {
+                // Silently fail if logging is not available
+            }
             
             // Create directory if it doesn't exist
             $directory = 'system/' . $type . 's';
@@ -185,7 +189,11 @@ class SettingController extends Controller
                 throw new \Exception('Failed to store file - path is empty');
             }
             
-            Log::info('File stored successfully', ['path' => $path]);
+            try {
+                Log::info('File stored successfully', ['path' => $path]);
+            } catch (\Exception $logException) {
+                // Silently fail if logging is not available
+            }
             
             // Generate public URL manually to ensure it's correct
             $baseUrl = config('app.url');
@@ -198,11 +206,15 @@ class SettingController extends Controller
             // Construct the full URL
             $url = rtrim($baseUrl, '/') . '/storage/' . $path;
             
-            Log::info('Storage URL generated', [
-                'path' => $path,
-                'baseUrl' => $baseUrl,
-                'url' => $url
-            ]);
+            try {
+                Log::info('Storage URL generated', [
+                    'path' => $path,
+                    'baseUrl' => $baseUrl,
+                    'url' => $url
+                ]);
+            } catch (\Exception $logException) {
+                // Silently fail if logging is not available
+            }
             
             // Save setting (json_encode to match getSystem behavior)
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
@@ -211,7 +223,11 @@ class SettingController extends Controller
                 ['value' => json_encode($url)]
             );
             
-            Log::info('Setting saved successfully', ['key' => $key, 'url' => $url]);
+            try {
+                Log::info('Setting saved successfully', ['key' => $key, 'url' => $url]);
+            } catch (\Exception $logException) {
+                // Silently fail if logging is not available
+            }
 
             return response()->json([
                 'message' => 'Imagen subida correctamente',
@@ -222,10 +238,15 @@ class SettingController extends Controller
             // Let validation exceptions bubble up to be handled by exception handler
             throw $e;
         } catch (\Exception $e) {
-            Log::error('Error uploading image', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            // Try to log, but don't fail if logging itself fails
+            try {
+                Log::error('Error uploading image', [
+                    'error' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ]);
+            } catch (\Exception $logException) {
+                // Silently fail if logging is not available
+            }
             
             // Build error response
             $response = response()->json([
