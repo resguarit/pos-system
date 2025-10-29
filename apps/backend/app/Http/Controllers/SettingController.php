@@ -98,38 +98,6 @@ class SettingController extends Controller
                 }
             }
 
-            // Ensure logo and favicon URLs are absolute and use API endpoint
-            $appUrl = config('app.url');
-            
-            // If app_url is localhost in production, use the correct domain
-            if (config('app.env') === 'production' && str_contains($appUrl, 'localhost')) {
-                $appUrl = 'https://api.heroedelwhisky.com.ar';
-            }
-            
-            foreach (['logo_url', 'favicon_url'] as $urlKey) {
-                if (!empty($config[$urlKey])) {
-                    // Normalize URL to use /api/storage/ endpoint
-                    $url = $config[$urlKey];
-                    
-                    // If it's a relative URL or old /storage/ format, convert to /api/storage/
-                    if (str_starts_with($url, '/storage/')) {
-                        // Remove /storage/ prefix and add /api/storage/
-                        $path = substr($url, 8); // Remove '/storage/'
-                        $config[$urlKey] = $appUrl . '/api/storage/' . $path;
-                    } elseif (!str_starts_with($url, 'http')) {
-                        // Relative URL, make it absolute
-                        $config[$urlKey] = $appUrl . '/api/storage/' . ltrim($url, '/');
-                    } elseif (str_contains($url, '/storage/') && !str_contains($url, '/api/storage/')) {
-                        // Absolute URL with /storage/, convert to /api/storage/
-                        $url = str_replace('/storage/', '/api/storage/', $url);
-                        $config[$urlKey] = $url;
-                    } elseif (str_contains($url, 'localhost') && config('app.env') === 'production') {
-                        // Replace localhost with production URL
-                        $config[$urlKey] = str_replace('http://localhost:8000', 'https://api.heroedelwhisky.com.ar', $url);
-                    }
-                }
-            }
-
             return response()->json($config);
         } catch (\Exception $e) {
             Log::error('Error getting system configuration', ['error' => $e->getMessage()]);
@@ -205,17 +173,10 @@ class SettingController extends Controller
             // Store file and get path
             $path = $file->store($directory, 'public');
             
-            // Generate absolute URL for the stored file
-            // Use /api/storage/ instead of /storage/ so it goes through Laravel
-            $appUrl = config('app.url');
-            
-            // If app_url is localhost in production, use the correct domain
-            if (config('app.env') === 'production' && str_contains($appUrl, 'localhost')) {
-                // Force to use the production API URL
-                $appUrl = 'https://api.heroedelwhisky.com.ar';
-            }
-            
-            $url = $appUrl . '/api/storage/' . $path;
+            // Generate public URL with full backend URL
+            // In production, we need the full backend API URL so the frontend can access it
+            $baseUrl = config('app.url');
+            $url = $baseUrl . Storage::url($path);
             
             // Save setting
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
