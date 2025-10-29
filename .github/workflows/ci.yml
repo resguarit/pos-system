@@ -22,7 +22,10 @@ jobs:
     - name: Install dependencies
       run: |
         cd apps/frontend
-        npm ci
+        # Limpiar node_modules y cache antes de instalar
+        rm -rf node_modules package-lock.json
+        npm cache clean --force
+        npm install
         
     - name: Run linting
       run: |

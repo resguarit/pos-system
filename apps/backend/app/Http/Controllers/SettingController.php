@@ -183,14 +183,23 @@ class SettingController extends Controller
             $directory = 'system/' . $type . 's';
             $fullDirectoryPath = storage_path('app/public/' . $directory);
             
-            // Ensure directory exists (permissions should be set by server admin)
+            // Ensure directory exists with proper permissions
             if (!file_exists($fullDirectoryPath)) {
                 mkdir($fullDirectoryPath, 0775, true);
             }
             
-            // Verify directory is writable (don't try to change permissions, just check)
+            // Verify directory is writable (don't try to change permissions from PHP)
             if (!is_writable($fullDirectoryPath)) {
-                throw new \Exception('Directory is not writable: ' . $fullDirectoryPath . '. Please check file permissions on the server.');
+                // Get more diagnostic information
+                $owner = fileowner($fullDirectoryPath);
+                $group = filegroup($fullDirectoryPath);
+                $perms = substr(sprintf('%o', fileperms($fullDirectoryPath)), -4);
+                
+                throw new \Exception(
+                    'Directory is not writable: ' . $fullDirectoryPath . 
+                    '. Owner: ' . $owner . ', Group: ' . $group . ', Perms: ' . $perms .
+                    '. Please check file permissions on the server. The directory needs to be writable by the web server user (usually www-data).'
+                );
             }
             
             // Store file and get path

@@ -1,7 +1,8 @@
 name: Deploy POS System
 
 on:
-  # Solo se activa manualmente, no automáticamente en push
+  push:
+    branches: [ master ]
   workflow_dispatch:
     inputs:
       deploy_frontend:
