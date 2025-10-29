@@ -75,6 +75,17 @@ class SettingController extends Controller
                 ->toArray();
 
             // Set defaults for missing settings
+            $baseUrl = config('app.url');
+            if (str_ends_with($baseUrl, '/api')) {
+                $baseUrl = str_replace('/api', '', $baseUrl);
+            }
+            
+            // Default logo URL if file exists in public/images
+            $defaultLogoUrl = null;
+            if (file_exists(public_path('images/logo.jpg'))) {
+                $defaultLogoUrl = rtrim($baseUrl, '/') . '/images/logo.jpg';
+            }
+            
             $defaults = [
                 'system_title' => 'RG Gestión',
                 'primary_color' => '#3B82F6',
@@ -83,7 +94,7 @@ class SettingController extends Controller
                 'company_address' => '',
                 'company_email' => '',
                 'company_phone' => '',
-                'logo_url' => null,
+                'logo_url' => $defaultLogoUrl,
                 'favicon_url' => null,
             ];
 
