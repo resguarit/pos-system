@@ -173,16 +173,14 @@ class SettingController extends Controller
             // Store file and get path
             $path = $file->store($directory, 'public');
             
-            // Generate public URL - need to construct it properly
-            // Storage::url returns /storage/path, but we need the full URL without /api
-            $storageUrl = Storage::url($path); // returns /storage/system/logos/filename.jpg
-            $apiBaseUrl = config('app.url'); // e.g., https://api.heroedelwhisky.com.ar or http://localhost
-            // Remove /api from base URL if present to get the domain root
-            $baseUrl = rtrim($apiBaseUrl, '/');
-            if (str_ends_with($baseUrl, '/api')) {
-                $baseUrl = rtrim($baseUrl, '/api');
+            // Generate public URL - Storage::url already includes the full URL from filesystems config
+            $url = Storage::url($path);
+            
+            // If Storage::url includes /api in the URL (e.g., due to APP_URL config), remove it
+            // because storage files are served from the domain root, not from /api
+            if (str_contains($url, '/api/storage/')) {
+                $url = str_replace('/api/storage/', '/storage/', $url);
             }
-            $url = $baseUrl . $storageUrl;
             
             // Save setting
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
