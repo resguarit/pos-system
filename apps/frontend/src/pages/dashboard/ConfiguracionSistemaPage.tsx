@@ -194,8 +194,7 @@ export default function ConfiguracionSistemaPage() {
                 <div className="flex flex-col items-center gap-4 p-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
                   {config.logo_url ? (
                     <img
-                      key={config.logo_url}
-                      src={`${config.logo_url}?t=${Date.now()}`}
+                      src={config.logo_url}
                       alt="Logo"
                       className="w-24 h-24 rounded-lg bg-white p-2"
                       style={{ 
@@ -206,7 +205,6 @@ export default function ConfiguracionSistemaPage() {
                       }}
                       onError={(e) => {
                         console.error('Error loading logo:', config.logo_url);
-                        console.error('Event:', e);
                       }}
                       onLoad={() => {
                         console.log('Logo cargado exitosamente:', config.logo_url);

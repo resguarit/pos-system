@@ -19,14 +19,6 @@ cd apps/backend
 echo "📦 Instalando dependencias de Composer..."
 /usr/bin/composer install --no-dev --optimize-autoloader
 
-# Crear/verificar symlink para storage
-echo "🔗 Creando symlink para storage..."
-if [ ! -L public/storage ]; then
-    php artisan storage:link
-else
-    echo "Symlink ya existe"
-fi
-
 # Limpiar caché de configuración
 echo "🧹 Limpiando caché de Laravel..."
 php artisan config:clear
@@ -37,6 +29,10 @@ php artisan view:clear
 # Ejecutar migraciones si las hay
 echo "🗄️ Ejecutando migraciones de base de datos..."
 php artisan migrate --force
+
+# Crear symlink de storage si no existe
+echo "🔗 Creando symlink de storage..."
+php artisan storage:link
 
 # Optimizar para producción
 echo "⚡ Optimizando para producción..."
