@@ -163,6 +163,55 @@ Después de ejecutar los comandos, prueba hacer una petición a la API. Si el er
    sudo chcon -R -t httpd_sys_rw_content_t storage/
    ```
 
+### Solución específica para CyberPanel
+
+Si estás usando CyberPanel y el problema persiste después de configurar permisos:
+
+```bash
+cd /home/api.heroedelwhisky.com.ar/public_html/apps/backend
+
+# 1. Verificar usuario real de PHP en tiempo de ejecución
+php -r "echo 'Usuario: ' . get_current_user() . ', UID: ' . getmyuid() . ', GID: ' . getmygid() . PHP_EOL;"
+
+# 2. Ver todos los procesos PHP-FPM
+ps auxf | grep php-fpm | grep -v grep
+
+# 3. Configurar permisos más permisivos (temporal para diagnóstico)
+chmod -R 777 storage/logs
+chmod -R 777 bootstrap/cache
+
+# 4. Recrear archivo de log como el usuario correcto
+rm -f storage/logs/laravel.log
+sudo -u www-data touch storage/logs/laravel.log
+chmod 664 storage/logs/laravel.log
+
+# 5. Probar escritura directa
+sudo -u www-data bash -c 'echo "test" >> storage/logs/laravel.log && echo "✅ OK" || echo "❌ Error"'
+
+# Si funciona el paso 5 pero no funciona la aplicación, verifica:
+# - Que el grupo tenga permisos de escritura (g+w)
+# - Que no haya problemas de SELinux
+# - Que el usuario PHP-FPM en CyberPanel coincida con www-data
+```
+
+**Nota importante en CyberPanel:** 
+
+1. **Usuario PHP-FPM:** A veces CyberPanel configura PHP-FPM para ejecutarse como `nobody` o un usuario específico del sitio, no como `www-data`. Verifica en el panel de CyberPanel → PHP Settings → PHP-FPM Settings del dominio.
+
+2. **Permisos necesarios:** En CyberPanel, a menudo se requieren permisos más permisivos para `storage/logs`:
+   - Directorio `storage/logs`: `777` (drwxrwxrwx)
+   - Archivo `laravel.log`: `666` (rw-rw-rw-)
+   
+   Esto se debe a configuraciones especiales de PHP-FPM en CyberPanel que pueden no respetar completamente los permisos estándar de grupo.
+
+**Solución final confirmada para CyberPanel:**
+```bash
+cd /home/api.heroedelwhisky.com.ar/public_html/apps/backend
+chmod -R 777 storage/logs
+chmod 666 storage/logs/laravel.log
+chown -R www-data:www-data storage/logs
+```
+
 ### Prevenir el problema
 
 Asegúrate de que el script `fix-storage-permissions.sh` se ejecute después de cada deployment. Puedes agregarlo al final de tu script de deployment.

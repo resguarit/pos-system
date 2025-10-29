@@ -23,10 +23,16 @@ echo ""
 
 cd "$BACKEND_PATH"
 
-# Detectar usuario del servidor web
+# Detectar usuario del servidor web (prioridad: PHP-FPM pool > nginx > apache > www-data)
 echo "1️⃣ Detectando usuario del servidor web..."
 WEB_USER="www-data"
-if id nginx >/dev/null 2>&1; then
+
+# Primero intentar detectar desde procesos PHP-FPM pool (más específico para CyberPanel)
+PHP_FPM_USER=$(ps aux | grep 'php-fpm: pool' | grep -v grep | head -1 | awk '{print $1}' | grep -v root)
+if [ ! -z "$PHP_FPM_USER" ]; then
+    WEB_USER="$PHP_FPM_USER"
+    echo "   ✓ Detectado PHP-FPM pool: $WEB_USER"
+elif id nginx >/dev/null 2>&1; then
     WEB_USER="nginx"
     echo "   ✓ Detectado: nginx"
 elif id apache >/dev/null 2>&1; then
@@ -36,12 +42,14 @@ elif id www-data >/dev/null 2>&1; then
     WEB_USER="www-data"
     echo "   ✓ Detectado: www-data"
 else
-    # Intentar detectar desde procesos PHP/web
-    WEB_USER=$(ps aux | grep -E '(nginx|apache|php-fpm)' | grep -v grep | head -1 | awk '{print $1}' | sed 's/root/www-data/')
-    if [ -z "$WEB_USER" ]; then
-        WEB_USER="www-data"
+    # Intentar detectar desde procesos PHP/web generales
+    DETECTED_USER=$(ps aux | grep -E '(php-fpm|nginx|apache)' | grep -v grep | grep -v pool | head -1 | awk '{print $1}' | sed 's/root/www-data/')
+    if [ ! -z "$DETECTED_USER" ] && [ "$DETECTED_USER" != "root" ]; then
+        WEB_USER="$DETECTED_USER"
+        echo "   ⚠️  Detectado desde procesos: $WEB_USER"
+    else
+        echo "   ⚠️  Usando por defecto: $WEB_USER"
     fi
-    echo "   ⚠️  Usando por defecto: $WEB_USER"
 fi
 
 # Ensure logs directory exists and is writable
@@ -72,7 +80,9 @@ chmod -R 775 bootstrap/cache 2>/dev/null || sudo chmod -R 775 bootstrap/cache ||
     exit 1
 }
 
-chmod -R 775 storage/logs 2>/dev/null || sudo chmod -R 775 storage/logs || {
+# Para CyberPanel, usar permisos más permisivos en storage/logs (777 para directorio, 666 para archivo)
+# Esto asegura que funcione incluso con configuraciones especiales de PHP-FPM
+chmod -R 777 storage/logs 2>/dev/null || sudo chmod -R 777 storage/logs || {
     echo "   ❌ Error al configurar permisos de storage/logs"
     exit 1
 }
@@ -83,7 +93,8 @@ touch storage/logs/laravel.log 2>/dev/null || sudo touch storage/logs/laravel.lo
     exit 1
 }
 
-chmod 664 storage/logs/laravel.log 2>/dev/null || sudo chmod 664 storage/logs/laravel.log || true
+# Usar 666 para el archivo de log (más permisivo, necesario para CyberPanel)
+chmod 666 storage/logs/laravel.log 2>/dev/null || sudo chmod 666 storage/logs/laravel.log || true
 
 # Fix ownership - usar sudo si es necesario
 echo ""
