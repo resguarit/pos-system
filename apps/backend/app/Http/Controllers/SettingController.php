@@ -9,6 +9,7 @@ use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class SettingController extends Controller
 {
@@ -217,15 +218,50 @@ class SettingController extends Controller
                 'url' => $url,
                 'path' => $path
             ]);
+        } catch (ValidationException $e) {
+            // Let validation exceptions bubble up to be handled by exception handler
+            throw $e;
         } catch (\Exception $e) {
             Log::error('Error uploading image', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            return response()->json([
+            
+            // Build error response
+            $response = response()->json([
                 'message' => 'Error al subir la imagen',
-                'error' => $e->getMessage()
+                'error' => config('app.debug') ? $e->getMessage() : 'Error interno del servidor'
             ], 500);
+            
+            // Add CORS headers manually
+            $origin = $request->header('Origin');
+            $allowedOrigins = config('cors.allowed_origins', []);
+            $allowedPatterns = config('cors.allowed_origins_patterns', []);
+            
+            $isAllowed = false;
+            if ($origin) {
+                if (in_array('*', $allowedOrigins) || in_array($origin, $allowedOrigins)) {
+                    $isAllowed = true;
+                } elseif (!empty($allowedPatterns)) {
+                    foreach ($allowedPatterns as $pattern) {
+                        if (preg_match('#^' . $pattern . '$#', $origin)) {
+                            $isAllowed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if ($isAllowed) {
+                $response->headers->set('Access-Control-Allow-Origin', $origin);
+                $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+                $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+                if (config('cors.supports_credentials', false)) {
+                    $response->headers->set('Access-Control-Allow-Credentials', 'true');
+                }
+            }
+            
+            return $response;
         }
     }
 
