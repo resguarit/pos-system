@@ -1,9 +1,10 @@
 name: Deploy to Client A
 
 on:
-  push:
-    branches: [ master ]
-    paths: [ 'apps/backend/**' ]
+  # Disabled automatic deployment - manual deployment only
+  # push:
+  #   branches: [ master ]
+  #   paths: [ 'apps/backend/**' ]
   workflow_dispatch:
     inputs:
       force:

@@ -173,14 +173,10 @@ class SettingController extends Controller
             // Store file and get path
             $path = $file->store($directory, 'public');
             
-            // Generate public URL - Storage::url already includes the full URL from filesystems config
-            $url = Storage::url($path);
-            
-            // If Storage::url includes /api in the URL (e.g., due to APP_URL config), remove it
-            // because storage files are served from the domain root, not from /api
-            if (str_contains($url, '/api/storage/')) {
-                $url = str_replace('/api/storage/', '/storage/', $url);
-            }
+            // Generate public URL pointing to backend domain
+            // Frontend and backend are on different domains, so we need full URL
+            $backendUrl = config('app.url');
+            $url = rtrim($backendUrl, '/') . '/storage/' . $path;
             
             // Save setting
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
