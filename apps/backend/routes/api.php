@@ -66,10 +66,13 @@ Route::get('/storage/{path}', function ($path) {
             };
         }
         
-        // Servir el archivo
+        // Servir el archivo con headers apropiados
         return response()->file($filePath, [
             'Content-Type' => $mimeType,
             'Cache-Control' => 'public, max-age=31536000, immutable',
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Allow-Methods' => 'GET, HEAD, OPTIONS',
+            'Access-Control-Allow-Headers' => 'Content-Type',
         ]);
     } catch (\Exception $e) {
         abort(404);
