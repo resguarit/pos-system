@@ -173,6 +173,10 @@ class SettingController extends Controller
             // Store file and get path
             $path = $file->store($directory, 'public');
             
+            if (!$path) {
+                throw new \Exception('Failed to store file');
+            }
+            
             // Generate public URL using Storage facade
             // This returns a URL like: https://api.heroedelwhisky.com.ar/storage/system/logos/filename.jpg
             $url = Storage::url($path);
