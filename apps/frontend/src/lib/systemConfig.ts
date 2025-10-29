@@ -5,6 +5,22 @@
 
 import axios from 'axios'
 
+/**
+ * Get logo URL - siempre usa /images/logo.jpg del backend como default (igual que PDFs)
+ * Solo usa logo_url de config si existe y es válido
+ */
+export const getLogoUrl = (logoUrl?: string | null): string => {
+  // Si hay logo_url configurado y es válido, usarlo
+  if (logoUrl && logoUrl.trim() !== '') {
+    return logoUrl;
+  }
+  
+  // Default: usar directamente /images/logo.jpg del backend (igual que PDFs)
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://api.heroedelwhisky.com.ar/api';
+  const baseUrl = apiBaseUrl.replace('/api', '') || 'https://api.heroedelwhisky.com.ar';
+  return `${baseUrl}/images/logo.jpg`;
+}
+
 export interface SystemConfig {
   logo_url?: string | null
   favicon_url?: string | null

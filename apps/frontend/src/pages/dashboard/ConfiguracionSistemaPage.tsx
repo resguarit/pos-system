@@ -193,8 +193,10 @@ export default function ConfiguracionSistemaPage() {
                 <Label htmlFor="logo">Logo del Sistema</Label>
                 <div className="flex flex-col items-center gap-4 p-6 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg">
                   {(() => {
-                    // Usar logo_url si existe, sino usar directamente /images/logo.jpg del backend (como antes)
-                    const logoUrl = config.logo_url || `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://api.heroedelwhisky.com.ar'}/images/logo.jpg`;
+                    // Usar directamente /images/logo.jpg del backend (igual que PDFs)
+                    const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://api.heroedelwhisky.com.ar/api';
+                    const baseUrl = apiBaseUrl.replace('/api', '') || 'https://api.heroedelwhisky.com.ar';
+                    const logoUrl = config.logo_url || `${baseUrl}/images/logo.jpg`;
                     return (
                       <img
                         src={logoUrl}

@@ -88,8 +88,10 @@ export function AppSidebar({ className }: { className?: string }) {
               }}
             >
               {(() => {
-                // Usar logo_url si existe, sino usar directamente /images/logo.jpg del backend (como antes)
-                const logoUrl = config?.logo_url || `${import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://api.heroedelwhisky.com.ar'}/images/logo.jpg`;
+                // Usar directamente /images/logo.jpg del backend (igual que PDFs)
+                const apiBaseUrl = import.meta.env.VITE_API_URL || 'https://api.heroedelwhisky.com.ar/api';
+                const baseUrl = apiBaseUrl.replace('/api', '') || 'https://api.heroedelwhisky.com.ar';
+                const logoUrl = config?.logo_url || `${baseUrl}/images/logo.jpg`;
                 return (
                   <img 
                     src={logoUrl} 
