@@ -173,6 +173,14 @@ class SettingController extends Controller
             // Store file and get path
             $path = $file->store($directory, 'public');
             
+            Log::info('File upload debug', [
+                'originalName' => $file->getClientOriginalName(),
+                'extension' => $file->getClientOriginalExtension(),
+                'directory' => $directory,
+                'storedPath' => $path,
+                'fileSize' => $file->getSize()
+            ]);
+            
             if (!$path) {
                 throw new \Exception('Failed to store file');
             }
@@ -183,6 +191,11 @@ class SettingController extends Controller
             
             // Remove /api from URL if present (storage is served from domain root)
             $url = str_replace('/api/storage/', '/storage/', $url);
+            
+            Log::info('Storage URL generated', [
+                'path' => $path,
+                'url' => $url
+            ]);
             
             // Save setting (json_encode to match getSystem behavior)
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';
