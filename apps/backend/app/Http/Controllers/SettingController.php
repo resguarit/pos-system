@@ -98,12 +98,26 @@ class SettingController extends Controller
                 }
             }
 
-            // Ensure logo and favicon URLs are absolute
+            // Ensure logo and favicon URLs are absolute and use API endpoint
             $appUrl = env('APP_URL', 'http://localhost:8000');
             foreach (['logo_url', 'favicon_url'] as $urlKey) {
-                if (!empty($config[$urlKey]) && !str_starts_with($config[$urlKey], 'http')) {
-                    // Convert relative to absolute URL
-                    $config[$urlKey] = $appUrl . '/' . ltrim($config[$urlKey], '/');
+                if (!empty($config[$urlKey])) {
+                    // Normalize URL to use /api/storage/ endpoint
+                    $url = $config[$urlKey];
+                    
+                    // If it's a relative URL or old /storage/ format, convert to /api/storage/
+                    if (str_starts_with($url, '/storage/')) {
+                        // Remove /storage/ prefix and add /api/storage/
+                        $path = substr($url, 8); // Remove '/storage/'
+                        $config[$urlKey] = $appUrl . '/api/storage/' . $path;
+                    } elseif (!str_starts_with($url, 'http')) {
+                        // Relative URL, make it absolute
+                        $config[$urlKey] = $appUrl . '/api/storage/' . ltrim($url, '/');
+                    } elseif (str_contains($url, '/storage/') && !str_contains($url, '/api/storage/')) {
+                        // Absolute URL with /storage/, convert to /api/storage/
+                        $url = str_replace('/storage/', '/api/storage/', $url);
+                        $config[$urlKey] = $url;
+                    }
                 }
             }
 
@@ -183,18 +197,9 @@ class SettingController extends Controller
             $path = $file->store($directory, 'public');
             
             // Generate absolute URL for the stored file
-            $url = Storage::disk('public')->url($path);
-            
-            // In production, ensure the URL is absolute
-            if (env('APP_ENV') === 'production') {
-                // The url is already absolute from filesystems.php config
-                // But let's make sure it's formatted correctly
-                $appUrl = env('APP_URL', 'http://localhost:8000');
-                // If the URL doesn't start with http, add the app URL
-                if (!str_starts_with($url, 'http')) {
-                    $url = $appUrl . $url;
-                }
-            }
+            // Use /api/storage/ instead of /storage/ so it goes through Laravel
+            $appUrl = env('APP_URL', 'http://localhost:8000');
+            $url = $appUrl . '/api/storage/' . $path;
             
             // Save setting
             $key = $type === 'logo' ? 'logo_url' : 'favicon_url';

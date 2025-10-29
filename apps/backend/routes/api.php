@@ -37,6 +37,45 @@ use App\Http\Controllers\ShipmentController;
 Route::post('/login', [AuthController::class, 'login'])->name('login');
 Route::post('/register', [AuthController::class, 'register']);
 
+// Ruta pública para servir imágenes del storage (logo, favicon, etc.)
+Route::get('/storage/{path}', function ($path) {
+    try {
+        // Validar que el path sea seguro
+        if (str_contains($path, '..') || str_contains($path, '\\')) {
+            abort(404);
+        }
+        
+        $filePath = storage_path('app/public/' . $path);
+        
+        // Verificar que el archivo existe
+        if (!file_exists($filePath)) {
+            abort(404);
+        }
+        
+        // Determinar el tipo de contenido
+        $mimeType = mime_content_type($filePath);
+        if (!$mimeType) {
+            $ext = pathinfo($filePath, PATHINFO_EXTENSION);
+            $mimeType = match(strtolower($ext)) {
+                'jpg', 'jpeg' => 'image/jpeg',
+                'png' => 'image/png',
+                'gif' => 'image/gif',
+                'ico' => 'image/x-icon',
+                'svg' => 'image/svg+xml',
+                default => 'application/octet-stream',
+            };
+        }
+        
+        // Servir el archivo
+        return response()->file($filePath, [
+            'Content-Type' => $mimeType,
+            'Cache-Control' => 'public, max-age=31536000, immutable',
+        ]);
+    } catch (\Exception $e) {
+        abort(404);
+    }
+})->where('path', '.*');
+
 // Rutas públicas para exchange rates (para desarrollo)
 Route::prefix('exchange-rates')->group(function () {
     Route::get('/', [ExchangeRateController::class, 'index']);
