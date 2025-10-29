@@ -167,34 +167,29 @@ class SettingController extends Controller
             $file = $request->file('file');
             $type = $request->input('type');
             
+            Log::info('Starting file upload', [
+                'type' => $type,
+                'originalName' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mimeType' => $file->getMimeType()
+            ]);
+            
             // Create directory if it doesn't exist
             $directory = 'system/' . $type . 's';
-            
-            // Ensure the storage directory exists
-            $fullDirectory = storage_path('app/public/' . $directory);
-            if (!file_exists($fullDirectory)) {
-                mkdir($fullDirectory, 0755, true);
-            }
             
             // Store file and get path
             $path = $file->store($directory, 'public');
             
-            Log::info('File upload debug', [
-                'originalName' => $file->getClientOriginalName(),
-                'extension' => $file->getClientOriginalExtension(),
-                'directory' => $directory,
-                'storedPath' => $path,
-                'fileSize' => $file->getSize()
-            ]);
-            
             if (!$path) {
-                throw new \Exception('Failed to store file');
+                throw new \Exception('Failed to store file - path is empty');
             }
             
+            Log::info('File stored successfully', ['path' => $path]);
+            
             // Generate public URL manually to ensure it's correct
-            // Storage::url() might have issues with APP_URL configuration
             $baseUrl = config('app.url');
-            // Remove /api if present in APP_URL
+            
+            // Remove /api if present in APP_URL  
             if (str_ends_with($baseUrl, '/api')) {
                 $baseUrl = str_replace('/api', '', $baseUrl);
             }
@@ -214,6 +209,8 @@ class SettingController extends Controller
                 ['key' => $key],
                 ['value' => json_encode($url)]
             );
+            
+            Log::info('Setting saved successfully', ['key' => $key, 'url' => $url]);
 
             return response()->json([
                 'message' => 'Imagen subida correctamente',
@@ -221,7 +218,10 @@ class SettingController extends Controller
                 'path' => $path
             ]);
         } catch (\Exception $e) {
-            Log::error('Error uploading image', ['error' => $e->getMessage()]);
+            Log::error('Error uploading image', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'message' => 'Error al subir la imagen',
                 'error' => $e->getMessage()
