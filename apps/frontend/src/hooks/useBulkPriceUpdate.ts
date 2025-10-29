@@ -297,3 +297,4 @@ export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}):
     // Utilidades
     resetState,
   };
+};
