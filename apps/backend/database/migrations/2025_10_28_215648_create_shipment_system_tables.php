@@ -71,7 +71,7 @@ return new class extends Migration
             Schema::create('shipment_sale', function (Blueprint $table) {
                 $table->id();
                 $table->foreignId('shipment_id')->constrained('shipments')->onDelete('cascade');
-                $table->foreignId('sale_id')->constrained('sale_headers')->onDelete('cascade');
+                $table->foreignId('sale_id')->constrained('sales_header')->onDelete('cascade');
                 $table->timestamps();
                 
                 $table->unique(['shipment_id', 'sale_id']);
