@@ -19,7 +19,7 @@ return new class extends Migration
                 $table->text('description')->nullable();
                 $table->integer('order')->default(0);
                 $table->json('config')->nullable();
-                $table->boolean('active')->default(true);
+                $table->boolean('is_active')->default(true);
                 $table->timestamps();
             });
         }

@@ -119,7 +119,7 @@ class Shipment extends Model
     public function canMoveTo(ShipmentStage $stage): bool
     {
         // Basic validation - can be extended with business rules
-        return $stage->active && $stage->id !== $this->current_stage_id;
+        return $stage->is_active && $stage->id !== $this->current_stage_id;
     }
 
     /**

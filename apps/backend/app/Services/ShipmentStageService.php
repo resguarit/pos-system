@@ -27,7 +27,7 @@ class ShipmentStageService implements ShipmentStageServiceInterface
                     'description' => $data['description'] ?? null,
                     'order' => $data['order'] ?? $stage->order,
                     'config' => $data['config'] ?? $stage->config,
-                    'active' => $data['active'] ?? $stage->active,
+                    'is_active' => $data['is_active'] ?? $stage->is_active,
                 ]);
             } else {
                 $stage = ShipmentStage::create([
@@ -35,7 +35,7 @@ class ShipmentStageService implements ShipmentStageServiceInterface
                     'description' => $data['description'] ?? null,
                     'order' => $data['order'] ?? 0,
                     'config' => $data['config'] ?? [],
-                    'active' => $data['active'] ?? true,
+                    'is_active' => $data['is_active'] ?? true,
                 ]);
             }
 

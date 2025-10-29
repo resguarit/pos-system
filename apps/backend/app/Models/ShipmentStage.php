@@ -19,12 +19,12 @@ class ShipmentStage extends Model
         'description',
         'order',
         'config',
-        'active',
+        'is_active',
     ];
 
     protected $casts = [
         'config' => 'array',
-        'active' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     /**
@@ -70,7 +70,7 @@ class ShipmentStage extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'description', 'order', 'config', 'active'])
+            ->logOnly(['name', 'description', 'order', 'config', 'is_active'])
             ->useLogName('shipment_stage')
             ->logOnlyDirty();
     }

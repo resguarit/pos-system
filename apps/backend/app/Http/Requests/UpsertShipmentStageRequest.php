@@ -26,7 +26,7 @@ class UpsertShipmentStageRequest extends FormRequest
             'description' => 'sometimes|string|max:1000',
             'order' => 'sometimes|integer|min:0',
             'config' => 'sometimes|array',
-            'active' => 'sometimes|boolean',
+            'is_active' => 'sometimes|boolean',
         ];
     }
 

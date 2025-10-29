@@ -26,7 +26,7 @@ class ShipmentService implements ShipmentServiceInterface
             } while (Shipment::where('reference', $reference)->exists());
 
             // Get initial stage
-            $initialStage = ShipmentStage::where('order', 1)->where('active', true)->first();
+            $initialStage = ShipmentStage::where('order', 1)->where('is_active', true)->first();
             if (!$initialStage) {
                 throw new \Exception('No initial shipment stage found');
             }
@@ -235,7 +235,6 @@ class ShipmentService implements ShipmentServiceInterface
                     'name' => 'Cancelado',
                     'description' => 'Envío cancelado por el usuario',
                     'order' => 999,
-                    'active' => true,
                     'type' => 'cancelled',
                     'color' => '#EF4444',
                     'icon' => 'x',
