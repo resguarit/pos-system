@@ -98,6 +98,33 @@ class SettingController extends Controller
                     }
                 }
             }
+            
+            // Ensure logo_url and favicon_url are full URLs if they're relative paths
+            $baseUrl = config('app.url');
+            if (str_ends_with($baseUrl, '/api')) {
+                $baseUrl = str_replace('/api', '', $baseUrl);
+            }
+            
+            foreach (['logo_url', 'favicon_url'] as $urlKey) {
+                if (!empty($config[$urlKey]) && is_string($config[$urlKey])) {
+                    // If it's a relative path starting with /storage, make it a full URL
+                    if (str_starts_with($config[$urlKey], '/storage')) {
+                        $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
+                    }
+                    // If it's already a full URL, keep it as is
+                    // If it's JSON encoded, decode and process
+                    elseif (!str_starts_with($config[$urlKey], 'http')) {
+                        $decoded = json_decode($config[$urlKey], true);
+                        if (json_last_error() === JSON_ERROR_NONE && is_string($decoded)) {
+                            if (str_starts_with($decoded, '/storage')) {
+                                $config[$urlKey] = rtrim($baseUrl, '/') . $decoded;
+                            } else {
+                                $config[$urlKey] = $decoded;
+                            }
+                        }
+                    }
+                }
+            }
 
             return response()->json($config);
         } catch (\Exception $e) {
