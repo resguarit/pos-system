@@ -181,12 +181,36 @@ class SettingController extends Controller
             
             // Create directory if it doesn't exist
             $directory = 'system/' . $type . 's';
+            $fullDirectoryPath = storage_path('app/public/' . $directory);
+            
+            // Ensure directory exists with proper permissions
+            if (!file_exists($fullDirectoryPath)) {
+                mkdir($fullDirectoryPath, 0775, true);
+            }
+            
+            // Verify directory is writable
+            if (!is_writable($fullDirectoryPath)) {
+                chmod($fullDirectoryPath, 0775);
+            }
             
             // Store file and get path
             $path = $file->store($directory, 'public');
             
             if (!$path) {
-                throw new \Exception('Failed to store file - path is empty');
+                // Try to get more information about the error
+                $storagePath = storage_path('app/public');
+                $writable = is_writable($storagePath);
+                $diskInfo = [
+                    'storage_path' => $storagePath,
+                    'storage_writable' => $writable,
+                    'directory_path' => $fullDirectoryPath,
+                    'directory_exists' => file_exists($fullDirectoryPath),
+                    'directory_writable' => is_writable($fullDirectoryPath),
+                    'file_size' => $file->getSize(),
+                    'file_mime' => $file->getMimeType(),
+                ];
+                
+                throw new \Exception('Failed to store file - path is empty. Storage info: ' . json_encode($diskInfo));
             }
             
             try {
