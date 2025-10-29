@@ -101,8 +101,7 @@ export function AppSidebar({ className }: { className?: string }) {
                     alt={systemTitle}
                     className="w-8 h-8 rounded-lg object-contain bg-white p-1"
                     onError={(e) => {
-                      console.error('Error loading logo:', logoUrl);
-                      // Si falla, mostrar inicial
+                      // Si falla, mostrar inicial sin loguear error
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
                       const parent = target.parentElement;

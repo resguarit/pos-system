@@ -362,12 +362,9 @@ export default function CajaPage() {
 
   // Cuando cambia la página de movimientos, perPage o filtros, recargar
   useEffect(() => {
-    console.log('🔄 useEffect paginación - activeTab:', activeTab, 'movementsPage:', movementsPage, 'currentRegister?.id:', currentRegister?.id)
-    
     // Solo cargar movimientos del servidor si tenemos múltiples sucursales
     // Para una sola sucursal, usar allMovements con paginación del cliente
     if (currentRegister?.id && canViewMovements && activeTab === "current" && selectedBranchIdsArray.length > 1) {
-      console.log('📞 Llamando loadMovements para tab current (múltiples sucursales)')
       loadMovements(currentRegister.id, movementsPage, movementsPerPage, searchTerm, false)
       
       // Solo cargar todos los movimientos si estamos en la primera página
@@ -384,8 +381,6 @@ export default function CajaPage() {
         sp.delete('type')
       }
       setSearchParams(sp, { replace: true })
-    } else {
-      console.log('⏭️ No se ejecuta loadMovements - activeTab:', activeTab, 'canViewMovements:', canViewMovements, 'currentRegister?.id:', currentRegister?.id, 'selectedBranchIdsArray.length:', selectedBranchIdsArray.length)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRegister?.id, movementsPage, movementsPerPage, searchTerm, movementTypeFilter, canViewMovements, activeTab, selectedBranchIdsArray.length])
@@ -409,11 +404,8 @@ export default function CajaPage() {
     // significa que el usuario está en el detalle de una caja
     // Cuando el componente se desmonte (navegación a otra página), restaurar la selección
     if (selectedBranchIdsArray.length === 1 && originalBranchSelection.length > 1) {
-      console.log('🔄 Usuario en detalle de caja, preparando restauración automática')
-      
       // Función de cleanup que se ejecutará cuando el componente se desmonte
       const cleanup = () => {
-        console.log('🔄 Usuario salió del detalle, restaurando selección original:', originalBranchSelection)
         setSelectedBranchIds([...originalBranchSelection])
         setOriginalBranchSelection([])
       }
@@ -577,67 +569,44 @@ export default function CajaPage() {
 
   // Función para ver detalles de una sucursal específica
   const handleViewBranchDetails = (branchId: number) => {
-    console.log('🔍 handleViewBranchDetails - INICIANDO:', {
-      branchId,
-      selectedBranchIds,
-      originalBranchSelection,
-      currentSelectionLength: selectedBranchIds.length
-    })
-    
     if (!branchId || isNaN(branchId)) {
-      console.error('❌ handleViewBranchDetails - branchId inválido:', branchId)
       toast.error('Error: ID de sucursal inválido')
       return
     }
     
     // Solo guardar la selección original si no se ha guardado antes y si actualmente hay múltiples sucursales
     if (originalBranchSelection.length === 0 && selectedBranchIds.length > 1) {
-      console.log('🔍 Guardando selección original:', selectedBranchIds)
       setOriginalBranchSelection([...selectedBranchIds])
     }
     
     const newSelection = [branchId.toString()]
-    console.log('🔍 Cambiando selección a:', newSelection)
     
     try {
       setSelectedBranchIds(newSelection)
-      console.log('✅ setSelectedBranchIds ejecutado correctamente')
     } catch (error) {
-      console.error('❌ Error al ejecutar setSelectedBranchIds:', error)
       toast.error('Error al cambiar la selección de sucursales')
       return
     }
     
     const branchInfo = getBranchInfo(branchId)
-    console.log('🔍 branchInfo obtenida:', branchInfo)
     
     if (!branchInfo) {
-      console.error('❌ No se pudo obtener información de la sucursal:', branchId)
       toast.error(`Error: No se encontró información de la sucursal ${branchId}`)
       return
     }
     
     const branchName = branchInfo?.description || `Sucursal ${branchId}`
-    console.log('🔍 branchName final:', branchName)
     
     toast.success(`Viendo detalles de ${branchName}`)
   }
 
   // Función para volver a la vista de múltiples sucursales
   const handleGoBackToMultipleBranches = () => {
-    console.log('🔄 handleGoBackToMultipleBranches - INICIANDO:', {
-      originalBranchSelection,
-      selectedBranchIds,
-      currentSelectionLength: selectedBranchIds.length
-    })
-    
     if (originalBranchSelection.length > 1) {
-      console.log('🔄 Restaurando selección original:', originalBranchSelection)
       setSelectedBranchIds([...originalBranchSelection])
       setOriginalBranchSelection([])
       toast.success('Volviendo a la vista de múltiples sucursales')
     } else {
-      console.log('🔄 No hay selección original válida, usando todas las sucursales')
       const allBranchIds = branches.map(branch => branch.id.toString())
       setSelectedBranchIds(allBranchIds)
       setOriginalBranchSelection([])
@@ -891,32 +860,9 @@ export default function CajaPage() {
     
     const openCashRegisterIds = openCashRegisters.map(register => register.id)
     
-    console.log('🔍 getMovementsFromOpenCashRegisters - Debug:', {
-      selectedBranchIdsArray,
-      openCashRegisters: openCashRegisters.map(r => ({
-        id: r.id,
-        branch_id: r.branch_id,
-        status: r.status,
-        opened_at: r.opened_at
-      })),
-      openCashRegisterIds,
-      allMovementsCount: allMovements.length
-    })
-    
     // Filtrar movimientos SOLO por cash_register_id de cajas abiertas
     const filteredMovements = allMovements.filter(movement => {
       return openCashRegisterIds.includes(movement.cash_register_id)
-    })
-    
-    console.log('💰 getMovementsFromOpenCashRegisters - Filtered movements:', {
-      filteredMovementsCount: filteredMovements.length,
-      movements: filteredMovements.map(m => ({
-        id: m.id,
-        cash_register_id: m.cash_register_id,
-        description: m.description,
-        amount: m.amount,
-        created_at: m.created_at
-      }))
     })
     
     return filteredMovements
@@ -1326,7 +1272,6 @@ export default function CajaPage() {
               lastPage={Math.ceil(allMovements.length / movementsPerPage)}
               total={allMovements.length}
               onPageChange={(page: number) => {
-                console.log('🔄 onPageChange llamado con página:', page)
                 setMovementsPage(page)
               }}
               pageLoading={isPageLoading || hookLoading}
@@ -1703,7 +1648,6 @@ export default function CajaPage() {
                 lastPage={selectedBranchIdsArray.length > 1 ? movementsMeta.lastPage : Math.ceil(allMovements.length / movementsPerPage)}
                 total={selectedBranchIdsArray.length > 1 ? movementsMeta.total : allMovements.length}
                 onPageChange={(page: number) => {
-                console.log('🔄 onPageChange llamado con página:', page)
                 setMovementsPage(page)
               }}
                 pageLoading={isPageLoading || hookLoading}
@@ -1757,7 +1701,6 @@ export default function CajaPage() {
                 lastPage={Math.ceil(allMovements.length / movementsPerPage)}
                 total={allMovements.length}
                 onPageChange={(page: number) => {
-                console.log('🔄 onPageChange llamado con página:', page)
                 setMovementsPage(page)
               }}
                 pageLoading={isPageLoading || hookLoading}

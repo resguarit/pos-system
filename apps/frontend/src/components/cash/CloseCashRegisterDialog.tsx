@@ -73,22 +73,6 @@ export const CloseCashRegisterDialog = ({
         return movement.cash_register_id === registerToShow.id
       })
       
-      console.log('🔍 CloseCashRegisterDialog - Debug info:', {
-        selectedBranchForAction,
-        registerToShowId: registerToShow.id,
-        allMovementsCount: allMovements.length,
-        filteredMovementsCount: movementsToUse.length,
-        opening,
-        movementsToUse: movementsToUse.map(m => ({
-          id: m.id,
-          amount: m.amount,
-          description: m.description,
-          branch_id: m.branch_id,
-          cash_register_id: m.cash_register_id,
-          movement_type: m.movement_type?.description,
-          payment_method: m.payment_method?.name
-        }))
-      })
     }
     
     // Usar la función utilitaria para calcular el desglose
@@ -97,8 +81,6 @@ export const CloseCashRegisterDialog = ({
       opening, 
       isCashPaymentMethod
     )
-    
-    console.log('💰 CloseCashRegisterDialog - Payment breakdown:', breakdown)
     
     return breakdown
   }
