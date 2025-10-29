@@ -33,7 +33,7 @@ class CurrentAccountBasicTest extends TestCase
     /** @test */
     public function current_account_routes_are_defined()
     {
-        $routes = \Route::getRoutes();
+        $routes = \Illuminate\Support\Facades\Route::getRoutes();
         $currentAccountRoutes = collect($routes)->filter(function ($route) {
             return str_contains($route->uri(), 'current-accounts');
         });

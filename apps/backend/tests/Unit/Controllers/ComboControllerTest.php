@@ -37,7 +37,7 @@ class ComboControllerTest extends TestCase
     public function test_index_returns_combos_successfully(): void
     {
         // Arrange
-        $expectedCombos = collect([
+        $expectedCombos = new \Illuminate\Database\Eloquent\Collection([
             Combo::factory()->make(['id' => 1, 'name' => 'Combo 1']),
             Combo::factory()->make(['id' => 2, 'name' => 'Combo 2']),
         ]);

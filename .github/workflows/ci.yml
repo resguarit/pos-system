@@ -69,11 +69,13 @@ jobs:
     - name: Run tests
       run: |
         cd apps/backend
-        # Limpiar cache antes de los tests
-        php artisan view:clear || true
-        php artisan config:clear || true
-        php artisan cache:clear || true
+        # Limpiar cache antes de los tests (solo si existen)
+        php artisan view:clear 2>/dev/null || true
+        php artisan config:clear 2>/dev/null || true
+        # No limpiar cache:clear ya que usa DB y puede fallar en :memory:
         php artisan test
       env:
         DB_CONNECTION: sqlite
         DB_DATABASE: ":memory:"
+        CACHE_DRIVER: array
+        SESSION_DRIVER: array
