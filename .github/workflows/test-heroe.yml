@@ -4,7 +4,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    environment: heroe
+    environment: heroedelwhisky
     steps:
       - name: SSH smoke test
         uses: appleboy/ssh-action@v1.0.3
