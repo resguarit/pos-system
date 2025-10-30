@@ -4,6 +4,7 @@ import { getPaymentMethod } from "@/utils/cash-register-utils"
 interface UseCashCalculationsProps {
   currentRegister?: any
   movements?: any[]
+  allMovements?: any[]
   optimizedCashRegister?: any
   selectedBranchIdsArray: number[]
   multipleCashRegisters: Record<number, any>
@@ -14,6 +15,7 @@ interface UseCashCalculationsProps {
 export const useCashCalculations = ({
   currentRegister,
   movements = [],
+  allMovements = [],
   optimizedCashRegister,
   selectedBranchIdsArray,
   multipleCashRegisters,
@@ -69,48 +71,94 @@ export const useCashCalculations = ({
   // Función para calcular ingresos de hoy
   const calculateTodayIncome = useMemo(() => {
     return () => {
-      if (!currentRegister || !movements.length) return 0
+      // Usar allMovements si está disponible, sino usar movements
+      const sourceMovements = (allMovements?.length ? allMovements : movements) || []
       
-      return movements.reduce((total, movement) => {
-        const amount = parseFloat(movement.amount) || 0
-        const opRaw = (movement.movement_type as any)?.operation_type
-        const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
-        return total + (isIncome ? Math.abs(amount) : 0)
-      }, 0)
+      if (!currentRegister || !sourceMovements.length) return 0
+      
+      const today = new Date().toISOString().split('T')[0] // yyyy-MM-dd
+      
+      return sourceMovements
+        .filter(movement => {
+          // Filtrar por fecha de hoy
+          const movementDate = new Date(movement.created_at).toISOString().split('T')[0]
+          return movementDate === today
+        })
+        .reduce((total, movement) => {
+          const amount = parseFloat(movement.amount) || 0
+          const opRaw = (movement.movement_type as any)?.operation_type
+          const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
+          
+          // Solo contar movimientos que afectan caja (afects_balance !== false)
+          const affectsBalance = (movement as any)?.affects_balance !== false
+          
+          return total + (isIncome && affectsBalance ? Math.abs(amount) : 0)
+        }, 0)
     }
-  }, [currentRegister, movements])
+  }, [currentRegister, movements, allMovements])
 
   // Función para calcular gastos de hoy
   const calculateTodayExpenses = useMemo(() => {
     return () => {
-      if (!currentRegister || !movements.length) return 0
+      // Usar allMovements si está disponible, sino usar movements
+      const sourceMovements = (allMovements?.length ? allMovements : movements) || []
       
-      return movements.reduce((total, movement) => {
-        const amount = parseFloat(movement.amount) || 0
-        const opRaw = (movement.movement_type as any)?.operation_type
-        const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
-        return total + (!isIncome ? Math.abs(amount) : 0)
-      }, 0)
+      if (!currentRegister || !sourceMovements.length) return 0
+      
+      const today = new Date().toISOString().split('T')[0] // yyyy-MM-dd
+      
+      return sourceMovements
+        .filter(movement => {
+          // Filtrar por fecha de hoy
+          const movementDate = new Date(movement.created_at).toISOString().split('T')[0]
+          return movementDate === today
+        })
+        .reduce((total, movement) => {
+          const amount = parseFloat(movement.amount) || 0
+          const opRaw = (movement.movement_type as any)?.operation_type
+          const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
+          
+          // Solo contar movimientos que afectan caja (afects_balance !== false)
+          const affectsBalance = (movement as any)?.affects_balance !== false
+          
+          return total + (!isIncome && affectsBalance ? Math.abs(amount) : 0)
+        }, 0)
     }
-  }, [currentRegister, movements])
+  }, [currentRegister, movements, allMovements])
 
   // Función para calcular saldo desde apertura
   const calculateBalanceSinceOpening = useMemo(() => {
     return () => {
-      if (!currentRegister || !movements.length) return 0
+      // Usar allMovements si está disponible, sino usar movements
+      const sourceMovements = (allMovements?.length ? allMovements : movements) || []
+      
+      if (!currentRegister || !sourceMovements.length) return 0
       
       const opening = parseFloat(currentRegister.initial_amount) || 0
+      const openedAt = new Date(currentRegister.opened_at).getTime()
       
-      const totalMovements = movements.reduce((total, movement) => {
-        const amount = parseFloat(movement.amount) || 0
-        const opRaw = (movement.movement_type as any)?.operation_type
-        const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
-        return total + (isIncome ? Math.abs(amount) : -Math.abs(amount))
-      }, 0)
+      const totalMovements = sourceMovements
+        .filter(movement => {
+          // Solo movimientos desde la apertura de la caja
+          const movementTime = new Date(movement.created_at).getTime()
+          return movementTime >= openedAt
+        })
+        .reduce((total, movement) => {
+          const amount = parseFloat(movement.amount) || 0
+          const opRaw = (movement.movement_type as any)?.operation_type
+          const isIncome = typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
+          
+          // Solo contar movimientos que afectan caja (afects_balance !== false)
+          const affectsBalance = (movement as any)?.affects_balance !== false
+          
+          if (!affectsBalance) return total
+          
+          return total + (isIncome ? Math.abs(amount) : -Math.abs(amount))
+        }, 0)
       
       return opening + totalMovements
     }
-  }, [currentRegister, movements])
+  }, [currentRegister, movements, allMovements])
 
   // Funciones de cálculo para múltiples sucursales usando datos del backend
   const calculateMultipleBranchesBalance = useMemo(() => {

@@ -82,6 +82,7 @@ interface UseCashRegisterReturn {
   // Estado
   currentRegister: CashRegister | null
   movements: CashMovement[]
+  allMovements: CashMovement[]
   movementsMeta: MovementsPaginationMeta
   movementTypes: MovementType[]
   paymentMethods: any[] // Añadir métodos de pago
@@ -516,6 +517,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     // Estado
     currentRegister,
     movements,
+    allMovements,
     movementsMeta,
     movementTypes,
     paymentMethods,

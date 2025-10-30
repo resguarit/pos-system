@@ -62,6 +62,7 @@ export default function CajaPage() {
   const {
     currentRegister,
     movements,
+    allMovements: allMovementsFromRegister,
     movementTypes,
     paymentMethods,
     registerHistory,
@@ -129,6 +130,17 @@ export default function CajaPage() {
     loadCashRegistersHistory
   } = useCashRegistersHistory({ selectedBranchIdsArray })
 
+  // Determinar qué movimientos usar para cálculos (allMovements para una sucursal, allMovements de múltiples para varias)
+  const movementsForCalculations = useMemo(() => {
+    if (selectedBranchIdsArray.length > 1) {
+      // Para múltiples sucursales, usar allMovements del hook useMultipleBranchesCash
+      return allMovements
+    } else {
+      // Para una sola sucursal, usar allMovements del hook useCashRegister
+      return allMovementsFromRegister || []
+    }
+  }, [selectedBranchIdsArray.length, allMovements, allMovementsFromRegister])
+
   // Hook para cálculos
   const {
     calculateCashOnlyBalance,
@@ -142,6 +154,7 @@ export default function CajaPage() {
   } = useCashCalculations({
     currentRegister,
     movements,
+    allMovements: movementsForCalculations,
     optimizedCashRegister,
     selectedBranchIdsArray,
     multipleCashRegisters,
@@ -359,6 +372,14 @@ export default function CajaPage() {
       loadCashRegistersHistory(backendFilters)
     }
   }, [dateRangeFilter, customDateRange, selectedBranchIdsArray.length, multiBranchTab, activeTab, loadCashRegistersHistory])
+
+  // Cargar todos los movimientos cuando se carga la caja actual (para una sola sucursal)
+  useEffect(() => {
+    if (currentRegister?.id && canViewMovements && selectedBranchIdsArray.length === 1) {
+      // Cargar todos los movimientos para que los cálculos funcionen correctamente
+      loadAllMovements(currentRegister.id)
+    }
+  }, [currentRegister?.id, canViewMovements, selectedBranchIdsArray.length, loadAllMovements])
 
   // Cuando cambia la página de movimientos, perPage o filtros, recargar
   useEffect(() => {
