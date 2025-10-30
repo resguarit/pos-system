@@ -46,9 +46,11 @@ class DatabaseSeeder extends Seeder
             return true;
         }
         
-        // Ejecutar si se pasa el flag --dev
-        if ($this->command->option('dev')) {
-            return true;
+        // Ejecutar si se pasa el flag --dev (solo si existe la opción)
+        if ($this->command && method_exists($this->command, 'hasOption') && $this->command->hasOption('dev')) {
+            if ($this->command->option('dev')) {
+                return true;
+            }
         }
         
         return false;
