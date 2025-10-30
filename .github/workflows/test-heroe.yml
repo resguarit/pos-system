@@ -1,10 +1,17 @@
 name: test-heroe-secrets
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to test
+        required: true
+        type: choice
+        options: [heroe, heladitos, enriqueta]
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    environment: heroedelwhisky
+    environment: ${{ inputs.environment }}
     steps:
       - name: SSH smoke test
         uses: appleboy/ssh-action@v1.0.3
@@ -14,7 +21,6 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            set -e
             echo "Connected as: $(whoami)"
             echo "Hostname: $(hostname)"
             echo "Backend path: ${{ secrets.BACKEND_DEPLOY_PATH }}"
