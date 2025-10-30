@@ -8,17 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('combo_items', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('combo_id')->constrained('combos')->onDelete('cascade');
-            $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
-            $table->decimal('quantity', 8, 3); // Cantidad del producto en el combo
-            $table->timestamps();
-            
-            // Índices para optimización
-            $table->index(['combo_id', 'product_id']);
-            $table->unique(['combo_id', 'product_id']); // Un producto no puede estar duplicado en el mismo combo
-        });
+        if (!Schema::hasTable('combo_items')) {
+            Schema::create('combo_items', function (Blueprint $table) {
+                $table->id();
+                $table->foreignId('combo_id')->constrained('combos')->onDelete('cascade');
+                $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
+                $table->decimal('quantity', 8, 3); // Cantidad del producto en el combo
+                $table->timestamps();
+
+                // Índices para optimización
+                $table->index(['combo_id', 'product_id']);
+                $table->unique(['combo_id', 'product_id']); // Un producto no puede estar duplicado en el mismo combo
+            });
+        }
     }
 
     public function down(): void
