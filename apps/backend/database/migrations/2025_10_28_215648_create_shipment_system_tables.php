@@ -14,6 +14,7 @@ return new class extends Migration
         // Create shipment_stages table
         if (!Schema::hasTable('shipment_stages')) {
             Schema::create('shipment_stages', function (Blueprint $table) {
+                $table->engine = 'InnoDB';
                 $table->id();
                 $table->string('name');
                 $table->text('description')->nullable();
@@ -27,6 +28,7 @@ return new class extends Migration
         // Create shipments table
         if (!Schema::hasTable('shipments')) {
             Schema::create('shipments', function (Blueprint $table) {
+                $table->engine = 'InnoDB';
                 $table->id();
                 $table->string('reference')->nullable()->unique();
                 $table->json('metadata')->nullable();
@@ -54,6 +56,7 @@ return new class extends Migration
         // Create shipment_events table
         if (!Schema::hasTable('shipment_events')) {
             Schema::create('shipment_events', function (Blueprint $table) {
+                $table->engine = 'InnoDB';
                 $table->id();
                 $table->foreignId('shipment_id')->constrained('shipments')->onDelete('cascade');
                 $table->foreignId('user_id')->nullable()->constrained('users');
@@ -69,11 +72,14 @@ return new class extends Migration
         // Create shipment_sale pivot table
         if (!Schema::hasTable('shipment_sale')) {
             Schema::create('shipment_sale', function (Blueprint $table) {
+                $table->engine = 'InnoDB';
                 $table->id();
                 $table->foreignId('shipment_id')->constrained('shipments')->onDelete('cascade');
-                $table->foreignId('sale_id')->constrained('sales_header')->onDelete('cascade');
+                // Usar definición explícita para evitar problemas de FK en algunos entornos
+                $table->unsignedBigInteger('sale_id');
+                $table->foreign('sale_id')->references('id')->on('sales_header')->onDelete('cascade');
                 $table->timestamps();
-                
+
                 $table->unique(['shipment_id', 'sale_id']);
             });
         }
@@ -81,6 +87,7 @@ return new class extends Migration
         // Create shipment_stage_role pivot table
         if (!Schema::hasTable('shipment_stage_role')) {
             Schema::create('shipment_stage_role', function (Blueprint $table) {
+                $table->engine = 'InnoDB';
                 $table->id();
                 $table->foreignId('stage_id')->constrained('shipment_stages')->onDelete('cascade');
                 $table->foreignId('role_id')->constrained('roles')->onDelete('cascade');
@@ -93,6 +100,7 @@ return new class extends Migration
         // Create shipment_role_attribute_visibility table (if referenced)
         if (!Schema::hasTable('shipment_role_attribute_visibility')) {
             Schema::create('shipment_role_attribute_visibility', function (Blueprint $table) {
+                $table->engine = 'InnoDB';
                 $table->id();
                 $table->foreignId('stage_id')->constrained('shipment_stages')->onDelete('cascade');
                 $table->foreignId('role_id')->nullable()->constrained('roles')->onDelete('cascade');
