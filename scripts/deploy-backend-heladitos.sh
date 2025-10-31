@@ -33,24 +33,33 @@ git pull origin master
 # Cambiar al directorio del backend Laravel
 cd apps/backend
 
+# Usar la misma versión de PHP que el servidor web (LiteSpeed usa PHP 8.2)
+PHP_BIN="/usr/local/lsws/lsphp82/bin/php"
+if [ ! -f "$PHP_BIN" ]; then
+    PHP_BIN="php"
+fi
+
 # Instalar/actualizar dependencias de Composer
 echo "📦 Instalando dependencias de Composer..."
 /usr/bin/composer install --no-dev --optimize-autoloader
 
-# Limpiar caché de configuración
+# Limpiar caché de configuración (usando PHP 8.2 para compatibilidad con servidor web)
 echo "🧹 Limpiando caché de Laravel..."
-php artisan config:clear
-php artisan cache:clear
-php artisan route:clear
-php artisan view:clear
+$PHP_BIN artisan config:clear
+$PHP_BIN artisan cache:clear
+$PHP_BIN artisan route:clear
+$PHP_BIN artisan view:clear
+
+# Limpiar cache de bootstrap también
+rm -rf bootstrap/cache/*.php 2>/dev/null || true
 
 # Ejecutar migraciones si las hay
 echo "🗄️ Ejecutando migraciones de base de datos..."
-php artisan migrate --force
+$PHP_BIN artisan migrate --force
 
 # Crear symlink de storage si no existe
 echo "🔗 Creando symlink de storage..."
-php artisan storage:link
+$PHP_BIN artisan storage:link
 
 # Asegurar permisos de storage y logs
 echo "🔐 Configurando permisos de storage y logs..."
@@ -130,11 +139,11 @@ chown $WEB_USER:$WEB_USER storage/logs/laravel.log 2>/dev/null || sudo chown $WE
 
 echo "   ✅ Permisos de storage configurados"
 
-# Optimizar para producción
+# Optimizar para producción (usando PHP 8.2)
 echo "⚡ Optimizando para producción..."
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+$PHP_BIN artisan config:cache
+$PHP_BIN artisan route:cache
+$PHP_BIN artisan view:cache
 
 echo "✅ Deployment del backend completado exitosamente!"
 echo "🌐 API: https://api.hela-ditos.com.ar"
