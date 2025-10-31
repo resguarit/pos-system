@@ -36,7 +36,7 @@ jobs:
           echo "========================================="
           echo "🚀 HELA DITOS - Backend Deployment"
           echo "========================================="
-          echo "📍 Path: ${{ secrets.BACKEND_DEPLOY_PATH }}"
+          echo "📍 Repo Path: ${{ secrets.BACKEND_DEPLOY_PATH }}"
           echo "📅 Date: $(date)"
           echo ""
           
@@ -44,6 +44,9 @@ jobs:
           
           echo "📥 Pulling latest changes..."
           git pull origin master
+          
+          echo "📂 Changing to backend directory..."
+          cd apps/backend
           
           echo "📦 Installing dependencies..."
           composer install --no-dev --optimize-autoloader
