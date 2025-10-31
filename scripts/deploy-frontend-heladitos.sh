@@ -27,7 +27,7 @@ if [ -f .git/HEAD.lock ]; then
 fi
 
 # Configurar SSH para evitar pedir passphrase
-if [ -n "$SSH_AUTH_SOCK" ]; then
+if [ -n "${SSH_AUTH_SOCK:-}" ]; then
     echo "🔑 Usando ssh-agent existente..."
 elif [ -f ~/.ssh/id_ed25519 ]; then
     echo "🔑 Iniciando ssh-agent para clave SSH..."
