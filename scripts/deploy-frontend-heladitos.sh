@@ -27,12 +27,16 @@ if [ -f .git/HEAD.lock ]; then
 fi
 
 # Configurar SSH para evitar pedir passphrase
+# Nota: Si la clave tiene passphrase, esto fallará silenciosamente y Git intentará usar la clave directamente
 if [ -n "${SSH_AUTH_SOCK:-}" ]; then
     echo "🔑 Usando ssh-agent existente..."
 elif [ -f ~/.ssh/id_ed25519 ]; then
-    echo "🔑 Iniciando ssh-agent para clave SSH..."
-    eval "$(ssh-agent -s)" >/dev/null 2>&1
-    ssh-add ~/.ssh/id_ed25519 </dev/null 2>/dev/null || true
+    echo "🔑 Configurando SSH (si la clave tiene passphrase, Git la usará directamente)..."
+    # Intentar iniciar ssh-agent, pero no fallar si la clave tiene passphrase
+    if eval "$(ssh-agent -s)" >/dev/null 2>&1; then
+        # Intentar agregar la clave, pero ignorar errores (passphrase requerida)
+        ssh-add ~/.ssh/id_ed25519 </dev/null 2>/dev/null || echo "   ⚠️  Clave SSH no agregada (probablemente tiene passphrase)"
+    fi
 fi
 
 # Arreglar permisos antes de hacer git operations
