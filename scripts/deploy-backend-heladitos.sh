@@ -14,6 +14,18 @@ if [ -f .git/HEAD.lock ]; then
     rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
 fi
 
+# Configurar SSH para evitar pedir passphrase
+if [ -n "$SSH_AUTH_SOCK" ]; then
+    echo "🔑 Usando ssh-agent existente..."
+elif [ -f ~/.ssh/id_ed25519 ]; then
+    echo "🔑 Iniciando ssh-agent para clave SSH..."
+    eval "$(ssh-agent -s)" >/dev/null 2>&1
+    ssh-add ~/.ssh/id_ed25519 </dev/null 2>/dev/null || true
+fi
+
+# Configurar Git para usar SSH siempre
+git config --global url."git@github.com:".insteadOf "https://github.com/" 2>/dev/null || true
+
 # Hacer pull de los últimos cambios
 echo "📥 Obteniendo últimos cambios del repositorio..."
 git pull origin master
