@@ -16,6 +16,7 @@ on:
 jobs:
   deploy_backend:
     runs-on: ubuntu-latest
+    environment: enriqueta
     
     steps:
     - name: Deploy Backend to Client B VPS
@@ -43,6 +44,7 @@ jobs:
 
   deploy_frontend:
     runs-on: ubuntu-latest
+    environment: enriqueta
     
     steps:
     - name: Checkout code

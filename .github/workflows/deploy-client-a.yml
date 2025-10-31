@@ -1,10 +1,8 @@
 name: Deploy to Client A
 
 on:
-  # Disabled automatic deployment - manual deployment only
-  # push:
-  #   branches: [ master ]
-  #   paths: [ 'apps/backend/**' ]
+  push:
+    branches: [ master ]
   workflow_dispatch:
     inputs:
       force:
@@ -16,8 +14,17 @@ on:
 jobs:
   deploy_backend:
     runs-on: ubuntu-latest
+    environment: heladitos
     
     steps:
+    - name: Debug - Show Environment
+      run: |
+        echo "🔍 Deployment Environment: heladitos"
+        echo "📦 Trigger: ${{ github.event_name }}"
+        echo "🌿 Branch: ${{ github.ref }}"
+        echo "👤 Actor: ${{ github.actor }}"
+        echo "📝 Commit: ${{ github.sha }}"
+        
     - name: Deploy Backend to Client A VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -26,15 +33,37 @@ jobs:
         username: ${{ secrets.CLIENT_A_VPS_USERNAME }}
         key: ${{ secrets.CLIENT_A_VPS_SSH_KEY }}
         script: |
+          echo "========================================="
+          echo "🚀 HELA DITOS - Backend Deployment"
+          echo "========================================="
+          echo "📍 Path: ${{ secrets.CLIENT_A_BACKEND_DEPLOY_PATH }}"
+          echo "📅 Date: $(date)"
+          echo ""
+          
           cd ${{ secrets.CLIENT_A_BACKEND_DEPLOY_PATH }}
-          echo "🚀 Deploying to Client A..."
+          
+          echo "📥 Pulling latest changes..."
           git pull origin master
+          
+          echo "📦 Installing dependencies..."
           composer install --no-dev --optimize-autoloader
+          
+          echo "🗄️ Running migrations..."
+          php artisan migrate --force
+          
+          echo "♻️ Clearing caches..."
+          php artisan config:clear
+          php artisan cache:clear
+          php artisan route:clear
+          php artisan view:clear
+          
+          echo "📋 Caching configurations..."
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          php artisan migrate --force
-          echo "✅ Client A deployment completed"
+          
+          echo "✅ Backend deployment completed successfully!"
+          echo "🌐 API: https://api.hela-ditos.com.ar"
           
     - name: Notify deployment
       if: always()
@@ -43,8 +72,15 @@ jobs:
 
   deploy_frontend:
     runs-on: ubuntu-latest
+    environment: heladitos
     
     steps:
+    - name: Debug - Show Environment
+      run: |
+        echo "🔍 Deployment Environment: heladitos"
+        echo "🎨 Building Frontend for HELA DITOS"
+        echo "📝 Commit: ${{ github.sha }}"
+        
     - name: Checkout code
       uses: actions/checkout@v4
       
@@ -55,6 +91,7 @@ jobs:
         
     - name: Install dependencies
       run: |
+        echo "📦 Installing frontend dependencies..."
         cd apps/frontend
         rm -rf node_modules package-lock.json
         npm install --force
@@ -62,11 +99,16 @@ jobs:
         npm install @swc/core-linux-x64-gnu --save-optional
         npm install lightningcss-linux-x64-gnu --save-optional
         npm install @tailwindcss/oxide-linux-x64-gnu --save-optional
+        echo "✅ Dependencies installed"
         
     - name: Build frontend for Client A
       run: |
+        echo "🏗️ Building frontend..."
+        echo "🌐 API URL: $VITE_API_URL"
         cd apps/frontend
         npm run build
+        echo "✅ Build completed"
+        ls -lah dist/
       env:
         VITE_API_URL: ${{ secrets.CLIENT_A_API_URL }}
         
@@ -82,7 +124,28 @@ jobs:
         strip_components: 2
         rm: true
         
+    - name: Set correct permissions on VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.CLIENT_A_VPS_HOST }}
+        port: ${{ secrets.CLIENT_A_VPS_PORT }}
+        username: ${{ secrets.CLIENT_A_VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_A_VPS_SSH_KEY }}
+        script: |
+          echo "🔧 Setting correct permissions..."
+          cd ${{ secrets.CLIENT_A_FRONTEND_DEPLOY_PATH }}
+          chown -R heladitos:heladitos .
+          find . -type d -exec chmod 755 {} \;
+          find . -type f -exec chmod 644 {} \;
+          echo "✅ Permissions set correctly"
+          echo "📁 Deployed files:"
+          ls -lah
+        
     - name: Notify frontend deployment
       if: always()
       run: |
-        echo "Client A frontend deployment completed"
+        echo "========================================="
+        echo "✅ HELA DITOS - Frontend Deployment Completed"
+        echo "========================================="
+        echo "🌐 Website: https://hela-ditos.com.ar"
+        echo "🚀 Status: ${{ job.status }}"
