@@ -125,6 +125,12 @@ echo "📂 Publicando artefactos en $PUBLIC_DIR ..."
 rm -rf "${PUBLIC_DIR:?}"/*
 cp -r dist/* "$PUBLIC_DIR/"
 
+# Asegurar que el .htaccess está presente (si no se copió automáticamente)
+if [ -f "$FRONTEND_SRC/public/.htaccess" ] && [ ! -f "$PUBLIC_DIR/.htaccess" ]; then
+    echo "📝 Copiando .htaccess al directorio público..."
+    cp "$FRONTEND_SRC/public/.htaccess" "$PUBLIC_DIR/.htaccess"
+fi
+
 # Configurar permisos correctos para el usuario de CyberPanel
 WEB_USER="helad9981"
 if id "$WEB_USER" >/dev/null 2>&1; then
