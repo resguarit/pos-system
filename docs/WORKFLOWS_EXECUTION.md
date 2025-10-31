@@ -98,7 +98,7 @@ Esta guía explica cómo se ejecutan los workflows para cada cliente y cómo con
 
 ---
 
-## 🔄 Comparación de Métodos
+## 🔄 Comparación de métodos
 
 | Aspecto | Client A/B (heladitos/enriqueta) | Heroe (deploy.yml) |
 |---------|----------------------------------|-------------------|
