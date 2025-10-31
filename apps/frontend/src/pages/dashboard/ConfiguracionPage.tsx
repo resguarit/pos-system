@@ -147,6 +147,11 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
+      {/* DEBUG: Deploy test - h2 rojo */}
+      <h2 style={{ color: 'red', fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
+        🚀 DEBUG: Deployment Test - v2.0.0 - {new Date().toLocaleString()}
+      </h2>
+      
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h2 className="text-3xl font-bold tracking-tight">Configuración del Sistema</h2>
