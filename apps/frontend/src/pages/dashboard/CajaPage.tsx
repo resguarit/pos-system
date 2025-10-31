@@ -284,6 +284,16 @@ export default function CajaPage() {
           }
           
           await loadMultipleBranchesData(backendFilters)
+          
+          // Cargar cajas individuales para todas las sucursales (incluye las cerradas que no vienen en el consolidado)
+          await Promise.all(
+            selectedBranchIdsArray.map(branchId => 
+              loadCashRegisterForBranch(branchId).catch(err => {
+                console.error(`Error loading cash register for branch ${branchId}:`, err)
+                return null
+              })
+            )
+          )
         } else {
           // Para una sola sucursal, también usar loadMultipleBranchesData para cargar allMovements
           const branchId = selectedBranchIdsArray[0]
@@ -933,6 +943,16 @@ export default function CajaPage() {
           branch: branchFilter !== 'all' ? branchFilter : undefined
         }
         await loadMultipleBranchesData(backendFilters)
+        
+        // Cargar cajas individuales para todas las sucursales (incluye las cerradas que no vienen en el consolidado)
+        await Promise.all(
+          selectedBranchIdsArray.map(branchId => 
+            loadCashRegisterForBranch(branchId).catch(err => {
+              console.error(`Error loading cash register for branch ${branchId}:`, err)
+              return null
+            })
+          )
+        )
       } else {
         await loadCashRegisterForBranch(selectedBranchIdsArray[0])
       }
