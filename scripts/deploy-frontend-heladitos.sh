@@ -20,14 +20,31 @@ PUBLIC_DIR="/home/hela-ditos.com.ar/public_html"
 echo "📥 Obteniendo últimos cambios del repositorio..."
 cd "$REPO_DIR"
 
+# Limpiar locks de Git si existen
+if [ -f .git/HEAD.lock ]; then
+    echo "🧹 Eliminando lock file de Git..."
+    rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
+fi
+
 # Arreglar permisos antes de hacer git operations
 echo "🔧 Arreglando permisos de archivos..."
 # Hacer los archivos escritibles para poder actualizarlos
 find . -type f -exec chmod 664 {} \; 2>/dev/null || true
 find . -type d -exec chmod 775 {} \; 2>/dev/null || true
 
+# Verificar si el remote usa SSH o HTTPS y cambiar a HTTPS si es necesario
+REMOTE_URL=$(git config --get remote.origin.url)
+if echo "$REMOTE_URL" | grep -q "^git@"; then
+    echo "⚠️  Remote usa SSH, cambiando temporalmente a HTTPS..."
+    git remote set-url origin "https://github.com/resguarit/pos-system.git"
+fi
+
 # Intentar obtener cambios
-git fetch origin master
+if ! git fetch origin master 2>/dev/null; then
+    echo "⚠️  Git fetch falló, intentando con HTTPS..."
+    git remote set-url origin "https://github.com/resguarit/pos-system.git"
+    git fetch origin master
+fi
 
 # Forzar actualización del código (descartar cambios locales si hay conflictos)
 # Si falla por permisos, intentar con chown
@@ -42,11 +59,14 @@ if ! git reset --hard origin/master 2>/dev/null; then
         # Intentar sin sudo
         chown -R "$CURRENT_USER:$CURRENT_USER" . 2>/dev/null || true
     fi
+    # Limpiar locks nuevamente
+    rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
     # Reintentar reset
     git reset --hard origin/master || {
         echo "❌ No se pudo hacer reset. Intentando limpiar archivos problemáticos..."
         # Eliminar archivos .gitignore problemáticos manualmente
         find apps/backend/storage -name ".gitignore" -type f -delete 2>/dev/null || true
+        rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
         git reset --hard origin/master
     }
 fi

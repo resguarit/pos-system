@@ -8,9 +8,26 @@ echo "🚀 Iniciando deployment del backend (Hela Ditos)..."
 # Cambiar al directorio del proyecto
 cd /home/api.hela-ditos.com.ar/public_html
 
+# Limpiar locks de Git si existen
+if [ -f .git/HEAD.lock ]; then
+    echo "🧹 Eliminando lock file de Git..."
+    rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
+fi
+
+# Verificar si el remote usa SSH o HTTPS y cambiar a HTTPS si es necesario
+REMOTE_URL=$(git config --get remote.origin.url)
+if echo "$REMOTE_URL" | grep -q "^git@"; then
+    echo "⚠️  Remote usa SSH, cambiando temporalmente a HTTPS..."
+    git remote set-url origin "https://github.com/resguarit/pos-system.git"
+fi
+
 # Hacer pull de los últimos cambios
 echo "📥 Obteniendo últimos cambios del repositorio..."
-git pull origin master
+if ! git pull origin master 2>/dev/null; then
+    echo "⚠️  Git pull falló, intentando con HTTPS..."
+    git remote set-url origin "https://github.com/resguarit/pos-system.git"
+    git pull origin master
+fi
 
 # Cambiar al directorio del backend Laravel
 cd apps/backend

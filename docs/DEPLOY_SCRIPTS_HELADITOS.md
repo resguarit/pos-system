@@ -269,6 +269,12 @@ EOFSCRIPT
 chmod +x ~/deploy-frontend-heladitos.sh
 
 echo "✅ Scripts creados y configurados correctamente"
+
+## 🔧 Notas Importantes
+
+- Los scripts **automáticamente cambian de SSH a HTTPS** si detectan problemas de permisos SSH
+- Los scripts **limbian locks de Git** automáticamente si detectan procesos anteriores bloqueados
+- No necesitas configurar claves SSH adicionales - los scripts usan HTTPS para el acceso a Git
 ```
 
 ### 2. Verificar que los Scripts Están Creados
