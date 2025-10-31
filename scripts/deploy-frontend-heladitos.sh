@@ -32,6 +32,13 @@ echo "🔧 Arreglando permisos de archivos..."
 find . -type f -exec chmod 664 {} \; 2>/dev/null || true
 find . -type d -exec chmod 775 {} \; 2>/dev/null || true
 
+# Asegurar que el remote esté configurado con SSH (no HTTPS)
+REMOTE_URL=$(git config --get remote.origin.url)
+if echo "$REMOTE_URL" | grep -q "^https://"; then
+    echo "⚠️  Remote está en HTTPS, cambiando a SSH..."
+    git remote set-url origin "git@github.com:resguarit/pos-system.git"
+fi
+
 # Intentar hacer pull directamente (más simple y robusto)
 # Descartar cualquier cambio local primero
 git reset --hard HEAD >/dev/null 2>&1 || true

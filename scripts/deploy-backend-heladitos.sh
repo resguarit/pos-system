@@ -14,18 +14,19 @@ if [ -f .git/HEAD.lock ]; then
     rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
 fi
 
-# Verificar si el remote usa SSH o HTTPS y cambiar a HTTPS si es necesario
+# Asegurar que el remote esté configurado con SSH (no HTTPS)
 REMOTE_URL=$(git config --get remote.origin.url)
-if echo "$REMOTE_URL" | grep -q "^git@"; then
-    echo "⚠️  Remote usa SSH, cambiando temporalmente a HTTPS..."
-    git remote set-url origin "https://github.com/resguarit/pos-system.git"
+if echo "$REMOTE_URL" | grep -q "^https://"; then
+    echo "⚠️  Remote está en HTTPS, cambiando a SSH..."
+    git remote set-url origin "git@github.com:resguarit/pos-system.git"
 fi
 
 # Hacer pull de los últimos cambios
 echo "📥 Obteniendo últimos cambios del repositorio..."
 if ! git pull origin master 2>/dev/null; then
-    echo "⚠️  Git pull falló, intentando con HTTPS..."
-    git remote set-url origin "https://github.com/resguarit/pos-system.git"
+    echo "⚠️  Git pull falló, limpiando locks y reintentando..."
+    rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
+    git reset --hard HEAD >/dev/null 2>&1 || true
     git pull origin master
 fi
 
