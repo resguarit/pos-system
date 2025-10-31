@@ -401,7 +401,12 @@ cp -r dist/* /home/hela-ditos.com.ar/public_html/
 
 ### 7.1. Determinar qué Cliente es hela-ditos
 
-Necesitas decidir si hela-ditos será **Client A** o **Client B**. Para esta guía, asumiremos que es **Client A**.
+**hela-ditos** corresponde a **Client A** y usa el environment `heladitos` en GitHub.
+
+**Mapeo de Clients y Environments:**
+- **Client A** → Environment: `heladitos` (hela-ditos.com.ar)
+- **Client B** → Environment: `enriqueta` (laenriquetabar.com.ar)
+- **Heroe del Whisky** → Environment: `heroe` (heroedelwhisky.com.ar)
 
 ### 7.2. Obtener Información del VPS
 
@@ -436,7 +441,7 @@ cat ~/.ssh/github_actions_deploy.pub >> ~/.ssh/authorized_keys
 1. Ve a tu repositorio en GitHub: `https://github.com/resguarit/pos-system`
 2. Ve a **Settings → Environments**
 3. Haz clic en **New environment**
-4. **Name**: `hela-ditos` (o `client-a` si prefieres)
+4. **Name**: `heladitos`
 5. Haz clic en **Configure environment**
 
 ### 7.5. Configurar Secrets en el Environment
@@ -456,27 +461,43 @@ En la página del environment que acabas de crear, ve a la sección **Environmen
 | `CLIENT_A_API_URL` | URL de la API | `https://api.hela-ditos.com.ar/api` |
 
 **Nota:** 
-- Si hela-ditos es Client B, usa `CLIENT_B_*` en lugar de `CLIENT_A_*`
 - La clave privada SSH (`CLIENT_A_VPS_SSH_KEY`) debe ser la **completa**, incluyendo los headers `-----BEGIN OPENSSH PRIVATE KEY-----` y `-----END OPENSSH PRIVATE KEY-----`
+- Para otros clientes (Client B, etc.), configura sus respectivos secrets en sus environments correspondientes
 
 ### 7.6. Actualizar el Workflow para Usar el Environment
 
-Si el workflow no está configurado para usar environments, necesitas agregar `environment:` al job. Ejemplo:
+El workflow `deploy-client-a.yml` ya está configurado para usar el environment `heladitos`. Cada job tiene configurado:
 
 ```yaml
 jobs:
   deploy_backend:
     runs-on: ubuntu-latest
-    environment: hela-ditos  # <-- Agregar esta línea
+    environment: heladitos  # <-- Ya configurado
+    steps:
+      # ... resto del workflow
+  
+  deploy_frontend:
+    runs-on: ubuntu-latest
+    environment: heladitos  # <-- Ya configurado
     steps:
       # ... resto del workflow
 ```
 
-**Nota:** El nombre del environment debe coincidir con el que creaste en GitHub (ej: `hela-ditos` o `client-a`).
+**Nota:** El nombre del environment debe coincidir exactamente con el que creaste en GitHub: `heladitos`
 
 ### 7.7. Verificar que el Workflow Esté Activo
 
-El workflow `deploy-client-a.yml` o `deploy-client-b.yml` debe estar habilitado. Puedes probarlo manualmente desde **Actions → Deploy to Client A → Run workflow**.
+El workflow `deploy-client-a.yml` está configurado y listo. Puedes probarlo manualmente desde **Actions → Deploy to Client A → Run workflow**.
+
+**📋 Resumen de Environments y Workflows:**
+
+| Cliente | Environment | Workflow | Dominio |
+|---------|-------------|----------|---------|
+| Hela Ditos | `heladitos` | `deploy-client-a.yml` | hela-ditos.com.ar |
+| La Enrique | `enriqueta` | `deploy-client-b.yml` | laenriquetabar.com.ar |
+| Heroe del Whisky | `heroe` | `deploy.yml` (u otro) | heroedelwhisky.com.ar |
+
+Cada environment tiene sus propios secrets configurados en GitHub.
 
 ---
 

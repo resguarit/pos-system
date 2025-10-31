@@ -11,6 +11,7 @@ import useApi from "@/hooks/useApi"
 import { toast } from "sonner"
 
 export default function ConfiguracionPage() {
+  // Auto-deploy test: v1.0.1-hela-ditos
   const [isLoading, setIsLoading] = useState(false)
   // Gestión de Tipos de Movimiento (Caja)
   const { request } = useApi()
