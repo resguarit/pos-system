@@ -147,10 +147,20 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-      {/* DEBUG: Deploy test - h2 rojo */}
-      <h2 style={{ color: 'red', fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
-        🚀 DEBUG: Deployment Test - v2.0.0 - {new Date().toLocaleString()}
-      </h2>
+      {/* DEBUG: Deploy test - h2 rojo MUY VISIBLE */}
+      <div style={{ 
+        backgroundColor: 'red', 
+        color: 'white', 
+        padding: '20px', 
+        borderRadius: '8px',
+        marginBottom: '20px',
+        fontSize: '24px',
+        fontWeight: 'bold',
+        textAlign: 'center',
+        border: '3px solid darkred'
+      }}>
+        🚀 DEBUG: Deployment Test v2.0.0 - {new Date().toLocaleString()} 🚀
+      </div>
       
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
