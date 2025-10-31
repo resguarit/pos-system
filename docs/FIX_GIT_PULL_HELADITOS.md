@@ -1,4 +1,4 @@
-# Solución para Git Pull con Cambios Locales - Hela Ditos
+# Solución para Git Pull con Cambios Locales - HelaDitos
 
 ## Problema
 Git detecta cambios locales en los scripts que no están commiteados, bloqueando el `git pull`.
