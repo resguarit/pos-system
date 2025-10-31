@@ -435,28 +435,123 @@ export default function VentasPage() {
 
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'annulled'>('all');
   const [branchFilter, setBranchFilter] = useState<string>('all');
+  const [annulledSales, setAnnulledSales] = useState<SaleHeader[]>([]);
+  const [loadingAnnulled, setLoadingAnnulled] = useState(false);
 
-  // Ya no filtramos del lado del cliente, el backend hace la búsqueda
-  const filteredSales = sales.filter((sale: SaleHeader) => {
-    const matchesStatus =
-      statusFilter === 'all' ? true :
-      statusFilter === 'active' ? sale.status !== 'annulled' :
-      sale.status === 'annulled';
-
-    const matchesBranch = branchFilter === 'all' ? true : 
-      (() => {
-        let branchId: number | null = null;
-        if (typeof sale.branch === 'object' && sale.branch?.id) {
-          branchId = Number(sale.branch.id);
-        } else if (typeof sale.branch === 'string') {
-          const branch = branches.find(b => b.description === sale.branch);
-          branchId = branch?.id ? Number(branch.id) : null;
+  // Cargar todas las ventas anuladas cuando se selecciona el filtro
+  useEffect(() => {
+    if (statusFilter === 'annulled') {
+      const fetchAllAnnulled = async () => {
+        setLoadingAnnulled(true);
+        try {
+          const apiParams: any = {};
+          
+          if (dateRange.from && dateRange.to) {
+            apiParams.from_date = format(dateRange.from, "yyyy-MM-dd");
+            apiParams.to_date = format(dateRange.to, "yyyy-MM-dd");
+          }
+          
+          // Incluir filtro de sucursales si hay selección
+          if (selectedBranchIds.length > 0) {
+            apiParams.branch_id = selectedBranchIds;
+          }
+          
+          // Buscar sin paginación para obtener todas las anuladas
+          apiParams.paginate = 'false';
+          
+          if (searchTerm) {
+            apiParams.search = searchTerm;
+          }
+          
+          const response = await request({
+            method: "GET",
+            url: `/sales/global`,
+            params: apiParams,
+          });
+          
+          let salesData: SaleHeader[] = [];
+          if (Array.isArray(response?.data?.data)) {
+            salesData = response.data.data;
+          } else if (Array.isArray(response?.data)) {
+            salesData = response.data;
+          } else if (Array.isArray(response)) {
+            salesData = response;
+          } else if (response?.data?.data) {
+            salesData = [response.data.data].flat();
+          } else if (response?.data) {
+            salesData = [response.data].flat();
+          } else if (response) {
+            salesData = [response].flat();
+          }
+          
+          // Filtrar solo las anuladas
+          const annulled = salesData.filter((sale: SaleHeader) => sale.status === 'annulled');
+          setAnnulledSales(annulled);
+        } catch (error) {
+          console.error('Error fetching annulled sales:', error);
+          toast.error("Error", {
+            description: "No se pudieron cargar las ventas anuladas.",
+          });
+          setAnnulledSales([]);
+        } finally {
+          setLoadingAnnulled(false);
         }
-        return branchId ? branchId.toString() === branchFilter : false;
-      })();
+      };
+      
+      fetchAllAnnulled();
+    } else {
+      // Limpiar cuando cambiamos de filtro
+      setAnnulledSales([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, dateRange.from, dateRange.to, searchTerm, selectionChangeToken]);
 
-    return matchesStatus && matchesBranch;
-  });
+  // Determinar qué ventas mostrar según el filtro
+  const filteredSales = (() => {
+    if (statusFilter === 'annulled') {
+      // Para anuladas, usar todas las anuladas cargadas
+      const sourceSales = annulledSales.length > 0 ? annulledSales : sales.filter((s: SaleHeader) => s.status === 'annulled');
+      
+      // Aplicar filtro de sucursal
+      return sourceSales.filter((sale: SaleHeader) => {
+        const matchesBranch = branchFilter === 'all' ? true : 
+          (() => {
+            let branchId: number | null = null;
+            if (typeof sale.branch === 'object' && sale.branch?.id) {
+              branchId = Number(sale.branch.id);
+            } else if (typeof sale.branch === 'string') {
+              const branch = branches.find(b => b.description === sale.branch);
+              branchId = branch?.id ? Number(branch.id) : null;
+            }
+            return branchId ? branchId.toString() === branchFilter : false;
+          })();
+        
+        return matchesBranch;
+      });
+    }
+    
+    // Para 'all' y 'active', usar el filtrado normal
+    return sales.filter((sale: SaleHeader) => {
+      const matchesStatus =
+        statusFilter === 'all' ? true :
+        statusFilter === 'active' ? sale.status !== 'annulled' :
+        sale.status === 'annulled';
+
+      const matchesBranch = branchFilter === 'all' ? true : 
+        (() => {
+          let branchId: number | null = null;
+          if (typeof sale.branch === 'object' && sale.branch?.id) {
+            branchId = Number(sale.branch.id);
+          } else if (typeof sale.branch === 'string') {
+            const branch = branches.find(b => b.description === sale.branch);
+            branchId = branch?.id ? Number(branch.id) : null;
+          }
+          return branchId ? branchId.toString() === branchFilter : false;
+        })();
+
+      return matchesStatus && matchesBranch;
+    });
+  })();
   
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange({ from: range?.from ?? new Date(), to: range?.to ?? new Date() });
@@ -1003,17 +1098,19 @@ export default function VentasPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pageLoading && (
+            {(pageLoading || (statusFilter === 'annulled' && loadingAnnulled)) && (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center">
                     <Loader2 className="animate-spin h-6 w-6 text-primary mb-2" />
-                    <span className="text-sm text-muted-foreground">Cargando ventas...</span>
+                    <span className="text-sm text-muted-foreground">
+                      {statusFilter === 'annulled' ? 'Cargando ventas anuladas...' : 'Cargando ventas...'}
+                    </span>
                   </div>
                 </TableCell>
               </TableRow>
             )}
-            {!pageLoading && filteredSales.length === 0 && (
+            {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) && filteredSales.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center">
@@ -1023,7 +1120,7 @@ export default function VentasPage() {
                 </TableCell>
               </TableRow>
             )}
-            {!pageLoading &&
+            {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) &&
               filteredSales.map((sale: SaleHeader) => (
                 <TableRow
                   key={sale.id}
@@ -1180,16 +1277,23 @@ export default function VentasPage() {
         </Table>
       </div>
       
-      {/* Paginación para ventas */}
-      <Pagination
-        currentPage={currentPage}
-        lastPage={totalPages}
-        total={totalItems}
-        itemName="ventas"
-        onPageChange={(page) => goToPage(page)}
-        disabled={pageLoading}
-        className="mt-4 mb-6"
-      />
+      {/* Paginación para ventas - Solo mostrar si no estamos en el filtro de anuladas */}
+      {statusFilter !== 'annulled' && (
+        <Pagination
+          currentPage={currentPage}
+          lastPage={totalPages}
+          total={totalItems}
+          itemName="ventas"
+          onPageChange={(page) => goToPage(page)}
+          disabled={pageLoading}
+          className="mt-4 mb-6"
+        />
+      )}
+      {statusFilter === 'annulled' && !loadingAnnulled && (
+        <div className="mt-4 mb-6 text-center text-sm text-muted-foreground">
+          Mostrando {filteredSales.length} {filteredSales.length === 1 ? 'venta anulada' : 'ventas anuladas'} en el período seleccionado
+        </div>
+      )}
       
       {/* Dialogs */}
       {selectedSale && (

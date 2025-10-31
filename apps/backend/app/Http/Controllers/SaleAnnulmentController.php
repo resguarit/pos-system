@@ -193,25 +193,43 @@ class SaleAnnulmentController extends Controller
      */
     private function revertCurrentAccountMovements(SaleHeader $sale): void
     {
-        // Buscar o crear tipo de movimiento para anulación de cuenta corriente
-        $annulmentMovementType = MovementType::firstOrCreate(
-            ['name' => 'Anulación de venta a crédito', 'operation_type' => 'salida'],
-            [
-                'description' => 'Salida por anulación de venta a crédito',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
-                'active' => true,
-            ]
-        );
+        // Cargar los movimientos con su tipo de movimiento para obtener operation_type
+        $sale->load('currentAccountMovements.movementType');
 
-        // Crear movimientos de salida para revertir los ingresos
+        // Crear movimientos para revertir cada movimiento original
         foreach ($sale->currentAccountMovements as $currentAccountMovement) {
-            // Crear movimiento de salida con el mismo monto
-            $this->currentAccountService->create([
+            // Obtener el tipo de movimiento original
+            $originalMovementType = $currentAccountMovement->movementType;
+            
+            if (!$originalMovementType) {
+                continue; // Saltar si no hay tipo de movimiento
+            }
+
+            // Determinar el tipo de operación opuesto para la anulación
+            // Si el original era 'salida' (aumenta deuda), la anulación debe ser 'entrada' (reduce deuda)
+            // Si el original era 'entrada' (reduce deuda), la anulación debe ser 'salida' (aumenta deuda)
+            $oppositeOperationType = $originalMovementType->operation_type === 'salida' ? 'entrada' : 'salida';
+            
+            // Buscar o crear tipo de movimiento para anulación con el tipo opuesto
+            $annulmentMovementType = MovementType::firstOrCreate(
+                [
+                    'name' => "Anulación de {$originalMovementType->name}",
+                    'operation_type' => $oppositeOperationType
+                ],
+                [
+                    'description' => "Anulación de {$originalMovementType->description}",
+                    'is_cash_movement' => false,
+                    'is_current_account_movement' => true,
+                    'active' => true,
+                ]
+            );
+
+            // Crear movimiento de anulación con el tipo opuesto
+            $this->currentAccountService->createMovement([
                 'current_account_id' => $currentAccountMovement->current_account_id,
                 'movement_type_id' => $annulmentMovementType->id,
                 'amount' => $currentAccountMovement->amount,
-                'description' => "Anulación de venta a crédito #{$sale->receipt_number} - {$sale->annulment_reason}",
+                'description' => "Anulación de {$originalMovementType->name} #{$sale->receipt_number}" . ($sale->annulment_reason ? " - {$sale->annulment_reason}" : ''),
                 'reference' => "ANNUL-{$sale->receipt_number}",
                 'sale_id' => $sale->id,
                 'metadata' => [
@@ -219,6 +237,8 @@ class SaleAnnulmentController extends Controller
                     'receipt_number' => $sale->receipt_number,
                     'annulment_reason' => $sale->annulment_reason,
                     'original_movement_id' => $currentAccountMovement->id,
+                    'original_movement_type' => $originalMovementType->name,
+                    'original_operation_type' => $originalMovementType->operation_type,
                 ]
             ]);
         }

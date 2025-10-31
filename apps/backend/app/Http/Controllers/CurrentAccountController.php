@@ -639,6 +639,7 @@ class CurrentAccountController extends Controller
             $account = \App\Models\CurrentAccount::with('customer')->findOrFail($accountId);
             
             $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
+                ->where('status', '!=', 'annulled') // Excluir ventas anuladas
                 ->where(function($query) {
                     $query->whereNull('payment_status')
                           ->orWhereIn('payment_status', ['pending', 'partial']);
