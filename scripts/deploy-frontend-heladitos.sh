@@ -32,35 +32,31 @@ echo "🔧 Arreglando permisos de archivos..."
 find . -type f -exec chmod 664 {} \; 2>/dev/null || true
 find . -type d -exec chmod 775 {} \; 2>/dev/null || true
 
-# Asegurar que el remote esté configurado con SSH (no HTTPS)
-REMOTE_URL=$(git config --get remote.origin.url)
-if echo "$REMOTE_URL" | grep -q "^https://"; then
-    echo "⚠️  Remote está en HTTPS, cambiando a SSH..."
-    git remote set-url origin "git@github.com:resguarit/pos-system.git"
-fi
+# Intentar obtener cambios
+git fetch origin master
 
-# Intentar hacer pull directamente (más simple y robusto)
-# Descartar cualquier cambio local primero
-git reset --hard HEAD >/dev/null 2>&1 || true
-git clean -fd >/dev/null 2>&1 || true
-
-# Intentar pull con estrategia que descarte cambios locales
-if ! git pull origin master 2>/dev/null; then
-    echo "⚠️  Git pull falló, intentando limpiar y reintentar..."
+# Forzar actualización del código (descartar cambios locales si hay conflictos)
+# Si falla por permisos, intentar con chown
+if ! git reset --hard origin/master 2>/dev/null; then
+    echo "⚠️  Reset falló, arreglando ownership y reintentando..."
+    # Determinar el usuario y grupo correctos
+    CURRENT_USER=$(whoami)
+    # Intentar con sudo si está disponible
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+        sudo chown -R "$CURRENT_USER:$CURRENT_USER" . 2>/dev/null || true
+    else
+        # Intentar sin sudo
+        chown -R "$CURRENT_USER:$CURRENT_USER" . 2>/dev/null || true
+    fi
     # Limpiar locks nuevamente
     rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
-    # Resetear completamente
-    git reset --hard HEAD >/dev/null 2>&1 || true
-    # Reintentar pull
-    git pull origin master || {
-        echo "⚠️  Git pull con origin falló, intentando fetch y reset..."
-        # Si pull falla completamente, usar fetch + reset como fallback
-        if git fetch origin master 2>/dev/null; then
-            git reset --hard origin/master
-        else
-            echo "❌ No se pudo obtener cambios del repositorio"
-            exit 1
-        fi
+    # Reintentar reset
+    git reset --hard origin/master || {
+        echo "❌ No se pudo hacer reset. Intentando limpiar archivos problemáticos..."
+        # Eliminar archivos .gitignore problemáticos manualmente
+        find apps/backend/storage -name ".gitignore" -type f -delete 2>/dev/null || true
+        rm -f .git/HEAD.lock .git/refs/heads/master.lock 2>/dev/null || true
+        git reset --hard origin/master
     }
 fi
 
