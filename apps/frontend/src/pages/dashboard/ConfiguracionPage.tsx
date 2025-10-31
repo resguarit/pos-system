@@ -11,10 +11,6 @@ import useApi from "@/hooks/useApi"
 import { toast } from "sonner"
 
 export default function ConfiguracionPage() {
-  // Auto-deploy test: v1.0.1-hela-ditos
-  console.log('🚀🚀🚀 CONFIGURACION PAGE RENDERIZADA - DEBUG v2.0.0 🚀🚀🚀')
-  console.log('Timestamp:', new Date().toISOString())
-  
   const [isLoading, setIsLoading] = useState(false)
   // Gestión de Tipos de Movimiento (Caja)
   const { request } = useApi()
@@ -37,12 +33,9 @@ export default function ConfiguracionPage() {
   }
 
   useEffect(() => {
-    console.log('🔵 useEffect ejecutado en ConfiguracionPage')
     const loadInitialData = async () => {
-      console.log('🟢 Cargando datos iniciales...')
       await loadMovementTypes()
       await loadSettings()
-      console.log('✅ Datos iniciales cargados')
     }
     loadInitialData()
   }, [])
@@ -151,32 +144,8 @@ export default function ConfiguracionPage() {
     }
   }
 
-  console.log('🟡 Renderizando return de ConfiguracionPage')
-  
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-      {/* DEBUG: Deploy test - h2 rojo MUY VISIBLE */}
-      {(() => {
-        console.log('🔴 Renderizando banner DEBUG')
-        return (
-          <div style={{ 
-            backgroundColor: 'red', 
-            color: 'white', 
-            padding: '20px', 
-            borderRadius: '8px',
-            marginBottom: '20px',
-            fontSize: '24px',
-            fontWeight: 'bold',
-            textAlign: 'center',
-            border: '3px solid darkred',
-            zIndex: 9999,
-            position: 'relative'
-          }}>
-            🚀 DEBUG: Deployment Test v2.0.0 - {new Date().toLocaleString()} 🚀
-          </div>
-        )
-      })()}
-      
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h2 className="text-3xl font-bold tracking-tight">Configuración del Sistema</h2>
