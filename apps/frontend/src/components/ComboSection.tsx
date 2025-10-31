@@ -27,11 +27,13 @@ export function ComboSection({
   
   const { 
     fetchAvailableCombos, 
-    checkComboStock, 
+    checkComboStock,
+    getComboPriceDetails,
     loading 
   } = useCombosInPOS();
 
   const [combos, setCombos] = useState<Combo[]>([]);
+  const [comboPrices, setComboPrices] = useState<Map<number, number>>(new Map());
 
   // Los combos en el POS son visibles para todos los usuarios
   // No necesitamos verificar permisos específicos aquí
@@ -45,6 +47,18 @@ export function ComboSection({
       try {
         const availableCombos = await fetchAvailableCombos(branchId);
         setCombos(availableCombos);
+
+        // Calcular precios para cada combo
+        const pricesMap = new Map<number, number>();
+        for (const combo of availableCombos) {
+          try {
+            const priceDetails = await getComboPriceDetails(combo.id);
+            pricesMap.set(combo.id, priceDetails.final_price);
+          } catch (error) {
+            console.error(`Error calculating price for combo ${combo.id}:`, error);
+          }
+        }
+        setComboPrices(pricesMap);
       } catch (error) {
         console.error('Error loading combos:', error);
         toast.error('Error al cargar combos');
@@ -52,7 +66,7 @@ export function ComboSection({
     };
 
     loadCombos();
-  }, [branchId, fetchAvailableCombos]);
+  }, [branchId, fetchAvailableCombos, getComboPriceDetails]);
 
   const showComboDetailsDialog = useCallback((combo: Combo) => {
     setSelectedCombo(combo);
@@ -124,6 +138,7 @@ export function ComboSection({
           <ComboCard
             key={`combo-${combo.id}`}
             combo={combo}
+            finalPrice={comboPrices.get(combo.id)}
             formatCurrency={formatCurrency}
             addQtyPerClick={addQtyPerClick}
             addingCombo={addingCombo}
@@ -206,20 +221,7 @@ const getComboBadgeVariant = (combo: Combo): "destructive" | "default" | "second
  */
 interface ComboCardProps {
   combo: Combo;
-  formatCurrency: (amount: number) => string;
-  addQtyPerClick: number;
-  addingCombo: number | null;
-  onAddToCart: (combo: Combo, qty?: number) => Promise<void>;
-  onShowDetails: (combo: Combo) => void;
-}
-
-/**
- * Componente para una tarjeta de combo individual
- * Aplica principio SRP - Solo maneja una tarjeta de combo
- * Aplica principio DRY - Reutilizable para cualquier combo
- */
-interface ComboCardProps {
-  combo: Combo;
+  finalPrice?: number;
   formatCurrency: (amount: number) => string;
   addQtyPerClick: number;
   addingCombo: number | null;
@@ -229,6 +231,7 @@ interface ComboCardProps {
 
 const ComboCard: React.FC<ComboCardProps> = ({ 
   combo, 
+  finalPrice,
   formatCurrency, 
   addQtyPerClick, 
   addingCombo, 
@@ -255,16 +258,16 @@ const ComboCard: React.FC<ComboCardProps> = ({
 
   return (
     <Card 
-      className="group relative overflow-hidden border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-md bg-white flex flex-col h-[160px] sm:h-[180px]"
+      className="group relative overflow-hidden border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-md bg-white flex flex-col cursor-pointer"
       onClick={handleCardClick}
     >
       <ComboDiscountBadge combo={combo} formatCurrency={formatCurrency} />
       
-      <CardContent className="flex-1 px-2 pt-10 pb-2">
-        <ComboCardContent combo={combo} />
+      <CardContent className="flex-1 p-3 pt-8 pb-2">
+        <ComboCardContent combo={combo} finalPrice={finalPrice} formatCurrency={formatCurrency} />
       </CardContent>
 
-      <CardFooter className="p-2 pt-0 mt-auto">
+      <CardFooter className="p-3 pt-2 mt-auto">
         <ComboCardActions 
           combo={combo}
           isLoading={isLoading}
@@ -309,28 +312,41 @@ const ComboDiscountBadge: React.FC<ComboDiscountBadgeProps> = ({ combo, formatCu
  */
 interface ComboCardContentProps {
   combo: Combo;
+  finalPrice?: number;
+  formatCurrency: (amount: number) => string;
 }
 
-const ComboCardContent: React.FC<ComboCardContentProps> = ({ combo }) => (
-  <div className="flex-1 min-w-0">
-    <h3 className="font-semibold text-sm text-gray-900 group-hover:text-blue-900 transition-colors truncate">
-      {combo.name}
-    </h3>
-    {combo.description && (
-      <p className="text-[11px] text-gray-600 truncate">
-        {combo.description}
-      </p>
-    )}
-    
-    {/* Indicador de productos incluidos */}
-    <div className="flex items-center gap-1 mt-0.5">
-      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-      <span className="text-xs text-green-600 font-medium">
-        {combo.combo_items?.length || 0} productos incluidos
-      </span>
+const ComboCardContent: React.FC<ComboCardContentProps> = ({ combo, finalPrice, formatCurrency }) => {
+  // Formatear precio sin ARS y con formato más limpio
+  const formatPrice = (price: number) => {
+    const formatted = formatCurrency(price).replace(' ARS', '');
+    // Remover espacios extra entre $ y el número
+    return formatted.replace(/\$\s+/, '$');
+  };
+
+  return (
+    <div className="flex-1 min-w-0 flex flex-col">
+      <h3 className="font-medium text-sm mb-1 leading-tight text-gray-900 group-hover:text-blue-900 transition-colors truncate">
+        {combo.name}
+      </h3>
+      
+      {/* Precio del combo - destacado */}
+      {finalPrice !== undefined && (
+        <p className="text-muted-foreground text-sm mb-2 font-semibold">
+          {formatPrice(finalPrice)}
+        </p>
+      )}
+      
+      {/* Indicador de productos incluidos */}
+      <div className="flex items-center gap-1 mt-auto">
+        <span className={`inline-block w-2 h-2 rounded-full bg-green-500`} />
+        <span className="text-xs text-green-600 font-medium">
+          {combo.combo_items?.length || 0} productos
+        </span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 /**
  * Componente para las acciones de la tarjeta del combo
@@ -351,7 +367,7 @@ const ComboCardActions: React.FC<ComboCardActionsProps> = ({
   onDetailsClick, 
   onAddClick 
 }) => (
-  <div className="flex flex-col gap-1 w-full">
+  <div className="flex flex-col gap-1.5 w-full">
     <Button
       variant="outline"
       size="sm"
@@ -365,7 +381,7 @@ const ComboCardActions: React.FC<ComboCardActionsProps> = ({
     <Button 
       variant="outline" 
       size="sm" 
-      className="w-full h-8 bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900 font-semibold" 
+      className="w-full h-8 cursor-pointer bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900" 
       onClick={onAddClick}
       disabled={isLoading}
       aria-label={`Agregar ${combo.name} al carrito`}

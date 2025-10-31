@@ -1,11 +1,12 @@
 // components/ComboDetailsDialog.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Calculator, Package, ShoppingCart } from 'lucide-react';
+import { calculateComboPrice } from '@/lib/api/comboService';
 import type { Combo } from '@/types/combo';
 
 interface ComboDetailsDialogProps {
@@ -23,6 +24,34 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
   onAddToCart,
   formatCurrency = (amount) => `$${amount.toFixed(2)}`
 }) => {
+  const [priceDetails, setPriceDetails] = useState<{
+    base_price: number;
+    discount_amount: number;
+    final_price: number;
+  } | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+
+  useEffect(() => {
+    if (combo && open) {
+      const fetchPrice = async () => {
+        try {
+          setLoadingPrice(true);
+          const details = await calculateComboPrice(combo.id);
+          setPriceDetails({
+            base_price: details.base_price,
+            discount_amount: details.discount_amount,
+            final_price: details.final_price,
+          });
+        } catch (error) {
+          console.error('Error calculating combo price:', error);
+        } finally {
+          setLoadingPrice(false);
+        }
+      };
+      fetchPrice();
+    }
+  }, [combo, open]);
+
   if (!combo) return null;
 
   return (
@@ -37,6 +66,28 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
             {combo.description || 'Detalles del combo y componentes incluidos'}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Precio Final del Combo */}
+        {priceDetails && (
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600 mb-1">Precio Base:</p>
+                  <p className="text-lg font-semibold text-gray-900">{formatCurrency(priceDetails.base_price)}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-600 mb-1">Descuento:</p>
+                  <p className="text-lg font-semibold text-red-600">-{formatCurrency(priceDetails.discount_amount)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600 mb-1">Precio Final:</p>
+                  <p className="text-2xl font-bold text-blue-600">{formatCurrency(priceDetails.final_price)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-4">
           {combo.description && (

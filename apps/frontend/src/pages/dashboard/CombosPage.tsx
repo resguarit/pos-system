@@ -21,13 +21,14 @@ import { toast } from "sonner";
 import { ComboManagementDialog } from "@/components/ComboManagementDialog";
 import { ComboDetailsDialog } from "@/components/ComboDetailsDialog";
 import { DeleteComboDialog } from "@/components/DeleteComboDialog";
-import { getAllCombos } from "@/lib/api/comboService";
+import { getAllCombos, calculateComboPrice } from "@/lib/api/comboService";
 import type { Combo } from "@/types/combo";
 import { useAuth } from "@/context/AuthContext";
 
 export default function CombosPage() {
   const { user } = useAuth();
   const [combos, setCombos] = useState<Combo[]>([]);
+  const [comboPrices, setComboPrices] = useState<Map<number, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -36,12 +37,33 @@ export default function CombosPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCombo, setSelectedCombo] = useState<Combo | null>(null);
 
+  // Función para formatear moneda
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
   // Cargar combos
   const loadCombos = async () => {
     try {
       setLoading(true);
       const combosData = await getAllCombos();
       setCombos(combosData);
+
+      // Calcular precios para cada combo
+      const pricesMap = new Map<number, number>();
+      for (const combo of combosData) {
+        try {
+          const priceDetails = await calculateComboPrice(combo.id);
+          pricesMap.set(combo.id, priceDetails.final_price);
+        } catch (error) {
+          console.error(`Error calculating price for combo ${combo.id}:`, error);
+        }
+      }
+      setComboPrices(pricesMap);
     } catch (error) {
       console.error("Error loading combos:", error);
       toast.error("Error al cargar combos");
@@ -303,6 +325,15 @@ export default function CombosPage() {
                       <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                         {combo.description || 'Sin descripción'}
                       </p>
+
+                      {/* Precio del combo */}
+                      {comboPrices.has(combo.id) && (
+                        <div className="mb-3">
+                          <span className="text-xl font-bold text-blue-600">
+                            {formatCurrency(comboPrices.get(combo.id)!).replace(' ARS', '')}
+                          </span>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-2 mb-4">
                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
