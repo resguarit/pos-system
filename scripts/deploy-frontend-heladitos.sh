@@ -107,7 +107,8 @@ fi
 
 echo "🔨 Construyendo proyecto para producción (vite build)..."
 # Usar VITE_API_URL de .env si existe, sino usar el valor por defecto
-export VITE_API_URL="${VITE_API_URL:-https://api.hela-ditos.com.ar}"
+# IMPORTANTE: Debe incluir /api al final porque Laravel usa prefijo /api para rutas API
+export VITE_API_URL="${VITE_API_URL:-https://api.hela-ditos.com.ar/api}"
 if ! npm run build; then
 	echo "❌ Build falló. Abortando deployment." >&2
 	exit 1

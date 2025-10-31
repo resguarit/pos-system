@@ -458,7 +458,7 @@ En la página del environment que acabas de crear, ve a la sección **Environmen
 | `CLIENT_A_VPS_SSH_KEY` | Clave privada SSH completa | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
 | `CLIENT_A_BACKEND_DEPLOY_PATH` | Ruta del backend | `/home/api.hela-ditos.com.ar/public_html` |
 | `CLIENT_A_FRONTEND_DEPLOY_PATH` | Ruta del frontend | `/home/hela-ditos.com.ar/public_html` |
-| `CLIENT_A_API_URL` | URL de la API | `https://api.hela-ditos.com.ar/api` |
+| `VITE_API_URL` | URL de la API (debe incluir `/api` al final) | `https://api.hela-ditos.com.ar/api` |
 
 **Nota:** 
 - La clave privada SSH (`CLIENT_A_VPS_SSH_KEY`) debe ser la **completa**, incluyendo los headers `-----BEGIN OPENSSH PRIVATE KEY-----` y `-----END OPENSSH PRIVATE KEY-----`
