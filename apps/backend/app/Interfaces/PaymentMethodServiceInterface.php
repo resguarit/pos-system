@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Interfaces;
+namespace App\Interfaces;
 
 use Illuminate\Database\Eloquent\Collection;
 use App\Models\PaymentMethod;
