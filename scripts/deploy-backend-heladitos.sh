@@ -146,6 +146,34 @@ chown $WEB_USER:$WEB_USER storage/logs/laravel.log 2>/dev/null || sudo chown $WE
 
 echo "   ✅ Permisos de storage configurados"
 
+# Instalar logo de Hela-ditos (después del git pull)
+echo "🖼️  Instalando logo de Hela-ditos..."
+LOGO_SOURCE="public/images/logo-heladitos.jpg"
+LOGO_DEST="public/images/logo.jpg"
+
+if [ -f "$LOGO_SOURCE" ]; then
+    # Crear directorio si no existe
+    mkdir -p public/images
+    
+    # Copiar logo-heladitos.jpg a logo.jpg
+    cp "$LOGO_SOURCE" "$LOGO_DEST"
+    
+    # Configurar permisos
+    chmod 644 "$LOGO_DEST" 2>/dev/null || sudo chmod 644 "$LOGO_DEST" || true
+    chown $WEB_USER:$WEB_USER "$LOGO_DEST" 2>/dev/null || sudo chown $WEB_USER:$WEB_USER "$LOGO_DEST" || true
+    
+    # Actualizar base de datos con URL correcta
+    $PHP_BIN artisan tinker --execute="
+        \$url = 'https://api.hela-ditos.com.ar/images/logo.jpg';
+        \App\Models\Setting::updateOrCreate(['key' => 'logo_url'], ['value' => json_encode(\$url)]);
+        echo '✅ Logo configurado: ' . \$url . PHP_EOL;
+    " || echo "   ⚠️  Error al actualizar logo en BD"
+    
+    echo "   ✅ Logo de Hela-ditos instalado correctamente"
+else
+    echo "   ⚠️  Logo fuente no encontrado: $LOGO_SOURCE (omitido)"
+fi
+
 # Optimizar para producción (usando PHP 8.2)
 echo "⚡ Optimizando para producción..."
 $PHP_BIN artisan config:cache
