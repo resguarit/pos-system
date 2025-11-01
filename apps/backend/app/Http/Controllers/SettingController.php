@@ -119,6 +119,12 @@ class SettingController extends Controller
             
             // Para logo_url y favicon_url: solo incluir si existe en settings y no es null/empty
             // Si no existe, no se incluye (frontend usará /images/logo.jpg directamente como antes)
+            $currentAppUrl = config('app.url');
+            if (str_ends_with($currentAppUrl, '/api')) {
+                $currentAppUrl = str_replace('/api', '', $currentAppUrl);
+            }
+            $currentAppDomain = parse_url($currentAppUrl, PHP_URL_HOST);
+            
             foreach (['logo_url', 'favicon_url'] as $urlKey) {
                 if (isset($config[$urlKey]) && !empty($config[$urlKey])) {
                     // Si tiene valor, convertirlo a URL completa si es necesario
@@ -145,6 +151,29 @@ class SettingController extends Controller
                                     $baseUrl = str_replace('/api', '', $baseUrl);
                                 }
                                 $config[$urlKey] = rtrim($baseUrl, '/') . $config[$urlKey];
+                            }
+                        }
+                        
+                        // VALIDACIÓN: Verificar que la URL del logo pertenezca al mismo dominio
+                        // Si apunta a otro dominio (otro cliente), usar el default local
+                        if (str_starts_with($config[$urlKey], 'http')) {
+                            $logoDomain = parse_url($config[$urlKey], PHP_URL_HOST);
+                            
+                            // Si el dominio del logo no coincide con el dominio actual, usar default
+                            if ($logoDomain && $logoDomain !== $currentAppDomain && $logoDomain !== 'localhost') {
+                                try {
+                                    Log::warning('Logo URL points to different domain, using default', [
+                                        'configured_url' => $config[$urlKey],
+                                        'configured_domain' => $logoDomain,
+                                        'current_domain' => $currentAppDomain
+                                    ]);
+                                } catch (\Exception $logException) {
+                                    // Silently fail
+                                }
+                                
+                                // No incluir esta URL, el frontend usará el default
+                                unset($config[$urlKey]);
+                                continue;
                             }
                         }
                     }
@@ -310,14 +339,62 @@ class SettingController extends Controller
                 $baseUrl = str_replace('/api', '', $baseUrl);
             }
             
-            // Construct the full URL
-            $url = rtrim($baseUrl, '/') . '/storage/' . $path;
+            // Para logos, copiar también a public/images/ para acceso directo
+            // Esto garantiza que el logo sea accesible sin depender del symlink de storage
+            $url = null;
+            if ($type === 'logo') {
+                // Asegurar que el directorio public/images existe
+                $publicImagesPath = public_path('images');
+                if (!file_exists($publicImagesPath)) {
+                    mkdir($publicImagesPath, 0775, true);
+                }
+                
+                // Copiar el logo a public/images/logo.jpg
+                $logoPath = public_path('images/logo.jpg');
+                $storedFilePath = storage_path('app/public/' . $path);
+                
+                if (file_exists($storedFilePath)) {
+                    // Copiar el archivo
+                    if (!copy($storedFilePath, $logoPath)) {
+                        try {
+                            Log::warning('Failed to copy logo to public/images', [
+                                'source' => $storedFilePath,
+                                'destination' => $logoPath
+                            ]);
+                        } catch (\Exception $logException) {
+                            // Silently fail
+                        }
+                    } else {
+                        // Asegurar permisos correctos
+                        @chmod($logoPath, 0644);
+                        
+                        try {
+                            Log::info('Logo copied to public/images/logo.jpg', [
+                                'source' => $storedFilePath,
+                                'destination' => $logoPath
+                            ]);
+                        } catch (\Exception $logException) {
+                            // Silently fail
+                        }
+                    }
+                    
+                    // Usar la URL de /images/logo.jpg que es más confiable
+                    $url = rtrim($baseUrl, '/') . '/images/logo.jpg';
+                } else {
+                    // Si no se pudo copiar, usar la URL de storage como fallback
+                    $url = rtrim($baseUrl, '/') . '/storage/' . $path;
+                }
+            } else {
+                // Para favicon, usar storage directamente
+                $url = rtrim($baseUrl, '/') . '/storage/' . $path;
+            }
             
             try {
                 Log::info('Storage URL generated', [
                     'path' => $path,
                     'baseUrl' => $baseUrl,
-                    'url' => $url
+                    'url' => $url,
+                    'type' => $type
                 ]);
             } catch (\Exception $logException) {
                 // Silently fail if logging is not available
