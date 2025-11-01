@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Upload, Building2, Mail, Phone, MapPin, FileText, Palette, ImageIcon, Settings, Save, Bug, Copy, Check } from "lucide-react"
+import { ArrowLeft, Upload, Building2, Mail, Phone, MapPin, FileText, Palette, ImageIcon, Settings, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -40,7 +40,6 @@ export default function ConfiguracionSistemaPage() {
   
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [copied, setCopied] = useState<string | null>(null)
 
   // Check permissions - Admin siempre tiene acceso
   useEffect(() => {
@@ -70,6 +69,7 @@ export default function ConfiguracionSistemaPage() {
           }
           return acc
         }, {} as SystemConfig)
+        
         setConfig(cleanedData)
       }
     } catch (error) {
@@ -186,218 +186,49 @@ export default function ConfiguracionSistemaPage() {
       </div>
 
       <div className="space-y-6 max-w-5xl">
-        {/* Debug: Información del Logo */}
-        <Card className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20">
+        {/* Logo Actual */}
+        <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-600/10 rounded-lg flex items-center justify-center">
-                <Bug className="w-5 h-5 text-yellow-600" />
+              <div className="w-10 h-10 bg-blue-600/10 rounded-lg flex items-center justify-center">
+                <ImageIcon className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <CardTitle className="flex items-center gap-2">
-                  Debug: Información del Logo
-                </CardTitle>
-                <CardDescription>Información detallada sobre el logo actual del sistema</CardDescription>
+                <CardTitle>Logo Actual</CardTitle>
+                <CardDescription>Logo actualmente configurado en el sistema</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Vista previa del logo */}
-              <div className="space-y-2">
-                <Label>Vista Previa del Logo Actual</Label>
-                <div className="p-4 border rounded-lg bg-white dark:bg-gray-800 flex items-center justify-center min-h-[120px]">
-                  {(() => {
-                    const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                      (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
-                    const baseUrl = apiBaseUrl.replace('/api', '') || 
-                      (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-                    const logoUrl = config?.logo_url || `${baseUrl}/images/logo.jpg`;
-                    
-                    return (
-                      <div className="flex flex-col items-center gap-3">
-                        <img 
-                          src={logoUrl} 
-                          alt="Logo del sistema"
-                          className="max-w-full max-h-20 object-contain rounded"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                            const parent = target.parentElement;
-                            const errorMsg = parent?.querySelector('.logo-error') as HTMLElement;
-                            if (errorMsg) errorMsg.style.display = 'block';
-                          }}
-                        />
-                        <div className="logo-error text-xs text-red-500 hidden">
-                          ❌ Error al cargar la imagen
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-              
-              {/* Información técnica */}
-              <div className="space-y-3">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold min-w-[140px]">Logo URL (config):</span>
-                    <div className="flex-1">
-                      <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block break-all">
-                        {config?.logo_url || '(null - usando default)'}
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-1 h-6 text-xs"
-                        onClick={() => {
-                          const text = config?.logo_url || '(null - usando default)';
-                          navigator.clipboard.writeText(text);
-                          setCopied('config');
-                          setTimeout(() => setCopied(null), 2000);
-                        }}
-                      >
-                        {copied === 'config' ? (
-                          <>
-                            <Check className="w-3 h-3 mr-1" />
-                            Copiado
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3 mr-1" />
-                            Copiar
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold min-w-[140px]">Logo URL (actual):</span>
-                    <div className="flex-1">
-                      {(() => {
-                        const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                          (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
-                        const baseUrl = apiBaseUrl.replace('/api', '') || 
-                          (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-                        const logoUrl = config?.logo_url || `${baseUrl}/images/logo.jpg`;
-                        
-                        return (
-                          <>
-                            <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block break-all">
-                              {logoUrl}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="mt-1 h-6 text-xs"
-                              onClick={() => {
-                                navigator.clipboard.writeText(logoUrl);
-                                setCopied('actual');
-                                setTimeout(() => setCopied(null), 2000);
-                              }}
-                            >
-                              {copied === 'actual' ? (
-                                <>
-                                  <Check className="w-3 h-3 mr-1" />
-                                  Copiado
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3 h-3 mr-1" />
-                                  Copiar
-                                </>
-                              )}
-                            </Button>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold min-w-[140px]">Base URL:</span>
-                    <div className="flex-1">
-                      {(() => {
-                        const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                          (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
-                        const baseUrl = apiBaseUrl.replace('/api', '') || 
-                          (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-                        
-                        return (
-                          <>
-                            <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block break-all">
-                              {baseUrl}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="mt-1 h-6 text-xs"
-                              onClick={() => {
-                                navigator.clipboard.writeText(baseUrl);
-                                setCopied('base');
-                                setTimeout(() => setCopied(null), 2000);
-                              }}
-                            >
-                              {copied === 'base' ? (
-                                <>
-                                  <Check className="w-3 h-3 mr-1" />
-                                  Copiado
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3 h-3 mr-1" />
-                                  Copiar
-                                </>
-                              )}
-                            </Button>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold min-w-[140px]">VITE_API_URL:</span>
-                    <div className="flex-1">
-                      <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block break-all">
-                        {import.meta.env.VITE_API_URL || '(no configurado)'}
-                      </code>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-2">
-                    <span className="font-semibold min-w-[140px]">Origen (origin):</span>
-                    <div className="flex-1">
-                      <code className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded block break-all">
-                        {typeof window !== 'undefined' ? window.location.origin : 'N/A (SSR)'}
-                      </code>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Resumen */}
-            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-1">Resumen:</p>
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                {config?.logo_url 
-                  ? `El sistema está usando el logo configurado: ${config.logo_url}`
-                  : `El sistema está usando el logo por defecto: ${(() => {
-                      const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                        (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
-                      const baseUrl = apiBaseUrl.replace('/api', '') || 
-                        (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-                      return `${baseUrl}/images/logo.jpg`;
-                    })()}`
+          <CardContent>
+            <div className="flex items-center justify-center p-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              {(() => {
+                const apiBaseUrl = import.meta.env.VITE_API_URL || 
+                  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
+                const baseUrl = apiBaseUrl.replace('/api', '') || 
+                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
+                
+                let logoUrl = config?.logo_url;
+                if (!logoUrl || logoUrl.trim() === '') {
+                  logoUrl = `${baseUrl}/images/logo.jpg`;
                 }
-              </p>
+                
+                return (
+                  <img 
+                    src={logoUrl} 
+                    alt="Logo del sistema"
+                    className="max-w-full max-h-32 object-contain rounded"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                    }}
+                  />
+                );
+              })()}
             </div>
           </CardContent>
         </Card>
 
-        {/* Logo y Favicon - Próximamente */}
+        {/* Cambiar Logo - Próximamente */}
         <Card className="opacity-60">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -406,10 +237,10 @@ export default function ConfiguracionSistemaPage() {
               </div>
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  Identidad Visual
+                  Cambiar Logo
                   <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full font-normal">Próximamente</span>
                 </CardTitle>
-                <CardDescription>Logo y favicon de tu sistema</CardDescription>
+                <CardDescription>Sube y actualiza el logo de tu sistema</CardDescription>
               </div>
             </div>
           </CardHeader>
