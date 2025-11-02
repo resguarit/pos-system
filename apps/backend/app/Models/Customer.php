@@ -46,6 +46,9 @@ class Customer extends Model
             'first_name' => $data['first_name'],
             'last_name' => $data['last_name'],
             'address' => $data['address'] ?? null,
+            'city' => $data['city'] ?? null,
+            'state' => $data['state'] ?? null,
+            'postal_code' => $data['postal_code'] ?? null,
             'phone' => $data['phone'] ?? null,
             'cuit' => $data['cuit'] ?? null,
             'fiscal_condition_id' => $data['fiscal_condition_id'] ?? null,
@@ -76,7 +79,7 @@ class Customer extends Model
     {
         // Extract person data
         $personData = [];
-        foreach (['first_name', 'last_name', 'address', 'phone', 'cuit', 
+        foreach (['first_name', 'last_name', 'address', 'city', 'state', 'postal_code', 'phone', 'cuit', 
                  'fiscal_condition_id', 'person_type_id', 'credit_limit'] as $field) {
             if (isset($data[$field])) {
                 $personData[$field] = $data[$field];

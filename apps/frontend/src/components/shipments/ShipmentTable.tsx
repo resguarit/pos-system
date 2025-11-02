@@ -480,7 +480,6 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis">
                   <div className="text-sm text-gray-900 max-w-[150px] truncate">
                     {(() => {
-                      // @ts-ignore - transporter viene del backend
                       const transporter = shipment.transporter;
                       if (!transporter) return '-';
                       

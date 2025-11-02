@@ -71,6 +71,8 @@ class PermissionRoleSeeder extends Seeder
                 'ver_ordenes_compra',
                 'crear_ordenes_compra',
                 'editar_ordenes_compra',
+                'completar_ordenes_compra',
+                'cancelar_ordenes_compra',
                 'eliminar_ordenes_compra',
                 'ver_historial_compras',
                 'ver_reportes',

@@ -21,3 +21,9 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Logos específicos del servidor (no versionar)
+/public/images/logo.jpg
+# Mantener solo logos específicos de clientes en el repo:
+# - logo-heladitos.jpg (OK)
+# - logo-heroe.jpg (si existe, OK)

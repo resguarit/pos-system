@@ -90,6 +90,7 @@ function getFeatureForModule(moduleName: string): boolean {
     'configuración sistema': 'configuracionSistema',
     'configuracion': 'configuracionSistema',
     'configuracionSistema': 'configuracionSistema',
+    'compras': 'purchaseOrders',
     'órdenes de compra': 'purchaseOrders',
     'ordenes de compra': 'purchaseOrders',
     'purchase orders': 'purchaseOrders',

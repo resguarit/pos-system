@@ -10,6 +10,7 @@ use App\Http\Requests\ConfigureVisibilityRequest;
 use App\Interfaces\ShipmentServiceInterface;
 use App\Interfaces\ShipmentStageServiceInterface;
 use App\Models\Shipment;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -196,6 +197,13 @@ class ShipmentController extends Controller
 
             $perPage = $filters['per_page'] ?? 15;
             $shipments = $query->orderBy('created_at', 'desc')->paginate($perPage);
+            
+            // Eager load transporter users
+            foreach ($shipments->items() as $shipment) {
+                if (isset($shipment->metadata['transportista_id'])) {
+                    $shipment->transporter = User::with('person')->find($shipment->metadata['transportista_id']);
+                }
+            }
             
             // Calcular estadísticas consolidadas
             // Obtener todos los envíos de las sucursales especificadas con eager loading

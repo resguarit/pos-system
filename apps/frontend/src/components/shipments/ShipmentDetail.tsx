@@ -269,7 +269,6 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
             {/* Transportista y Cliente */}
               {(() => {
               // Obtener el transportista
-              // @ts-ignore - transporter viene del backend
               const transporter = shipment.transporter;
               
               // Obtener el cliente de las ventas asociadas

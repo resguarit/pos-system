@@ -38,6 +38,9 @@ class CustomerService implements CustomerServiceInterface
                 'last_name' => $data['last_name'],
                 'cuit' => $data['cuit'] ?? null,
                 'address' => $data['address'] ?? null,
+                'city' => $data['city'] ?? null,
+                'state' => $data['state'] ?? null,
+                'postal_code' => $data['postal_code'] ?? null,
                 'phone' => $data['phone'] ?? null,
                 'fiscal_condition_id' => isset($data['fiscal_condition_id']) && $data['fiscal_condition_id'] ? $data['fiscal_condition_id'] : 1, // Default a 1 si es nulo o 0
                 'person_type_id' => isset($data['person_type_id']) && $data['person_type_id'] ? $data['person_type_id'] : 1, // Default a 1 si es nulo o 0
@@ -78,6 +81,9 @@ class CustomerService implements CustomerServiceInterface
                 'last_name' => $data['last_name'],
                 'cuit' => $data['cuit'] ?? null,
                 'address' => $data['address'] ?? null,
+                'city' => $data['city'] ?? null,
+                'state' => $data['state'] ?? null,
+                'postal_code' => $data['postal_code'] ?? null,
                 'phone' => $data['phone'] ?? null,
                 'fiscal_condition_id' => isset($data['fiscal_condition_id']) && $data['fiscal_condition_id'] ? $data['fiscal_condition_id'] : 1, // Default a 1 si es nulo o 0
                 'person_type_id' => isset($data['person_type_id']) && $data['person_type_id'] ? $data['person_type_id'] : 1, // Default a 1 si es nulo o 0

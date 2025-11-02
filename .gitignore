@@ -139,3 +139,11 @@ Thumbs.db
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Logos activos del servidor (no versionar)
+# Cada cliente tiene su propio logo.jpg que se genera desde logo-{cliente}.jpg
+apps/backend/public/images/logo.jpg
+public/images/logo.jpg
+# Mantener solo logos específicos en el repo:
+# - apps/backend/public/images/logo-heladitos.jpg (OK)
+# - apps/backend/public/images/logo-heroe.jpg (si existe, OK)

@@ -548,7 +548,17 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                             onMouseDown={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setNewShipmentForm(prev => ({ ...prev, cliente_id: customer.id }));
+                              
+                              // Rellenar los campos del formulario con los datos del cliente
+                              setNewShipmentForm(prev => ({
+                                ...prev,
+                                cliente_id: customer.id,
+                                shipping_address: customer.person?.address || prev.shipping_address,
+                                shipping_city: customer.person?.city || prev.shipping_city,
+                                shipping_state: customer.person?.state || prev.shipping_state,
+                                shipping_postal_code: customer.person?.postal_code || prev.shipping_postal_code,
+                              }));
+                              
                               setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
                               setShowCustomerOptions(false);
                             }}
@@ -573,21 +583,21 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium">Provincia/Estado</label>
+                <Input
+                  value={newShipmentForm.shipping_state}
+                  onChange={(e) => setNewShipmentForm(prev => ({ ...prev, shipping_state: e.target.value }))}
+                  placeholder="Provincia"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Ciudad *</label>
                 <Input
                   value={newShipmentForm.shipping_city}
                   onChange={(e) => setNewShipmentForm(prev => ({ ...prev, shipping_city: e.target.value }))}
                   placeholder="Ciudad"
                   required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Provincia/Estado</label>
-                <Input
-                  value={newShipmentForm.shipping_state}
-                  onChange={(e) => setNewShipmentForm(prev => ({ ...prev, shipping_state: e.target.value }))}
-                  placeholder="Provincia"
                 />
               </div>
 

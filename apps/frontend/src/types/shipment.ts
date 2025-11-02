@@ -26,6 +26,7 @@ export interface Shipment {
   payment_date?: string;
   current_stage?: ShipmentStage;
   creator?: User;
+  transporter?: User;
   sales?: Sale[];
   events?: ShipmentEvent[];
 }
@@ -119,9 +120,21 @@ export interface User {
   id: number;
   email: string;
   username: string;
-  full_name: string;
+  full_name?: string;
   role_id?: number;
   role?: Role;
+  person?: {
+    id: number;
+    first_name: string;
+    last_name: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    phone?: string;
+    documento?: string;
+    cuit?: string;
+  };
 }
 
 export interface Role {

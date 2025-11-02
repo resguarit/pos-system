@@ -564,17 +564,17 @@ const handlePurchaseOrderSaved = async () => {
                     <ResizableTableCell columnId="total" getColumnCellProps={getOrderColumnCellProps}>
                       {formatCurrency(getOrderTotalNumber(order))}
                     </ResizableTableCell>
-                    <ResizableTableCell columnId="actions" getColumnCellProps={getOrderColumnCellProps} className="text-center min-w-[280px]">
+                    <ResizableTableCell columnId="actions" getColumnCellProps={getOrderColumnCellProps} className="text-center">
                       <div className="flex gap-1 justify-center">
                         {hasPermission('ver_ordenes_compra') && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => handleViewPurchaseOrder(order)}
                             className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Ver"
                           >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Ver
+                            <Eye className="h-4 w-4" />
                           </Button>
                         )}
                         {isPending(order.status) && order.id && (
@@ -582,34 +582,34 @@ const handlePurchaseOrderSaved = async () => {
                             {hasPermission('editar_ordenes_compra') && (
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
                                 onClick={() => handleEditPurchaseOrder(order)}
                                 className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                title="Editar"
                               >
-                                <Pencil className="h-4 w-4 mr-1" />
-                                Editar
+                                <Pencil className="h-4 w-4" />
                               </Button>
                             )}
                             {hasPermission('completar_ordenes_compra') && (
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
                                 onClick={() => handleCompletePurchaseOrder(order.id!)}
                                 className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                title="Completar"
                               >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Completar
+                                <CheckCircle className="h-4 w-4" />
                               </Button>
                             )}
                             {hasPermission('cancelar_ordenes_compra') && (
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
                                 onClick={() => handleCancelPurchaseOrder(order.id!)}
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Cancelar"
                               >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Cancelar
+                                <XCircle className="h-4 w-4" />
                               </Button>
                             )}
                           </>

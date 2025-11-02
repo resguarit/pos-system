@@ -31,6 +31,9 @@ interface Customer {
     last_name: string
     first_name: string
     address: string
+    city: string | null
+    state: string | null
+    postal_code: string | null
     phone: string
     cuit: string
     fiscal_condition_id: number
@@ -73,6 +76,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     email: "",
     phone: "",
     address: "",
+    city: "",
+    state: "",
+    postal_code: "",
     cuit: "",
     fiscal_condition_id: "1", 
     person_type_id: "1", 
@@ -166,6 +172,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       email: customer.email ?? "",
       phone: customer.person.phone ?? "",
       address: customer.person.address ?? "",
+      city: customer.person.city ?? "",
+      state: customer.person.state ?? "",
+      postal_code: customer.person.postal_code ?? "",
       cuit: customer.person.cuit ?? "",
       fiscal_condition_id: (customer.person.fiscal_condition_id ?? "1").toString(),
       person_type_id: (customer.person.person_type_id ?? "1").toString(),
@@ -267,6 +276,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         first_name: formData.first_name,
         last_name: formData.last_name,
         address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        postal_code: formData.postal_code,
         phone: formData.phone,
         cuit: formData.cuit,
         fiscal_condition_id: formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1, 
@@ -490,7 +502,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             disabled={viewOnly || isLoading}
                           />
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-2 md:col-span-2">
                           <Label htmlFor="address">Dirección</Label>
                           <Input
                             id="address"
@@ -498,9 +510,42 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             value={formData.address}
                             onChange={handleInputChange}
                             disabled={viewOnly || isLoading}
+                            placeholder="Calle y número"
                           />
                         </div>
-                        
+                        <div className="space-y-2">
+                          <Label htmlFor="state">Provincia/Estado</Label>
+                          <Input
+                            id="state"
+                            name="state"
+                            value={formData.state}
+                            onChange={handleInputChange}
+                            disabled={viewOnly || isLoading}
+                            placeholder="Provincia o estado"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="city">Ciudad</Label>
+                          <Input
+                            id="city"
+                            name="city"
+                            value={formData.city}
+                            onChange={handleInputChange}
+                            disabled={viewOnly || isLoading}
+                            placeholder="Ciudad"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="postal_code">Código Postal</Label>
+                          <Input
+                            id="postal_code"
+                            name="postal_code"
+                            value={formData.postal_code}
+                            onChange={handleInputChange}
+                            disabled={viewOnly || isLoading}
+                            placeholder="CP"
+                          />
+                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="active">Estado de la cuenta</Label>
                           <div className="flex items-center space-x-2 pt-2">
