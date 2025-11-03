@@ -148,16 +148,32 @@ echo "   ✅ Permisos de storage configurados"
 
 # Instalar logo de Hela-ditos (después del git pull)
 echo "🖼️  Instalando logo de Hela-ditos..."
-LOGO_SOURCE="public/images/logo-heladitos.jpg"
 LOGO_DEST="public/images/logo.jpg"
+LOGO_INSTALLED=false
 
+# Crear directorio si no existe
+mkdir -p public/images
+
+# Prioridad 1: Buscar logo-heladitos.jpg en public/images (versionado en repo)
+LOGO_SOURCE="public/images/logo-heladitos.jpg"
 if [ -f "$LOGO_SOURCE" ]; then
-    # Crear directorio si no existe
-    mkdir -p public/images
-    
-    # Copiar logo-heladitos.jpg a logo.jpg
+    echo "   📋 Encontrado logo en repo: $LOGO_SOURCE"
     cp "$LOGO_SOURCE" "$LOGO_DEST"
-    
+    LOGO_INSTALLED=true
+else
+    # Prioridad 2: Buscar logo más reciente en storage/app/public/system/logos
+    if [ -d "storage/app/public/system/logos" ]; then
+        LATEST_LOGO=$(ls -t storage/app/public/system/logos/*.jpg storage/app/public/system/logos/*.png 2>/dev/null | head -1)
+        if [ -n "$LATEST_LOGO" ]; then
+            echo "   📋 Encontrado logo en storage: $LATEST_LOGO"
+            cp "$LATEST_LOGO" "$LOGO_DEST"
+            LOGO_INSTALLED=true
+        fi
+    fi
+fi
+
+# Si se encontró y copió un logo, configurar permisos y BD
+if [ "$LOGO_INSTALLED" = true ]; then
     # Configurar permisos
     chmod 644 "$LOGO_DEST" 2>/dev/null || sudo chmod 644 "$LOGO_DEST" || true
     chown $WEB_USER:$WEB_USER "$LOGO_DEST" 2>/dev/null || sudo chown $WEB_USER:$WEB_USER "$LOGO_DEST" || true
@@ -171,7 +187,16 @@ if [ -f "$LOGO_SOURCE" ]; then
     
     echo "   ✅ Logo de Hela-ditos instalado correctamente"
 else
-    echo "   ⚠️  Logo fuente no encontrado: $LOGO_SOURCE (omitido)"
+    # Si no se encontró ningún logo, verificar si ya existe uno
+    if [ -f "$LOGO_DEST" ]; then
+        echo "   ℹ️  Logo ya existe en $LOGO_DEST (no se modificó)"
+        # Asegurar permisos correctos del logo existente
+        chmod 644 "$LOGO_DEST" 2>/dev/null || sudo chmod 644 "$LOGO_DEST" || true
+        chown $WEB_USER:$WEB_USER "$LOGO_DEST" 2>/dev/null || sudo chown $WEB_USER:$WEB_USER "$LOGO_DEST" || true
+    else
+        echo "   ⚠️  Logo no encontrado en ninguna ubicación (public/images/logo-heladitos.jpg ni storage/app/public/system/logos/)"
+        echo "   💡 Usa el script fix-logos-both-systems.sh para restaurar el logo manualmente"
+    fi
 fi
 
 # Optimizar para producción (usando PHP 8.2)

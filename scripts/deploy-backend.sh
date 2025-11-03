@@ -121,6 +121,66 @@ chown $WEB_USER:$WEB_USER storage/logs/laravel.log 2>/dev/null || sudo chown $WE
 
 echo "   ✅ Permisos de storage configurados"
 
+# Instalar logo de Héroe del Whisky (después del git pull)
+echo "🖼️  Instalando logo de Héroe del Whisky..."
+LOGO_DEST="public/images/logo.jpg"
+LOGO_INSTALLED=false
+
+# Crear directorio si no existe
+mkdir -p public/images
+
+# Prioridad 1: Buscar logo-heroe.jpg o logo-heroedelwhisky.jpg en public/images (versionado en repo)
+LOGO_SOURCE=""
+for logo_file in "public/images/logo-heroe.jpg" "public/images/logo-heroedelwhisky.jpg" "public/images/logo-whisky.jpg"; do
+    if [ -f "$logo_file" ]; then
+        LOGO_SOURCE="$logo_file"
+        break
+    fi
+done
+
+if [ -n "$LOGO_SOURCE" ]; then
+    echo "   📋 Encontrado logo en repo: $LOGO_SOURCE"
+    cp "$LOGO_SOURCE" "$LOGO_DEST"
+    LOGO_INSTALLED=true
+else
+    # Prioridad 2: Buscar logo más reciente en storage/app/public/system/logos
+    if [ -d "storage/app/public/system/logos" ]; then
+        LATEST_LOGO=$(ls -t storage/app/public/system/logos/*.jpg storage/app/public/system/logos/*.png 2>/dev/null | head -1)
+        if [ -n "$LATEST_LOGO" ]; then
+            echo "   📋 Encontrado logo en storage: $LATEST_LOGO"
+            cp "$LATEST_LOGO" "$LOGO_DEST"
+            LOGO_INSTALLED=true
+        fi
+    fi
+fi
+
+# Si se encontró y copió un logo, configurar permisos y BD
+if [ "$LOGO_INSTALLED" = true ]; then
+    # Configurar permisos
+    chmod 644 "$LOGO_DEST" 2>/dev/null || sudo chmod 644 "$LOGO_DEST" || true
+    chown $WEB_USER:$WEB_USER "$LOGO_DEST" 2>/dev/null || sudo chown $WEB_USER:$WEB_USER "$LOGO_DEST" || true
+    
+    # Actualizar base de datos con URL correcta
+    php artisan tinker --execute="
+        \$url = 'https://api.heroedelwhisky.com.ar/images/logo.jpg';
+        \App\Models\Setting::updateOrCreate(['key' => 'logo_url'], ['value' => json_encode(\$url)]);
+        echo '✅ Logo configurado: ' . \$url . PHP_EOL;
+    " || echo "   ⚠️  Error al actualizar logo en BD"
+    
+    echo "   ✅ Logo de Héroe del Whisky instalado correctamente"
+else
+    # Si no se encontró ningún logo, verificar si ya existe uno
+    if [ -f "$LOGO_DEST" ]; then
+        echo "   ℹ️  Logo ya existe en $LOGO_DEST (no se modificó)"
+        # Asegurar permisos correctos del logo existente
+        chmod 644 "$LOGO_DEST" 2>/dev/null || sudo chmod 644 "$LOGO_DEST" || true
+        chown $WEB_USER:$WEB_USER "$LOGO_DEST" 2>/dev/null || sudo chown $WEB_USER:$WEB_USER "$LOGO_DEST" || true
+    else
+        echo "   ⚠️  Logo no encontrado en ninguna ubicación (public/images/logo-heroe.jpg ni storage/app/public/system/logos/)"
+        echo "   💡 Usa el script fix-logos-both-systems.sh para restaurar el logo manualmente"
+    fi
+fi
+
 # Optimizar para producción
 echo "⚡ Optimizando para producción..."
 php artisan config:cache
