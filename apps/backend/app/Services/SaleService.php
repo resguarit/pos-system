@@ -906,12 +906,27 @@ class SaleService implements SaleServiceInterface
             'items',
         ]);
 
-        if ($request->has('from_date') && $request->input('from_date')) {
-            $query->whereDate('date', '>=', Carbon::parse($request->input('from_date'))->startOfDay());
+        // Detectar si la búsqueda es principalmente por número de venta
+        $isSearchingByNumber = false;
+        if ($request->has('search') && $request->input('search')) {
+            $searchTerm = trim($request->input('search'));
+            // Si el término de búsqueda es principalmente numérico, asumimos que es búsqueda por número
+            // Permitimos algunos caracteres no numéricos pero la mayoría deben ser números
+            $numericChars = preg_match_all('/\d/', $searchTerm);
+            $totalChars = mb_strlen($searchTerm);
+            $isSearchingByNumber = $totalChars > 0 && ($numericChars / $totalChars) >= 0.7;
         }
-        if ($request->has('to_date') && $request->input('to_date')) {
-            $query->whereDate('date', '<=', Carbon::parse($request->input('to_date'))->endOfDay());
+
+        // Solo aplicar filtros de fechas si NO estamos buscando por número
+        if (!$isSearchingByNumber) {
+            if ($request->has('from_date') && $request->input('from_date')) {
+                $query->whereDate('date', '>=', Carbon::parse($request->input('from_date'))->startOfDay());
+            }
+            if ($request->has('to_date') && $request->input('to_date')) {
+                $query->whereDate('date', '<=', Carbon::parse($request->input('to_date'))->endOfDay());
+            }
         }
+        
         if ($request->has('branch_id') && $request->input('branch_id')) {
             $branchIds = $request->input('branch_id');
             if (is_array($branchIds)) {
