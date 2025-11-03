@@ -51,7 +51,7 @@ jobs:
           
           # Asegurar permisos de storage y cache antes de cualquier operación
           mkdir -p storage/framework/views
-          mkdir -p storage/framework/cache
+          mkdir -p storage/framework/cache/data
           mkdir -p storage/framework/sessions
           mkdir -p storage/logs
           mkdir -p bootstrap/cache
@@ -59,6 +59,7 @@ jobs:
           # Configurar permisos
           chmod -R 775 storage bootstrap/cache 2>/dev/null || sudo chmod -R 775 storage bootstrap/cache || true
           chmod -R 777 storage/framework/views 2>/dev/null || sudo chmod -R 777 storage/framework/views || true
+          chmod -R 777 storage/framework/cache/data 2>/dev/null || sudo chmod -R 777 storage/framework/cache/data || true
           chown -R $WEB_USER:$WEB_USER storage bootstrap/cache 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || true
           
           composer install --no-dev --optimize-autoloader
