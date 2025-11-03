@@ -12,6 +12,7 @@ import { EditCustomerDialog } from "@/components/edit-customer-dialog"
 import useApi from "@/hooks/useApi"
 import { Link } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -206,16 +207,25 @@ export default function ClientesPage() {
     if (!customerToDelete) return
     
     if (!hasPermission('eliminar_clientes')) {
-      console.error('No tienes permisos para eliminar clientes');
+      toast.error('No tienes permisos para eliminar clientes');
       return;
     }
     
     try {
       await request({ method: "DELETE", url: `/customers/${customerToDelete}` })
       setCustomers(customers.filter((customer) => customer.id !== customerToDelete))
-    } catch {}
-    setDeleteDialogOpen(false)
-    setCustomerToDelete(null)
+      toast.success('Cliente eliminado correctamente')
+      setDeleteDialogOpen(false)
+      setCustomerToDelete(null)
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || error?.message || 'Error al eliminar el cliente'
+      toast.error(errorMessage)
+      // Solo cerrar el diálogo si fue un error que no es de deuda
+      if (error?.response?.status !== 409) {
+        setDeleteDialogOpen(false)
+        setCustomerToDelete(null)
+      }
+    }
   }
 
   // Funciones de paginación

@@ -71,47 +71,21 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
     const value = Number(updateValue);
     if (isNaN(value)) return null;
 
-    console.log('🔍 Preview Calculation:', {
-      updateType,
-      updateValue,
-      parsedValue: value,
-      selectedCount: selectedProducts.size
-    });
-
     const strategy = updateType === 'percentage'
       ? new PercentageUpdateStrategy(value)
       : new FixedUpdateStrategy(value);
 
     const validation = strategy.validate();
     if (!validation.isValid) {
-      console.log('❌ Validation failed:', validation.error);
       return null;
     }
 
     const selectedProductsList = products.filter((p) => selectedProducts.has(p.id));
     
-    console.log('📦 Selected products:', selectedProductsList.map(p => ({
-      id: p.id,
-      name: p.description || p.name,
-      unit_price: p.unit_price,
-      unit_price_type: typeof p.unit_price
-    })));
-    
     const previews = selectedProductsList.map((product) => {
       const rawPrice = product.unit_price;
       const currentPrice = Number(rawPrice) || 0;
       const newPrice = strategy.calculateNewPrice(currentPrice);
-      
-      console.log('💰 Price calculation:', {
-        product: product.description || product.name,
-        rawPrice,
-        rawPriceType: typeof rawPrice,
-        currentPrice,
-        newPrice,
-        difference: newPrice - currentPrice,
-        strategy: updateType,
-        strategyValue: value
-      });
       
       return {
         id: product.id,

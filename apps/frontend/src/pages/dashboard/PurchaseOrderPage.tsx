@@ -166,9 +166,7 @@ export default function PurchaseOrderPage() {
         }
       }
       
-      console.log('Cargando órdenes con parámetros:', params);
       const orders = await getPurchaseOrders(params);
-      console.log('Órdenes recibidas:', orders.length);
       
       // Si hay múltiples sucursales filtradas, filtrar en el frontend
       let filteredOrders = orders;

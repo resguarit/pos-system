@@ -479,7 +479,6 @@ export default function UsuariosPage() {
                           >
                             <Link 
                               to={`/dashboard/usuarios/${user.id}/desempeno`}
-                              onClick={() => console.log('Navigating to user performance for user ID:', user.id)}
                             >
                               <BarChart3 className="h-4 w-4 text-emerald-600 group-hover:text-emerald-700" />
                             </Link>
