@@ -46,6 +46,8 @@ interface Customer {
     person_type_id: number;
     credit_limit: number;
     person_type: string;
+    document_type_id: number | null;
+    documento: string | null;
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
@@ -296,7 +298,7 @@ export default function ClientesPage() {
                       getColumnHeaderProps={getColumnHeaderProps}
                       className="hidden md:table-cell"
                     >
-                      CUIT
+                      CUIT/DNI
                     </ResizableTableHeader>
                     <ResizableTableHeader
                       columnId="phone"
@@ -353,7 +355,7 @@ export default function ClientesPage() {
                         getColumnCellProps={getColumnCellProps}
                         className="hidden md:table-cell"
                       >
-                        {customer.person.cuit || '-'}
+                        {customer.person.documento || customer.person.cuit || '-'}
                       </ResizableTableCell>
                       <ResizableTableCell
                         columnId="phone"
