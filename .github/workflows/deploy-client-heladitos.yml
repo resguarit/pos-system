@@ -114,7 +114,7 @@ jobs:
         key: ${{ secrets.CLIENT_HELADITOS_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
         target: ${{ secrets.CLIENT_HELADITOS_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
-        strip_components: 2
+        strip_components: 3
         rm: true
         
     - name: Verify and fix frontend deployment
@@ -127,6 +127,14 @@ jobs:
         script: |
           DEPLOY_PATH="${{ secrets.CLIENT_HELADITOS_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
           echo "🔍 Verificando deployment en: $DEPLOY_PATH"
+          
+          # Si los archivos están en dist/, moverlos a la raíz
+          if [ -d "$DEPLOY_PATH/dist" ] && [ -f "$DEPLOY_PATH/dist/index.html" ]; then
+            echo "⚠️  Archivos encontrados en subdirectorio dist/, moviendo a raíz..."
+            mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" 2>/dev/null || sudo mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" || true
+            rmdir "$DEPLOY_PATH/dist" 2>/dev/null || sudo rmdir "$DEPLOY_PATH/dist" || true
+            echo "✅ Archivos movidos a la raíz"
+          fi
           
           # Verificar que index.html existe
           if [ ! -f "$DEPLOY_PATH/index.html" ]; then
