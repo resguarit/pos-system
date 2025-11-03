@@ -44,6 +44,10 @@ jobs:
         echo "  - Port: 5507"
         echo "  - Username: root"
         echo ""
+        echo "⚠️  Si el servidor es accesible desde tu máquina pero falla aquí,"
+        echo "   puede ser un problema de firewall. Verifica que el puerto 5507"
+        echo "   esté abierto para conexiones desde GitHub Actions IPs."
+        echo ""
         
     - name: Verify SSH connectivity
       uses: appleboy/ssh-action@v1.0.3
@@ -54,7 +58,6 @@ jobs:
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
         timeout: 120s
-        retry: 3
         command_timeout: 30s
         script: |
           echo "✅ Conexión SSH exitosa"
