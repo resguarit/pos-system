@@ -23,7 +23,6 @@ jobs:
   deploy_backend:
     name: Deploy Backend - Heroe
     runs-on: ubuntu-latest
-    environment: heroedelwhisky
     if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
@@ -77,7 +76,6 @@ jobs:
   deploy_frontend:
     name: Deploy Frontend - Heroe
     runs-on: ubuntu-latest
-    environment: heroedelwhisky
     if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     
     steps:
