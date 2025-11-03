@@ -15,11 +15,9 @@ export interface Category {
 
 export const getCategories = async (): Promise<Category[]> => {
   try {
-    const response = await api.get('/categories', {
-      params: {
-        limit: 1000 // Obtener todas las categorías sin paginación
-      }
-    });
+    // No enviar limit ni per_page para obtener TODAS las categorías sin paginación
+    // Si se envían parámetros vacíos, algunos frameworks pueden omitirlos
+    const response = await api.get('/categories');
     
     // La API puede devolver diferentes estructuras dependiendo de los parámetros
     if (response.data?.data?.data) {

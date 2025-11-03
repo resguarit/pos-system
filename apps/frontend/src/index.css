@@ -106,6 +106,44 @@
     color: rgb(17, 24, 39) !important;
   }
 
+  /* Asegurar que los elementos con scroll dentro de popovers muestren scrollbar */
+  [data-radix-popover-content] .scrollbar-visible,
+  [data-radix-popover-content] [data-scrollable="true"] {
+    scrollbar-width: thin !important;
+    scrollbar-color: #64748b #f1f5f9 !important;
+    -ms-overflow-style: scroll !important;
+    overflow-y: auto !important;
+  }
+
+  [data-radix-popover-content] .scrollbar-visible::-webkit-scrollbar,
+  [data-radix-popover-content] [data-scrollable="true"]::-webkit-scrollbar {
+    width: 12px !important;
+    height: 12px !important;
+    display: block !important;
+    -webkit-appearance: none !important;
+    background: transparent !important;
+  }
+
+  [data-radix-popover-content] .scrollbar-visible::-webkit-scrollbar-track,
+  [data-radix-popover-content] [data-scrollable="true"]::-webkit-scrollbar-track {
+    background: #f1f5f9 !important;
+    border-radius: 6px !important;
+    margin: 4px !important;
+  }
+
+  [data-radix-popover-content] .scrollbar-visible::-webkit-scrollbar-thumb,
+  [data-radix-popover-content] [data-scrollable="true"]::-webkit-scrollbar-thumb {
+    background: #64748b !important;
+    border-radius: 6px !important;
+    border: 2px solid #f1f5f9 !important;
+    min-height: 20px !important;
+  }
+
+  [data-radix-popover-content] .scrollbar-visible::-webkit-scrollbar-thumb:hover,
+  [data-radix-popover-content] [data-scrollable="true"]::-webkit-scrollbar-thumb:hover {
+    background: #475569 !important;
+  }
+
   /* 3. Modo oscuro para popups */
   .dark [data-radix-dialog-content],
   .dark [data-radix-popover-content],
@@ -183,4 +221,53 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Safari and Chrome */
+}
+
+/* Scrollbar visible utility - for category and branch lists */
+.scrollbar-visible,
+.scrollbar-visible[data-scrollable="true"],
+div.scrollbar-visible {
+  scrollbar-width: thin !important;  /* Firefox */
+  scrollbar-color: #64748b #f1f5f9 !important;  /* Firefox: thumb and track */
+  -ms-overflow-style: scroll !important;  /* IE and Edge */
+  overflow-y: auto !important;
+}
+
+.scrollbar-visible::-webkit-scrollbar,
+.scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar,
+div.scrollbar-visible::-webkit-scrollbar {
+  width: 12px !important;  /* Chrome, Safari, Edge - making it wider */
+  height: 12px !important;
+  display: block !important;  /* Force display */
+  -webkit-appearance: none !important;
+  background: transparent !important;
+}
+
+.scrollbar-visible::-webkit-scrollbar-track,
+.scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar-track,
+div.scrollbar-visible::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;  /* Track color */
+  border-radius: 6px !important;
+  margin: 4px !important;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb,
+.scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar-thumb,
+div.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: #64748b !important;  /* Thumb color - darker to be more visible */
+  border-radius: 6px !important;
+  border: 2px solid #f1f5f9 !important;
+  min-height: 20px !important;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb:hover,
+.scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar-thumb:hover,
+div.scrollbar-visible::-webkit-scrollbar-thumb:hover {
+  background: #475569 !important;  /* Thumb color on hover - even darker */
+}
+
+.scrollbar-visible::-webkit-scrollbar-corner,
+.scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar-corner,
+div.scrollbar-visible::-webkit-scrollbar-corner {
+  background: #f1f5f9 !important;
 }
