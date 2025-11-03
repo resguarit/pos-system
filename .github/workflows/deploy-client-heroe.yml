@@ -27,6 +27,25 @@ jobs:
     if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
+    - name: Verify SSH connectivity
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
+        timeout: 60s
+        command_timeout: 30s
+        script: |
+          echo "🔍 Verificando conectividad SSH..."
+          echo "Host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}"
+          echo "Port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}"
+          echo "User: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}"
+          whoami
+          pwd
+          echo "✅ Conexión SSH exitosa"
+          
     - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -35,6 +54,8 @@ jobs:
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
+        timeout: 60s
+        command_timeout: 15m
         script: ~/deploy-backend.sh
           
     - name: Notify backend deployment
@@ -49,7 +70,46 @@ jobs:
     if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: |
+        cd apps/frontend
+        rm -rf node_modules package-lock.json
+        npm install --force
+        npm install @rollup/rollup-linux-x64-gnu --save-optional || true
+        npm install @swc/core-linux-x64-gnu --save-optional || true
+        npm install lightningcss-linux-x64-gnu --save-optional || true
+        npm install @tailwindcss/oxide-linux-x64-gnu --save-optional || true
+        
+    - name: Build frontend
+      run: |
+        cd apps/frontend
+        npm run build
+      env:
+        VITE_API_URL: ${{ secrets.CLIENT_HEROE_API_URL || secrets.VITE_API_URL }}
+        
     - name: Deploy Frontend to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
+        source: "apps/frontend/dist/*"
+        target: ${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
+        strip_components: 2
+        rm: true
+        timeout: 60s
+        
+    - name: Verify and fix frontend deployment
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
@@ -57,7 +117,57 @@ jobs:
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
-        script: ~/deploy-frontend.sh
+        timeout: 60s
+        command_timeout: 5m
+        script: |
+          DEPLOY_PATH="${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
+          echo "🔍 Verificando deployment en: $DEPLOY_PATH"
+          
+          # Si los archivos están en dist/, moverlos a la raíz
+          if [ -d "$DEPLOY_PATH/dist" ] && [ -f "$DEPLOY_PATH/dist/index.html" ]; then
+            echo "⚠️  Archivos encontrados en subdirectorio dist/, moviendo a raíz..."
+            shopt -s dotglob
+            mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" 2>/dev/null || sudo mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" || true
+            shopt -u dotglob
+            rmdir "$DEPLOY_PATH/dist" 2>/dev/null || sudo rmdir "$DEPLOY_PATH/dist" || true
+            echo "✅ Archivos movidos a la raíz"
+          fi
+          
+          # Verificar que index.html existe
+          if [ ! -f "$DEPLOY_PATH/index.html" ]; then
+            echo "❌ ERROR: index.html no encontrado!"
+            echo "📋 Contenido del directorio:"
+            ls -la "$DEPLOY_PATH" || true
+            exit 1
+          fi
+          
+          # Asegurar permisos correctos
+          WEB_USER="www-data"
+          if id nginx >/dev/null 2>&1; then
+            WEB_USER="nginx"
+          elif id apache >/dev/null 2>&1; then
+            WEB_USER="apache"
+          fi
+          
+          # Detectar usuario de CyberPanel si existe
+          if [ -d "/home" ]; then
+            SITE_DIR=$(dirname "$DEPLOY_PATH" 2>/dev/null || echo "")
+            if [ -n "$SITE_DIR" ]; then
+              SITE_USER=$(stat -c '%U' "$SITE_DIR" 2>/dev/null || echo "")
+              if [ -n "$SITE_USER" ] && [ "$SITE_USER" != "root" ]; then
+                WEB_USER="$SITE_USER"
+                echo "✅ Usuario detectado: $WEB_USER"
+              fi
+            fi
+          fi
+          
+          chmod -R 755 "$DEPLOY_PATH" 2>/dev/null || sudo chmod -R 755 "$DEPLOY_PATH" || true
+          find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; 2>/dev/null || sudo find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; || true
+          chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" || true
+          
+          echo "✅ Verificación completada. Archivos en:"
+          ls -lah "$DEPLOY_PATH" | head -10
+          echo "✅ index.html existe: $([ -f "$DEPLOY_PATH/index.html" ] && echo 'SÍ' || echo 'NO')"
           
     - name: Notify frontend deployment
       if: always()
