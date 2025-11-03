@@ -18,7 +18,7 @@ interface User {
   person: {
     first_name: string;
     last_name: string;
-  };
+  } | null;
   role: {
     name: string;
   };
@@ -86,7 +86,12 @@ export function BranchPersonnelModal({
                 const roleStyle = getRoleStyle(user.role.name);
                 const RoleIcon = roleStyle.icon;
                 const roleColor = roleStyle.color;
-                const userInitials = `${user.person.first_name[0] || ''}${user.person.last_name[0] || ''}`;
+                const firstName = user.person?.first_name || '';
+                const lastName = user.person?.last_name || '';
+                const userInitials = `${firstName[0] || ''}${lastName[0] || ''}` || 'U';
+                const fullName = user.person 
+                  ? `${firstName} ${lastName}`.trim()
+                  : 'Usuario sin información de persona';
 
                 return (
                   <li key={user.id} className="flex items-center justify-between p-2 rounded-md border">
@@ -95,7 +100,7 @@ export function BranchPersonnelModal({
                          <AvatarFallback>{userInitials}</AvatarFallback>
                       </Avatar>
                       <span className="font-medium">
-                        {user.person.first_name} {user.person.last_name}
+                        {fullName}
                       </span>
                     </div>
                     <Badge variant="outline" className={`flex items-center gap-1.5 ${roleColor}`}>
