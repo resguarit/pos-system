@@ -34,6 +34,7 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
         script: ~/deploy-backend.sh
           
     - name: Notify backend deployment
@@ -55,6 +56,7 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
         script: ~/deploy-frontend.sh
           
     - name: Notify frontend deployment

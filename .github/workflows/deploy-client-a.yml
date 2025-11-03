@@ -2,12 +2,14 @@
 # Por favor, migra a la nueva estructura estandarizada.
 # Ver: .github/workflows/MIGRATION.md para más información
 # Este archivo será eliminado después de completar la migración.
+# DESHABILITADO: Ya no se ejecuta automáticamente
 
 name: Deploy to Client A
 
 on:
-  push:
-    branches: [ master ]
+  # DISABLED - Use deploy-client-heladitos.yml instead
+  # push:
+  #   branches: [ master ]
   workflow_dispatch:
     inputs:
       force:
