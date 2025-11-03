@@ -185,6 +185,8 @@ export default function ConfiguracionSistemaPage() {
         </div>
       </div>
 
+      <h2 style={{ color: 'red' }}>DEBUG DEPLOYMENT</h2>
+
       <div className="space-y-6 max-w-5xl">
         {/* Logo Actual */}
         <Card>

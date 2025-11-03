@@ -46,33 +46,6 @@ Route::prefix('exchange-rates')->group(function () {
     Route::post('/update', [ExchangeRateController::class, 'update']);
 });
 
-// Debug endpoint para verificar deployments (público)
-Route::get('/debug', function () {
-    $deploymentInfo = [
-        'timestamp' => date('Y-m-d H:i:s'),
-        'timestamp_iso' => date('c'),
-        'app_name' => config('app.name'),
-        'app_env' => config('app.env'),
-        'app_url' => config('app.url'),
-        'server_timezone' => date_default_timezone_get(),
-        'version' => '1.0.0',
-        'deployment_check' => true
-    ];
-    
-    // Intentar obtener información del último deployment desde un archivo si existe
-    $deploymentFile = base_path('DEPLOYMENT_INFO.txt');
-    if (file_exists($deploymentFile)) {
-        $deploymentInfo['deployment_file_content'] = file_get_contents($deploymentFile);
-        $deploymentInfo['deployment_file_exists'] = true;
-    } else {
-        $deploymentInfo['deployment_file_exists'] = false;
-        // Crear archivo de referencia
-        file_put_contents($deploymentFile, "Deployment timestamp: " . date('Y-m-d H:i:s') . "\n");
-    }
-    
-    return response()->json($deploymentInfo);
-});
-
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });

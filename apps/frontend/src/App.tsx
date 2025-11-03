@@ -51,18 +51,9 @@ import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
 import ShipmentStagesPage from '@/pages/shipments/ShipmentStagesPage'
 import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
 import features from '@/config/features'
-import DEBUG_INFO from '@/config/debug'
 
 
 function App() {
-  // Debug: Log deployment info
-  console.log('🔍 Deployment Debug - Build Info:', {
-    timestamp: DEBUG_INFO.buildTimestamp,
-    date: DEBUG_INFO.buildDate,
-    version: DEBUG_INFO.version,
-    url: window.location.origin
-  });
-
   return (
     <>
       {/* Simplemente renderiza las rutas, los providers están en main.tsx */}
