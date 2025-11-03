@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Exceptions\ConflictException;
 use App\Exceptions\PermissionDeniedException;
 use Exception;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class ShipmentController extends Controller
 {
@@ -511,6 +512,51 @@ class ShipmentController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => ['code' => 'ERROR', 'message' => $e->getMessage()]
+            ], 500);
+        }
+    }
+
+    /**
+     * Download PDF for a shipment
+     */
+    public function downloadPdf(int $id)
+    {
+        try {
+            $user = Auth::user();
+            
+            // Check if user has permission to print or view shipments
+            if (!$user->hasPermission('imprimir_etiqueta_envio') && !$user->hasPermission('ver_envios')) {
+                throw new PermissionDeniedException('No tienes permiso para imprimir etiquetas de envío');
+            }
+
+            $shipment = Shipment::with([
+                'currentStage',
+                'creator.person',
+                'branch',
+                'sales.customer.person',
+                'sales.receiptType',
+                'sales.items.product',
+                'events',
+            ])->findOrFail($id);
+
+            // Load transporter if exists
+            if (isset($shipment->metadata['transportista_id'])) {
+                $shipment->transporter = User::with('person')->find($shipment->metadata['transportista_id']);
+            }
+
+            $data = ['shipment' => $shipment];
+            $pdf = Pdf::loadView('pdf.shipment', $data);
+            $filename = 'envio_' . ($shipment->reference ?? $shipment->id) . '.pdf';
+            return $pdf->stream($filename);
+        } catch (PermissionDeniedException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'PERMISSION_DENIED', 'message' => $e->getMessage()]
+            ], 403);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'ERROR', 'message' => 'Error generando PDF: ' . $e->getMessage()]
             ], 500);
         }
     }

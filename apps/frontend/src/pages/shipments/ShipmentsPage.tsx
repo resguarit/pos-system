@@ -370,26 +370,66 @@ export default function ShipmentsPage() {
         return;
       }
 
-      toast.success(`Generando etiqueta para envío ${shipment.reference}...`);
+      toast.success(`Generando etiqueta para envío ${shipment.reference || shipmentId}...`);
       
-      // Simulación de impresión
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
-          <html>
-            <head><title>Etiqueta de Envío</title></head>
-            <body style="font-family: Arial; padding: 20px;">
-              <h2>ETIQUETA DE ENVÍO</h2>
-              <p><strong>Referencia:</strong> ${shipment.reference}</p>
-              <p><strong>Estado:</strong> ${shipment.current_stage?.name || 'N/A'}</p>
-              <p><strong>Creado:</strong> ${new Date(shipment.created_at).toLocaleString('es-AR')}</p>
-              ${shipment.sales?.length ? `<p><strong>Ventas:</strong> ${shipment.sales.length}</p>` : ''}
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
+      // Descargar el PDF con autenticación usando request (incluye token)
+      const response = await request({ 
+        method: 'GET', 
+        url: `/shipments/${shipmentId}/pdf`,
+        responseType: 'blob'
+      });
+      
+      if (!response || !(response instanceof Blob)) {
+        throw new Error("La respuesta del servidor no es un archivo PDF válido.");
       }
+      
+      // Crear blob URL del PDF descargado
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // Crear iframe oculto para imprimir
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.style.position = 'fixed';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      
+      // Agregar al DOM
+      document.body.appendChild(iframe);
+      
+      // Asignar blob URL al iframe
+      iframe.src = blobUrl;
+      
+      // Cuando el iframe cargue, ejecutar print
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            // Ejecutar impresión desde el iframe
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch (err) {
+            toast.error("No se pudo abrir el diálogo de impresión.");
+          }
+          
+          // Limpiar después de un tiempo
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+            window.URL.revokeObjectURL(blobUrl);
+          }, 1000);
+        }, 500);
+      };
+      
+      // Timeout de seguridad
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+        window.URL.revokeObjectURL(blobUrl);
+      }, 30000);
+      
     } catch (error) {
       toast.error('Error al imprimir etiqueta');
       console.error('Print error:', error);

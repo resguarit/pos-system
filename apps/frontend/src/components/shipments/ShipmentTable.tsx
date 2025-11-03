@@ -552,7 +552,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                       </Button>
                     )}
                     
-                    {hasPermission('imprimir_etiqueta_envio') && onPrintShipment && (
+                    {(hasPermission('imprimir_etiqueta_envio') || hasPermission('ver_envios')) && onPrintShipment && (
                       <Button
                         variant="ghost"
                         size="sm"
