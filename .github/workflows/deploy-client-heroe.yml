@@ -1,5 +1,17 @@
 name: 🚀 Deploy - Heroe del Whisky
 
+# ⚠️  PROBLEMA CONOCIDO: Timeout de conexión SSH
+# El proveedor de hosting (Dattaweb) está bloqueando conexiones desde GitHub Actions IPs.
+# Error: "dial tcp 149.50.138.145:***: connect: connection timed out"
+#
+# SOLUCIONES:
+# 1. Contactar soporte de Dattaweb para permitir IPs de GitHub Actions
+#    IPs: https://api.github.com/meta (buscar "actions")
+# 2. Configurar un webhook que ejecute deployment desde el servidor
+# 3. Usar deployment manual desde el servidor hasta resolver el bloqueo
+#
+# Mientras tanto, el workflow está configurado pero no funcionará hasta resolver el firewall.
+
 on:
   push:
     branches: [ master ]
