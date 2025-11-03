@@ -42,7 +42,7 @@ jobs:
         echo "Valores esperados basados en tu conexión manual:"
         echo "  - Host: 149.50.138.145"
         echo "  - Port: 5507"
-        echo "  - Username: root"
+        echo "  - Username: posdeployer (NO root)"
         echo ""
         echo "⚠️  Si el servidor es accesible desde tu máquina pero falla aquí,"
         echo "   puede ser un problema de firewall. Verifica que el puerto 5507"
