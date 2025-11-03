@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Cart } from "@/components/Cart"
 import { DEFAULT_RECEIPT_TYPES, findReceiptTypeByAfipCode, type ReceiptType } from '@/lib/constants/afipCodes'
 import { toast } from "sonner"
 import {
@@ -18,6 +17,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import useApi from "@/hooks/useApi"
 import { useBranch } from "@/context/BranchContext"
 import { useAuth } from "@/context/AuthContext"
@@ -33,6 +33,8 @@ import MultipleBranchesCashStatus from "@/components/cash-register-multiple-bran
 import { Building, Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Info, Loader2, AlertTriangle, Package } from "lucide-react"
 import { ComboSection } from "@/components/ComboSection"
 import { useCombosInPOS } from "@/hooks/useCombosInPOS"
+import { useIsMobile } from "@/hooks/useIsMobile"
+import { CartFloatingButton } from "@/components/pos/CartFloatingButton"
 import type { Combo, CartItem } from "@/types/combo"
 
 interface CustomerOption {
@@ -134,6 +136,12 @@ export default function POSPage() {
   // Ref para almacenar la función fetchProducts
   const fetchProductsRef = useRef<(() => Promise<void>) | null>(null);
 
+  // Estado para controlar el Sheet del carrito
+  const [cartSheetOpen, setCartSheetOpen] = useState(false)
+  
+  // Hooks personalizados para responsabilidades separadas
+  const isMobile = useIsMobile()
+
   // Función estable para recargar productos cuando se actualice la tasa de cambio
   const handleExchangeRateUpdate = useCallback(() => {
     // Ejecutar fetchProducts y LUEGO mostrar el toast cuando termine con éxito.
@@ -167,13 +175,11 @@ export default function POSPage() {
   useEffect(() => {
     // Si hay múltiples sucursales seleccionadas, guardar la selección original
     if (selectedBranchIds.length > 1 && originalBranchSelection.length === 0) {
-      console.log('🔄 Guardando selección original:', selectedBranchIds)
       setOriginalBranchSelection([...selectedBranchIds])
     }
     
     // Si no hay sucursal seleccionada y tenemos selección original, restaurar
     if (selectedBranchIds.length === 0 && originalBranchSelection.length > 0) {
-      console.log('🔄 Restaurando selección original:', originalBranchSelection)
       setSelectedBranchIds([...originalBranchSelection])
     }
   }, [selectedBranchIds, originalBranchSelection])
@@ -184,11 +190,8 @@ export default function POSPage() {
     // significa que el usuario está trabajando en el POS
     // Cuando el componente se desmonte (navegación a otra página), restaurar la selección
     if (selectedBranchIds.length === 1 && originalBranchSelection.length > 1) {
-      console.log('🔄 Usuario en POS, preparando restauración automática')
-      
       // Función de cleanup que se ejecutará cuando el componente se desmonte
       const cleanup = () => {
-        console.log('🔄 Usuario salió del POS, restaurando selección original:', originalBranchSelection)
         setSelectedBranchIds([...originalBranchSelection])
         setOriginalBranchSelection([])
       }
@@ -844,10 +847,140 @@ export default function POSPage() {
 
   const currentAccountPaymentValid = !hasCurrentAccountPayment || selectedCustomer !== null;
 
+  // Componente del contenido del carrito (reutilizable para desktop y mobile)
+  const CartContent = () => (
+    <>
+      {/* Header del carrito - Fijo */}
+      <div className="flex items-center justify-between border-b p-2 sm:p-3 lg:p-4 flex-shrink-0">
+        <div className="flex items-center flex-1 min-w-0">
+          <ShoppingCart className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 flex-shrink-0" />
+          <h2 className="text-xs sm:text-sm lg:text-base font-semibold">Carrito</h2>
+          <Badge variant="secondary" className="ml-1 sm:ml-2 flex-shrink-0 text-xs">
+            {cart.length}
+          </Badge>
+          {cart.length > 0 && !isMobile && (
+            <span className="ml-1 sm:ml-2 text-xs text-muted-foreground hidden lg:inline">
+              (guardado automáticamente)
+            </span>
+          )}
+        </div>
+        {cart.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={clearCart} className="flex-shrink-0 h-6 sm:h-7 px-1 sm:px-2">
+            <X className="h-3 w-3" />
+            <span className="hidden sm:inline ml-1">Limpiar</span>
+          </Button>
+        )}
+      </div>
+
+      {/* Contenido del carrito - Deslizable */}
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {cart.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground py-6 sm:py-12 lg:py-16">
+            <div className="mb-3 sm:mb-4 lg:mb-6 p-3 sm:p-4 lg:p-6 bg-gray-50 rounded-full">
+              <ShoppingCart className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 text-gray-400" />
+            </div>
+            <h3 className="text-sm sm:text-base lg:text-lg font-medium text-gray-600 mb-2">Tu carrito está vacío</h3>
+            <p className="text-xs sm:text-sm lg:text-base text-gray-500 leading-relaxed px-2">Agrega productos o combos para comenzar tu venta</p>
+          </div>
+        ) : (
+          <div className="p-2 sm:p-4 lg:p-6">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[100px] sm:min-w-[120px] text-xs sm:text-sm">Producto</TableHead>
+                  <TableHead className="text-center w-[60px] sm:w-[80px] text-xs sm:text-sm">Cant.</TableHead>
+                  <TableHead className="text-right w-[80px] sm:w-[100px] text-xs sm:text-sm">Total</TableHead>
+                  <TableHead className="w-[40px] sm:w-[50px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cart.map((item, index) => {
+                  return (
+                    <TableRow key={`${item.id}-${index}`}>
+                      <TableCell className="font-medium py-1 sm:py-2">
+                        <div className="text-xs sm:text-sm truncate">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatCurrency(item.sale_price)} c/u
+                          {item.discount_type && (item.discount_value ?? 0) > 0 && (
+                            <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
+                          )}
+                          {item.is_from_combo && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              <Package className="h-3 w-3 inline mr-1" />
+                              De combo: {item.combo_name}
+                              {item.combo_discount_applied && item.combo_discount_applied > 0 && (
+                                <span className="ml-1 text-green-600">
+                                  (Descuento: {formatCurrency(item.combo_discount_applied)})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1 sm:py-2">
+                        <div className="flex items-center justify-center">
+                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                            <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
+                          </Button>
+                          <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
+                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                            <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price * item.quantity)}</TableCell>
+                      <TableCell className="py-1 sm:py-2">
+                        <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      {/* Resumen y botón - Fijo */}
+      <div className="border-t p-2 sm:p-4 lg:p-6 flex-shrink-0">
+        <div className="space-y-1 sm:space-y-2 lg:space-y-3">
+          <div className="flex justify-between py-1">
+            <span className="text-xs sm:text-sm text-gray-600">Subtotal (sin IVA)</span>
+            <span className="text-xs sm:text-sm font-medium">{formatCurrency(subtotalNet)}</span>
+          </div>
+          <div className="flex justify-between py-1">
+            <span className="text-xs sm:text-sm text-gray-600">Impuestos (IVA)</span>
+            <span className="text-xs sm:text-sm font-medium">{formatCurrency(totalIva)}</span>
+          </div>
+          <div className="flex justify-between py-1 text-xs sm:text-sm text-muted-foreground">
+            <span>Descuentos</span>
+            <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
+          </div>
+          <div className="border-t pt-2 sm:pt-3 mt-2 sm:mt-3">
+            <div className="flex justify-between text-sm sm:text-base lg:text-lg font-bold">
+              <span>Total</span>
+              <span>{formatCurrency(total)}</span>
+            </div>
+          </div>
+        </div>
+
+        <Button className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" size="sm" disabled={cart.length === 0} onClick={() => {
+          setShowAdvancedSaleModal(true)
+          if (isMobile) setCartSheetOpen(false)
+        }}>
+          Completar Venta
+        </Button>
+      </div>
+    </>
+  )
+
   return (
     <ProtectedRoute permissions={['crear_ventas']} requireAny={true}>
-      <div className="flex h-[calc(100vh-4rem)] flex-col lg:flex-row">
-        <div className="flex-1 overflow-auto p-4">
+      <div className="flex h-[calc(100vh-4rem)] flex-col lg:flex-row relative">
+        {/* Área de productos - Siempre visible */}
+        <div className="flex-1 overflow-auto p-2 sm:p-4 pb-20 lg:pb-4">
           {/* Branch Selector for POS */}
           <div className="mb-4 flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -999,7 +1132,7 @@ export default function POSPage() {
             {/* Separador visual */}
             <div className="my-8 border-t border-gray-200"></div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredProducts.map((product) => {
               const ui = getStockUi(product.id)
               return (
@@ -1033,129 +1166,33 @@ export default function POSPage() {
             </div>
         </div>
 
-        <div className="w-full border-t lg:w-[400px] xl:w-[500px] lg:border-l lg:border-t-0 h-full flex flex-col">
-            {/* Header del carrito - Fijo */}
-            <div className="flex items-center justify-between border-b p-2 sm:p-3 lg:p-4 flex-shrink-0">
-                <div className="flex items-center flex-1 min-w-0">
-                <ShoppingCart className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 flex-shrink-0" />
-                <h2 className="text-xs sm:text-sm lg:text-base font-semibold">Carrito</h2>
-                <Badge variant="secondary" className="ml-1 sm:ml-2 flex-shrink-0 text-xs">
-                    {cart.length}
-                </Badge>
-                {cart.length > 0 && (
-                    <span className="ml-1 sm:ml-2 text-xs text-muted-foreground hidden lg:inline">
-                        (guardado automáticamente)
-                    </span>
-                )}
-                </div>
-                {cart.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={clearCart} className="flex-shrink-0 h-6 sm:h-7 px-1 sm:px-2">
-                    <X className="h-3 w-3" />
-                    <span className="hidden sm:inline ml-1">Limpiar</span>
-                </Button>
-                )}
-            </div>
+        {/* Carrito en desktop - Panel lateral */}
+        {!isMobile && (
+          <div className="hidden lg:flex w-full lg:w-[400px] xl:w-[500px] border-t lg:border-l lg:border-t-0 h-full flex flex-col">
+            <CartContent />
+          </div>
+        )}
 
-            {/* Contenido del carrito - Deslizable */}
-            <div className="flex-1 overflow-y-auto min-h-0">
-                {cart.length === 0 ? (
-                <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground py-6 sm:py-12 lg:py-16">
-                    <div className="mb-3 sm:mb-4 lg:mb-6 p-3 sm:p-4 lg:p-6 bg-gray-50 rounded-full">
-                        <ShoppingCart className="h-6 w-6 sm:h-8 sm:w-8 lg:h-10 lg:w-10 text-gray-400" />
-                    </div>
-                    <h3 className="text-sm sm:text-base lg:text-lg font-medium text-gray-600 mb-2">Tu carrito está vacío</h3>
-                    <p className="text-xs sm:text-sm lg:text-base text-gray-500 leading-relaxed px-2">Agrega productos o combos para comenzar tu venta</p>
-                </div>
-                ) : (
-                    <div className="p-2 sm:p-4 lg:p-6">
-                    <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <TableHead className="min-w-[100px] sm:min-w-[120px] text-xs sm:text-sm">Producto</TableHead>
-                        <TableHead className="text-center w-[60px] sm:w-[80px] text-xs sm:text-sm">Cant.</TableHead>
-                        <TableHead className="text-right w-[80px] sm:w-[100px] text-xs sm:text-sm">Total</TableHead>
-                        <TableHead className="w-[40px] sm:w-[50px]"></TableHead>
-                    </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                     {cart.map((item, index) => {
-                         return (
-                         <TableRow key={`${item.id}-${index}`}>
-                            <TableCell className="font-medium py-1 sm:py-2">
-                            <div className="text-xs sm:text-sm truncate">{item.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {formatCurrency(item.sale_price)} c/u
-                              {item.discount_type && (item.discount_value ?? 0) > 0 && (
-                                <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
-                              )}
-                              {item.is_from_combo && (
-                                <div className="text-xs text-blue-600 mt-1">
-                                  <Package className="h-3 w-3 inline mr-1" />
-                                  De combo: {item.combo_name}
-                                  {item.combo_discount_applied && item.combo_discount_applied > 0 && (
-                                    <span className="ml-1 text-green-600">
-                                      (Descuento: {formatCurrency(item.combo_discount_applied)})
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            </TableCell>
-                            <TableCell className="py-1 sm:py-2">
-                            <div className="flex items-center justify-center">
-                                <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                                <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
-                                </Button>
-                                <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
-                                <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                                <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
-                                </Button>
-                            </div>
-                            </TableCell>
-                            <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price)}</TableCell>
-                            <TableCell className="py-1 sm:py-2">
-                            <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
-                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </Button>
-                            </TableCell>
-                        </TableRow>
-                        );
-                    })}
-                    </TableBody>
-                </Table>
-                </div>
-                )}
-            </div>
+        {/* Botón flotante del carrito en móvil */}
+        {isMobile && (
+          <>
+            <CartFloatingButton
+              itemCount={cart.length}
+              onClick={() => setCartSheetOpen(true)}
+            />
 
-            {/* Resumen y botón - Fijo */}
-            <div className="border-t p-2 sm:p-4 lg:p-6 flex-shrink-0">
-                <div className="space-y-1 sm:space-y-2 lg:space-y-3">
-                <div className="flex justify-between py-1">
-                    <span className="text-xs sm:text-sm text-gray-600">Subtotal (sin IVA)</span>
-                    <span className="text-xs sm:text-sm font-medium">{formatCurrency(subtotalNet)}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                    <span className="text-xs sm:text-sm text-gray-600">Impuestos (IVA)</span>
-                    <span className="text-xs sm:text-sm font-medium">{formatCurrency(totalIva)}</span>
-                </div>
-                <div className="flex justify-between py-1 text-xs sm:text-sm text-muted-foreground">
-                    <span>Descuentos</span>
-                    <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
-                </div>
-                <div className="border-t pt-2 sm:pt-3 mt-2 sm:mt-3">
-                    <div className="flex justify-between text-sm sm:text-base lg:text-lg font-bold">
-                        <span>Total</span>
-                        <span>{formatCurrency(total)}</span>
-                    </div>
-                </div>
-                </div>
+            {/* Sheet del carrito en móvil */}
+            <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
+              <SheetContent side="bottom" className="h-[90vh] flex flex-col p-0 [&>button]:hidden">
+                <CartContent />
+              </SheetContent>
+            </Sheet>
+          </>
+        )}
+      </div>
 
-                <Button className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" size="sm" disabled={cart.length === 0} onClick={() => setShowAdvancedSaleModal(true)}>
-                  Completar Venta
-                </Button>
-            </div>
-
-            <Dialog open={showAdvancedSaleModal} onOpenChange={setShowAdvancedSaleModal}>
+      {/* Dialogs fuera del contenedor principal */}
+      <Dialog open={showAdvancedSaleModal} onOpenChange={setShowAdvancedSaleModal}>
               <DialogContent className="max-w-4xl w-full p-0 flex flex-col max-h-[85vh]">
                 <DialogHeader className="px-6 pt-4 pb-2 shrink-0">
                    <DialogTitle>Completar Venta</DialogTitle>
@@ -1477,32 +1514,31 @@ export default function POSPage() {
                </DialogContent>
              </Dialog>
 
-            {/* Dialog para crear cliente desde POS */}
-            <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
-              <DialogContent className="max-w-4xl w-full" noOverlay>
-                <CustomerForm 
-                  disableNavigate
-                  onCancel={() => setShowNewCustomerDialog(false)}
-                  onSuccess={(cust: any) => {
-                    const opt: CustomerOption = {
-                      id: cust.id,
-                      name: `${cust.person?.first_name ?? ''} ${cust.person?.last_name ?? ''}`.trim() || `Cliente ${cust.id}`,
-                      dni: cust.person?.documento || cust.person?.cuit || 'Sin DNI',
-                      cuit: cust.person?.cuit || null,
-                      fiscal_condition_id: cust.person?.fiscal_condition_id || null,
-                      fiscal_condition_name: cust.person?.fiscal_condition?.description || cust.person?.fiscal_condition?.name || null,
-                    }
-                    setSelectedCustomer(opt)
-                    setCustomerSearch(opt.name)
-                    setCustomerOptions([])
-                    setShowNewCustomerDialog(false)
-                    toast.success("Cliente agregado y seleccionado")
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
-        </div>
-      </div>
+
+      {/* Dialog para crear cliente desde POS */}
+      <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
+        <DialogContent className="max-w-4xl w-full" noOverlay>
+          <CustomerForm 
+            disableNavigate
+            onCancel={() => setShowNewCustomerDialog(false)}
+            onSuccess={(cust: any) => {
+              const opt: CustomerOption = {
+                id: cust.id,
+                name: `${cust.person?.first_name ?? ''} ${cust.person?.last_name ?? ''}`.trim() || `Cliente ${cust.id}`,
+                dni: cust.person?.documento || cust.person?.cuit || 'Sin DNI',
+                cuit: cust.person?.cuit || null,
+                fiscal_condition_id: cust.person?.fiscal_condition_id || null,
+                fiscal_condition_name: cust.person?.fiscal_condition?.description || cust.person?.fiscal_condition?.name || null,
+              }
+              setSelectedCustomer(opt)
+              setCustomerSearch(opt.name)
+              setCustomerOptions([])
+              setShowNewCustomerDialog(false)
+              toast.success("Cliente agregado y seleccionado")
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Comprobante de venta */}
       <SaleReceiptPreviewDialog
