@@ -48,7 +48,7 @@ class ProductController extends Controller
             'web' => 'required|boolean',
             'observaciones' => 'nullable|string',
             'branch_id' => 'nullable|integer|exists:branches,id',
-            'branch_ids' => 'required|array|min:1',
+            'branch_ids' => 'nullable|array',
             'branch_ids.*' => 'integer|exists:branches,id',
             'min_stock' => 'required|numeric|min:0',
             'max_stock' => 'required|numeric|min:1',

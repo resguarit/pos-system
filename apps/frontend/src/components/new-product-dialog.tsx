@@ -13,7 +13,7 @@ import { NumberFormatter } from '@/lib/formatters/numberFormatter'
 import FormattedNumberInput from '@/components/ui/formatted-number-input'
 import { useBranch } from '@/context/BranchContext'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Info, Trash2 } from 'lucide-react'
 
 interface NewProductDialogProps {
   open: boolean;
@@ -235,14 +235,8 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
         });
         
         // Inicializar sucursales seleccionadas
-        if (branches.length === 1) {
-          // Si hay una sola sucursal, seleccionarla automáticamente
-          setSelectedBranches([String(branches[0].id)]);
-        } else {
-          // Si hay múltiples sucursales, no seleccionar ninguna por defecto
-          // El usuario debe elegir explícitamente
-          setSelectedBranches([]);
-        }
+        // No seleccionar ninguna por defecto para permitir crear stock en todas las sucursales
+        setSelectedBranches([]);
         
         // Resetear stock min/max
         setMinStock("0");
@@ -534,11 +528,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       iva_id: 'IVA'
     };
 
-    // Validar que se seleccionó al menos una sucursal
-    if (selectedBranches.length === 0) {
-      toast.error('Debes seleccionar al menos una sucursal para crear el stock inicial');
-      return;
-    }
+    // Si no se selecciona ninguna sucursal, se creará stock en todas las sucursales automáticamente
     
     // Validar código duplicado
     if (codeError) {
@@ -641,7 +631,9 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           observaciones: formData.observaciones || null,
           status: parseInt(formData.status),
           web: parseInt(formData.web),
-          branch_ids: selectedBranches.map(id => parseInt(id)), // Enviar sucursales seleccionadas
+          // Si hay sucursales seleccionadas, enviarlas; si no, no enviar branch_ids
+          // para que el backend cree stock en todas las sucursales activas
+          ...(selectedBranches.length > 0 ? { branch_ids: selectedBranches.map(id => parseInt(id)) } : {}),
           min_stock: Number(minStock),
           max_stock: Number(maxStock),
         }
@@ -650,7 +642,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       toast.success("Producto creado correctamente", {
         description: selectedBranches.length > 0 
           ? `Stock inicial creado en ${selectedBranches.length} sucursal${selectedBranches.length > 1 ? 'es' : ''}`
-          : "Producto creado sin stock inicial"
+          : "Stock inicial creado en todas las sucursales activas"
       });
       
       // Limpiar localStorage después del envío exitoso
@@ -885,10 +877,10 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           </div>
 
           {/* Sucursales */}
-          {branches.length > 1 && (
+          {branches.length > 0 && (
             <div className="grid gap-2">
               <div className="flex items-center justify-between">
-                <Label>Sucursales para crear stock inicial <span className="text-red-500">*</span></Label>
+                <Label>Sucursales para crear stock inicial</Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -926,8 +918,9 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Se creará stock inicial (0 unidades) en las sucursales seleccionadas. 
+              <p className="text-[10px] text-muted-foreground italic flex items-center gap-1">
+                <Info className="h-3 w-3" />
+                Si no selecciona ninguna, se creará stock en todas las sucursales activas
               </p>
             </div>
           )}
@@ -1008,7 +1001,8 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
                 }}
                 disabled={loading}
               >
-                🗑️ Limpiar guardado
+                <Trash2 className="mr-2 h-4 w-4" />
+                Limpiar guardado
               </Button>
             )}
           </div>

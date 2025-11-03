@@ -84,7 +84,7 @@ class ProductService implements ProductServiceInterface
         $product = Product::create($data);
         
         // Crear stock automáticamente
-        if (isset($data['branch_ids']) && is_array($data['branch_ids'])) {
+        if (isset($data['branch_ids']) && is_array($data['branch_ids']) && !empty($data['branch_ids'])) {
             // Crear stock en sucursales específicas
             foreach ($data['branch_ids'] as $branchId) {
                 Stock::create([
