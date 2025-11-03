@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Interfaces\CustomerServiceInterface;
+use App\Exceptions\ConflictException;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 use App\Models\SaleHeader; // Added import
 
 class CustomerController extends Controller
@@ -73,7 +75,7 @@ class CustomerController extends Controller
             'cuit' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
-            'state' => 'nullable|string|max:255',
+            'state' => ['nullable', 'string', 'max:255', new \App\Rules\ValidProvince()],
             'postal_code' => 'nullable|string|max:20',
             'phone' => 'nullable|string|max:20',
             'fiscal_condition_id' => 'nullable|integer',
@@ -111,7 +113,7 @@ class CustomerController extends Controller
             'cuit' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
-            'state' => 'nullable|string|max:255',
+            'state' => ['nullable', 'string', 'max:255', new \App\Rules\ValidProvince()],
             'postal_code' => 'nullable|string|max:20',
             'phone' => 'nullable|string|max:20',
             'fiscal_condition_id' => 'nullable|integer',
@@ -141,19 +143,34 @@ class CustomerController extends Controller
 
     public function destroy($id): JsonResponse
     {
-        $result = $this->customerService->deleteCustomer($id);
-        if (!$result) {
+        try {
+            $result = $this->customerService->deleteCustomer($id);
+            if (!$result) {
+                return response()->json([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'Cliente no encontrado'
+                ], 404);
+            }
             return response()->json([
-                'status' => 404,
+                'status' => 204,
+                'success' => true,
+                'message' => 'Cliente eliminado correctamente'
+            ], 204);
+        } catch (ConflictException $e) {
+            return response()->json([
+                'status' => 409,
                 'success' => false,
-                'message' => 'Cliente no encontrado'
-            ], 404);
+                'message' => $e->getMessage()
+            ], 409);
+        } catch (\Exception $e) {
+            Log::error('Error al eliminar cliente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error al eliminar el cliente: ' . $e->getMessage()
+            ], 500);
         }
-        return response()->json([
-            'status' => 204,
-            'success' => true,
-            'message' => 'Cliente eliminado correctamente'
-        ], 204);
     }
 
     public function getCustomerSales(Request $request, $id): JsonResponse

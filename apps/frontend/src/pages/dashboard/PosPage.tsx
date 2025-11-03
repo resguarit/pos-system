@@ -710,11 +710,13 @@ export default function POSPage() {
       // Validar que la caja esté abierta antes de proceder
       const isValid = await validateCashRegisterForOperation('realizar ventas');
       if (!isValid) {
+        setIsProcessingSale(false); // Resetear el estado si la validación falla
         return; // La función validateCashRegisterForOperation ya muestra el toast de error
       }
 
       if (!user || !selectedBranch) {
         toast.error("Error de sesión o sucursal. Recargue la página.");
+        setIsProcessingSale(false); // Resetear el estado si hay error
         return;
       }
 

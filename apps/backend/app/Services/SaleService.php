@@ -197,12 +197,41 @@ class SaleService implements SaleServiceInterface
             $data['date'] = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::now();
 
             // 6) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
+            // Usar lockForUpdate dentro de la transacción para evitar race conditions
             $lastSale = SaleHeader::where('branch_id', $data['branch_id'])
                 ->where('receipt_type_id', $data['receipt_type_id'])
                 ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
+                ->lockForUpdate() // Bloqueo de fila para evitar condiciones de carrera
                 ->first();
+            
             $nextReceiptNumber = $lastSale ? ((int)$lastSale->receipt_number) + 1 : 1;
             $data['receipt_number'] = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+            
+            // Verificar que el número no exista ya (protección adicional contra duplicados)
+            $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
+                ->where('receipt_type_id', $data['receipt_type_id'])
+                ->where('receipt_number', $data['receipt_number'])
+                ->lockForUpdate()
+                ->first();
+            
+            if ($existingSale) {
+                // Si existe, buscar el siguiente número disponible (máximo 10 intentos)
+                $attempts = 0;
+                while ($existingSale && $attempts < 10) {
+                    $nextReceiptNumber++;
+                    $data['receipt_number'] = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+                    $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
+                        ->where('receipt_type_id', $data['receipt_type_id'])
+                        ->where('receipt_number', $data['receipt_number'])
+                        ->lockForUpdate()
+                        ->first();
+                    $attempts++;
+                }
+                
+                if ($existingSale) {
+                    throw new \Exception("No se pudo generar un número de comprobante único después de varios intentos. Contacte al administrador.");
+                }
+            }
 
             // 7) Crear cabecera
             $saleHeader = SaleHeader::create($data);
@@ -416,19 +445,28 @@ class SaleService implements SaleServiceInterface
                 throw new \Exception('Tipo de movimiento "Venta" no encontrado.');
             }
 
-            $currentAccountService->createMovement([
-                'current_account_id' => $currentAccount->id,
-                'movement_type_id' => $saleMovementType->id,
-                'amount' => $sale->total,
-                'description' => "Venta #{$sale->receipt_number}",
-                'reference' => $sale->receipt_number,
-                'sale_id' => $sale->id,
-                'metadata' => [
+            // Verificar si ya existe un movimiento de venta para esta venta
+            $existingSaleMovement = \App\Models\CurrentAccountMovement::where('sale_id', $sale->id)
+                ->where('movement_type_id', $saleMovementType->id)
+                ->where('current_account_id', $currentAccount->id)
+                ->first();
+
+            // Solo crear el movimiento si no existe ya
+            if (!$existingSaleMovement) {
+                $currentAccountService->createMovement([
+                    'current_account_id' => $currentAccount->id,
+                    'movement_type_id' => $saleMovementType->id,
+                    'amount' => $sale->total,
+                    'description' => "Venta #{$sale->receipt_number}",
+                    'reference' => $sale->receipt_number,
                     'sale_id' => $sale->id,
-                    'receipt_number' => $sale->receipt_number,
-                    'total_sale' => $sale->total
-                ]
-            ]);
+                    'metadata' => [
+                        'sale_id' => $sale->id,
+                        'receipt_number' => $sale->receipt_number,
+                        'total_sale' => $sale->total
+                    ]
+                ]);
+            }
 
             // 2. Registrar CRÉDITOS: Pagos (reducen la deuda inmediatamente)
             foreach ($sale->salePayments as $payment) {
@@ -455,20 +493,34 @@ class SaleService implements SaleServiceInterface
                     ->first();
 
                 if ($paymentMovementType) {
-                    $currentAccountService->createMovement([
-                        'current_account_id' => $currentAccount->id,
-                        'movement_type_id' => $paymentMovementType->id,
-                        'amount' => $payment->amount,
-                        'description' => "Pago de venta #{$sale->receipt_number} - {$paymentMethod->name}",
-                        'reference' => $sale->receipt_number,
-                        'sale_id' => $sale->id,
-                        'metadata' => [
+                    // Verificar si ya existe un movimiento de pago para este pago específico
+                    // Usamos el payment_id del metadata para distinguir entre pagos múltiples del mismo método y monto
+                    $existingPaymentMovement = \App\Models\CurrentAccountMovement::where('sale_id', $sale->id)
+                        ->where('movement_type_id', $paymentMovementType->id)
+                        ->where('current_account_id', $currentAccount->id)
+                        ->where('amount', $payment->amount)
+                        ->where('metadata->payment_id', $payment->id)
+                        ->first();
+
+                    // Solo crear el movimiento si no existe ya
+                    if (!$existingPaymentMovement) {
+                        $currentAccountService->createMovement([
+                            'current_account_id' => $currentAccount->id,
+                            'movement_type_id' => $paymentMovementType->id,
+                            'amount' => $payment->amount,
+                            'description' => "Pago de venta #{$sale->receipt_number} - {$paymentMethod->name}",
+                            'reference' => $sale->receipt_number,
                             'sale_id' => $sale->id,
-                            'receipt_number' => $sale->receipt_number,
-                            'payment_method' => $paymentMethod->name,
-                            'payment_amount' => $payment->amount
-                        ]
-                    ]);
+                            'metadata' => [
+                                'sale_id' => $sale->id,
+                                'receipt_number' => $sale->receipt_number,
+                                'payment_id' => $payment->id, // ID único del pago para distinguir pagos múltiples
+                                'payment_method' => $paymentMethod->name,
+                                'payment_method_id' => $payment->payment_method_id,
+                                'payment_amount' => $payment->amount
+                            ]
+                        ]);
+                    }
                 }
             }
         } catch (\Exception $e) {

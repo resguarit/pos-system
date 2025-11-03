@@ -56,7 +56,7 @@ interface Customer {
 }
 
 export default function ClientesPage() {
-  const { request, loading, error } = useApi();
+  const { request, loading } = useApi();
   const { dispatch } = useEntityContext();
   const { hasPermission } = useAuth();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
@@ -269,12 +269,6 @@ export default function ClientesPage() {
           </div>
         </div>
       </div>
-
-      {error && (
-        <div className="p-4 bg-red-50 text-red-700 rounded-md">
-          {error}
-        </div>
-      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground">

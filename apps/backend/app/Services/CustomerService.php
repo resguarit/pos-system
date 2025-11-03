@@ -6,6 +6,8 @@ use App\Interfaces\CustomerServiceInterface;
 use App\Interfaces\CurrentAccountServiceInterface;
 use App\Models\Customer;
 use App\Models\Person;
+use App\Models\CurrentAccount;
+use App\Exceptions\ConflictException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log; // import Log facade
 use App\Models\SaleHeader; // Asegúrate de incluir el modelo SaleHeader
@@ -106,13 +108,40 @@ class CustomerService implements CustomerServiceInterface
 
     public function deleteCustomer($id)
     {
-        $customer = Customer::find($id);
-        if ($customer) {
+        return DB::transaction(function () use ($id) {
+            $customer = Customer::find($id);
+            if (!$customer) {
+                return false;
+            }
+
+            // Verificar cuenta corriente y validar que no tenga deuda ni saldo a favor
+            $currentAccount = CurrentAccount::where('customer_id', $customer->id)->first();
+            if ($currentAccount && $currentAccount->current_balance != 0) {
+                $balance = (float) $currentAccount->current_balance;
+                $balanceFormatted = number_format(abs($balance), 2, ',', '.');
+                
+                if ($balance > 0) {
+                    // Balance positivo = el cliente debe dinero
+                    throw new ConflictException("No se puede eliminar el cliente. Tiene una deuda de \${$balanceFormatted} en su cuenta corriente. Debe estar en \$0.");
+                } else {
+                    // Balance negativo = el cliente tiene saldo a favor
+                    throw new ConflictException("No se puede eliminar el cliente. Tiene un saldo a favor de \${$balanceFormatted} en su cuenta corriente. Debe estar en \$0.");
+                }
+            }
+
+            // Si existe cuenta corriente con balance 0, eliminarla
+            if ($currentAccount) {
+                $currentAccount->delete();
+            }
+
+            // Eliminar cliente
             $customer->delete();
+            
+            // Eliminar persona asociada
             $customer->person()->delete();
+            
             return true;
-        }
-        return false;
+        });
     }
 
     public function getCustomerSalesSummary($id, $fromDate = null, $toDate = null)
