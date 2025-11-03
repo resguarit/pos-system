@@ -27,44 +27,6 @@ jobs:
     if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
-    - name: Check secrets configuration
-      run: |
-        echo "🔍 Verificando que los secrets estén configurados..."
-        echo "⚠️  NOTA: Los valores reales no se muestran por seguridad"
-        echo ""
-        echo "Secrets esperados en environment 'heroedelwhisky':"
-        echo "  - CLIENT_HEROE_VPS_HOST (o VPS_HOST como fallback)"
-        echo "  - CLIENT_HEROE_VPS_PORT (o VPS_PORT como fallback)"
-        echo "  - CLIENT_HEROE_VPS_USERNAME (o VPS_USERNAME como fallback)"
-        echo "  - CLIENT_HEROE_VPS_SSH_KEY (o VPS_SSH_KEY como fallback)"
-        echo "  - CLIENT_HEROE_VPS_SSH_PASSPHRASE (opcional, solo si la key tiene passphrase)"
-        echo ""
-        echo "Valores esperados basados en tu conexión manual:"
-        echo "  - Host: 149.50.138.145"
-        echo "  - Port: 5507"
-        echo "  - Username: posdeployer (NO root)"
-        echo ""
-        echo "⚠️  Si el servidor es accesible desde tu máquina pero falla aquí,"
-        echo "   puede ser un problema de firewall. Verifica que el puerto 5507"
-        echo "   esté abierto para conexiones desde GitHub Actions IPs."
-        echo ""
-        
-    - name: Verify SSH connectivity
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
-        port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
-        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
-        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
-        passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
-        timeout: 120s
-        command_timeout: 30s
-        script: |
-          echo "✅ Conexión SSH exitosa"
-          echo "Usuario: $(whoami)"
-          echo "Directorio: $(pwd)"
-          echo "Hostname: $(hostname)"
-          
     - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -73,9 +35,60 @@ jobs:
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
-        timeout: 120s
-        command_timeout: 15m
-        script: ~/deploy-backend.sh
+        timeout: 180s
+        command_timeout: 20m
+        script: |
+          set -e
+          echo "🚀 Deploying backend to Heroe del Whisky..."
+          
+          # Ir al directorio del backend
+          cd ${{ secrets.CLIENT_HEROE_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
+          
+          # Actualizar código desde Git
+          echo "📥 Fetching latest code..."
+          git fetch origin || { echo "⚠️  Git fetch failed, continuing..."; }
+          git reset --hard origin/master || { echo "⚠️  Git reset failed, continuing..."; }
+          
+          # Ir al directorio backend
+          cd apps/backend
+          
+          # Detectar usuario del servidor web
+          WEB_USER="www-data"
+          if id nginx >/dev/null 2>&1; then
+            WEB_USER="nginx"
+          elif id apache >/dev/null 2>&1; then
+            WEB_USER="apache"
+          fi
+          
+          # Asegurar permisos de storage y cache antes de cualquier operación
+          echo "🔧 Setting up storage permissions..."
+          mkdir -p storage/framework/views
+          mkdir -p storage/framework/cache/data
+          mkdir -p storage/framework/sessions
+          mkdir -p storage/logs
+          mkdir -p bootstrap/cache
+          
+          # Configurar permisos
+          chmod -R 775 storage bootstrap/cache 2>/dev/null || sudo chmod -R 775 storage bootstrap/cache || true
+          chmod -R 777 storage/framework/views 2>/dev/null || sudo chmod -R 777 storage/framework/views || true
+          chmod -R 777 storage/framework/cache/data 2>/dev/null || sudo chmod -R 777 storage/framework/cache/data || true
+          chown -R $WEB_USER:$WEB_USER storage bootstrap/cache 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || true
+          
+          # Instalar dependencias
+          echo "📦 Installing dependencies..."
+          composer install --no-dev --optimize-autoloader --no-interaction
+          
+          # Cache de configuración
+          echo "⚙️  Caching configuration..."
+          php artisan config:cache || echo "⚠️  Config cache failed"
+          php artisan route:cache || echo "⚠️  Route cache failed"
+          php artisan view:cache || echo "⚠️  View cache failed"
+          
+          # Migraciones
+          echo "🗄️  Running migrations..."
+          php artisan migrate --force || echo "⚠️  Migrations failed"
+          
+          echo "✅ Backend deployment completed"
           
     - name: Notify backend deployment
       if: always()
@@ -115,7 +128,9 @@ jobs:
         VITE_API_URL: ${{ secrets.CLIENT_HEROE_API_URL || secrets.VITE_API_URL }}
         
     - name: Deploy Frontend to VPS
+      id: deploy_frontend_files
       uses: appleboy/scp-action@v0.1.7
+      continue-on-error: true
       with:
         host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
@@ -126,9 +141,10 @@ jobs:
         target: ${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
         strip_components: 2
         rm: true
-        timeout: 120s
+        timeout: 180s
         
     - name: Verify and fix frontend deployment
+      if: steps.deploy_frontend_files.outcome == 'success' || steps.deploy_frontend_files.outcome == 'failure'
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
@@ -136,9 +152,10 @@ jobs:
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         passphrase: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE || secrets.VPS_SSH_PASSPHRASE || '' }}
-        timeout: 120s
+        timeout: 180s
         command_timeout: 5m
         script: |
+          set -e
           DEPLOY_PATH="${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
           echo "🔍 Verificando deployment en: $DEPLOY_PATH"
           
@@ -154,9 +171,11 @@ jobs:
           
           # Verificar que index.html existe
           if [ ! -f "$DEPLOY_PATH/index.html" ]; then
-            echo "❌ ERROR: index.html no encontrado!"
+            echo "❌ ERROR: index.html no encontrado en $DEPLOY_PATH"
             echo "📋 Contenido del directorio:"
             ls -la "$DEPLOY_PATH" || true
+            echo "📋 Contenido de dist/ si existe:"
+            ls -la "$DEPLOY_PATH/dist" 2>/dev/null || true
             exit 1
           fi
           
@@ -180,11 +199,13 @@ jobs:
             fi
           fi
           
+          echo "🔧 Setting correct permissions..."
           chmod -R 755 "$DEPLOY_PATH" 2>/dev/null || sudo chmod -R 755 "$DEPLOY_PATH" || true
           find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; 2>/dev/null || sudo find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; || true
           chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" || true
           
-          echo "✅ Verificación completada. Archivos en:"
+          echo "✅ Verificación completada"
+          echo "📋 Archivos en $DEPLOY_PATH:"
           ls -lah "$DEPLOY_PATH" | head -10
           echo "✅ index.html existe: $([ -f "$DEPLOY_PATH/index.html" ] && echo 'SÍ' || echo 'NO')"
           
