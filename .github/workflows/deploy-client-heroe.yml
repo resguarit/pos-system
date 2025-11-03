@@ -104,6 +104,57 @@ jobs:
       env:
         VITE_API_URL: ${{ secrets.CLIENT_HEROE_API_URL || secrets.VITE_API_URL }}
         
+    - name: Clean frontend deployment directory
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        script: |
+          DEPLOY_PATH="${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
+          echo "🧹 Limpiando directorio de deployment: $DEPLOY_PATH"
+          
+          # Asegurar que el directorio existe
+          mkdir -p "$DEPLOY_PATH" 2>/dev/null || sudo mkdir -p "$DEPLOY_PATH" || true
+          
+          # Eliminar contenido del directorio (no el directorio mismo)
+          if [ -d "$DEPLOY_PATH" ]; then
+            # Detectar usuario del servidor web para permisos
+            WEB_USER="www-data"
+            if id nginx >/dev/null 2>&1; then
+              WEB_USER="nginx"
+            elif id apache >/dev/null 2>&1; then
+              WEB_USER="apache"
+            fi
+            
+            # Detectar usuario de CyberPanel si existe
+            if [ -d "/home" ]; then
+              SITE_DIR=$(dirname "$DEPLOY_PATH" 2>/dev/null || echo "")
+              if [ -n "$SITE_DIR" ]; then
+                SITE_USER=$(stat -c '%U' "$SITE_DIR" 2>/dev/null || echo "")
+                if [ -n "$SITE_USER" ] && [ "$SITE_USER" != "root" ]; then
+                  WEB_USER="$SITE_USER"
+                fi
+              fi
+            fi
+            
+            # Dar permisos temporales para eliminar
+            chmod -R 755 "$DEPLOY_PATH" 2>/dev/null || sudo chmod -R 755 "$DEPLOY_PATH" || true
+            
+            # Eliminar contenido (mantener el directorio)
+            rm -rf "$DEPLOY_PATH"/* 2>/dev/null || sudo rm -rf "$DEPLOY_PATH"/* || true
+            rm -rf "$DEPLOY_PATH"/.* 2>/dev/null || sudo rm -rf "$DEPLOY_PATH"/.* || true
+            
+            # Restaurar permisos correctos
+            chmod 755 "$DEPLOY_PATH" 2>/dev/null || sudo chmod 755 "$DEPLOY_PATH" || true
+            chown $WEB_USER:$WEB_USER "$DEPLOY_PATH" 2>/dev/null || sudo chown $WEB_USER:$WEB_USER "$DEPLOY_PATH" || true
+            
+            echo "✅ Directorio limpiado correctamente"
+          else
+            echo "⚠️  El directorio no existe, se creará automáticamente"
+          fi
+        
     - name: Deploy Frontend to VPS
       uses: appleboy/scp-action@v0.1.7
       with:
@@ -114,7 +165,7 @@ jobs:
         source: "apps/frontend/dist/*"
         target: ${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
         strip_components: 2
-        rm: true
+        rm: false
         
     - name: Verify and fix frontend deployment
       uses: appleboy/ssh-action@v1.0.3
