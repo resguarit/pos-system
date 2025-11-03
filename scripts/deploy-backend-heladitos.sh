@@ -116,6 +116,13 @@ chmod -R 777 storage/logs 2>/dev/null || sudo chmod -R 777 storage/logs || {
     sudo chmod -R 777 storage/logs || echo "   ❌ No se pudieron configurar permisos de storage/logs"
 }
 
+# CRÍTICO: Permisos más permisivos para storage/framework/views (necesario para compilar vistas Blade al generar PDFs)
+echo "   🔧 Configurando permisos de storage/framework/views (crítico para PDFs)..."
+chmod -R 777 storage/framework/views 2>/dev/null || sudo chmod -R 777 storage/framework/views || {
+    echo "   ⚠️  Error al configurar permisos de storage/framework/views, intentando con sudo..."
+    sudo chmod -R 777 storage/framework/views || echo "   ❌ No se pudieron configurar permisos de storage/framework/views"
+}
+
 # Crear archivo de log con permisos correctos
 touch storage/logs/laravel.log 2>/dev/null || sudo touch storage/logs/laravel.log || {
     echo "   ⚠️  Error al crear archivo de log, intentando con sudo..."
@@ -139,6 +146,12 @@ chown -R $WEB_USER:$WEB_USER bootstrap/cache 2>/dev/null || sudo chown -R $WEB_U
 chown -R $WEB_USER:$WEB_USER storage/logs 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage/logs 2>/dev/null || {
     echo "   ⚠️  Error al configurar ownership de storage/logs, intentando con sudo..."
     sudo chown -R $WEB_USER:$WEB_USER storage/logs || echo "   ❌ No se pudo configurar ownership de storage/logs"
+}
+
+# CRÍTICO: Configurar ownership de storage/framework/views (necesario para PDFs)
+chown -R $WEB_USER:$WEB_USER storage/framework/views 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage/framework/views 2>/dev/null || {
+    echo "   ⚠️  Error al configurar ownership de storage/framework/views, intentando con sudo..."
+    sudo chown -R $WEB_USER:$WEB_USER storage/framework/views || echo "   ❌ No se pudo configurar ownership de storage/framework/views"
 }
 
 # Asegurar que el archivo de log tiene el ownership correcto

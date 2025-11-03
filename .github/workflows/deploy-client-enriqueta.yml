@@ -1,0 +1,120 @@
+name: 🚀 Deploy - La Enrique Tabar
+
+on:
+  # Manual deployment only - uncomment to enable automatic deployment
+  # push:
+  #   branches: [ master ]
+  #   paths-ignore:
+  #     - 'docs/**'
+  #     - '*.md'
+  workflow_dispatch:
+    inputs:
+      deploy_frontend:
+        description: 'Deploy Frontend'
+        required: false
+        default: true
+        type: boolean
+      deploy_backend:
+        description: 'Deploy Backend'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  deploy_backend:
+    name: Deploy Backend - La Enrique
+    runs-on: ubuntu-latest
+    environment: enriqueta
+    if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
+    
+    steps:
+    - name: Deploy Backend to VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.CLIENT_ENRIQUETA_VPS_HOST }}
+        port: ${{ secrets.CLIENT_ENRIQUETA_VPS_PORT }}
+        username: ${{ secrets.CLIENT_ENRIQUETA_VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_ENRIQUETA_VPS_SSH_KEY }}
+        script: |
+          cd ${{ secrets.CLIENT_ENRIQUETA_BACKEND_DEPLOY_PATH }}
+          echo "🚀 Deploying backend to La Enrique Tabar..."
+          git fetch origin
+          git reset --hard origin/master
+          cd apps/backend
+          composer install --no-dev --optimize-autoloader
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+          php artisan migrate --force
+          echo "✅ Backend deployment completed"
+          
+    - name: Notify backend deployment
+      if: always()
+      run: |
+        echo "✅ Backend deployment completed for La Enrique Tabar"
+
+  deploy_frontend:
+    name: Deploy Frontend - La Enrique
+    runs-on: ubuntu-latest
+    environment: enriqueta
+    if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: |
+        cd apps/frontend
+        rm -rf node_modules package-lock.json
+        npm install --force
+        npm install @rollup/rollup-linux-x64-gnu --save-optional || true
+        npm install @swc/core-linux-x64-gnu --save-optional || true
+        npm install lightningcss-linux-x64-gnu --save-optional || true
+        npm install @tailwindcss/oxide-linux-x64-gnu --save-optional || true
+        
+    - name: Build frontend
+      run: |
+        cd apps/frontend
+        npm run build
+      env:
+        VITE_API_URL: ${{ secrets.CLIENT_ENRIQUETA_API_URL }}
+        
+    - name: Deploy Frontend to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.CLIENT_ENRIQUETA_VPS_HOST }}
+        port: ${{ secrets.CLIENT_ENRIQUETA_VPS_PORT }}
+        username: ${{ secrets.CLIENT_ENRIQUETA_VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_ENRIQUETA_VPS_SSH_KEY }}
+        source: "apps/frontend/dist/*"
+        target: ${{ secrets.CLIENT_ENRIQUETA_FRONTEND_DEPLOY_PATH }}
+        strip_components: 2
+        rm: true
+        
+    - name: Notify frontend deployment
+      if: always()
+      run: |
+        echo "✅ Frontend deployment completed for La Enrique Tabar"
+
+  notify:
+    name: Deployment Summary - La Enrique
+    needs: [deploy_frontend, deploy_backend]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Deployment Summary
+      run: |
+        echo "=========================================="
+        echo "🚀 La Enrique Tabar - Deployment Summary"
+        echo "=========================================="
+        echo "Frontend: ${{ needs.deploy_frontend.result }}"
+        echo "Backend:  ${{ needs.deploy_backend.result }}"
+        echo "=========================================="
+
