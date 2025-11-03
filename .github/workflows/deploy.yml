@@ -18,7 +18,7 @@ on:
 
 jobs:
   deploy_frontend:
-    if: ${{ github.event.inputs.deploy_frontend != 'false' }}
+    if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     
     steps:
@@ -37,7 +37,7 @@ jobs:
         echo "Frontend deployment completed"
 
   deploy_backend:
-    if: ${{ github.event.inputs.deploy_backend != 'false' }}
+    if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     
     steps:
