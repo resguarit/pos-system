@@ -590,36 +590,23 @@ class CurrentAccountService implements CurrentAccountServiceInterface
 
         $totalCreditLimit = $accountsWithLimit->sum('credit_limit');
         
-        // Calcular total pendiente basado en VENTAS PENDIENTES REALES, no en current_balance
-        $allCustomersWithAccounts = CurrentAccount::with('customer')->get();
+        // Calcular total pendiente basado en current_balance REAL de la cuenta corriente
+        // El current_balance ya refleja correctamente todos los movimientos (ventas, pagos, anulaciones)
+        $allCustomersWithAccounts = CurrentAccount::with('customer.person')->get();
         $totalPendingDebt = 0;
         $customersWithDebt = 0;
         $clientWithHighestDebt = null;
         $highestDebtAmount = 0;
         
         foreach ($allCustomersWithAccounts as $account) {
-            // Calcular ventas pendientes reales para cada cliente
-            $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                ->where(function($query) {
-                    $query->whereNull('payment_status')
-                          ->orWhereIn('payment_status', ['pending', 'partial']);
-                })
-                ->get();
+            // Usar el balance real de la cuenta corriente
+            // IMPORTANTE: En este sistema, balance POSITIVO = el cliente debe dinero (deuda)
+            // Balance negativo = el cliente tiene saldo a favor
+            $currentBalance = (float)($account->current_balance ?? 0);
             
-            $customerDebt = 0;
-            foreach ($pendingSales as $sale) {
-                // pending = total - paid_amount (con manejo de NULL)
-                $total = (float)($sale->total ?? 0);
-                $paid = (float)($sale->paid_amount ?? 0);
-                $pending = $total - $paid;
-                
-                // Solo contar ventas que realmente tengan pendiente
-                if ($pending > 0) {
-                    $customerDebt += $pending;
-                }
-            }
-            
-            if ($customerDebt > 0) {
+            // Solo contar si hay deuda real (balance positivo = deuda)
+            if ($currentBalance > 0) {
+                $customerDebt = $currentBalance; // Ya es positivo
                 $customersWithDebt++;
                 $totalPendingDebt += $customerDebt;
                 
@@ -645,26 +632,11 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             $totalAvailableCredit = CurrentAccount::whereNotNull('credit_limit')
                 ->get()
                 ->sum(function ($account) {
-                    // Usar ventas pendientes en lugar de current_balance
-                    $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                        ->where(function($query) {
-                            $query->whereNull('payment_status')
-                                  ->orWhereIn('payment_status', ['pending', 'partial']);
-                        })
-                        ->get();
+                    // Usar current_balance real (positivo = deuda, negativo = saldo a favor)
+                    $currentBalance = (float)($account->current_balance ?? 0);
+                    $debt = $currentBalance > 0 ? $currentBalance : 0; // Solo deuda si es positivo
                     
-                    $customerDebt = 0;
-                    foreach ($pendingSales as $sale) {
-                        $total = (float)($sale->total ?? 0);
-                        $paid = (float)($sale->paid_amount ?? 0);
-                        $pending = $total - $paid;
-                        
-                        if ($pending > 0) {
-                            $customerDebt += $pending;
-                        }
-                    }
-                    
-                    return max(0, $account->credit_limit - $customerDebt);
+                    return max(0, $account->credit_limit - $debt);
                 });
         }
 
@@ -676,7 +648,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'overdrawn_accounts' => $customersWithDebt, // Clientes con deuda real
             'at_limit_accounts' => $atLimitAccounts,
             'total_credit_limit' => $hasInfiniteLimit ? null : $totalCreditLimit,
-            'total_current_balance' => $totalPendingDebt, // Total de ventas pendientes reales
+            'total_current_balance' => $totalPendingDebt, // Total de deuda real basado en current_balance
             'total_available_credit' => $totalAvailableCredit,
             'average_credit_limit' => $hasInfiniteLimit ? null : ($totalAccounts > 0 ? $totalCreditLimit / $totalAccounts : 0),
             'average_current_balance' => $totalAccounts > 0 ? $totalPendingDebt / $totalAccounts : 0,
