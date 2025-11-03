@@ -29,12 +29,21 @@ jobs:
     steps:
     - name: Check secrets configuration
       run: |
-        echo "🔍 Verificando configuración de secrets..."
-        echo "Host configurado: ${{ secrets.CLIENT_HEROE_VPS_HOST != '' && 'CLIENT_HEROE_VPS_HOST' || secrets.VPS_HOST != '' && 'VPS_HOST' || 'NO CONFIGURADO' }}"
-        echo "Port configurado: ${{ secrets.CLIENT_HEROE_VPS_PORT != '' && 'CLIENT_HEROE_VPS_PORT' || secrets.VPS_PORT != '' && 'VPS_PORT' || 'NO CONFIGURADO' }}"
-        echo "Username configurado: ${{ secrets.CLIENT_HEROE_VPS_USERNAME != '' && 'CLIENT_HEROE_VPS_USERNAME' || secrets.VPS_USERNAME != '' && 'VPS_USERNAME' || 'NO CONFIGURADO' }}"
-        echo "SSH Key configurada: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY != '' && 'CLIENT_HEROE_VPS_SSH_KEY' || secrets.VPS_SSH_KEY != '' && 'VPS_SSH_KEY' || 'NO CONFIGURADO' }}"
-        echo "Passphrase configurada: ${{ secrets.CLIENT_HEROE_VPS_SSH_PASSPHRASE != '' && 'SÍ' || secrets.VPS_SSH_PASSPHRASE != '' && 'SÍ (fallback)' || 'NO' }}"
+        echo "🔍 Verificando que los secrets estén configurados..."
+        echo "⚠️  NOTA: Los valores reales no se muestran por seguridad"
+        echo ""
+        echo "Secrets esperados en environment 'heroedelwhisky':"
+        echo "  - CLIENT_HEROE_VPS_HOST (o VPS_HOST como fallback)"
+        echo "  - CLIENT_HEROE_VPS_PORT (o VPS_PORT como fallback)"
+        echo "  - CLIENT_HEROE_VPS_USERNAME (o VPS_USERNAME como fallback)"
+        echo "  - CLIENT_HEROE_VPS_SSH_KEY (o VPS_SSH_KEY como fallback)"
+        echo "  - CLIENT_HEROE_VPS_SSH_PASSPHRASE (opcional, solo si la key tiene passphrase)"
+        echo ""
+        echo "Valores esperados basados en tu conexión manual:"
+        echo "  - Host: 149.50.138.145"
+        echo "  - Port: 5507"
+        echo "  - Username: root"
+        echo ""
         
     - name: Verify SSH connectivity
       uses: appleboy/ssh-action@v1.0.3
