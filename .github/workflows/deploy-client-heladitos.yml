@@ -117,6 +117,53 @@ jobs:
         strip_components: 2
         rm: true
         
+    - name: Verify and fix frontend deployment
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.CLIENT_HELADITOS_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HELADITOS_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HELADITOS_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HELADITOS_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        script: |
+          DEPLOY_PATH="${{ secrets.CLIENT_HELADITOS_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
+          echo "🔍 Verificando deployment en: $DEPLOY_PATH"
+          
+          # Verificar que index.html existe
+          if [ ! -f "$DEPLOY_PATH/index.html" ]; then
+            echo "❌ ERROR: index.html no encontrado!"
+            echo "📋 Contenido del directorio:"
+            ls -la "$DEPLOY_PATH" || true
+            exit 1
+          fi
+          
+          # Asegurar permisos correctos
+          WEB_USER="www-data"
+          if id nginx >/dev/null 2>&1; then
+            WEB_USER="nginx"
+          elif id apache >/dev/null 2>&1; then
+            WEB_USER="apache"
+          fi
+          
+          # Detectar usuario de CyberPanel si existe
+          if [ -d "/home" ]; then
+            SITE_DIR=$(dirname "$DEPLOY_PATH" 2>/dev/null || echo "")
+            if [ -n "$SITE_DIR" ]; then
+              SITE_USER=$(stat -c '%U' "$SITE_DIR" 2>/dev/null || echo "")
+              if [ -n "$SITE_USER" ] && [ "$SITE_USER" != "root" ]; then
+                WEB_USER="$SITE_USER"
+                echo "✅ Usuario detectado: $WEB_USER"
+              fi
+            fi
+          fi
+          
+          chmod -R 755 "$DEPLOY_PATH" 2>/dev/null || sudo chmod -R 755 "$DEPLOY_PATH" || true
+          find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; 2>/dev/null || sudo find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; || true
+          chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" || true
+          
+          echo "✅ Verificación completada. Archivos en:"
+          ls -lah "$DEPLOY_PATH" | head -10
+          echo "✅ index.html existe: $([ -f "$DEPLOY_PATH/index.html" ] && echo 'SÍ' || echo 'NO')"
+        
     - name: Notify frontend deployment
       if: always()
       run: |
