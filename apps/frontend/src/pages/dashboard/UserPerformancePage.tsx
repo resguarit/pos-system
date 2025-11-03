@@ -479,7 +479,10 @@ export default function UserPerformancePage() {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'VentasUsuario');
 
-        const fileName = `desempeno_${user?.name.replace(/\s+/g, '_')}_${format(dateRange.from || new Date(), 'yyyy-MM-dd')}_${format(dateRange.to || new Date(), 'yyyy-MM-dd')}.xlsx`;
+        // Obtener el nombre del usuario desde el estado o desde la respuesta del API
+        const userNameRaw = user?.name || (response as any)?.user?.name || userId?.toString() || 'usuario';
+        const userName = typeof userNameRaw === 'string' ? userNameRaw.replace(/\s+/g, '_') : 'usuario';
+        const fileName = `desempeno_${userName}_${format(dateRange.from || new Date(), 'yyyy-MM-dd')}_${format(dateRange.to || new Date(), 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(workbook, fileName);
 
         toast.success(`Exportación completada: ${allSales.length} ventas exportadas.`, { id: 'export-toast' });
