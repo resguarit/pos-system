@@ -25,6 +25,7 @@ const features = {
   sucursales: true,
   turnos: false,
   usuarios: true,
+  empleados: false,
   ventas: true,
   zonasEntrega: false,
   
