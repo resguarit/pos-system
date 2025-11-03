@@ -45,7 +45,10 @@ class FindDuplicateReceiptNumbers extends Command
             $branch = $sales->first()->branch;
             $receiptType = $sales->first()->receiptType;
 
-            $this->line("📋 Sucursal: {$branch->description ?? 'N/A'} | Tipo: {$receiptType->description ?? 'N/A'} | Número: {$duplicate->receipt_number}");
+            $branchName = $branch ? ($branch->description ?? 'N/A') : 'N/A';
+            $receiptTypeName = $receiptType ? ($receiptType->description ?? 'N/A') : 'N/A';
+            
+            $this->line("📋 Sucursal: {$branchName} | Tipo: {$receiptTypeName} | Número: {$duplicate->receipt_number}");
             $this->line("   Cantidad de ventas con este número: {$duplicate->count}");
             $this->newLine();
 
