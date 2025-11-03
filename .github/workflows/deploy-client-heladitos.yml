@@ -30,12 +30,12 @@ jobs:
     - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.CLIENT_HELADITOS_VPS_HOST }}
-        port: ${{ secrets.CLIENT_HELADITOS_VPS_PORT }}
-        username: ${{ secrets.CLIENT_HELADITOS_VPS_USERNAME }}
-        key: ${{ secrets.CLIENT_HELADITOS_VPS_SSH_KEY }}
+        host: ${{ secrets.CLIENT_HELADITOS_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HELADITOS_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HELADITOS_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HELADITOS_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         script: |
-          cd ${{ secrets.CLIENT_HELADITOS_BACKEND_DEPLOY_PATH }}
+          cd ${{ secrets.CLIENT_HELADITOS_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
           echo "🚀 Deploying backend to Hela Ditos..."
           git fetch origin
           git reset --hard origin/master
@@ -82,17 +82,17 @@ jobs:
         cd apps/frontend
         npm run build
       env:
-        VITE_API_URL: ${{ secrets.CLIENT_HELADITOS_API_URL }}
+        VITE_API_URL: ${{ secrets.CLIENT_HELADITOS_API_URL || secrets.VITE_API_URL }}
         
     - name: Deploy Frontend to VPS
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.CLIENT_HELADITOS_VPS_HOST }}
-        port: ${{ secrets.CLIENT_HELADITOS_VPS_PORT }}
-        username: ${{ secrets.CLIENT_HELADITOS_VPS_USERNAME }}
-        key: ${{ secrets.CLIENT_HELADITOS_VPS_SSH_KEY }}
+        host: ${{ secrets.CLIENT_HELADITOS_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HELADITOS_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HELADITOS_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HELADITOS_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
-        target: ${{ secrets.CLIENT_HELADITOS_FRONTEND_DEPLOY_PATH }}
+        target: ${{ secrets.CLIENT_HELADITOS_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
         strip_components: 2
         rm: true
         

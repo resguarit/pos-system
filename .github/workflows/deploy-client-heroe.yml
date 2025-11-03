@@ -23,17 +23,17 @@ jobs:
   deploy_backend:
     name: Deploy Backend - Heroe
     runs-on: ubuntu-latest
-    environment: heroe
+    environment: heroedelwhisky
     if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
     - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.CLIENT_HEROE_VPS_HOST }}
-        port: ${{ secrets.CLIENT_HEROE_VPS_PORT }}
-        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME }}
-        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY }}
+        host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         script: ~/deploy-backend.sh
           
     - name: Notify backend deployment
@@ -44,17 +44,17 @@ jobs:
   deploy_frontend:
     name: Deploy Frontend - Heroe
     runs-on: ubuntu-latest
-    environment: heroe
+    environment: heroedelwhisky
     if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     
     steps:
     - name: Deploy Frontend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.CLIENT_HEROE_VPS_HOST }}
-        port: ${{ secrets.CLIENT_HEROE_VPS_PORT }}
-        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME }}
-        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY }}
+        host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         script: ~/deploy-frontend.sh
           
     - name: Notify frontend deployment

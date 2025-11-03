@@ -1,3 +1,8 @@
+# ⚠️ DEPRECATED: Este workflow ha sido reemplazado por deploy-client-enriqueta.yml
+# Por favor, migra a la nueva estructura estandarizada.
+# Ver: .github/workflows/MIGRATION.md para más información
+# Este archivo será eliminado después de completar la migración.
+
 name: Deploy to Client B
 
 on:

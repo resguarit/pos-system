@@ -1,3 +1,11 @@
+# ⚠️ DEPRECATED: Este workflow ha sido reemplazado por workflows por cliente
+# La funcionalidad de deployment de backend está integrada en:
+# - deploy-client-heroe.yml
+# - deploy-client-heladitos.yml
+# - deploy-client-enriqueta.yml
+# Ver: .github/workflows/MIGRATION.md para más información
+# Este archivo será eliminado después de completar la migración.
+
 name: Deploy Backend
 
 on:
