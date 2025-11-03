@@ -103,11 +103,6 @@ export default function UserPerformancePage() {
   const { request, loading } = useApi();
   const { hasPermission, user: currentUser } = useAuth();
 
-  // Debug: Mostrar información del usuario actual y parámetros
-  console.log('Current user:', currentUser);
-  console.log('Has ver_estadisticas_usuario permission:', hasPermission('ver_estadisticas_usuario'));
-  console.log('URL params:', useParams());
-  console.log('Current URL:', window.location.href);
 
   // Estados principales
   const [user, setUser] = useState<User | null>(null);
@@ -136,11 +131,6 @@ export default function UserPerformancePage() {
   const [branches, setBranches] = useState<Array<{ id: number; description: string }>>([]);
   const [commissionPercentage, setCommissionPercentage] = useState<number>(5); // Porcentaje de comisión por defecto
 
-  // Debug: Log del estado de branches
-  console.log('Branches state:', branches);
-  console.log('Statistics state:', statistics);
-  console.log('Statistics total_sales:', statistics?.total_sales);
-  console.log('Statistics total_amount:', statistics?.total_amount);
 
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -172,12 +162,10 @@ export default function UserPerformancePage() {
 
   // Cargar datos iniciales
   useEffect(() => {
-    console.log('UserPerformancePage mounted with userId:', userId);
     if (userId) {
       fetchUserData();
       fetchBranches();
     } else {
-      console.error('No userId provided');
       toast.error('ID de usuario no válido');
     }
   }, [userId]);
@@ -196,28 +184,21 @@ export default function UserPerformancePage() {
   const fetchUserData = async () => {
     try {
       setLoadingUser(true);
-      console.log('Fetching user data for userId:', userId);
       
       const response = await request({
         method: 'GET',
         url: `/users/${userId}`,
       });
       
-      console.log('User response:', response);
-      
       if (response?.data) {
         setUser(response.data);
-        console.log('User data set:', response.data);
       } else if (response) {
         // Si la respuesta viene directamente sin .data
         setUser(response);
-        console.log('User data set (direct):', response);
       } else {
-        console.error('No user data in response');
         toast.error('No se pudieron cargar los datos del usuario');
       }
     } catch (error) {
-      console.error('Error fetching user:', error);
       toast.error('Error al cargar los datos del usuario');
     } finally {
       setLoadingUser(false);
@@ -226,20 +207,15 @@ export default function UserPerformancePage() {
 
   const fetchBranches = async () => {
     try {
-      console.log('Fetching branches...');
       const response = await request({
         method: 'GET',
         url: '/branches',
       });
-      console.log('Branches response:', response);
       if (response?.data) {
         setBranches(response.data);
-        console.log('Branches set:', response.data);
-      } else {
-        console.error('No branches data in response');
       }
     } catch (error) {
-      console.error('Error fetching branches:', error);
+      // Silently fail - branches are optional
     }
   };
 
@@ -286,7 +262,6 @@ export default function UserPerformancePage() {
         }
       }
     } catch (error) {
-      console.error('Error fetching sales:', error);
       toast.error('Error al cargar las ventas');
     } finally {
       setLoadingData(false);
@@ -295,11 +270,6 @@ export default function UserPerformancePage() {
 
   const fetchStatistics = async () => {
     try {
-      console.log('=== FETCHING STATISTICS ===');
-      console.log('userId:', userId);
-      console.log('dateRange:', dateRange);
-      console.log('branchFilter:', branchFilter);
-      
       const params: any = {};
 
       if (dateRange.from && dateRange.to) {
@@ -311,20 +281,15 @@ export default function UserPerformancePage() {
         params.branch_id = branchFilter;
       }
 
-      console.log('Fetching statistics with params:', params);
       const response = await request({
         method: 'GET',
         url: `/users/${userId}/sales/statistics`,
         params,
       });
 
-      console.log('Statistics response:', response);
       if (response?.data) {
         // Mapear la respuesta del API a la estructura esperada
         const apiData = response.data;
-        console.log('API Data:', apiData);
-        console.log('Summary:', apiData.summary);
-        console.log('Period Stats:', apiData.period_stats);
         
         const mappedStatistics = {
           total_sales: apiData.summary?.total_sales || 0,
@@ -344,39 +309,25 @@ export default function UserPerformancePage() {
           by_receipt_type: apiData.by_receipt_type || []
         };
         
-        console.log('Mapped Statistics:', mappedStatistics);
         setStatistics(mappedStatistics);
-        console.log('Statistics set:', mappedStatistics);
-      } else {
-        console.error('No statistics data in response');
       }
     } catch (error) {
-      console.error('Error fetching statistics:', error);
       toast.error('Error al cargar las estadísticas');
     }
   };
 
   const fetchDailySales = async () => {
     try {
-      console.log('=== FETCHING DAILY SALES ===');
-      console.log('User ID:', userId);
-      console.log('Date range:', dateRange);
-      console.log('Branch filter:', branchFilter);
-      
       const params: any = {};
 
       if (dateRange.from && dateRange.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
-        console.log('Date params:', params);
       }
 
       if (branchFilter !== 'all') {
         params.branch_id = branchFilter;
-        console.log('Branch param:', params.branch_id);
       }
-
-      console.log('Final params:', params);
 
       const response = await request({
         method: 'GET',
@@ -384,23 +335,14 @@ export default function UserPerformancePage() {
         params,
       });
 
-      console.log('Daily sales response:', response);
-      console.log('Response data:', response?.data);
-      console.log('Response type:', typeof response);
-      console.log('Is array:', Array.isArray(response));
-
       if (Array.isArray(response)) {
-        console.log('Response is array, setting daily sales:', response);
         setDailySales(response);
       } else if (response?.data) {
-        console.log('Response has data property, setting daily sales:', response.data);
         setDailySales(response.data);
       } else {
-        console.log('No data in response, setting empty array');
         setDailySales([]);
       }
     } catch (error) {
-      console.error('Error fetching daily sales:', error);
       setDailySales([]);
     }
   };
@@ -411,25 +353,16 @@ export default function UserPerformancePage() {
    */
   const fetchMonthlySales = async () => {
     try {
-      console.log('=== FETCHING MONTHLY SALES ===');
-      console.log('User ID:', userId);
-      console.log('Date range:', dateRange);
-      console.log('Branch filter:', branchFilter);
-      
       const params: any = {};
 
       if (dateRange.from && dateRange.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
-        console.log('Date params:', params);
       }
 
       if (branchFilter !== 'all') {
         params.branch_id = branchFilter;
-        console.log('Branch param:', params.branch_id);
       }
-
-      console.log('Final params:', params);
 
       const response = await request({
         method: 'GET',
@@ -437,22 +370,14 @@ export default function UserPerformancePage() {
         params,
       });
 
-      console.log('Monthly sales response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Is array:', Array.isArray(response));
-
       if (Array.isArray(response)) {
-        console.log('Response is array, setting monthly sales:', response);
         setMonthlySales(response);
       } else if (response?.data) {
-        console.log('Response has data property, setting monthly sales:', response.data);
         setMonthlySales(response.data);
       } else {
-        console.log('No data in response, setting empty array');
         setMonthlySales([]);
       }
     } catch (error) {
-      console.error('Error fetching monthly sales:', error);
       setMonthlySales([]);
     }
   };
@@ -463,25 +388,16 @@ export default function UserPerformancePage() {
    */
   const fetchTopProducts = async () => {
     try {
-      console.log('=== FETCHING TOP PRODUCTS ===');
-      console.log('User ID:', userId);
-      console.log('Date range:', dateRange);
-      console.log('Branch filter:', branchFilter);
-      
       const params: any = {};
 
       if (dateRange.from && dateRange.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
-        console.log('Date params:', params);
       }
 
       if (branchFilter !== 'all') {
         params.branch_id = branchFilter;
-        console.log('Branch param:', params.branch_id);
       }
-
-      console.log('Final params:', params);
 
       const response = await request({
         method: 'GET',
@@ -489,22 +405,14 @@ export default function UserPerformancePage() {
         params,
       });
 
-      console.log('Top products response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Is array:', Array.isArray(response));
-
       if (Array.isArray(response)) {
-        console.log('Response is array, setting top products:', response);
         setTopProducts(response);
       } else if (response?.data) {
-        console.log('Response has data property, setting top products:', response.data);
         setTopProducts(response.data);
       } else {
-        console.log('No data in response, setting empty array');
         setTopProducts([]);
       }
     } catch (error) {
-      console.error('Error fetching top products:', error);
       setTopProducts([]);
     }
   };
@@ -579,7 +487,6 @@ export default function UserPerformancePage() {
         toast.error('No se pudieron obtener las ventas para exportar.', { id: 'export-toast' });
       }
     } catch (error) {
-      console.error('Error exporting CSV:', error);
       toast.error('Error al generar la exportación.', { id: 'export-toast' });
     }
   };

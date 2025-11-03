@@ -38,8 +38,6 @@ export default function useApi() {
             if (err.name === 'AbortError' || err.name === 'CanceledError') {
                 // Error will be re-thrown, component can check err.name if specific handling is needed
             } else {
-                // Log other errors
-                console.error(`Error en solicitud API ${method} ${url}:`, err);
                 const errorMessage = err?.response?.data?.message ||
                                    err?.response?.data ||
                                    err?.message ||
