@@ -28,7 +28,7 @@ jobs:
     
     steps:
     - name: Deploy Backend to VPS
-      uses: appleboy/ssh-action@v1.0.3
+      uses: appleboy/ssh-action@v1.2.0
       with:
         host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
@@ -145,7 +145,7 @@ jobs:
         
     - name: Verify and fix frontend deployment
       if: steps.deploy_frontend_files.outcome == 'success' || steps.deploy_frontend_files.outcome == 'failure'
-      uses: appleboy/ssh-action@v1.0.3
+      uses: appleboy/ssh-action@v1.2.0
       with:
         host: ${{ secrets.CLIENT_HEROE_VPS_HOST || secrets.VPS_HOST }}
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
