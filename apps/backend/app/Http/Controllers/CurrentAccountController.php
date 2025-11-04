@@ -282,12 +282,19 @@ class CurrentAccountController extends Controller
                     'total' => $movements->total(),
                 ]
             ], 200);
-        } catch (Exception $e) {
-            Log::error('Error al obtener movimientos: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('Error al obtener movimientos: ' . $e->getMessage(), [
+                'account_id' => $accountId,
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            
             return response()->json([
                 'status' => 500,
                 'success' => false,
-                'message' => 'Error interno del servidor'
+                'message' => 'Error interno del servidor',
+                'error' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
     }

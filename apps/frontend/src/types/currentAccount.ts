@@ -140,10 +140,11 @@ export interface UpdateCreditLimitData {
 export interface CurrentAccountFilters {
   status?: string;
   customer_id?: number;
-  min_balance?: number;
-  max_balance?: number;
+  min_current_balance?: number;
+  max_current_balance?: number;
   min_credit_limit?: number;
   max_credit_limit?: number;
+  balance_filter?: 'positive' | 'negative' | 'at_limit' | 'overdrawn';
   search?: string;
   page?: number;
   per_page?: number;
@@ -155,6 +156,8 @@ export interface MovementFilters {
   movement_type_id?: number;
   operation_type?: 'entrada' | 'salida';
   search?: string;
+  page?: number;
+  per_page?: number;
 }
 
 // Tipos para estadísticas

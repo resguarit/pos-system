@@ -55,6 +55,9 @@ class RecalculateCurrentAccountBalances extends Command
 
                     $balance = 0;
                     $lastMovementDate = null;
+                    
+                    // Usar BalanceCalculator para mantener consistencia
+                    $balanceCalculator = new \App\Services\CurrentAccount\BalanceCalculator();
 
                     // Recalcular balance moviendo cada movimiento
                     foreach ($movements as $movement) {
@@ -63,12 +66,12 @@ class RecalculateCurrentAccountBalances extends Command
                         // Actualizar balance antes y después del movimiento
                         $balanceBefore = $balance;
                         
-                        // Calcular el cambio según el tipo de operación
-                        if ($movementType->operation_type === 'entrada') {
-                            $balance += $movement->amount;
-                        } else { // salida
-                            $balance -= $movement->amount;
-                        }
+                        // Usar BalanceCalculator para calcular el nuevo balance
+                        $balance = $balanceCalculator->calculateNewBalanceFromMovementType(
+                            $balance,
+                            (float) $movement->amount,
+                            $movementType
+                        );
                         
                         $balanceAfter = $balance;
 

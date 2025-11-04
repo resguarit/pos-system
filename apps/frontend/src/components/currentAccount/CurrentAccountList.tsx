@@ -79,10 +79,6 @@ export function CurrentAccountList({
     defaultWidth: 150
   });
 
-  useEffect(() => {
-    loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter);
-  }, [initialSearchTerm, initialStatusFilter, initialBalanceFilter]);
-
   const loadAccounts = useCallback(async (searchTerm = '', statusFilter = '', balanceFilter = '', page = 1) => {
     try {
       setLoading(true);
@@ -100,18 +96,24 @@ export function CurrentAccountList({
       }
       if (balanceFilter) {
         // Mapear balanceFilter a los campos existentes
+        // IMPORTANTE: En este sistema, balance POSITIVO = cliente debe dinero (deuda)
+        // Balance NEGATIVO = cliente tiene saldo a favor (crédito disponible)
         switch (balanceFilter) {
           case 'positive':
-            filters.min_balance = 0;
+            // Con crédito disponible = cuentas con crédito infinito (credit_limit = NULL)
+            filters.balance_filter = 'positive';
             break;
           case 'negative':
-            filters.max_balance = -0.01;
+            // Con deuda = balance positivo (> 0) O tiene ventas pendientes
+            filters.balance_filter = 'negative';
             break;
           case 'at_limit':
-            // Para cuentas al límite, necesitaríamos lógica adicional
+            // Al límite = requiere lógica especial en backend
+            filters.balance_filter = 'at_limit';
             break;
           case 'overdrawn':
-            filters.max_balance = -1000; // Ejemplo de sobregiro
+            // Sobregiradas = excedieron el límite de crédito
+            filters.balance_filter = 'overdrawn';
             break;
         }
       }
@@ -133,6 +135,10 @@ export function CurrentAccountList({
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter);
+  }, [initialSearchTerm, initialStatusFilter, initialBalanceFilter, loadAccounts]);
 
   const handlePageChange = useCallback((newPage: number) => {
     loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter, newPage);
@@ -298,7 +304,7 @@ export function CurrentAccountList({
                   getColumnHeaderProps={getColumnHeaderProps}
                   className="hidden md:table-cell"
                 >
-                  SALDO ADEUDADO
+                  BALANCE
                 </ResizableTableHeader>
                 <ResizableTableHeader
                   columnId="available_credit"
@@ -373,7 +379,12 @@ export function CurrentAccountList({
                       getColumnCellProps={getColumnCellProps}
                       className="hidden md:table-cell text-right text-sm"
                     >
-                      {renderPendingDebt(account.id)}
+                      {/* Mostrar balance real: positivo = deuda, negativo = crédito a favor */}
+                      <span className={`font-medium ${
+                        account.current_balance > 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {CurrentAccountUtils.formatCurrency(account.current_balance || 0)}
+                      </span>
                     </ResizableTableCell>
                     <ResizableTableCell
                       columnId="available_credit"

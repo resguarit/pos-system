@@ -105,6 +105,38 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'credit_limit'
         ]);
         
+        // Filtros específicos de balance
+        if (isset($filters['balance_filter'])) {
+            switch ($filters['balance_filter']) {
+                case 'positive':
+                    // Con crédito disponible = cuentas con crédito infinito (credit_limit = NULL)
+                    $query->whereNull('credit_limit');
+                    break;
+                case 'at_limit':
+                    // Cuentas al límite: current_balance >= credit_limit y credit_limit no es NULL
+                    $query->whereNotNull('credit_limit')
+                          ->whereRaw('current_balance >= credit_limit');
+                    break;
+                case 'overdrawn':
+                    // Cuentas sobregiradas: current_balance > credit_limit y credit_limit no es NULL
+                    $query->whereNotNull('credit_limit')
+                          ->whereRaw('current_balance > credit_limit');
+                    break;
+                case 'negative':
+                    // Con deuda: current_balance > 0 (incluye todos los movimientos)
+                    $query->where('current_balance', '>', 0);
+                    break;
+            }
+        }
+        
+        // Si se especifica min_current_balance directamente, usar solo balance
+        if (isset($filters['min_current_balance']) && !isset($filters['balance_filter'])) {
+            $minBalance = (float)$filters['min_current_balance'];
+            if ($minBalance > 0) {
+                $query->where('current_balance', '>=', $minBalance);
+            }
+        }
+        
         // Filtros específicos
         if (isset($filters['customer_id'])) {
             $query->where('customer_id', $filters['customer_id']);
@@ -228,6 +260,10 @@ class CurrentAccountService implements CurrentAccountServiceInterface
 
     /**
      * Crear movimiento en cuenta corriente
+     * 
+     * Aplica principios SOLID:
+     * - Single Responsibility: Delega validación y cálculo a clases especializadas
+     * - Dependency Inversion: Usa abstracciones (BalanceCalculator, AccountOperationValidator)
      */
     public function createMovement(array $data): CurrentAccountMovement
     {
@@ -235,24 +271,29 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         
         return DB::transaction(function () use ($validatedData) {
             $account = CurrentAccount::findOrFail($validatedData['current_account_id']);
-            
-            // Verificar que la cuenta esté activa
-            if (!$account->isActive()) {
-                $statusText = $account->status === 'suspended' ? 'suspendida' : 'cerrada';
-                throw new Exception("Cuenta corriente {$statusText}. No se puede operar.");
-            }
-            
-            // Verificar límite de crédito para movimientos de salida
             $movementType = MovementType::findOrFail($validatedData['movement_type_id']);
-            if ($movementType->operation_type === 'salida' && !$account->hasAvailableCredit((float) $validatedData['amount'])) {
-                throw new Exception('No hay crédito disponible para realizar este movimiento');
-            }
             
-            $balanceBefore = $account->current_balance;
-            $amount = $movementType->operation_type === 'entrada' 
-                ? $validatedData['amount'] 
-                : -$validatedData['amount'];
-            $balanceAfter = $balanceBefore + $amount;
+            // Validar operación usando clase especializada
+            $validator = new \App\Services\CurrentAccount\AccountOperationValidator();
+            $validator->validateOperation(
+                $account, 
+                (float) $validatedData['amount'], 
+                $movementType->operation_type
+            );
+            
+            // Calcular balance usando clase especializada
+            $balanceCalculator = new \App\Services\CurrentAccount\BalanceCalculator();
+            $balanceBefore = (float) $account->current_balance;
+            $balanceAfter = $balanceCalculator->calculateNewBalanceFromMovementType(
+                $balanceBefore,
+                (float) $validatedData['amount'],
+                $movementType
+            );
+            
+            $balanceChange = $balanceCalculator->calculateBalanceChange(
+                (float) $validatedData['amount'],
+                $movementType->operation_type
+            );
             
             $movementData = [
                 'current_account_id' => $validatedData['current_account_id'],
@@ -271,7 +312,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             $movement = CurrentAccountMovement::create($movementData);
             
             // Actualizar el balance de la cuenta
-            $account->updateBalance((float) $amount);
+            $account->updateBalance($balanceChange);
             
             return $movement->load(['movementType', 'user.person']);
         });
@@ -282,7 +323,11 @@ class CurrentAccountService implements CurrentAccountServiceInterface
      */
     public function getAccountMovements(int $accountId, Request $request): LengthAwarePaginator
     {
-        $query = CurrentAccountMovement::with(['movementType', 'user.person', 'sale'])
+        $query = CurrentAccountMovement::with([
+            'movementType',
+            'user.person',
+            'sale'
+        ])
             ->where('current_account_id', $accountId);
         
         // Aplicar filtros
@@ -590,8 +635,9 @@ class CurrentAccountService implements CurrentAccountServiceInterface
 
         $totalCreditLimit = $accountsWithLimit->sum('credit_limit');
         
-        // Calcular total pendiente basado en current_balance REAL de la cuenta corriente
-        // El current_balance ya refleja correctamente todos los movimientos (ventas, pagos, anulaciones)
+        // Calcular total pendiente basado en current_balance (incluye TODOS los movimientos)
+        // Esto es necesario porque puede haber movimientos manuales (ajustes, notas de crédito/débito)
+        // que no son ventas pendientes pero sí afectan el balance
         $allCustomersWithAccounts = CurrentAccount::with('customer.person')->get();
         $totalPendingDebt = 0;
         $customersWithDebt = 0;
@@ -599,20 +645,19 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $highestDebtAmount = 0;
         
         foreach ($allCustomersWithAccounts as $account) {
-            // Usar el balance real de la cuenta corriente
+            // Usar el balance real de la cuenta corriente (incluye todos los movimientos)
             // IMPORTANTE: En este sistema, balance POSITIVO = el cliente debe dinero (deuda)
             // Balance negativo = el cliente tiene saldo a favor
             $currentBalance = (float)($account->current_balance ?? 0);
             
             // Solo contar si hay deuda real (balance positivo = deuda)
             if ($currentBalance > 0) {
-                $customerDebt = $currentBalance; // Ya es positivo
                 $customersWithDebt++;
-                $totalPendingDebt += $customerDebt;
+                $totalPendingDebt += $currentBalance;
                 
                 // Verificar si es el cliente con mayor deuda
-                if ($customerDebt > $highestDebtAmount) {
-                    $highestDebtAmount = $customerDebt;
+                if ($currentBalance > $highestDebtAmount) {
+                    $highestDebtAmount = $currentBalance;
                     $clientWithHighestDebt = $account;
                 }
             }

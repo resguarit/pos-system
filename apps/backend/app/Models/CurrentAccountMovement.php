@@ -75,7 +75,7 @@ class CurrentAccountMovement extends Model
      */
     public function isInflow(): bool
     {
-        return $this->movementType && $this->movementType->operation_type === 'entrada';
+        return $this->movementType !== null && $this->movementType->operation_type === 'entrada';
     }
 
     /**
@@ -83,7 +83,7 @@ class CurrentAccountMovement extends Model
      */
     public function isOutflow(): bool
     {
-        return $this->movementType && $this->movementType->operation_type === 'salida';
+        return $this->movementType !== null && $this->movementType->operation_type === 'salida';
     }
 
     /**
@@ -91,7 +91,7 @@ class CurrentAccountMovement extends Model
      */
     public function getOperationTypeAttribute(): string
     {
-        return $this->movementType ? $this->movementType->operation_type : 'unknown';
+        return $this->movementType !== null ? ($this->movementType->operation_type ?? 'unknown') : 'unknown';
     }
 
     /**

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Pagination from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { 
   ArrowLeft, 
@@ -16,15 +17,26 @@ import {
   Phone,
   MapPin,
   Pause,
-  Play
+  Play,
+  Plus,
+  Minus
 } from 'lucide-react';
-import { CurrentAccount, CurrentAccountMovement, PendingSale } from '@/types/currentAccount';
+import { CurrentAccount, CurrentAccountMovement, PendingSale, PaginatedResponse } from '@/types/currentAccount';
 import { CurrentAccountService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
 import { InfinitySymbol } from '@/components/ui/InfinitySymbol';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useCurrentAccountActions } from '@/hooks/useCurrentAccountActions';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
+import { PaymentDialog } from './PaymentDialog';
+import { NewMovementDialog } from './NewMovementDialog';
+import { 
+  calculateOutstandingBalance, 
+  calculateTotalPendingSales, 
+  getOutstandingBalanceDescription,
+  formatOutstandingBalance,
+  getBalanceColorClass
+} from '@/utils/currentAccountUtils';
 
 interface CurrentAccountDetailsProps {
   accountId: number;
@@ -37,6 +49,16 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
   const [loading, setLoading] = useState(true);
   const [loadingMovements, setLoadingMovements] = useState(false);
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [totalMovements, setTotalMovements] = useState(0);
+  const perPage = 10;
+  const movementsTableRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef<number>(0);
+  
+  // Estados para los diálogos
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showNewMovementDialog, setShowNewMovementDialog] = useState(false);
 
   const resizableColumns = useResizableColumns({
     columns: [
@@ -54,9 +76,28 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
 
   useEffect(() => {
     loadAccountDetails();
-    loadMovements();
     loadPendingSales();
+    setCurrentPage(1); // Resetear a página 1 al cambiar de cuenta
+    scrollPositionRef.current = 0; // Resetear posición del scroll al cambiar de cuenta
   }, [accountId]);
+
+  useEffect(() => {
+    if (accountId) {
+      loadMovements();
+    }
+  }, [currentPage, accountId]);
+
+  // Restaurar posición del scroll después de que los movimientos se hayan renderizado
+  useEffect(() => {
+    if (!loadingMovements && movements.length > 0 && movementsTableRef.current) {
+      // Usar requestAnimationFrame para asegurar que el DOM se haya actualizado
+      requestAnimationFrame(() => {
+        if (movementsTableRef.current) {
+          movementsTableRef.current.scrollTop = scrollPositionRef.current;
+        }
+      });
+    }
+  }, [loadingMovements, movements]);
 
   const loadAccountDetails = async () => {
     try {
@@ -74,14 +115,35 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
   const loadMovements = async () => {
     try {
       setLoadingMovements(true);
-      const response = await CurrentAccountService.getMovements(accountId);
+      const response = await CurrentAccountService.getMovements(accountId, {
+        page: currentPage,
+        per_page: perPage,
+      }) as PaginatedResponse<CurrentAccountMovement>;
       setMovements(response.data);
+      setCurrentPage(response.current_page);
+      setLastPage(response.last_page);
+      setTotalMovements(response.total);
     } catch (error) {
       console.error('Error loading movements:', error);
       toast.error('Error al cargar los movimientos');
     } finally {
       setLoadingMovements(false);
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    // Guardar posición del scroll antes de cambiar de página
+    if (movementsTableRef.current) {
+      scrollPositionRef.current = movementsTableRef.current.scrollTop;
+    }
+    setCurrentPage(page);
+  };
+
+  const handleSuccess = () => {
+    // Recargar datos cuando se crea un movimiento o se registra un pago
+    loadAccountDetails();
+    loadPendingSales();
+    loadMovements();
   };
 
   const loadPendingSales = async () => {
@@ -150,7 +212,11 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
     );
   }
 
-  const totalPendingDebt = pendingSales.reduce((sum, s) => sum + (s.pending_amount || 0), 0);
+  const totalPendingDebt = calculateTotalPendingSales(pendingSales);
+  const balanceDescription = getOutstandingBalanceDescription(
+    account?.current_balance || 0,
+    totalPendingDebt
+  );
 
   return (
     <div className="space-y-6">
@@ -171,6 +237,19 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
         </div>
         
         <div className="flex space-x-2">
+          {hasPermission('gestionar_cuentas_corrientes') && account.status === 'active' && (
+            <>
+              <Button onClick={() => setShowNewMovementDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nuevo Movimiento
+              </Button>
+              <Button onClick={() => setShowPaymentDialog(true)} variant="default">
+                <DollarSign className="h-4 w-4 mr-2" />
+                Registrar Pago
+              </Button>
+            </>
+          )}
+          
           {hasPermission('suspender_cuentas_corrientes') && account.status === 'active' && (
             <Button variant="outline" onClick={handleSuspend}>
               <Pause className="h-4 w-4 mr-2" />
@@ -201,13 +280,31 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Balance Actual</CardTitle>
-            <DollarSign className="h-4 w-4 text-emerald-600" />
+            <CardTitle className="text-sm font-medium">Saldo Adeudado</CardTitle>
+            <DollarSign className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${account.current_balance < 0 ? 'text-red-600' : ''}`}>
-              {CurrentAccountUtils.formatCurrency(account.current_balance)}
+            <div className={`text-2xl font-bold ${totalPendingDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {CurrentAccountUtils.formatCurrency(totalPendingDebt)}
             </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Ventas sin pagar completamente
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Balance</CardTitle>
+            <TrendingUp className="h-4 w-4 text-violet-600" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${getBalanceColorClass(account.current_balance || 0)}`}>
+              {CurrentAccountUtils.formatCurrency(account.current_balance || 0)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {balanceDescription}
+            </p>
           </CardContent>
         </Card>
 
@@ -237,7 +334,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
               {account.available_credit === null ? (
                 <InfinitySymbol size="md" />
               ) : (
-                <span className={account.available_credit < 0 ? 'text-red-600' : ''}>
+                <span className={account.available_credit < 0 ? 'text-red-600' : 'text-green-600'}>
                   {CurrentAccountUtils.formatCurrency(account.available_credit)}
                 </span>
               )}
@@ -247,18 +344,6 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                 {CurrentAccountUtils.formatPercentage(account.credit_usage_percentage)} usado
               </p>
             )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Saldo Adeudado</CardTitle>
-            <DollarSign className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${totalPendingDebt > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-              {CurrentAccountUtils.formatCurrency(totalPendingDebt)}
-            </div>
           </CardContent>
         </Card>
 
@@ -352,7 +437,11 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                   <p className="text-muted-foreground">No hay movimientos registrados</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div 
+                  ref={movementsTableRef}
+                  className="overflow-x-auto overflow-y-auto max-h-[600px]"
+                  style={{ scrollBehavior: 'auto' }}
+                >
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead>
                       <tr>
@@ -420,13 +509,14 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                           <ResizableTableCell
                             columnId="monto"
                             getColumnCellProps={resizableColumns.getColumnCellProps}
-                            className={movement.is_inflow ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}
+                            className={movement.is_outflow ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
                           >
-                            {movement.is_inflow ? '+' : '-'}{CurrentAccountUtils.formatCurrency(movement.amount)}
+                            {movement.is_outflow ? '+' : '-'}{CurrentAccountUtils.formatCurrency(movement.amount)}
                           </ResizableTableCell>
                           <ResizableTableCell
                             columnId="balance"
                             getColumnCellProps={resizableColumns.getColumnCellProps}
+                            className={movement.balance_after > 0 ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
                           >
                             {CurrentAccountUtils.formatCurrency(movement.balance_after)}
                           </ResizableTableCell>
@@ -436,10 +526,43 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                   </table>
                 </div>
               )}
+              {!loadingMovements && movements.length > 0 && (
+                <div className="mt-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    lastPage={lastPage}
+                    total={totalMovements}
+                    itemName="movimientos"
+                    onPageChange={handlePageChange}
+                    disabled={loadingMovements}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Diálogos */}
+      {account && (
+        <>
+          <PaymentDialog
+            open={showPaymentDialog}
+            onOpenChange={setShowPaymentDialog}
+            accountId={accountId}
+            currentBalance={account.current_balance}
+            onSuccess={handleSuccess}
+          />
+          
+          <NewMovementDialog
+            open={showNewMovementDialog}
+            onOpenChange={setShowNewMovementDialog}
+            accountId={accountId}
+            currentBalance={account.current_balance || 0}
+            onSuccess={handleSuccess}
+          />
+        </>
+      )}
     </div>
   );
 }
