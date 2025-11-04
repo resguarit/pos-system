@@ -1,6 +1,15 @@
 #!/bin/bash
 
-# Script para corregir permisos de storage en producción
+# Script para corregir permisos de storage en producción - Héroe del Whisky
+# Puede ejecutarse remotamente via SSH o directamente en el servidor (pasando --local)
+
+set -e  # Salir si hay errores
+
+# Verificar si se debe ejecutar localmente
+if [ "$1" = "--local" ] || [ "$1" = "-l" ]; then
+    echo "🔧 Ejecutando script localmente en el servidor..."
+    exec bash "$(dirname "$0")/fix-storage-permissions-heroe.sh"
+fi
 
 echo "🔧 Corrigiendo permisos de storage..."
 
@@ -12,6 +21,29 @@ BACKEND_PATH="${BACKEND_DEPLOY_PATH:-/home/api.heroedelwhisky.com.ar/public_html
 
 echo "📍 Conectando a ${VPS_USERNAME}@${VPS_HOST}:${VPS_PORT}"
 echo "📂 Backend path: ${BACKEND_PATH}"
+echo ""
+echo "💡 Si tienes problemas de conexión SSH, ejecuta este script directamente en el servidor:"
+echo "   bash scripts/fix-storage-permissions-heroe.sh"
+echo ""
+
+# Verificar si el script local existe antes de intentar SSH
+if [ ! -f "$(dirname "$0")/fix-storage-permissions-heroe.sh" ]; then
+    echo "⚠️  Script local no encontrado, continuando con SSH..."
+fi
+
+# Intentar conexión SSH con timeout
+if ! ssh -o ConnectTimeout=5 -p ${VPS_PORT} ${VPS_USERNAME}@${VPS_HOST} "echo 'Conexión OK'" 2>/dev/null; then
+    echo "❌ Error: No se puede conectar al servidor"
+    echo ""
+    echo "💡 Opciones:"
+    echo "   1. Ejecuta el script directamente en el servidor:"
+    echo "      ssh ${VPS_USERNAME}@${VPS_HOST} -p ${VPS_PORT}"
+    echo "      cd ${BACKEND_PATH}"
+    echo "      bash scripts/fix-storage-permissions-heroe.sh"
+    echo ""
+    echo "   2. O ejecuta los comandos manualmente (ver docs/FIX_STORAGE_PERMISSIONS_HEROE.md)"
+    exit 1
+fi
 
 ssh -p ${VPS_PORT} ${VPS_USERNAME}@${VPS_HOST} << 'ENDSSH'
 
@@ -164,8 +196,8 @@ ENDSSH
 echo ""
 echo "✅ Script completado!"
 echo ""
-echo "💡 Si el error persiste, ejecuta manualmente en el servidor:"
-echo "   cd /home/api.heroedelwhisky.com.ar/public_html/apps/backend"
-echo "   sudo chown -R \$(ps aux | grep -E '(nginx|apache|php-fpm)' | grep -v grep | head -1 | awk '{print \$1}'):\$(ps aux | grep -E '(nginx|apache|php-fpm)' | grep -v grep | head -1 | awk '{print \$1}') storage"
-echo "   sudo chmod -R 775 storage"
-echo "   sudo chmod -R 775 bootstrap/cache"
+echo "💡 Si el error persiste:"
+echo "   1. Ejecuta el script directamente en el servidor:"
+echo "      bash scripts/fix-storage-permissions-heroe.sh"
+echo ""
+echo "   2. O ejecuta los comandos manualmente (ver docs/FIX_STORAGE_PERMISSIONS_HEROE.md)"

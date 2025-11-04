@@ -40,26 +40,86 @@ jobs:
           git reset --hard origin/master
           cd apps/backend
           
-          # Detectar usuario del servidor web
+          # Detectar usuario del servidor web (prioridad: PHP-FPM pool > nginx > apache > www-data)
+          echo "🔍 Detectando usuario del servidor web..."
           WEB_USER="www-data"
-          if id nginx >/dev/null 2>&1; then
+          
+          # Primero intentar detectar desde procesos PHP-FPM pool (más específico para CyberPanel)
+          PHP_FPM_USER=$(ps aux | grep 'php-fpm: pool' | grep -v grep | head -1 | awk '{print $1}' | grep -v root)
+          if [ ! -z "$PHP_FPM_USER" ]; then
+            WEB_USER="$PHP_FPM_USER"
+            echo "✅ Usuario PHP-FPM detectado: $WEB_USER"
+          elif id nginx >/dev/null 2>&1; then
             WEB_USER="nginx"
+            echo "✅ Usuario nginx detectado: $WEB_USER"
           elif id apache >/dev/null 2>&1; then
             WEB_USER="apache"
+            echo "✅ Usuario apache detectado: $WEB_USER"
+          else
+            # Intentar detectar desde procesos PHP/web generales
+            DETECTED_USER=$(ps aux | grep -E '(php-fpm|nginx|apache)' | grep -v grep | grep -v pool | head -1 | awk '{print $1}' | sed 's/root/www-data/')
+            if [ ! -z "$DETECTED_USER" ] && [ "$DETECTED_USER" != "root" ]; then
+              WEB_USER="$DETECTED_USER"
+              echo "✅ Usuario detectado desde procesos: $WEB_USER"
+            else
+              echo "⚠️  Usando usuario por defecto: $WEB_USER"
+            fi
           fi
           
+          # CRÍTICO: Eliminar archivo de log existente ANTES de configurar permisos
+          # Esto evita problemas de permisos cuando git reset cambia el ownership
+          echo "🗑️  Eliminando archivo de log existente (se recreará con permisos correctos)..."
+          rm -f storage/logs/laravel.log 2>/dev/null || sudo rm -f storage/logs/laravel.log 2>/dev/null || true
+          
           # Asegurar permisos de storage y cache antes de cualquier operación
+          echo "📁 Creando directorios necesarios..."
           mkdir -p storage/framework/views
           mkdir -p storage/framework/cache/data
           mkdir -p storage/framework/sessions
           mkdir -p storage/logs
           mkdir -p bootstrap/cache
           
-          # Configurar permisos
-          chmod -R 775 storage bootstrap/cache 2>/dev/null || sudo chmod -R 775 storage bootstrap/cache || true
-          chmod -R 777 storage/framework/views 2>/dev/null || sudo chmod -R 777 storage/framework/views || true
-          chmod -R 777 storage/framework/cache/data 2>/dev/null || sudo chmod -R 777 storage/framework/cache/data || true
-          chown -R $WEB_USER:$WEB_USER storage bootstrap/cache 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || true
+          # Configurar permisos (usando sudo si es necesario)
+          echo "🔐 Configurando permisos de storage..."
+          sudo chmod -R 775 storage bootstrap/cache || {
+            echo "⚠️  Error con sudo, intentando sin sudo..."
+            chmod -R 775 storage bootstrap/cache || echo "❌ Error crítico: No se pudieron configurar permisos"
+          }
+          
+          sudo chmod -R 777 storage/logs || {
+            echo "⚠️  Error con sudo en storage/logs, intentando sin sudo..."
+            chmod -R 777 storage/logs || echo "❌ Error crítico: No se pudieron configurar permisos de storage/logs"
+          }
+          
+          sudo chmod -R 777 storage/framework/views storage/framework/cache/data || {
+            echo "⚠️  Error con sudo en framework, intentando sin sudo..."
+            chmod -R 777 storage/framework/views storage/framework/cache/data || echo "⚠️  Error en permisos de framework"
+          }
+          
+          # Configurar ownership (CRÍTICO - debe ejecutarse correctamente)
+          echo "👤 Configurando ownership a usuario: $WEB_USER"
+          sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || {
+            echo "❌ ERROR CRÍTICO: No se pudo configurar ownership de storage"
+            echo "💡 Intenta ejecutar manualmente: sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache"
+            exit 1
+          }
+          
+          # Crear archivo de log con permisos correctos DESPUÉS de configurar ownership
+          echo "📝 Creando archivo de log con permisos correctos..."
+          sudo touch storage/logs/laravel.log || touch storage/logs/laravel.log || {
+            echo "❌ ERROR: No se pudo crear archivo de log"
+            exit 1
+          }
+          sudo chmod 666 storage/logs/laravel.log || chmod 666 storage/logs/laravel.log || true
+          sudo chown $WEB_USER:$WEB_USER storage/logs/laravel.log || chown $WEB_USER:$WEB_USER storage/logs/laravel.log || true
+          
+          # Verificar permisos antes de continuar
+          echo "✅ Verificando permisos..."
+          if [ -f storage/logs/laravel.log ]; then
+            LOG_PERMS=$(stat -c "%a" storage/logs/laravel.log 2>/dev/null || stat -f "%OLp" storage/logs/laravel.log 2>/dev/null || echo "unknown")
+            LOG_OWNER=$(stat -c "%U" storage/logs/laravel.log 2>/dev/null || stat -f "%Su" storage/logs/laravel.log 2>/dev/null || echo "unknown")
+            echo "   📄 laravel.log: permisos=$LOG_PERMS, owner=$LOG_OWNER"
+          fi
           
           composer install --no-dev --optimize-autoloader
           php artisan config:cache
