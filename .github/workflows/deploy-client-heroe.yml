@@ -40,6 +40,10 @@ jobs:
           git reset --hard origin/master
           cd apps/backend
           
+          # Detectar usuario actual (quien ejecuta el deployment)
+          CURRENT_USER=$(whoami)
+          echo "👤 Usuario actual: $CURRENT_USER"
+          
           # Detectar usuario del servidor web (prioridad: PHP-FPM pool > nginx > apache > www-data)
           echo "🔍 Detectando usuario del servidor web..."
           WEB_USER="www-data"
@@ -66,10 +70,14 @@ jobs:
             fi
           fi
           
-          # CRÍTICO: Eliminar archivo de log existente ANTES de configurar permisos
-          # Esto evita problemas de permisos cuando git reset cambia el ownership
-          echo "🗑️  Eliminando archivo de log existente (se recreará con permisos correctos)..."
-          rm -f storage/logs/laravel.log 2>/dev/null || sudo rm -f storage/logs/laravel.log 2>/dev/null || true
+          # Verificar si el usuario actual puede usar sudo sin contraseña
+          CAN_SUDO=false
+          if sudo -n true 2>/dev/null; then
+            CAN_SUDO=true
+            echo "✅ Usuario puede usar sudo sin contraseña"
+          else
+            echo "⚠️  Usuario NO puede usar sudo sin contraseña, usando métodos alternativos"
+          fi
           
           # Asegurar permisos de storage y cache antes de cualquier operación
           echo "📁 Creando directorios necesarios..."
@@ -79,39 +87,82 @@ jobs:
           mkdir -p storage/logs
           mkdir -p bootstrap/cache
           
-          # Configurar permisos (usando sudo si es necesario)
-          echo "🔐 Configurando permisos de storage..."
-          sudo chmod -R 775 storage bootstrap/cache || {
-            echo "⚠️  Error con sudo, intentando sin sudo..."
-            chmod -R 775 storage bootstrap/cache || echo "❌ Error crítico: No se pudieron configurar permisos"
-          }
-          
-          sudo chmod -R 777 storage/logs || {
-            echo "⚠️  Error con sudo en storage/logs, intentando sin sudo..."
-            chmod -R 777 storage/logs || echo "❌ Error crítico: No se pudieron configurar permisos de storage/logs"
-          }
-          
-          sudo chmod -R 777 storage/framework/views storage/framework/cache/data || {
-            echo "⚠️  Error con sudo en framework, intentando sin sudo..."
-            chmod -R 777 storage/framework/views storage/framework/cache/data || echo "⚠️  Error en permisos de framework"
-          }
-          
-          # Configurar ownership (CRÍTICO - debe ejecutarse correctamente)
+          # CRÍTICO: Configurar ownership PRIMERO (antes de permisos)
+          # Esto es necesario porque git reset puede haber cambiado el ownership
           echo "👤 Configurando ownership a usuario: $WEB_USER"
-          sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || {
-            echo "❌ ERROR CRÍTICO: No se pudo configurar ownership de storage"
-            echo "💡 Intenta ejecutar manualmente: sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache"
-            exit 1
-          }
+          if [ "$CAN_SUDO" = true ]; then
+            # Usar sudo si está disponible
+            sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || {
+              echo "❌ ERROR CRÍTICO: No se pudo configurar ownership con sudo"
+              exit 1
+            }
+          else
+            # Si no puede usar sudo, verificar si el usuario actual es el dueño del directorio padre
+            PARENT_DIR=$(dirname $(pwd))
+            PARENT_OWNER=$(stat -c "%U" "$PARENT_DIR" 2>/dev/null || stat -f "%Su" "$PARENT_DIR" 2>/dev/null || echo "")
+            
+            if [ "$CURRENT_USER" = "$PARENT_OWNER" ] || [ "$CURRENT_USER" = "$WEB_USER" ]; then
+              echo "✅ Usuario actual es dueño del directorio, cambiando ownership directamente..."
+              chown -R $WEB_USER:$WEB_USER storage bootstrap/cache 2>/dev/null || {
+                echo "❌ ERROR: No se pudo cambiar ownership. El usuario $CURRENT_USER no tiene permisos."
+                echo "💡 Solución: Configura sudoers para permitir chown sin contraseña:"
+                echo "   echo '$CURRENT_USER ALL=(ALL) NOPASSWD: /bin/chown' | sudo tee -a /etc/sudoers.d/posdeployer"
+                exit 1
+              }
+            else
+              echo "❌ ERROR CRÍTICO: Usuario $CURRENT_USER no tiene permisos para cambiar ownership"
+              echo "💡 Soluciones:"
+              echo "   1. Configurar sudoers: echo '$CURRENT_USER ALL=(ALL) NOPASSWD: /bin/chown, /bin/chmod' | sudo tee -a /etc/sudoers.d/posdeployer"
+              echo "   2. O ejecutar como root: usar VPS_USERNAME=root en GitHub Secrets"
+              exit 1
+            fi
+          fi
           
-          # Crear archivo de log con permisos correctos DESPUÉS de configurar ownership
+          # CRÍTICO: Eliminar archivo de log existente DESPUÉS de configurar ownership
+          echo "🗑️  Eliminando archivo de log existente (se recreará con permisos correctos)..."
+          rm -f storage/logs/laravel.log 2>/dev/null || true
+          
+          # Configurar permisos DESPUÉS de ownership
+          echo "🔐 Configurando permisos de storage..."
+          if [ "$CAN_SUDO" = true ]; then
+            sudo chmod -R 775 storage bootstrap/cache || {
+              echo "❌ ERROR: No se pudieron configurar permisos con sudo"
+              exit 1
+            }
+            sudo chmod -R 777 storage/logs storage/framework/views storage/framework/cache/data || {
+              echo "❌ ERROR: No se pudieron configurar permisos de logs/framework con sudo"
+              exit 1
+            }
+          else
+            # Intentar cambiar permisos directamente
+            chmod -R 775 storage bootstrap/cache 2>/dev/null || {
+              echo "❌ ERROR: No se pudieron configurar permisos sin sudo"
+              exit 1
+            }
+            chmod -R 777 storage/logs storage/framework/views storage/framework/cache/data 2>/dev/null || {
+              echo "❌ ERROR: No se pudieron configurar permisos de logs/framework sin sudo"
+              exit 1
+            }
+          fi
+          
+          # Crear archivo de log con permisos correctos DESPUÉS de configurar ownership y permisos
           echo "📝 Creando archivo de log con permisos correctos..."
-          sudo touch storage/logs/laravel.log || touch storage/logs/laravel.log || {
+          touch storage/logs/laravel.log || {
             echo "❌ ERROR: No se pudo crear archivo de log"
             exit 1
           }
-          sudo chmod 666 storage/logs/laravel.log || chmod 666 storage/logs/laravel.log || true
-          sudo chown $WEB_USER:$WEB_USER storage/logs/laravel.log || chown $WEB_USER:$WEB_USER storage/logs/laravel.log || true
+          
+          if [ "$CAN_SUDO" = true ]; then
+            sudo chmod 666 storage/logs/laravel.log
+            sudo chown $WEB_USER:$WEB_USER storage/logs/laravel.log
+          else
+            chmod 666 storage/logs/laravel.log 2>/dev/null || {
+              echo "⚠️  No se pudo cambiar permisos del archivo de log, pero continuando..."
+            }
+            chown $WEB_USER:$WEB_USER storage/logs/laravel.log 2>/dev/null || {
+              echo "⚠️  No se pudo cambiar ownership del archivo de log, pero continuando..."
+            }
+          fi
           
           # Verificar permisos antes de continuar
           echo "✅ Verificando permisos..."
@@ -119,6 +170,13 @@ jobs:
             LOG_PERMS=$(stat -c "%a" storage/logs/laravel.log 2>/dev/null || stat -f "%OLp" storage/logs/laravel.log 2>/dev/null || echo "unknown")
             LOG_OWNER=$(stat -c "%U" storage/logs/laravel.log 2>/dev/null || stat -f "%Su" storage/logs/laravel.log 2>/dev/null || echo "unknown")
             echo "   📄 laravel.log: permisos=$LOG_PERMS, owner=$LOG_OWNER"
+            
+            # Verificar que el usuario web puede escribir
+            if [ "$LOG_OWNER" = "$WEB_USER" ] && [ "$LOG_PERMS" = "666" ] || [ "$LOG_PERMS" = "664" ] || [ "$LOG_PERMS" = "775" ]; then
+              echo "   ✅ Permisos correctos"
+            else
+              echo "   ⚠️  Permisos pueden no ser óptimos, pero continuando..."
+            fi
           fi
           
           composer install --no-dev --optimize-autoloader
