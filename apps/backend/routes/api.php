@@ -393,6 +393,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [ShipmentController::class, 'index']);
         Route::get('/multiple-branches', [ShipmentController::class, 'multipleBranches']);
         Route::post('/', [ShipmentController::class, 'store']);
+        Route::get('/{id}/pdf', [ShipmentController::class, 'downloadPdf'])->whereNumber('id');
         Route::get('/{id}', [ShipmentController::class, 'show']);
         Route::put('/{id}', [ShipmentController::class, 'update']);
         Route::delete('/{id}', [ShipmentController::class, 'destroy']);
