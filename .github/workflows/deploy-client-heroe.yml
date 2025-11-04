@@ -71,10 +71,14 @@ jobs:
           fi
           
           # Verificar si el usuario actual puede usar sudo sin contraseña
+          # Verificar primero si existe el archivo sudoers (más confiable que el test)
           CAN_SUDO=false
-          if sudo -n true 2>/dev/null; then
+          if [ -f /etc/sudoers.d/posdeployer ] || [ -f /etc/sudoers.d/$CURRENT_USER ]; then
+            echo "✅ Archivo sudoers detectado, usando sudo..."
             CAN_SUDO=true
-            echo "✅ Usuario puede usar sudo sin contraseña"
+          elif sudo -n true 2>/dev/null; then
+            CAN_SUDO=true
+            echo "✅ Usuario puede usar sudo sin contraseña (verificado)"
           else
             echo "⚠️  Usuario NO puede usar sudo sin contraseña, usando métodos alternativos"
           fi
