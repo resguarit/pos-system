@@ -124,7 +124,8 @@ class CurrentAccount extends Model
         
         // Balance positivo = deuda del cliente
         // Crédito disponible = Límite - Deuda
-        return max(0, $creditLimit - $this->current_balance);
+        // Si es negativo, significa que está sobregirado
+        return $creditLimit - $this->current_balance;
     }
 
     /**
