@@ -13,7 +13,9 @@ const AUTOMATIC_MOVEMENT_NAMES = [
   'compra de mercadería',
   'compra de mercaderia',
   'pago de cuenta corriente',
-  'pago cuenta corriente'
+  'pago cuenta corriente',
+  'uso de crédito a favor', // Movimiento automático cuando se usa crédito en una venta
+  'uso de credito a favor'
 ] as const;
 
 /**

@@ -55,7 +55,7 @@ class RecalculateCurrentAccountBalances extends Command
 
                     $balance = 0;
                     $lastMovementDate = null;
-                    
+
                     // Usar BalanceCalculator para mantener consistencia
                     $balanceCalculator = new \App\Services\CurrentAccount\BalanceCalculator();
 

@@ -81,29 +81,54 @@ class PosController extends Controller
         'payments' => 'required|array|min:1',
         'payments.*.payment_method_id' => 'required|integer|exists:payment_methods,id',
         'payments.*.amount' => 'required|numeric|min:0',
+        'metadata' => 'nullable|array',
+        'metadata.use_favor_credit' => 'nullable|boolean',
+        'metadata.favor_credit_amount' => 'nullable|numeric|min:0',
+        'metadata.current_account_id' => 'nullable|integer',
     ]);
 
     if ($validator->fails()) {
         return response()->json(['errors' => $validator->errors()], 422);
     }
 
-    // Validación adicional: suma de pagos debe coincidir con el total
+    // Validación adicional: suma de pagos debe coincidir con el total después de aplicar crédito a favor
     $requestData = $request->all();
+    
+    // Obtener crédito a favor del metadata si existe
+    $favorCreditAmount = 0;
+    if (isset($requestData['metadata']['use_favor_credit']) && 
+        $requestData['metadata']['use_favor_credit'] === true &&
+        isset($requestData['metadata']['favor_credit_amount'])) {
+        $favorCreditAmount = floatval($requestData['metadata']['favor_credit_amount']);
+    }
+    
+    // Obtener el ID del método de pago "Crédito a favor" para excluirlo de la validación
+    $favorCreditPaymentMethod = PaymentMethod::where('name', 'Crédito a favor')->first();
+    $favorCreditPaymentMethodId = $favorCreditPaymentMethod ? $favorCreditPaymentMethod->id : null;
+    
+    // Calcular suma de pagos EXCLUYENDO el crédito a favor (porque se crea automáticamente después)
     $totalPayments = 0;
     if (isset($requestData['payments']) && is_array($requestData['payments'])) {
         foreach ($requestData['payments'] as $payment) {
+            // Excluir pagos de crédito a favor de la suma (se crearán automáticamente después)
+            if ($favorCreditPaymentMethodId && (int)($payment['payment_method_id'] ?? 0) === $favorCreditPaymentMethodId) {
+                continue;
+            }
             $totalPayments += floatval($payment['amount'] ?? 0);
         }
     }
     
     $totalSale = floatval($requestData['total'] ?? 0);
     
+    // El total a comparar es el total de la venta menos el crédito a favor aplicado
+    $totalToCompare = $totalSale - $favorCreditAmount;
+    
     // Permitir diferencia de hasta 0.01 para compensar redondeos
-    $difference = abs($totalPayments - $totalSale);
+    $difference = abs($totalPayments - $totalToCompare);
     if ($difference > 0.01) {
         return response()->json([
             'errors' => [
-                'payments' => ['La suma de los pagos (' . number_format($totalPayments, 2) . ') no coincide con el total de la venta (' . number_format($totalSale, 2) . ')']
+                'payments' => ['La suma de los pagos (' . number_format($totalPayments, 2) . ') no coincide con el total de la venta (' . number_format($totalSale, 2) . ($favorCreditAmount > 0 ? ' menos crédito a favor de ' . number_format($favorCreditAmount, 2) : '') . ' = ' . number_format($totalToCompare, 2) . ')']
             ]
         ], 422);
     }
@@ -128,26 +153,75 @@ class PosController extends Controller
         $payments = $saleData['payments'];
         unset($saleData['payments']);
 
+        // Obtener crédito a favor del metadata antes de crear la venta (obtener del request completo)
+        $favorCreditAmount = 0;
+        $requestData = $request->all();
+        if (isset($requestData['metadata']['use_favor_credit']) && 
+            $requestData['metadata']['use_favor_credit'] === true &&
+            isset($requestData['metadata']['favor_credit_amount'])) {
+            $favorCreditAmount = floatval($requestData['metadata']['favor_credit_amount']);
+        }
+        
+        // IMPORTANTE: Asegurar que los metadatos se incluyan en saleData si existen
+        if (isset($requestData['metadata']) && is_array($requestData['metadata'])) {
+            $saleData['metadata'] = $requestData['metadata'];
+        }
+
+        // Obtener el ID del método de pago "Crédito a favor" para excluirlo de la validación
+        $favorCreditPaymentMethod = PaymentMethod::where('name', 'Crédito a favor')->first();
+        $favorCreditPaymentMethodId = $favorCreditPaymentMethod ? $favorCreditPaymentMethod->id : null;
+
         $saleHeader = $this->saleService->createSale($saleData, false);
 
-        $paymentsTotal = round((float) collect($payments)->sum(function ($p) { return (float) ($p['amount'] ?? 0); }), 2);
+        // Calcular suma de pagos EXCLUYENDO el crédito a favor (porque se crea automáticamente después)
+        $paymentsTotal = round((float) collect($payments)->sum(function ($p) use ($favorCreditPaymentMethodId) {
+            // Excluir pagos de crédito a favor de la suma (se crearán automáticamente después)
+            if ($favorCreditPaymentMethodId && (int)($p['payment_method_id'] ?? 0) === $favorCreditPaymentMethodId) {
+                return 0;
+            }
+            return (float) ($p['amount'] ?? 0);
+        }), 2);
+        
         $saleTotal = round((float) $saleHeader->total, 2);
-        $diff = round($saleTotal - $paymentsTotal, 2);
+        
+        // El total a comparar es el total de la venta menos el crédito a favor aplicado
+        $totalToCompare = round($saleTotal - $favorCreditAmount, 2);
+        $diff = round($totalToCompare - $paymentsTotal, 2);
         
         if (abs($diff) > 0.01) {
             if (count($payments) > 0 && abs($diff) <= 1000) {
+                // Ajustar el último pago que NO sea crédito a favor
                 $lastIndex = count($payments) - 1;
-                $payments[$lastIndex]['amount'] = round(((float) $payments[$lastIndex]['amount']) + $diff, 2);
+                for ($i = $lastIndex; $i >= 0; $i--) {
+                    if (!$favorCreditPaymentMethodId || (int)($payments[$i]['payment_method_id'] ?? 0) !== $favorCreditPaymentMethodId) {
+                        $payments[$i]['amount'] = round(((float) $payments[$i]['amount']) + $diff, 2);
+                        break;
+                    }
+                }
             } else {
-                throw new \Exception("La suma de los pagos ($paymentsTotal) no coincide con el total de la venta ($saleTotal). Diferencia: $diff");
+                throw new \Exception("La suma de los pagos ($paymentsTotal) no coincide con el total de la venta ($saleTotal" . ($favorCreditAmount > 0 ? " menos crédito a favor de $favorCreditAmount" : '') . " = $totalToCompare). Diferencia: $diff");
             }
         }
 
+        // Crear pagos EXCLUYENDO el crédito a favor (se crea después automáticamente)
         foreach ($payments as $payment) {
+            // No crear el pago si es crédito a favor (se crea después automáticamente)
+            if ($favorCreditPaymentMethodId && (int)($payment['payment_method_id'] ?? 0) === $favorCreditPaymentMethodId) {
+                continue;
+            }
             SalePayment::create([
                 'sale_header_id' => $saleHeader->id,
                 'payment_method_id' => $payment['payment_method_id'],
                 'amount' => $payment['amount'],
+            ]);
+        }
+
+        // Crear registro de pago para crédito a favor si se aplicó (esto se hace después para evitar duplicados)
+        if ($favorCreditAmount > 0 && $favorCreditPaymentMethod) {
+            SalePayment::create([
+                'sale_header_id' => $saleHeader->id,
+                'payment_method_id' => $favorCreditPaymentMethod->id,
+                'amount' => $favorCreditAmount,
             ]);
         }
 
@@ -194,12 +268,28 @@ private function updateSalePaymentStatus(SaleHeader $saleHeader): void
 {
     $saleHeader->load('salePayments.paymentMethod');
     
-    // IMPORTANTE: Solo contar pagos que afectan caja (afects_cash = true)
-    // Los pagos a cuenta corriente NO deben contar como pagos efectivos
+    // IMPORTANTE: Contar TODOS los pagos, incluyendo crédito a favor
+    // El crédito a favor no afecta la caja pero SÍ reduce la deuda pendiente
+    // Los pagos a cuenta corriente (cuando se selecciona como método de pago) NO deben contar
+    $favorCreditMethod = PaymentMethod::where('name', 'Crédito a favor')->first();
+    $favorCreditMethodId = $favorCreditMethod ? $favorCreditMethod->id : null;
+    
     $totalPaid = (float)$saleHeader->salePayments
-        ->filter(function ($payment) {
-            // Solo contar pagos cuyo método de pago tenga affects_cash = true
-            return $payment->paymentMethod && $payment->paymentMethod->affects_cash === true;
+        ->filter(function ($payment) use ($favorCreditMethodId) {
+            $paymentMethod = $payment->paymentMethod;
+            
+            // Incluir crédito a favor (aunque no afecte caja)
+            if ($favorCreditMethodId && $paymentMethod && (int)$paymentMethod->id === $favorCreditMethodId) {
+                return true;
+            }
+            
+            // Incluir pagos que afectan caja
+            if ($paymentMethod && $paymentMethod->affects_cash === true) {
+                return true;
+            }
+            
+            // Excluir pagos a cuenta corriente (método de pago, no crédito a favor)
+            return false;
         })
         ->sum('amount');
     

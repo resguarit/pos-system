@@ -255,6 +255,33 @@ class CurrentAccountController extends Controller
     }
 
     /**
+     * Obtener crédito a favor disponible
+     */
+    public function getAvailableFavorCredit(int $id): JsonResponse
+    {
+        try {
+            $availableCredit = $this->currentAccountService->getAvailableFavorCredit($id);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Crédito a favor obtenido correctamente',
+                'data' => [
+                    'available_favor_credit' => $availableCredit,
+                    'has_favor_credit' => $availableCredit > 0
+                ]
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener crédito a favor: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
      * Obtener movimientos de cuenta corriente
      */
     public function movements(Request $request, int $accountId): JsonResponse

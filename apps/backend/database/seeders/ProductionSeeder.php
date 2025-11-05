@@ -30,6 +30,7 @@ class ProductionSeeder extends Seeder
         $this->call([
             PaymentMethodSeeder::class,         // Métodos de pago (Efectivo, Tarjeta, etc.)
             MovementTypeSeeder::class,          // Tipos de movimiento para caja
+            CurrentAccountMovementTypeSeeder::class, // Tipos de movimiento para cuentas corrientes (manuales)
             MeasureSeeder::class,               // Unidades de medida básicas
         ]);
         

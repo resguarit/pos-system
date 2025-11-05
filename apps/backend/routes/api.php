@@ -308,6 +308,18 @@ Route::middleware('auth:sanctum')->group(function () {
             // CRUD básico
         Route::get('/', [CurrentAccountController::class, 'index']);
         Route::post('/', [CurrentAccountController::class, 'store']);
+        
+        // Consultas específicas ANTES de las rutas dinámicas {id}
+        Route::get('/customer/{customerId}', [CurrentAccountController::class, 'getByCustomer']);
+        Route::get('/status/{status}', [CurrentAccountController::class, 'getByStatus']);
+        Route::get('/at-credit-limit', [CurrentAccountController::class, 'getAtCreditLimit']);
+        Route::get('/overdrawn', [CurrentAccountController::class, 'getOverdrawn']);
+        
+        // Estadísticas generales (sin parámetro dinámico)
+        Route::get('/statistics/general', [CurrentAccountController::class, 'generalStatistics']);
+        Route::get('/reports/generate', [CurrentAccountController::class, 'generateReport']);
+        
+        // Rutas con {id} o {accountId} - DEBEN ir DESPUÉS de las rutas específicas
         Route::get('/{id}', [CurrentAccountController::class, 'show']);
         Route::put('/{id}', [CurrentAccountController::class, 'update']);
         Route::delete('/{id}', [CurrentAccountController::class, 'destroy']);
@@ -316,12 +328,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/suspend', [CurrentAccountController::class, 'suspend']);
         Route::patch('/{id}/reactivate', [CurrentAccountController::class, 'reactivate']);
         Route::patch('/{id}/close', [CurrentAccountController::class, 'close']);
-        
-        // Consultas específicas
-        Route::get('/customer/{customerId}', [CurrentAccountController::class, 'getByCustomer']);
-        Route::get('/status/{status}', [CurrentAccountController::class, 'getByStatus']);
-        Route::get('/at-credit-limit', [CurrentAccountController::class, 'getAtCreditLimit']);
-        Route::get('/overdrawn', [CurrentAccountController::class, 'getOverdrawn']);
         
         // Movimientos
         Route::get('/{accountId}/movements', [CurrentAccountController::class, 'movements']);
@@ -333,15 +339,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{accountId}/payments', [CurrentAccountController::class, 'processPayment']);
         Route::post('/{accountId}/credit-purchases', [CurrentAccountController::class, 'processCreditPurchase']);
         Route::post('/{accountId}/check-credit', [CurrentAccountController::class, 'checkAvailableCredit']);
+        Route::get('/{accountId}/available-favor-credit', [CurrentAccountController::class, 'getAvailableFavorCredit']);
         
         // Gestión de límites
         Route::patch('/{accountId}/credit-limit', [CurrentAccountController::class, 'updateCreditLimit']);
         
-        // Estadísticas y reportes
+        // Estadísticas y reportes (con parámetro)
         Route::get('/{accountId}/statistics', [CurrentAccountController::class, 'statistics']);
-        Route::get('/statistics/general', [CurrentAccountController::class, 'generalStatistics']);
         Route::get('/{accountId}/export-movements', [CurrentAccountController::class, 'exportMovements']);
-        Route::get('/reports/generate', [CurrentAccountController::class, 'generateReport']);
     });
 
     Route::prefix('movement-types')->group(function () {

@@ -7,8 +7,9 @@ namespace App\Services;
 use App\Interfaces\CurrentAccountServiceInterface;
 use App\Models\CurrentAccount;
 use App\Models\CurrentAccountMovement;
-use App\Models\MovementType;
+use App\Constants\CurrentAccountMovementTypes;
 use App\Models\Customer;
+use App\Models\MovementType;
 use App\Services\SearchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -290,10 +291,31 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 $movementType
             );
             
-            $balanceChange = $balanceCalculator->calculateBalanceChange(
-                (float) $validatedData['amount'],
-                $movementType->operation_type
-            );
+            // IMPORTANTE: Si el balance vuelve a ser negativo después de un pago y hubo crédito a favor usado,
+            // debemos ajustar el balance para reflejar el crédito restante después de consumir el crédito usado
+            if ($balanceAfter < 0 && isset($validatedData['sale_id']) && $validatedData['sale_id']) {
+                // Buscar si hay un movimiento de crédito a favor para esta venta
+                $creditMovement = CurrentAccountMovement::where('sale_id', $validatedData['sale_id'])
+                    ->where('current_account_id', $validatedData['current_account_id'])
+                    ->whereHas('movementType', function($q) {
+                        $q->whereIn('name', [
+                            \App\Constants\CurrentAccountMovementTypes::ACCOUNT_PAYMENT,
+                            \App\Constants\CurrentAccountMovementTypes::CREDIT_USAGE
+                        ])
+                        ->where('operation_type', 'entrada');
+                    })
+                    ->first();
+                
+                if ($creditMovement && isset($creditMovement->metadata['credit_remaining_after_use'])) {
+                    $creditRemaining = (float) $creditMovement->metadata['credit_remaining_after_use'];
+                    // El balance negativo debería reflejar el crédito restante después de consumir el crédito usado
+                    // Por ejemplo: si había -$11,121 y se usaron $10,000, el crédito restante es -$1,121
+                    // Cuando el balance vuelve a ser negativo, debería ser -$1,121, no -$11,121
+                    $balanceAfter = -$creditRemaining;
+                }
+            }
+            
+            $balanceChange = $balanceAfter - $balanceBefore;
             
             $movementData = [
                 'current_account_id' => $validatedData['current_account_id'],
@@ -314,8 +336,81 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             // Actualizar el balance de la cuenta
             $account->updateBalance($balanceChange);
             
+            // Si es "Depósito a cuenta", crear también movimiento de caja
+            if (strtolower($movementType->name) === 'depósito a cuenta') {
+                $this->createCashMovementForDeposit($movement, $validatedData);
+            }
+            
             return $movement->load(['movementType', 'user.person']);
         });
+    }
+    
+    /**
+     * Crear movimiento de caja para depósito a cuenta
+     */
+    private function createCashMovementForDeposit(CurrentAccountMovement $movement, array $data): void
+    {
+        $cashRegisterId = $data['cash_register_id'] ?? null;
+        $paymentMethodId = $data['payment_method_id'] ?? null;
+        
+        // Si no hay cash_register_id o payment_method_id, no crear movimiento de caja
+        // (pero el movimiento de cuenta corriente ya se creó)
+        if (!$cashRegisterId || !$paymentMethodId) {
+            Log::warning('Depósito a cuenta sin caja o método de pago', [
+                'movement_id' => $movement->id,
+                'cash_register_id' => $cashRegisterId,
+                'payment_method_id' => $paymentMethodId
+            ]);
+            return;
+        }
+        
+        // Verificar que la caja existe y está abierta
+        $cashRegister = \App\Models\CashRegister::find($cashRegisterId);
+        if (!$cashRegister || $cashRegister->status !== 'open') {
+            Log::warning('Caja no encontrada o cerrada para depósito', [
+                'movement_id' => $movement->id,
+                'cash_register_id' => $cashRegisterId
+            ]);
+            return;
+        }
+        
+        // Buscar tipo de movimiento de caja para "Pago de cuenta corriente"
+        $cashMovementType = MovementType::where('name', 'Pago de cuenta corriente')
+            ->where('operation_type', 'entrada')
+            ->where('is_cash_movement', true)
+            ->first();
+        
+        // Si no existe, usar el primero disponible de entrada
+        if (!$cashMovementType) {
+            $cashMovementType = MovementType::where('operation_type', 'entrada')
+                ->where('is_cash_movement', true)
+                ->first();
+        }
+        
+        if (!$cashMovementType) {
+            Log::error('No se encontró tipo de movimiento de caja para depósito', [
+                'movement_id' => $movement->id
+            ]);
+            return;
+        }
+        
+        // Crear movimiento de caja
+        \App\Models\CashMovement::create([
+            'cash_register_id' => $cashRegisterId,
+            'movement_type_id' => $cashMovementType->id,
+            'payment_method_id' => $paymentMethodId,
+            'amount' => $movement->amount,
+            'description' => "Depósito a cuenta corriente: {$movement->description}",
+            'reference_type' => 'current_account_movement',
+            'reference_id' => $movement->id,
+            'user_id' => auth()->id(),
+        ]);
+        
+        Log::info('Movimiento de caja creado para depósito a cuenta', [
+            'movement_id' => $movement->id,
+            'cash_register_id' => $cashRegisterId,
+            'amount' => $movement->amount
+        ]);
     }
 
     /**
@@ -578,6 +673,140 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $validatedData['current_account_id'] = $accountId;
         
         return $this->createMovement($validatedData);
+    }
+
+    /**
+     * Obtener crédito a favor disponible (balance negativo)
+     * 
+     * @param int $accountId ID de la cuenta corriente
+     * @return float Crédito disponible (si balance es negativo, retorna el valor absoluto, sino 0)
+     */
+    public function getAvailableFavorCredit(int $accountId): float
+    {
+        $account = CurrentAccount::findOrFail($accountId);
+        $balance = (float) $account->current_balance;
+        
+        // Si el balance es negativo, el cliente tiene crédito a favor
+        // Retornar el valor absoluto del balance negativo
+        return $balance < 0 ? abs($balance) : 0.0;
+    }
+
+    /**
+     * Aplicar crédito a favor a una venta
+     * 
+     * @param int $accountId ID de la cuenta corriente
+     * @param int $saleId ID de la venta
+     * @param float $amount Monto del crédito a aplicar (no puede exceder el crédito disponible)
+     * @param float|null $availableCredit Crédito disponible previamente calculado (opcional, se recalcula si es null)
+     * @return CurrentAccountMovement Movimiento creado
+     * @throws \Exception Si el monto es inválido o excede el crédito disponible
+     */
+    public function applyFavorCreditToSale(int $accountId, int $saleId, float $amount, ?float $availableCredit = null): CurrentAccountMovement
+    {
+        if ($amount <= 0) {
+            throw new \InvalidArgumentException('El monto a aplicar debe ser mayor a 0');
+        }
+
+        $account = CurrentAccount::findOrFail($accountId);
+        
+        // Si no se proporciona el crédito disponible, calcularlo
+        // PERO esto puede ser incorrecto si la venta ya se registró
+        if ($availableCredit === null) {
+            $availableCredit = $this->getAvailableFavorCredit($accountId);
+        }
+        
+        if ($amount > $availableCredit) {
+            throw new \InvalidArgumentException(
+                sprintf(
+                    'El monto a aplicar ($%.2f) excede el crédito disponible ($%.2f)',
+                    $amount,
+                    $availableCredit
+                )
+            );
+        }
+        
+        // Buscar tipo de movimiento "Pago de cuenta corriente" para mantener consistencia con otros pagos
+        // Si no existe, buscar "Uso de crédito a favor" como fallback
+        $creditUsageType = MovementType::where('name', CurrentAccountMovementTypes::ACCOUNT_PAYMENT)
+            ->where('operation_type', 'entrada')
+            ->where('is_current_account_movement', true)
+            ->where('active', true)
+            ->first();
+        
+        // Fallback al tipo específico de crédito a favor si no existe el genérico
+        if (!$creditUsageType) {
+            $creditUsageType = MovementType::where('name', CurrentAccountMovementTypes::CREDIT_USAGE)
+                ->where('operation_type', 'entrada')
+                ->where('is_current_account_movement', true)
+                ->where('active', true)
+                ->first();
+        }
+        
+        if (!$creditUsageType) {
+            throw new \RuntimeException(
+                'Tipo de movimiento para crédito a favor no encontrado. Ejecuta el seeder de tipos de movimiento.'
+            );
+        }
+        
+        // Obtener información de la venta para la descripción
+        $sale = \App\Models\SaleHeader::find($saleId);
+        $saleNumber = $sale ? $sale->receipt_number : "Venta #{$saleId}";
+        
+        // IMPORTANTE: El crédito a favor debe consumirse del crédito original
+        // Si el balance actual es positivo (deuda), el crédito reduce la deuda normalmente
+        // Pero si el balance es negativo (crédito a favor), el crédito usado debe consumirse del crédito original
+        // Para lograr esto, necesitamos crear un movimiento especial que ajuste el balance para reflejar el crédito consumido
+        
+        return DB::transaction(function () use ($accountId, $creditUsageType, $amount, $saleNumber, $saleId, $account, $availableCredit) {
+            // Obtener el balance actual antes de aplicar el crédito
+            $account->refresh();
+            $balanceBefore = (float) $account->current_balance;
+            
+            // IMPORTANTE: El crédito a favor debe consumirse del crédito original
+            // Si el balance actual es positivo (deuda), el crédito reduce la deuda normalmente
+            // Pero necesitamos guardar cuánto crédito original había para que cuando el balance vuelva a ser negativo,
+            // refleje el crédito restante después de consumir el crédito usado
+            
+            // Si hay deuda (balance positivo), reducirla normalmente
+            // Si hay crédito (balance negativo), consumirlo
+            $balanceAfter = $balanceBefore > 0 
+                ? $balanceBefore - $amount  // Reducir deuda: 269379 - 10000 = 259379
+                : $balanceBefore + $amount; // Consumir crédito: -11121 + 10000 = -1121
+            
+            $balanceChange = $balanceAfter - $balanceBefore;
+            
+            // Guardar el crédito original disponible en los metadatos para referencia futura
+            // Esto nos permitirá ajustar el balance cuando vuelva a ser negativo
+            $metadata = [
+                'sale_id' => $saleId,
+                'receipt_number' => $saleNumber,
+                'credit_applied' => $amount,
+                'payment_method' => 'Crédito a favor',
+                'applied_at' => now()->toDateTimeString(),
+                'original_credit_available' => $availableCredit,
+                'credit_remaining_after_use' => max(0, $availableCredit - $amount)
+            ];
+            
+            // Crear el movimiento manualmente para tener control sobre el cálculo del balance
+            $movement = CurrentAccountMovement::create([
+                'current_account_id' => $accountId,
+                'movement_type_id' => $creditUsageType->id,
+                'amount' => $amount,
+                'description' => "Pago de venta #{$saleNumber} - Crédito a favor",
+                'reference' => $saleNumber,
+                'sale_id' => $saleId,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'metadata' => $metadata,
+                'user_id' => auth()->id(),
+                'movement_date' => now(),
+            ]);
+            
+            // Actualizar el balance de la cuenta
+            $account->updateBalance($balanceChange);
+            
+            return $movement->load(['movementType', 'user.person']);
+        });
     }
 
     /**
@@ -878,6 +1107,8 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'sale_id' => 'nullable|integer|exists:sales_header,id',
             'metadata' => 'nullable|array',
             'movement_date' => 'nullable|date',
+            'cash_register_id' => 'nullable|integer|exists:cash_registers,id',
+            'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
         ];
         
         return Validator::make($data, $rules)->validate();

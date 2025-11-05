@@ -41,6 +41,7 @@ class SaleHeader extends Model
         'annulment_reason',
         'paid_amount',
         'payment_status',
+        'metadata',
     ];
 
     protected $casts = [
@@ -58,6 +59,7 @@ class SaleHeader extends Model
         'service_to_date' => 'date',
         'service_due_date' => 'date',
         'annulled_at' => 'datetime',
+        'metadata' => 'array',
     ];
 
     protected $appends = ['pending_amount'];

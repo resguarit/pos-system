@@ -71,8 +71,28 @@ export class CurrentAccountService {
 
   // Consultas específicas
   static async getByCustomer(customerId: number): Promise<CurrentAccount | null> {
-    const response = await api.get(`${this.baseUrl}/customer/${customerId}`);
-    return this.handleResponse(response);
+    try {
+      const response = await api.get(`${this.baseUrl}/customer/${customerId}`);
+      // El backend retorna { status: 200, success: true, data: account | null }
+      const data = response?.data?.data;
+      
+      // Si data es null o undefined, retornar null
+      if (!data) {
+        console.log(`[CurrentAccountService] Cliente ${customerId} no tiene cuenta corriente`);
+        return null;
+      }
+      
+      return data;
+    } catch (error: any) {
+      // Si el error es 404 o no se encuentra, retornar null en lugar de lanzar error
+      if (error?.response?.status === 404) {
+        console.log(`[CurrentAccountService] Cliente ${customerId} no tiene cuenta corriente (404)`);
+        return null;
+      }
+      // Para otros errores, re-lanzar
+      console.error(`[CurrentAccountService] Error al obtener cuenta del cliente ${customerId}:`, error);
+      throw error;
+    }
   }
 
   static async getByStatus(status: string): Promise<CurrentAccount[]> {
@@ -122,6 +142,13 @@ export class CurrentAccountService {
     const response = await api.post(`${this.baseUrl}/${accountId}/check-credit`, { amount });
     const data = this.handleResponse(response) as { available: boolean };
     return data.available;
+  }
+
+  // Obtener crédito a favor disponible (balance negativo)
+  static async getAvailableFavorCredit(accountId: number): Promise<number> {
+    const response = await api.get(`${this.baseUrl}/${accountId}/available-favor-credit`);
+    const data = this.handleResponse(response) as { available_favor_credit: number; has_favor_credit: boolean };
+    return data.available_favor_credit || 0;
   }
 
   // Ventas pendientes y pagos

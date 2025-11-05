@@ -112,6 +112,8 @@ export interface CreateMovementData {
   sale_id?: number;
   metadata?: Record<string, any>;
   movement_date?: string;
+  cash_register_id?: number;
+  payment_method_id?: number;
 }
 
 export interface ProcessPaymentData {

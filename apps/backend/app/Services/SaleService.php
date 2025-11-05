@@ -6,6 +6,7 @@ use App\Services\CashMovementService;
 use App\Services\CurrentAccountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\SaleHeader;
 use App\Models\Product;
 use App\Models\SaleItem;
@@ -279,6 +280,9 @@ class SaleService implements SaleServiceInterface
      */
     public function registerSaleMovementFromPayments(SaleHeader $sale, ?int $cashRegisterId = null): void
     {
+        // IMPORTANTE: Recargar la venta para obtener los metadatos actualizados (incluyendo crédito a favor)
+        $sale->refresh();
+        
         // Cargar los pagos de la venta
         $sale->load('salePayments.paymentMethod', 'receiptType');
 
@@ -294,9 +298,25 @@ class SaleService implements SaleServiceInterface
             $this->registerAllSaleMovementsInCurrentAccount($sale);
         }
 
-        // Registrar movimientos de caja para pagos que no son cuenta corriente
-        $hasNonCreditPayments = $sale->salePayments->contains(function ($payment) {
-            return $payment->paymentMethod && $payment->paymentMethod->name !== 'Cuenta Corriente';
+        // Registrar movimientos de caja para pagos que afectan la caja
+        // Excluir: Cuenta Corriente y Crédito a favor (no afectan caja)
+        $favorCreditMethod = \App\Models\PaymentMethod::where('name', 'Crédito a favor')->first();
+        $favorCreditMethodId = $favorCreditMethod ? $favorCreditMethod->id : null;
+        
+        $hasNonCreditPayments = $sale->salePayments->contains(function ($payment) use ($favorCreditMethodId) {
+            $paymentMethod = $payment->paymentMethod;
+            if (!$paymentMethod) {
+                return false;
+            }
+            // Excluir "Cuenta Corriente" y "Crédito a favor"
+            if ($paymentMethod->name === 'Cuenta Corriente') {
+                return false;
+            }
+            if ($favorCreditMethodId && (int)$paymentMethod->id === $favorCreditMethodId) {
+                return false;
+            }
+            // Solo incluir métodos de pago que realmente afectan la caja
+            return $paymentMethod->affects_cash === true;
         });
         
         if ($hasNonCreditPayments) {
@@ -338,11 +358,25 @@ class SaleService implements SaleServiceInterface
             // Intentar registrar por cada pago si existen pagos asociados
             $sale->loadMissing('salePayments.paymentMethod');
             if ($sale->relationLoaded('salePayments') && $sale->salePayments && $sale->salePayments->count() > 0) {
+                // Obtener método de pago "Crédito a favor" para excluirlo
+                $favorCreditMethod = \App\Models\PaymentMethod::where('name', 'Crédito a favor')->first();
+                $favorCreditMethodId = $favorCreditMethod ? $favorCreditMethod->id : null;
+                
                 foreach ($sale->salePayments as $payment) {
                     $paymentMethod = $payment->paymentMethod; // puede ser null si no está vinculado
                     
                     // IMPORTANTE: NO registrar en caja si es pago a cuenta corriente
                     if ($paymentMethod && $paymentMethod->name === 'Cuenta Corriente') {
+                        continue;
+                    }
+                    
+                    // IMPORTANTE: NO registrar en caja si es crédito a favor (no afecta caja)
+                    if ($favorCreditMethodId && $paymentMethod && (int)$paymentMethod->id === $favorCreditMethodId) {
+                        continue;
+                    }
+                    
+                    // Solo registrar si el método de pago afecta la caja
+                    if (!$paymentMethod || $paymentMethod->affects_cash !== true) {
                         continue;
                     }
                     
@@ -453,6 +487,9 @@ class SaleService implements SaleServiceInterface
 
             // Solo crear el movimiento si no existe ya
             if (!$existingSaleMovement) {
+                // Guardar el balance ANTES de registrar la venta para calcular crédito disponible
+                $balanceBeforeSale = (float) $currentAccount->current_balance;
+                
                 $currentAccountService->createMovement([
                     'current_account_id' => $currentAccount->id,
                     'movement_type_id' => $saleMovementType->id,
@@ -466,10 +503,35 @@ class SaleService implements SaleServiceInterface
                         'total_sale' => $sale->total
                     ]
                 ]);
+            } else {
+                // Si la venta ya existe, obtener el balance antes de esa venta
+                // Buscar el movimiento de venta para obtener su balance_before
+                $balanceBeforeSale = (float) $existingSaleMovement->balance_before;
             }
 
-            // 2. Registrar CRÉDITOS: Pagos (reducen la deuda inmediatamente)
+            // 2. Aplicar crédito a favor INMEDIATAMENTE después de registrar la venta
+            // Esto asegura que el balance refleje el crédito aplicado antes de registrar los pagos
+            // IMPORTANTE: Recargar la venta para obtener los metadatos actualizados
+            $sale->refresh();
+            $currentAccount->refresh(); // Recargar cuenta para obtener balance actualizado
+            $favorCreditService = app(\App\Services\CurrentAccount\FavorCreditService::class);
+            $favorCreditService->applyCreditIfRequested($currentAccount, $sale, $balanceBeforeSale ?? null);
+
+            // 3. Registrar CRÉDITOS: Pagos (reducen la deuda inmediatamente)
+            // Excluir pagos de "Crédito a favor" porque ya se registraron arriba
+            $favorCreditPaymentMethod = \App\Models\PaymentMethod::where('name', 'Crédito a favor')->first();
+            $favorCreditPaymentMethodId = $favorCreditPaymentMethod ? $favorCreditPaymentMethod->id : null;
+            
+            // Recargar cuenta para obtener balance actualizado después de aplicar crédito a favor
+            $currentAccount->refresh();
+            $balanceAfterCredit = (float) $currentAccount->current_balance;
+            
             foreach ($sale->salePayments as $payment) {
+                // Excluir pagos de crédito a favor (ya se registraron arriba)
+                if ($favorCreditPaymentMethodId && (int)($payment->payment_method_id ?? 0) === $favorCreditPaymentMethodId) {
+                    continue;
+                }
+                
                 $paymentMethod = $payment->paymentMethod;
                 
                 // Determinar el tipo de movimiento según el método de pago
@@ -493,12 +555,29 @@ class SaleService implements SaleServiceInterface
                     ->first();
 
                 if ($paymentMovementType) {
+                    // IMPORTANTE: Si hay crédito a favor aplicado, NO ajustar el monto del pago
+                    // El pago debe ser exactamente el monto que el usuario especificó
+                    // El balance final reflejará el crédito restante si había crédito antes de la venta
+                    $paymentAmount = (float) $payment->amount;
+                    $metadata = $sale->metadata ?? [];
+                    $favorCreditAmount = isset($metadata['favor_credit_amount']) ? (float) $metadata['favor_credit_amount'] : 0.0;
+                    
+                    // NO ajustar el monto del pago - dejar que el balance refleje el crédito restante
+                    // El balance final será: balanceAfterCredit - paymentAmount
+                    // Si había crédito antes de la venta y solo se usó parte, el balance final mostrará el crédito restante
+                    
+                    Log::info('Registrando pago sin ajuste de crédito', [
+                        'sale_id' => $sale->id,
+                        'payment_amount' => $paymentAmount,
+                        'balance_after_credit' => $balanceAfterCredit,
+                        'favor_credit_amount' => $favorCreditAmount,
+                    ]);
+                    
                     // Verificar si ya existe un movimiento de pago para este pago específico
                     // Usamos el payment_id del metadata para distinguir entre pagos múltiples del mismo método y monto
                     $existingPaymentMovement = \App\Models\CurrentAccountMovement::where('sale_id', $sale->id)
                         ->where('movement_type_id', $paymentMovementType->id)
                         ->where('current_account_id', $currentAccount->id)
-                        ->where('amount', $payment->amount)
                         ->where('metadata->payment_id', $payment->id)
                         ->first();
 
@@ -507,7 +586,7 @@ class SaleService implements SaleServiceInterface
                         $currentAccountService->createMovement([
                             'current_account_id' => $currentAccount->id,
                             'movement_type_id' => $paymentMovementType->id,
-                            'amount' => $payment->amount,
+                            'amount' => $paymentAmount, // Usar el monto original del pago
                             'description' => "Pago de venta #{$sale->receipt_number} - {$paymentMethod->name}",
                             'reference' => $sale->receipt_number,
                             'sale_id' => $sale->id,
@@ -517,7 +596,8 @@ class SaleService implements SaleServiceInterface
                                 'payment_id' => $payment->id, // ID único del pago para distinguir pagos múltiples
                                 'payment_method' => $paymentMethod->name,
                                 'payment_method_id' => $payment->payment_method_id,
-                                'payment_amount' => $payment->amount
+                                'payment_amount' => $paymentAmount,
+                                'favor_credit_amount' => $favorCreditAmount
                             ]
                         ]);
                     }
@@ -1207,6 +1287,11 @@ class SaleService implements SaleServiceInterface
             if (!$paymentMethod) { return null; }
             $name = strtolower(trim($paymentMethod->name ?? ''));
             if ($name === '') { return null; }
+            
+            // IMPORTANTE: "Crédito a favor" NO debe generar movimiento de caja
+            if (str_contains($name, 'crédito a favor') || str_contains($name, 'credito a favor')) {
+                return null;
+            }
 
             // Determinar nombre/desc canónicos por método de pago
             $canonicalName = null;
@@ -1222,6 +1307,7 @@ class SaleService implements SaleServiceInterface
                 $canonicalName = 'Venta con tarjeta de débito';
                 $canonicalDesc = 'Ingreso por venta pagada con tarjeta de débito';
             } elseif (str_contains($name, 'credito') || str_contains($name, 'crédito')) {
+                // Solo para tarjetas de crédito, NO para "Crédito a favor" (ya excluido arriba)
                 $canonicalName = 'Venta con tarjeta de crédito';
                 $canonicalDesc = 'Ingreso por venta pagada con tarjeta de crédito';
             } elseif (str_contains($name, 'tarjeta')) {

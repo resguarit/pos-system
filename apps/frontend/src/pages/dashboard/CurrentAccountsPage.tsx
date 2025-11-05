@@ -225,7 +225,7 @@ export default function CurrentAccountsPage() {
               {stats.overdrawn_accounts}
             </div>
             <p className="text-xs text-gray-600 mt-1">
-              Con saldo negativo
+              Con saldo adeudado
             </p>
           </CardContent>
         </Card>
