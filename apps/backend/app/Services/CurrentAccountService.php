@@ -111,22 +111,35 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         if (isset($filters['balance_filter'])) {
             switch ($filters['balance_filter']) {
                 case 'positive':
-                    // Con crédito disponible = cuentas con crédito infinito (credit_limit = NULL)
-                    $query->whereNull('credit_limit');
-                    break;
-                case 'at_limit':
-                    // Cuentas al límite: current_balance >= credit_limit y credit_limit no es NULL
-                    $query->whereNotNull('credit_limit')
-                          ->whereRaw('current_balance >= credit_limit');
-                    break;
-                case 'overdrawn':
-                    // Cuentas sobregiradas: current_balance > credit_limit y credit_limit no es NULL
-                    $query->whereNotNull('credit_limit')
-                          ->whereRaw('current_balance > credit_limit');
+                    // Con crédito disponible = cuentas con balance negativo O crédito acumulado > 0
+                    // available_favor_credit = abs(balance negativo) + accumulated_credit
+                    $query->where(function($q) {
+                        $q->where('current_balance', '<', 0)  // Balance negativo (crédito del balance)
+                          ->orWhere('accumulated_credit', '>', 0); // Crédito acumulado
+                    });
                     break;
                 case 'negative':
-                    // Con deuda: current_balance > 0 (incluye todos los movimientos)
-                    $query->where('current_balance', '>', 0);
+                    // Con deuda: tiene ventas pendientes O cargos administrativos pendientes
+                    // Esto requiere verificar si hay ventas pendientes o cargos administrativos
+                    $query->where(function($q) {
+                        // Cuentas con ventas pendientes
+                        $q->whereHas('sales', function($salesQuery) {
+                            $salesQuery->where('status', '!=', 'annulled')
+                                ->where(function($paymentQuery) {
+                                    $paymentQuery->whereNull('payment_status')
+                                          ->orWhereIn('payment_status', ['pending', 'partial']);
+                                })
+                                ->whereRaw('(total - COALESCE(paid_amount, 0)) > 0');
+                        })
+                        // O cuentas con cargos administrativos pendientes
+                        ->orWhereHas('movements', function($movementsQuery) {
+                            $movementsQuery->whereNull('sale_id')
+                                ->whereHas('movementType', function($typeQuery) {
+                                    $typeQuery->where('operation_type', 'salida')
+                                        ->whereIn('name', ['Ajuste en contra', 'Interés aplicado']);
+                                });
+                        });
+                    });
                     break;
             }
         }

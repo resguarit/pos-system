@@ -361,8 +361,7 @@ export default function CurrentAccountsPage() {
               <Button variant="outline" className="justify-between min-w-[140px]">
                 {statusFilter === '' ? 'Todos los estados' : 
                  statusFilter === 'active' ? 'Activas' :
-                 statusFilter === 'suspended' ? 'Suspendidas' :
-                 statusFilter === 'closed' ? 'Cerradas' : 'Todos los estados'}
+                 statusFilter === 'suspended' ? 'Suspendidas' : 'Todos los estados'}
                 <ChevronDown className="ml-2 h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -379,10 +378,6 @@ export default function CurrentAccountsPage() {
                 <Check className={`mr-2 h-4 w-4 ${statusFilter === 'suspended' ? 'opacity-100' : 'opacity-0'}`} />
                 Suspendidas
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter('closed')}>
-                <Check className={`mr-2 h-4 w-4 ${statusFilter === 'closed' ? 'opacity-100' : 'opacity-0'}`} />
-                Cerradas
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -392,9 +387,7 @@ export default function CurrentAccountsPage() {
               <Button variant="outline" className="justify-between min-w-[160px]">
                 {balanceFilter === '' ? 'Todos los balances' : 
                  balanceFilter === 'positive' ? 'Con crédito disponible' :
-                 balanceFilter === 'negative' ? 'Con deuda' :
-                 balanceFilter === 'at_limit' ? 'Al límite' :
-                 balanceFilter === 'overdrawn' ? 'Sobregiradas' : 'Todos los balances'}
+                 balanceFilter === 'negative' ? 'Con deuda' : 'Todos los balances'}
                 <ChevronDown className="ml-2 h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -410,14 +403,6 @@ export default function CurrentAccountsPage() {
               <DropdownMenuItem onClick={() => setBalanceFilter('negative')}>
                 <Check className={`mr-2 h-4 w-4 ${balanceFilter === 'negative' ? 'opacity-100' : 'opacity-0'}`} />
                 Con deuda
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setBalanceFilter('at_limit')}>
-                <Check className={`mr-2 h-4 w-4 ${balanceFilter === 'at_limit' ? 'opacity-100' : 'opacity-0'}`} />
-                Al límite
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setBalanceFilter('overdrawn')}>
-                <Check className={`mr-2 h-4 w-4 ${balanceFilter === 'overdrawn' ? 'opacity-100' : 'opacity-0'}`} />
-                Sobregiradas
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

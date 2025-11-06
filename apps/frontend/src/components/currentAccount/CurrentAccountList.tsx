@@ -100,20 +100,12 @@ export function CurrentAccountList({
         // Balance NEGATIVO = cliente tiene saldo a favor (crédito disponible)
         switch (balanceFilter) {
           case 'positive':
-            // Con crédito disponible = cuentas con crédito infinito (credit_limit = NULL)
+            // Con crédito disponible = cuentas con balance negativo O crédito acumulado > 0
             filters.balance_filter = 'positive';
             break;
           case 'negative':
-            // Con deuda = balance positivo (> 0) O tiene ventas pendientes
+            // Con deuda = tiene ventas pendientes O cargos administrativos pendientes
             filters.balance_filter = 'negative';
-            break;
-          case 'at_limit':
-            // Al límite = requiere lógica especial en backend
-            filters.balance_filter = 'at_limit';
-            break;
-          case 'overdrawn':
-            // Sobregiradas = excedieron el límite de crédito
-            filters.balance_filter = 'overdrawn';
             break;
         }
       }
@@ -306,14 +298,14 @@ export function CurrentAccountList({
                 >
                   SALDO ADEUDADO
                 </ResizableTableHeader>
-                <ResizableTableHeader
-                  columnId="accumulated_credit"
-                  getResizeHandleProps={getResizeHandleProps}
-                  getColumnHeaderProps={getColumnHeaderProps}
-                  className="hidden md:table-cell"
-                >
-                  CRÉDITO ACUMULADO
-                </ResizableTableHeader>
+            <ResizableTableHeader
+              columnId="accumulated_credit"
+              getResizeHandleProps={getResizeHandleProps}
+              getColumnHeaderProps={getColumnHeaderProps}
+              className="hidden md:table-cell"
+            >
+              CRÉDITO DISPONIBLE
+            </ResizableTableHeader>
                 <ResizableTableHeader
                   columnId="last_movement"
                   getResizeHandleProps={getResizeHandleProps}
@@ -391,11 +383,11 @@ export function CurrentAccountList({
                       getColumnCellProps={getColumnCellProps}
                       className="hidden md:table-cell text-right text-sm"
                     >
-                      {/* Mostrar crédito acumulado: bonificaciones/depósitos */}
+                      {/* Mostrar crédito disponible total: acumulado + balance negativo */}
                       <span className={`font-medium ${
-                        (account.accumulated_credit || 0) > 0 ? 'text-green-600' : 'text-gray-500'
+                        (account.available_favor_credit || 0) > 0 ? 'text-green-600' : 'text-gray-500'
                       }`}>
-                        {CurrentAccountUtils.formatCurrency(account.accumulated_credit || 0)}
+                        {CurrentAccountUtils.formatCurrency(account.available_favor_credit || 0)}
                       </span>
                     </ResizableTableCell>
                     <ResizableTableCell
