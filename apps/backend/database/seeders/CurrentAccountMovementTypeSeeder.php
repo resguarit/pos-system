@@ -28,7 +28,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'description' => 'Bonificación o descuento que acumula crédito utilizable',
                 'operation_type' => 'entrada',
                 'is_current_account_movement' => true,
-                'affects_cash' => false,
                 'active' => true,
             ],
             
@@ -41,7 +40,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'description' => 'Dinero que el cliente paga (efectivo, transferencia, etc.)',
                 'operation_type' => 'entrada',
                 'is_current_account_movement' => true,
-                'affects_cash' => true,
                 'active' => true,
             ],
             
@@ -58,7 +56,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'description' => 'Ajuste contable que aumenta la deuda del cliente',
                 'operation_type' => 'salida',
                 'is_current_account_movement' => true,
-                'affects_cash' => false,
                 'active' => true,
             ],
             
@@ -71,7 +68,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'description' => 'Interés por mora o financiación aplicado a la cuenta',
                 'operation_type' => 'salida',
                 'is_current_account_movement' => true,
-                'affects_cash' => false,
                 'active' => true,
             ],
             
@@ -85,7 +81,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'description' => 'Venta registrada a cuenta corriente',
                 'operation_type' => 'salida',
                 'is_current_account_movement' => true,
-                'affects_cash' => false,
                 'active' => true,
             ],
             [
@@ -93,7 +88,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'description' => 'Pago realizado a una venta pendiente',
                 'operation_type' => 'entrada',
                 'is_current_account_movement' => true,
-                'affects_cash' => true,
                 'active' => true,
             ],
             [
@@ -101,7 +95,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'description' => 'Uso de crédito acumulado para pagar una venta',
                 'operation_type' => 'entrada',
                 'is_current_account_movement' => true,
-                'affects_cash' => false,
                 'active' => true,
             ],
         ];

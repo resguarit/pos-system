@@ -38,6 +38,7 @@ class ProductionSeeder extends Seeder
         $this->call([
             RoleSeeder::class,                  // Roles básicos del sistema
             PermissionSeeder::class,            // Permisos del sistema
+            ShipmentPermissionSeeder::class,    // Permisos de envíos
             PermissionRoleSeeder::class,        // Asignación de permisos a roles
         ]);
         
