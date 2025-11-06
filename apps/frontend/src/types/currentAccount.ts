@@ -31,7 +31,10 @@ export interface CurrentAccount {
   };
   credit_limit: number | null;
   current_balance: number;
+  accumulated_credit: number; // Crédito acumulado por bonificaciones/depósitos
+  total_pending_debt: number; // Total de ventas pendientes (saldo adeudado)
   available_credit: number | null;
+  available_favor_credit: number; // Crédito total disponible para usar
   credit_usage_percentage: number | null;
   status: 'active' | 'suspended' | 'closed';
   status_text: string;
@@ -286,5 +289,32 @@ export interface SalePayment {
 export interface ProcessPaymentBySaleData {
   sale_payments: SalePayment[];
   payment_method_id: number;
+}
+
+// Tipos para cargos administrativos
+export interface AdministrativeCharge {
+  id: number;
+  movement_type: string;
+  description: string;
+  reference: string | null;
+  total_amount: number;
+  paid_amount: number;
+  pending_amount: number;
+  movement_date: string;
+  created_at: string;
+  payment_status: 'pending' | 'partial' | 'paid';
+}
+
+export interface ChargePayment {
+  charge_id: number;
+  amount: number;
+}
+
+export interface ProcessPaymentWithChargesData {
+  sale_payments?: SalePayment[];
+  charge_payments?: ChargePayment[];
+  payment_method_id: number;
+  favor_credit_amount?: number;
+  branch_id?: number; // Sucursal para registrar movimiento de caja (requerido para cargos administrativos)
 }
 

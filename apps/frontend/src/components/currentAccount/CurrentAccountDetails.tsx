@@ -212,7 +212,8 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
     );
   }
 
-  const totalPendingDebt = calculateTotalPendingSales(pendingSales);
+  // Usar total_pending_debt del backend que incluye ventas + cargos administrativos
+  const totalPendingDebt = account?.total_pending_debt || 0;
   const balanceDescription = getOutstandingBalanceDescription(
     account?.current_balance || 0,
     totalPendingDebt
@@ -288,22 +289,24 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
               {CurrentAccountUtils.formatCurrency(totalPendingDebt)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Ventas sin pagar completamente
+              Ventas y cargos administrativos pendientes
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Balance</CardTitle>
-            <TrendingUp className="h-4 w-4 text-violet-600" />
+            <CardTitle className="text-sm font-medium">Crédito a Favor</CardTitle>
+            <TrendingDown className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getBalanceColorClass(account.current_balance || 0)}`}>
-              {CurrentAccountUtils.formatCurrency(account.current_balance || 0)}
+            <div className={`text-2xl font-bold ${(account.available_favor_credit || 0) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+              {CurrentAccountUtils.formatCurrency(account.available_favor_credit || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {balanceDescription}
+              {(account.available_favor_credit || 0) > 0 
+                ? 'Disponible para usar en pagos' 
+                : 'Sin crédito disponible'}
             </p>
           </CardContent>
         </Card>
@@ -311,39 +314,21 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Límite de Crédito</CardTitle>
-            <TrendingUp className="h-4 w-4 text-violet-600" />
+            <TrendingUp className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {account.credit_limit === null ? (
                 <InfinitySymbol size="md" />
               ) : (
-                CurrentAccountUtils.formatCurrency(account.credit_limit)
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Crédito Disponible</CardTitle>
-            <TrendingDown className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {account.available_credit === null ? (
-                <InfinitySymbol size="md" />
-              ) : (
-                <span className={account.available_credit < 0 ? 'text-red-600' : 'text-green-600'}>
-                  {CurrentAccountUtils.formatCurrency(account.available_credit)}
+                <span className="text-blue-600">
+                  {CurrentAccountUtils.formatCurrency(account.credit_limit)}
                 </span>
               )}
             </div>
-            {account.credit_usage_percentage !== null && (
-              <p className="text-xs text-muted-foreground">
-                {CurrentAccountUtils.formatPercentage(account.credit_usage_percentage)} usado
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              Máximo permitido
+            </p>
           </CardContent>
         </Card>
 
@@ -478,7 +463,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                           getResizeHandleProps={resizableColumns.getResizeHandleProps}
                           getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
                         >
-                          Balance
+                          Saldo Adeudado
                         </ResizableTableHeader>
                       </tr>
                     </thead>
@@ -516,9 +501,9 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                           <ResizableTableCell
                             columnId="balance"
                             getColumnCellProps={resizableColumns.getColumnCellProps}
-                            className={movement.balance_after > 0 ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
+                            className={movement.balance_after > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}
                           >
-                            {CurrentAccountUtils.formatCurrency(movement.balance_after)}
+                            {CurrentAccountUtils.formatCurrency(Math.max(0, movement.balance_after))}
                           </ResizableTableCell>
                         </tr>
                       ))}

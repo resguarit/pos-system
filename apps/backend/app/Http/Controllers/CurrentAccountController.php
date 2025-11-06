@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Interfaces\CurrentAccountServiceInterface;
 use App\Http\Resources\CurrentAccountMovementResource;
+use App\Http\Resources\CurrentAccountResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -29,11 +30,16 @@ class CurrentAccountController extends Controller
         try {
             $accounts = $this->currentAccountService->getAccountsPaginated($request);
             
+            // Transformar los resultados usando el Resource para incluir campos calculados
+            $transformedData = $accounts->through(function ($account) {
+                return new CurrentAccountResource($account);
+            });
+            
             return response()->json([
                 'status' => 200,
                 'success' => true,
                 'message' => 'Cuentas corrientes obtenidas correctamente',
-                'data' => $accounts
+                'data' => $transformedData
             ], 200);
         } catch (Exception $e) {
             Log::error('Error al obtener cuentas corrientes: ' . $e->getMessage());
@@ -89,7 +95,7 @@ class CurrentAccountController extends Controller
                 'status' => 200,
                 'success' => true,
                 'message' => 'Cuenta corriente obtenida correctamente',
-                'data' => $account
+                'data' => new CurrentAccountResource($account)
             ], 200);
         } catch (Exception $e) {
             Log::error('Error al obtener cuenta corriente: ' . $e->getMessage());
@@ -168,7 +174,7 @@ class CurrentAccountController extends Controller
                 'status' => 200,
                 'success' => true,
                 'message' => $account ? 'Cuenta corriente obtenida' : 'No se encontró cuenta corriente para este cliente',
-                'data' => $account
+                'data' => $account ? new CurrentAccountResource($account) : null
             ], 200);
         } catch (Exception $e) {
             Log::error('Error al obtener cuenta corriente por cliente: ' . $e->getMessage());
@@ -271,12 +277,23 @@ class CurrentAccountController extends Controller
                     'has_favor_credit' => $availableCredit > 0
                 ]
             ], 200);
-        } catch (Exception $e) {
-            Log::error('Error al obtener crédito a favor: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('Error al obtener crédito a favor', [
+                'account_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
             return response()->json([
                 'status' => 400,
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
+                'error_details' => config('app.debug') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ] : null
             ], 400);
         }
     }
@@ -315,6 +332,44 @@ class CurrentAccountController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
+            ]);
+            
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor',
+                'error' => config('app.debug') ? $e->getMessage() : null
+            ], 500);
+        }
+    }
+
+    /**
+     * Obtener cargos administrativos pendientes
+     * 
+     * Retorna cargos administrativos (Ajuste en contra, Interés aplicado)
+     * que no han sido completamente pagados.
+     * 
+     * @param int $accountId ID de la cuenta corriente
+     * @return JsonResponse Lista de cargos administrativos pendientes
+     */
+    public function administrativeCharges(int $accountId): JsonResponse
+    {
+        try {
+            $charges = $this->currentAccountService->getAdministrativeCharges($accountId);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Cargos administrativos obtenidos correctamente',
+                'data' => $charges
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error al obtener cargos administrativos', [
+                'account_id' => $accountId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
             ]);
             
             return response()->json([

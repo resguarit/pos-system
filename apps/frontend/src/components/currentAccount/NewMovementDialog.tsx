@@ -91,14 +91,17 @@ export function NewMovementDialog({
     try {
       const paymentResponse = await api.get('/payment-methods');
       const paymentData = paymentResponse.data?.data || paymentResponse.data || [];
-      // Filtrar métodos activos y excluir "Cuenta Corriente" y variantes específicas
+      // Filtrar métodos activos y excluir métodos no válidos para depósitos
       const filteredMethods = paymentData.filter((m: PaymentMethod) => {
         if (!m.is_active) return false;
         const nameLower = m.name.toLowerCase().trim();
-        // Excluir métodos que sean específicamente "Cuenta Corriente" o variantes
+        // Excluir métodos que sean específicamente "Cuenta Corriente" o "Crédito a favor"
+        // No puedes depositar usando tu propio crédito o cuenta corriente
         return !nameLower.includes('cuenta corriente') && 
                !nameLower.includes('cta cte') &&
                !nameLower.includes('cta. cte') &&
+               !nameLower.includes('crédito a favor') &&
+               !nameLower.includes('credito a favor') &&
                nameLower !== 'corriente'; // Solo excluir si es exactamente "corriente"
       });
       setPaymentMethods(filteredMethods);

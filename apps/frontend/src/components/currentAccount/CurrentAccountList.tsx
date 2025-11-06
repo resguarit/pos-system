@@ -62,8 +62,8 @@ export function CurrentAccountList({
     { id: 'client', minWidth: 200, maxWidth: 400, defaultWidth: 250 },
     { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
     { id: 'credit_limit', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
-    { id: 'current_balance', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
-    { id: 'available_credit', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
+    { id: 'pending_debt', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
+    { id: 'accumulated_credit', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
     { id: 'last_movement', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
     { id: 'actions', minWidth: 180, maxWidth: 220, defaultWidth: 200 }
   ];
@@ -299,20 +299,20 @@ export function CurrentAccountList({
                   LÍMITE DE CRÉDITO
                 </ResizableTableHeader>
                 <ResizableTableHeader
-                  columnId="current_balance"
+                  columnId="pending_debt"
                   getResizeHandleProps={getResizeHandleProps}
                   getColumnHeaderProps={getColumnHeaderProps}
                   className="hidden md:table-cell"
                 >
-                  BALANCE
+                  SALDO ADEUDADO
                 </ResizableTableHeader>
                 <ResizableTableHeader
-                  columnId="available_credit"
+                  columnId="accumulated_credit"
                   getResizeHandleProps={getResizeHandleProps}
                   getColumnHeaderProps={getColumnHeaderProps}
                   className="hidden md:table-cell"
                 >
-                  CRÉDITO DISPONIBLE
+                  CRÉDITO ACUMULADO
                 </ResizableTableHeader>
                 <ResizableTableHeader
                   columnId="last_movement"
@@ -375,29 +375,28 @@ export function CurrentAccountList({
                       )}
                     </ResizableTableCell>
                     <ResizableTableCell
-                      columnId="current_balance"
+                      columnId="pending_debt"
                       getColumnCellProps={getColumnCellProps}
                       className="hidden md:table-cell text-right text-sm"
                     >
-                      {/* Mostrar balance real: positivo = deuda, negativo = crédito a favor */}
+                      {/* Mostrar saldo adeudado: total de ventas pendientes */}
                       <span className={`font-medium ${
-                        account.current_balance > 0 ? 'text-red-600' : 'text-green-600'
+                        (account.total_pending_debt || 0) > 0 ? 'text-red-600' : 'text-gray-500'
                       }`}>
-                        {CurrentAccountUtils.formatCurrency(account.current_balance || 0)}
+                        {CurrentAccountUtils.formatCurrency(account.total_pending_debt || 0)}
                       </span>
                     </ResizableTableCell>
                     <ResizableTableCell
-                      columnId="available_credit"
+                      columnId="accumulated_credit"
                       getColumnCellProps={getColumnCellProps}
                       className="hidden md:table-cell text-right text-sm"
                     >
-                      {account.available_credit === null ? (
-                        <InfinitySymbol size="xs" />
-                      ) : (
-                        <span className={account.available_credit < 0 ? 'text-red-600 font-medium' : 'text-green-600'}>
-                          {CurrentAccountUtils.formatCurrency(account.available_credit)}
-                        </span>
-                      )}
+                      {/* Mostrar crédito acumulado: bonificaciones/depósitos */}
+                      <span className={`font-medium ${
+                        (account.accumulated_credit || 0) > 0 ? 'text-green-600' : 'text-gray-500'
+                      }`}>
+                        {CurrentAccountUtils.formatCurrency(account.accumulated_credit || 0)}
+                      </span>
                     </ResizableTableCell>
                     <ResizableTableCell
                       columnId="last_movement"

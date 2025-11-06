@@ -1,131 +1,118 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\MovementType;
+use Illuminate\Database\Seeder;
 
-/**
- * Seeder para tipos de movimiento MANUALES de cuentas corrientes.
- * 
- * IMPORTANTE: Este seeder solo incluye tipos de movimiento que se crean manualmente.
- * Los tipos automáticos como "Venta" y "Pago de venta" se crean automáticamente
- * por el sistema y NO deben estar aquí.
- */
 class CurrentAccountMovementTypeSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     */
     public function run(): void
     {
         $movementTypes = [
-            // Movimientos de entrada (créditos manuales)
-            [
-                'name' => 'Nota de crédito',
-                'description' => 'Nota de crédito emitida por devolución o descuento',
-                'operation_type' => 'entrada',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
+            // ============================================
+            // TIPOS DE MOVIMIENTOS MANUALES DE CRÉDITO (ENTRADA)
+            // ============================================
+            
+            // 1. AJUSTE A FAVOR: Bonificación/descuento del negocio
+            //    - NO genera movimiento en caja (no es dinero real)
+            //    - Acumula crédito utilizable (se consume al usarlo)
+            //    - Ejemplo: "Te damos $5,000 de descuento"
             [
                 'name' => 'Ajuste a favor',
-                'description' => 'Ajuste contable que beneficia al cliente y reduce su deuda',
+                'description' => 'Bonificación o descuento que acumula crédito utilizable',
                 'operation_type' => 'entrada',
-                'is_cash_movement' => false,
                 'is_current_account_movement' => true,
-                'active' => true,
-            ],
-            [
-                'name' => 'Bonificación',
-                'description' => 'Bonificación otorgada al cliente',
-                'operation_type' => 'entrada',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
-            [
-                'name' => 'Depósito a cuenta',
-                'description' => 'Depósito realizado directamente a la cuenta corriente',
-                'operation_type' => 'entrada',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
+                'affects_cash' => false,
                 'active' => true,
             ],
             
-            // Movimientos de salida (débitos manuales)
+            // 2. DEPÓSITO A CUENTA: Dinero real que el cliente paga
+            //    - SÍ genera movimiento en caja (dinero real)
+            //    - Acumula crédito utilizable
+            //    - Ejemplo: Cliente paga $10,000 por adelantado
             [
-                'name' => 'Compra a crédito',
-                'description' => 'Compra realizada por el cliente a crédito (registro manual)',
-                'operation_type' => 'salida',
-                'is_cash_movement' => false,
+                'name' => 'Depósito a cuenta',
+                'description' => 'Dinero que el cliente paga (efectivo, transferencia, etc.)',
+                'operation_type' => 'entrada',
                 'is_current_account_movement' => true,
+                'affects_cash' => true,
                 'active' => true,
             ],
-            [
-                'name' => 'Nota de débito',
-                'description' => 'Nota de débito por interés, comisiones o gastos',
-                'operation_type' => 'salida',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
-            [
-                'name' => 'Interés aplicado',
-                'description' => 'Interés aplicado por mora o financiación',
-                'operation_type' => 'salida',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
-            [
-                'name' => 'Comisión aplicada',
-                'description' => 'Comisión aplicada por servicios administrativos',
-                'operation_type' => 'salida',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
+            
+            // ============================================
+            // TIPOS DE MOVIMIENTOS MANUALES DE DÉBITO (SALIDA)
+            // ============================================
+            
+            // 3. AJUSTE EN CONTRA: Corrección contable que aumenta la deuda
+            //    - NO genera movimiento en caja
+            //    - Aumenta el balance (deuda del cliente)
+            //    - Ejemplo: Corrección de error, ajuste de inventario
             [
                 'name' => 'Ajuste en contra',
-                'description' => 'Ajuste contable que perjudica al cliente y aumenta su deuda',
+                'description' => 'Ajuste contable que aumenta la deuda del cliente',
                 'operation_type' => 'salida',
-                'is_cash_movement' => false,
                 'is_current_account_movement' => true,
+                'affects_cash' => false,
+                'active' => true,
+            ],
+            
+            // 4. INTERÉS APLICADO: Interés por mora o financiación
+            //    - NO genera movimiento en caja
+            //    - Aumenta el balance (deuda del cliente)
+            //    - Ejemplo: Interés del 2% mensual por deuda vencida
+            [
+                'name' => 'Interés aplicado',
+                'description' => 'Interés por mora o financiación aplicado a la cuenta',
+                'operation_type' => 'salida',
+                'is_current_account_movement' => true,
+                'affects_cash' => false,
+                'active' => true,
+            ],
+            
+            // ============================================
+            // TIPOS DE MOVIMIENTOS AUTOMÁTICOS (NO EDITABLES POR USUARIO)
+            // ============================================
+            
+            // Movimientos generados por el sistema
+            [
+                'name' => 'Venta',
+                'description' => 'Venta registrada a cuenta corriente',
+                'operation_type' => 'salida',
+                'is_current_account_movement' => true,
+                'affects_cash' => false,
                 'active' => true,
             ],
             [
-                'name' => 'Gastos administrativos',
-                'description' => 'Gastos administrativos aplicados a la cuenta',
-                'operation_type' => 'salida',
-                'is_cash_movement' => false,
+                'name' => 'Pago de cuenta corriente',
+                'description' => 'Pago realizado a una venta pendiente',
+                'operation_type' => 'entrada',
                 'is_current_account_movement' => true,
+                'affects_cash' => true,
+                'active' => true,
+            ],
+            [
+                'name' => 'Uso de crédito a favor',
+                'description' => 'Uso de crédito acumulado para pagar una venta',
+                'operation_type' => 'entrada',
+                'is_current_account_movement' => true,
+                'affects_cash' => false,
                 'active' => true,
             ],
         ];
-        
-        if ($this->command) {
-            $this->command->info('Creando tipos de movimiento MANUALES para cuentas corrientes...');
-        }
-        
-        $created = 0;
-        $updated = 0;
-        
-        foreach ($movementTypes as $movementTypeData) {
-            $movementType = MovementType::firstOrCreate(
-                ['name' => $movementTypeData['name']],
-                $movementTypeData
+
+        foreach ($movementTypes as $type) {
+            MovementType::firstOrCreate(
+                ['name' => $type['name'], 'is_current_account_movement' => true],
+                $type
             );
-            
-            if ($movementType->wasRecentlyCreated) {
-                $created++;
-            } else {
-                // Actualizar si ya existe pero puede haber cambiado
-                $movementType->update($movementTypeData);
-                $updated++;
-            }
         }
-        
-        if ($this->command) {
-            $this->command->info("✅ Tipos de movimiento creados: {$created}, actualizados: {$updated}");
-        }
+
+        $this->command->info('Tipos de movimiento de cuenta corriente creados/actualizados exitosamente.');
     }
 }

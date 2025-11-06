@@ -46,22 +46,15 @@ class FavorCreditService
             ? (float) $metadata['favor_credit_amount'] 
             : 0.0;
         
-        Log::info('Verificando crédito a favor para venta', [
-            'sale_id' => $sale->id,
-            'account_id' => $account->id,
-            'metadata' => $metadata,
-            'use_favor_credit' => $useFavorCredit,
-            'requested_amount' => $requestedAmount,
-            'balance_before_sale' => $balanceBeforeSale,
-            'current_balance' => $account->current_balance,
-        ]);
+        // IMPORTANTE: Solo aplicar crédito si:
+        // 1. use_favor_credit es explícitamente true (no solo truthy)
+        // 2. requestedAmount es mayor a 0
+        // 3. El metadata existe y tiene los campos necesarios
+        if (!isset($metadata['use_favor_credit']) || $metadata['use_favor_credit'] !== true) {
+            return;
+        }
         
-        if (!$useFavorCredit || $requestedAmount <= 0) {
-            Log::debug('Crédito a favor no solicitado o monto inválido', [
-                'sale_id' => $sale->id,
-                'use_favor_credit' => $useFavorCredit,
-                'requested_amount' => $requestedAmount,
-            ]);
+        if ($requestedAmount <= 0) {
             return;
         }
 
@@ -73,41 +66,14 @@ class FavorCreditService
             // El crédito disponible es el balance negativo antes de la venta
             // porque después de registrar la venta, el balance puede cambiar a positivo
             $availableCredit = $balanceBeforeSale < 0 ? abs($balanceBeforeSale) : 0.0;
-            
-            Log::info('Crédito disponible calculado desde balance antes de venta', [
-                'sale_id' => $sale->id,
-                'balance_before_sale' => $balanceBeforeSale,
-                'current_balance' => $account->current_balance,
-                'available_credit' => $availableCredit,
-            ]);
         } else {
             // Fallback: recargar cuenta y calcular normalmente (puede no ser preciso si la venta ya se registró)
             $account->refresh();
             $currentBalance = (float) $account->current_balance;
             $availableCredit = $currentBalance < 0 ? abs($currentBalance) : 0.0;
-            Log::warning('Balance antes de venta no proporcionado, usando balance actual', [
-                'sale_id' => $sale->id,
-                'current_balance' => $currentBalance,
-                'available_credit' => $availableCredit,
-            ]);
         }
         
-        Log::info('Crédito disponible calculado', [
-            'sale_id' => $sale->id,
-            'account_id' => $account->id,
-            'balance_before_sale' => $balanceBeforeSale,
-            'available_credit' => $availableCredit,
-            'requested_amount' => $requestedAmount,
-        ]);
-        
         if ($availableCredit <= 0) {
-            Log::warning('Crédito a favor solicitado pero no disponible', [
-                'sale_id' => $sale->id,
-                'account_id' => $account->id,
-                'requested_amount' => $requestedAmount,
-                'available_credit' => $availableCredit,
-                'balance_before_sale' => $balanceBeforeSale,
-            ]);
             return;
         }
 
@@ -116,35 +82,17 @@ class FavorCreditService
         
         // Verificar que no se haya aplicado ya este crédito para esta venta
         if ($this->hasCreditAlreadyApplied($account->id, $sale->id)) {
-            Log::info('Crédito a favor ya aplicado para esta venta', [
-                'sale_id' => $sale->id,
-                'account_id' => $account->id,
-            ]);
             return;
         }
 
         try {
-            Log::info('Aplicando crédito a favor', [
-                'sale_id' => $sale->id,
-                'account_id' => $account->id,
-                'credit_to_apply' => $creditToApply,
-                'available_credit' => $availableCredit,
-            ]);
-            
             // Pasar el crédito disponible calculado para evitar que se recalcule con el balance actualizado
-            $movement = $this->currentAccountService->applyFavorCreditToSale(
+            $this->currentAccountService->applyFavorCreditToSale(
                 $account->id,
                 $sale->id,
                 $creditToApply,
                 $availableCredit // Pasar el crédito disponible calculado previamente
             );
-            
-            Log::info('Crédito a favor aplicado exitosamente', [
-                'sale_id' => $sale->id,
-                'account_id' => $account->id,
-                'amount' => $creditToApply,
-                'movement_id' => $movement->id,
-            ]);
         } catch (Exception $e) {
             // Log error pero no fallar la venta si ya se registró
             Log::error('Error al aplicar crédito a favor', [

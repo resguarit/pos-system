@@ -798,10 +798,21 @@ export default function POSPage() {
       return paymentMethod?.name === 'Crédito a favor';
     });
 
+    // IMPORTANTE: Solo incluir metadata de crédito a favor si:
+    // 1. Hay un pago con método "Crédito a favor" seleccionado
+    // 2. El monto de crédito a aplicar es mayor a 0
+    // 3. Hay un currentAccountId válido
+    const shouldIncludeFavorCreditMetadata = favorCreditPayment && 
+                                             favorCreditToApply > 0 && 
+                                             currentAccountId &&
+                                             parseFloat(favorCreditPayment.amount || '0') > 0;
+
     const saleData: any = {
       branch_id: selectedBranch.id,
       customer_id: selectedCustomer?.id || null,
-      sale_document_number: selectedCustomer?.cuit || selectedCustomer?.dni || null,
+      sale_document_number: (selectedCustomer?.cuit || selectedCustomer?.dni) 
+        ? String(selectedCustomer?.cuit || selectedCustomer?.dni) 
+        : null,
       receipt_type_id: receiptTypeId,
       sale_fiscal_condition_id: selectedCustomer?.fiscal_condition_id || null,
       sale_date: argDateString, // Fecha y hora local de Argentina
@@ -813,8 +824,8 @@ export default function POSPage() {
       ...(globalDiscountType && Number(globalDiscountValue) > 0
         ? { discount_type: globalDiscountType, discount_value: Number(globalDiscountValue) }
         : {}),
-      // Metadata para crédito a favor (solo si hay un pago con método "Crédito a favor")
-      ...(favorCreditPayment && favorCreditToApply > 0 && currentAccountId ? {
+      // Metadata para crédito a favor (SOLO si se seleccionó explícitamente como método de pago)
+      ...(shouldIncludeFavorCreditMetadata ? {
         metadata: {
           use_favor_credit: true,
           favor_credit_amount: favorCreditToApply,

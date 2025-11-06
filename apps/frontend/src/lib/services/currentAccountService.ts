@@ -17,7 +17,9 @@ import type {
   PaginatedResponse,
   ExportData,
   PendingSale,
-  ProcessPaymentBySaleData
+  ProcessPaymentBySaleData,
+  AdministrativeCharge,
+  ProcessPaymentWithChargesData
 } from '@/types/currentAccount';
 
 export class CurrentAccountService {
@@ -72,7 +74,7 @@ export class CurrentAccountService {
   // Consultas específicas
   static async getByCustomer(customerId: number): Promise<CurrentAccount | null> {
     try {
-      const response = await api.get(`${this.baseUrl}/customer/${customerId}`);
+    const response = await api.get(`${this.baseUrl}/customer/${customerId}`);
       // El backend retorna { status: 200, success: true, data: account | null }
       const data = response?.data?.data;
       
@@ -146,6 +148,10 @@ export class CurrentAccountService {
 
   // Obtener crédito a favor disponible (balance negativo)
   static async getAvailableFavorCredit(accountId: number): Promise<number> {
+    // Este método calcula el crédito disponible para usar en pagos
+    // Puede ser:
+    // 1. Balance negativo (crédito a favor directo)
+    // 2. Diferencia entre ventas pendientes y balance actual (bonificaciones aplicables)
     const response = await api.get(`${this.baseUrl}/${accountId}/available-favor-credit`);
     const data = this.handleResponse(response) as { available_favor_credit: number; has_favor_credit: boolean };
     return data.available_favor_credit || 0;
@@ -157,7 +163,16 @@ export class CurrentAccountService {
     return this.handleResponse(response) as PendingSale[];
   }
 
-  static async processPaymentBySale(accountId: number, data: ProcessPaymentBySaleData): Promise<any> {
+  /**
+   * Obtener cargos administrativos pendientes (Ajuste en contra, Interés aplicado)
+   * Estos son movimientos de débito que no están asociados a ventas y requieren pago
+   */
+  static async getAdministrativeCharges(accountId: number): Promise<AdministrativeCharge[]> {
+    const response = await api.get(`${this.baseUrl}/${accountId}/administrative-charges`);
+    return this.handleResponse(response) as AdministrativeCharge[];
+  }
+
+  static async processPaymentBySale(accountId: number, data: ProcessPaymentBySaleData | ProcessPaymentWithChargesData): Promise<any> {
     const response = await api.post(`${this.baseUrl}/${accountId}/payments`, data);
     return this.handleResponse(response);
   }

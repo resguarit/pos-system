@@ -14,19 +14,70 @@ class CurrentAccountResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Calcular crédito a favor disponible usando el servicio
+        $currentAccountService = app(\App\Services\CurrentAccountService::class);
+        $availableFavorCredit = $currentAccountService->getAvailableFavorCredit($this->id);
+        
+        // Calcular total de ventas pendientes (saldo adeudado)
+        // Usar una consulta optimizada con sum() en lugar de get()->sum() para mejor rendimiento
+        $totalPendingSales = 0;
+        if ($this->customer_id) {
+            // Calcular directamente el total pendiente usando una consulta SQL optimizada
+            $totalPendingSales = \App\Models\SaleHeader::where('customer_id', $this->customer_id)
+                ->where('status', '!=', 'annulled')
+                ->where(function($query) {
+                    $query->whereNull('payment_status')
+                          ->orWhereIn('payment_status', ['pending', 'partial']);
+                })
+                ->selectRaw('COALESCE(SUM(GREATEST(0, total - COALESCE(paid_amount, 0))), 0) as total_pending')
+                ->value('total_pending') ?? 0;
+        }
+        
+        // Calcular total de cargos administrativos pendientes
+        $totalAdministrativeChargesPending = $currentAccountService->getTotalAdministrativeChargesPending($this->id);
+        
+        // El saldo adeudado total incluye ventas pendientes + cargos administrativos pendientes
+        $totalPendingDebt = $totalPendingSales + $totalAdministrativeChargesPending;
+        
         return [
             'id' => $this->id,
             'customer_id' => $this->customer_id,
             'customer' => [
                 'id' => $this->customer->id,
-                'name' => $this->customer->full_name,
+                'person_id' => $this->customer->person_id,
                 'email' => $this->customer->email,
-                'phone' => $this->customer->person->phone ?? null,
-                'address' => $this->customer->person->address ?? null,
+                'active' => $this->customer->active,
+                'notes' => $this->customer->notes,
+                'created_at' => $this->customer->created_at?->format('Y-m-d H:i:s'),
+                'updated_at' => $this->customer->updated_at?->format('Y-m-d H:i:s'),
+                'deleted_at' => $this->customer->deleted_at,
+                'person' => $this->customer->person ? [
+                    'id' => $this->customer->person->id,
+                    'first_name' => $this->customer->person->first_name,
+                    'last_name' => $this->customer->person->last_name,
+                    'address' => $this->customer->person->address,
+                    'city' => $this->customer->person->city ?? null,
+                    'state' => $this->customer->person->state ?? null,
+                    'postal_code' => $this->customer->person->postal_code ?? null,
+                    'phone' => $this->customer->person->phone,
+                    'cuit' => $this->customer->person->cuit,
+                    'fiscal_condition_id' => $this->customer->person->fiscal_condition_id,
+                    'person_type_id' => $this->customer->person->person_type_id,
+                    'document_type_id' => $this->customer->person->document_type_id,
+                    'documento' => $this->customer->person->documento,
+                    'credit_limit' => $this->customer->person->credit_limit,
+                    'person_type' => $this->customer->person->person_type ?? 'person',
+                    'created_at' => $this->customer->person->created_at?->format('Y-m-d H:i:s'),
+                    'updated_at' => $this->customer->person->updated_at?->format('Y-m-d H:i:s'),
+                    'deleted_at' => $this->customer->person->deleted_at,
+                ] : null,
             ],
             'credit_limit' => $this->credit_limit,
             'current_balance' => $this->current_balance,
+            'accumulated_credit' => $this->accumulated_credit, // Crédito acumulado por bonificaciones
+            'total_pending_debt' => $totalPendingDebt, // Total de deuda pendiente (ventas + cargos administrativos)
             'available_credit' => $this->available_credit,
+            'available_favor_credit' => $availableFavorCredit, // Crédito a favor disponible para usar en pagos (accumulated + balance negativo)
             'credit_usage_percentage' => $this->credit_usage_percentage,
             'status' => $this->status,
             'status_text' => $this->status_text,

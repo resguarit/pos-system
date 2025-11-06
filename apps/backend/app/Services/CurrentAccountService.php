@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -333,8 +334,28 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             
             $movement = CurrentAccountMovement::create($movementData);
             
-            // Actualizar el balance de la cuenta
-            $account->updateBalance($balanceChange);
+            // IMPORTANTE: AMBOS tipos de movimiento manuales acumulan crédito
+            // La ÚNICA diferencia es si afectan o no la caja
+            // - Ajuste a favor: Acumula crédito (NO afecta caja) - Ejemplo: Regalo, bonificación
+            // - Depósito a cuenta: Acumula crédito (SÍ afecta caja) - Ejemplo: Seña, depósito
+            
+            // Solo las ventas y pagos directos modifican el balance
+            // El crédito acumulado es INDEPENDIENTE del balance
+            
+            $isAccumulatingCreditMovement = (
+                strtolower($movementType->name) === 'ajuste a favor' ||
+                strtolower($movementType->name) === 'depósito a cuenta'
+            ) && $movementType->operation_type === 'entrada';
+            
+            if ($isAccumulatingCreditMovement) {
+                // Acumular crédito sin tocar el balance
+                $account->accumulated_credit += (float) $validatedData['amount'];
+                $account->last_movement_at = now();
+                $account->save();
+            } else {
+                // Movimiento normal (ventas, pagos): actualiza el balance
+                $account->updateBalance($balanceChange);
+            }
             
             // Si es "Depósito a cuenta", crear también movimiento de caja
             if (strtolower($movementType->name) === 'depósito a cuenta') {
@@ -356,21 +377,12 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         // Si no hay cash_register_id o payment_method_id, no crear movimiento de caja
         // (pero el movimiento de cuenta corriente ya se creó)
         if (!$cashRegisterId || !$paymentMethodId) {
-            Log::warning('Depósito a cuenta sin caja o método de pago', [
-                'movement_id' => $movement->id,
-                'cash_register_id' => $cashRegisterId,
-                'payment_method_id' => $paymentMethodId
-            ]);
             return;
         }
         
         // Verificar que la caja existe y está abierta
         $cashRegister = \App\Models\CashRegister::find($cashRegisterId);
         if (!$cashRegister || $cashRegister->status !== 'open') {
-            Log::warning('Caja no encontrada o cerrada para depósito', [
-                'movement_id' => $movement->id,
-                'cash_register_id' => $cashRegisterId
-            ]);
             return;
         }
         
@@ -404,12 +416,6 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'reference_type' => 'current_account_movement',
             'reference_id' => $movement->id,
             'user_id' => auth()->id(),
-        ]);
-        
-        Log::info('Movimiento de caja creado para depósito a cuenta', [
-            'movement_id' => $movement->id,
-            'cash_register_id' => $cashRegisterId,
-            'amount' => $movement->amount
         ]);
     }
 
@@ -481,9 +487,154 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             
             $salePayments = $paymentData['sale_payments'] ?? [];
             $paymentMethodId = $paymentData['payment_method_id'] ?? null;
+            $favorCreditAmount = isset($paymentData['favor_credit_amount']) ? (float) $paymentData['favor_credit_amount'] : 0.0;
             $totalAmount = 0;
             $processedSales = [];
+            $processedCharges = [];
             $paymentsByBranch = []; // Agrupar pagos por sucursal
+            
+            // Verificar si el método de pago es "Crédito a favor"
+            $paymentMethod = $paymentMethodId ? \App\Models\PaymentMethod::find($paymentMethodId) : null;
+            $isFavorCreditPayment = $paymentMethod && (
+                str_contains(strtolower($paymentMethod->name), 'crédito a favor') ||
+                str_contains(strtolower($paymentMethod->name), 'credito a favor')
+            );
+            
+            // Si es crédito a favor y hay monto especificado, aplicar crédito primero
+            if ($isFavorCreditPayment && $favorCreditAmount > 0) {
+                // Validar crédito disponible
+                $availableCredit = $this->getAvailableFavorCredit($accountId);
+                if ($favorCreditAmount > $availableCredit) {
+                    throw new Exception(
+                        sprintf(
+                            'El monto de crédito a favor ($%.2f) excede el crédito disponible ($%.2f)',
+                            $favorCreditAmount,
+                            $availableCredit
+                        )
+                    );
+                }
+                
+                // Aplicar crédito a favor a cada venta seleccionada
+                $remainingCredit = $favorCreditAmount;
+                foreach ($salePayments as $salePayment) {
+                    if ($remainingCredit <= 0) {
+                        break;
+                    }
+                    
+                    $sale = \App\Models\SaleHeader::with('branch')->findOrFail($salePayment['sale_id']);
+                    $salePendingAmount = (float) $sale->pending_amount;
+                    
+                    // Aplicar crédito a esta venta (hasta el monto pendiente)
+                    $creditForThisSale = min($remainingCredit, $salePendingAmount);
+                    
+                    if ($creditForThisSale > 0) {
+                        // Aplicar crédito a favor usando el método específico
+                        $this->applyFavorCreditToSale($accountId, $sale->id, $creditForThisSale, $availableCredit);
+                        
+                        // Actualizar el monto pendiente de la venta
+                        $sale->refresh();
+                        $sale->recordPayment($creditForThisSale);
+                        
+                        $remainingCredit -= $creditForThisSale;
+                        
+                        $processedSales[] = [
+                            'sale_id' => $sale->id,
+                            'receipt_number' => $sale->receipt_number,
+                            'amount_paid' => $creditForThisSale,
+                            'payment_method' => 'Crédito a favor',
+                            'new_status' => $sale->payment_status,
+                            'branch_id' => $sale->branch_id
+                        ];
+                    }
+                }
+                
+                // Aplicar crédito a favor a cada cargo administrativo seleccionado
+                $chargePayments = $paymentData['charge_payments'] ?? [];
+                foreach ($chargePayments as $chargePayment) {
+                    if ($remainingCredit <= 0) {
+                        break;
+                    }
+                    
+                    $chargeId = $chargePayment['charge_id'];
+                    $charge = CurrentAccountMovement::with(['movementType'])->findOrFail($chargeId);
+                    
+                    // Calcular monto ya pagado de este cargo
+                    $paidAmount = CurrentAccountMovement::where('current_account_id', $accountId)
+                        ->whereNotNull('metadata')
+                        ->whereJsonContains('metadata->charge_id', $chargeId)
+                        ->sum('amount');
+                    
+                    $totalChargeAmount = (float) $charge->amount;
+                    $pendingAmount = $totalChargeAmount - (float) $paidAmount;
+                    
+                    // Aplicar crédito a este cargo (hasta el monto pendiente)
+                    $creditForThisCharge = min($remainingCredit, $pendingAmount);
+                    
+                    if ($creditForThisCharge > 0) {
+                        // Aplicar crédito a favor al cargo administrativo
+                        $this->applyFavorCreditToCharge($accountId, $chargeId, $creditForThisCharge, $availableCredit);
+                        
+                        $remainingCredit -= $creditForThisCharge;
+                        
+                        $processedCharges[] = [
+                            'charge_id' => $chargeId,
+                            'charge_type' => $charge->movementType->name,
+                            'description' => $charge->description,
+                            'amount_paid' => $creditForThisCharge,
+                            'payment_method' => 'Crédito a favor',
+                            'payment_status' => ($paidAmount + $creditForThisCharge) >= $totalChargeAmount ? 'paid' : 'partial'
+                        ];
+                    }
+                }
+                
+                // Si el método de pago es "Crédito a favor", solo procesar el crédito y retornar
+                // El restante queda pendiente (pago parcial)
+                if ($isFavorCreditPayment) {
+                    // Refrescar la cuenta para obtener el balance actualizado
+                    $account->refresh();
+                    
+                    // Pago parcial solo con crédito a favor - retornar éxito
+                    return [
+                        'total_amount' => $favorCreditAmount,
+                        'processed_sales' => $processedSales,
+                        'processed_charges' => $processedCharges,
+                        'favor_credit_used' => $favorCreditAmount,
+                        'account_balance' => $account->current_balance,
+                        'is_partial_payment' => $remainingCredit < $favorCreditAmount || !empty($processedSales) || !empty($processedCharges)
+                    ];
+                }
+                
+                // Si el método de pago NO es crédito a favor, procesar el restante con ese método
+                $adjustedSalePayments = [];
+                foreach ($salePayments as $salePayment) {
+                    $sale = \App\Models\SaleHeader::find($salePayment['sale_id']);
+                    if ($sale) {
+                        $remainingAmount = (float) $sale->pending_amount;
+                        if ($remainingAmount > 0) {
+                            $adjustedSalePayments[] = [
+                                'sale_id' => $salePayment['sale_id'],
+                                'amount' => min($remainingAmount, (float) $salePayment['amount'])
+                            ];
+                        }
+                    }
+                }
+                
+                // Si no quedan montos pendientes después del crédito, retornar éxito
+                if (empty($adjustedSalePayments)) {
+                    // Refrescar la cuenta para obtener el balance actualizado
+                    $account->refresh();
+                    
+                    return [
+                        'total_amount' => $favorCreditAmount,
+                        'processed_sales' => $processedSales,
+                        'favor_credit_used' => $favorCreditAmount,
+                        'account_balance' => $account->current_balance
+                    ];
+                }
+                
+                // Continuar procesando los pagos restantes con el método de pago seleccionado
+                $salePayments = $adjustedSalePayments;
+            }
             
             // Obtener tipo de movimiento para cuenta corriente (una sola vez)
             $movementType = MovementType::where('operation_type', 'entrada')
@@ -543,8 +694,144 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 ];
             }
             
-            // Registrar en caja por cada sucursal si hay método de pago
-            if ($paymentMethodId && $totalAmount > 0) {
+            // ===================================================================
+            // PROCESAR CARGOS ADMINISTRATIVOS (Ajuste en contra, Interés aplicado)
+            // ===================================================================
+            $chargePayments = $paymentData['charge_payments'] ?? [];
+            // Solo inicializar si no se procesaron cargos con crédito a favor
+            if (empty($processedCharges)) {
+                $processedCharges = [];
+            }
+            
+            if (!empty($chargePayments)) {
+                // Si es crédito a favor, el método de pago ya está especificado
+                // Si no es crédito a favor, validar que haya método de pago
+                if (!$isFavorCreditPayment && !$paymentMethodId) {
+                    throw new Exception('Debe especificar un método de pago para los cargos administrativos');
+                }
+                
+                // Obtener tipo de movimiento para pagos de cargos
+                $chargePaymentMovementType = MovementType::where('operation_type', 'entrada')
+                    ->where('is_current_account_movement', true)
+                    ->where('name', 'Pago de cuenta corriente')
+                    ->first();
+                
+                if (!$chargePaymentMovementType) {
+                    $chargePaymentMovementType = $movementType; // Usar el genérico
+                }
+                
+                // Procesar cada cargo administrativo
+                foreach ($chargePayments as $chargePayment) {
+                    $chargeId = $chargePayment['charge_id'];
+                    $paymentAmount = (float) $chargePayment['amount'];
+                    
+                    // Obtener el cargo original
+                    $charge = CurrentAccountMovement::with(['movementType'])->findOrFail($chargeId);
+                    
+                    // Validar que es un cargo administrativo válido
+                    if ($charge->sale_id !== null) {
+                        throw new Exception("El movimiento #{$chargeId} está asociado a una venta y no es un cargo administrativo");
+                    }
+                    
+                    if ($charge->movementType->operation_type !== 'salida') {
+                        throw new Exception("El movimiento #{$chargeId} no es un cargo de débito");
+                    }
+                    
+                    // Calcular monto ya pagado de este cargo
+                    $paidAmount = CurrentAccountMovement::where('current_account_id', $accountId)
+                        ->whereNotNull('metadata')
+                        ->whereJsonContains('metadata->charge_id', $chargeId)
+                        ->sum('amount');
+                    
+                    $totalChargeAmount = (float) $charge->amount;
+                    $pendingAmount = $totalChargeAmount - (float) $paidAmount;
+                    
+                    // Validar que el pago no exceda el monto pendiente
+                    if ($paymentAmount > $pendingAmount) {
+                        throw new Exception(
+                            sprintf(
+                                'El pago de $%.2f excede el monto pendiente de $%.2f para el cargo "%s"',
+                                $paymentAmount,
+                                $pendingAmount,
+                                $charge->description
+                            )
+                        );
+                    }
+                    
+                    if ($paymentAmount <= 0) {
+                        throw new Exception("El monto debe ser mayor a 0 para el cargo \"{$charge->description}\"");
+                    }
+                    
+                    // Crear movimiento de pago en cuenta corriente
+                    $reference = $charge->reference ?? "CARGO-{$chargeId}";
+                    $this->createMovement([
+                        'current_account_id' => $accountId,
+                        'movement_type_id' => $chargePaymentMovementType->id,
+                        'amount' => $paymentAmount,
+                        'description' => "Pago de {$charge->movementType->name} - {$charge->description}",
+                        'reference' => $reference,
+                        'metadata' => [
+                            'charge_id' => $chargeId,
+                            'charge_type' => $charge->movementType->name,
+                            'original_charge_amount' => $totalChargeAmount,
+                            'payment_method' => $paymentMethod->name ?? 'Desconocido'
+                        ],
+                        'user_id' => auth()->id(),
+                    ]);
+                    
+                    // Determinar el nuevo estado de pago del cargo
+                    $newPaidAmount = (float) $paidAmount + $paymentAmount;
+                    $paymentStatus = $newPaidAmount >= $totalChargeAmount ? 'paid' : ($newPaidAmount > 0 ? 'partial' : 'pending');
+                    
+                    // Agrupar por sucursal para los cargos administrativos
+                    // Prioridad: 1) branch_id del request, 2) branch_id del usuario, 3) buscar caja abierta
+                    $userBranchId = $paymentData['branch_id'] ?? null;
+                    
+                    if (!$userBranchId) {
+                        $userBranchId = auth()->user()->branch_id ?? null;
+                    }
+                    
+                    // Si aún no hay branch_id, buscar cualquier caja abierta del usuario
+                    // para obtener su sucursal
+                    if (!$userBranchId) {
+                        // Buscar caja abierta del usuario en cualquier sucursal
+                        $userCashRegister = \App\Models\CashRegister::where('status', 'open')
+                            ->where('user_id', auth()->id())
+                            ->first();
+                        
+                        if ($userCashRegister) {
+                            $userBranchId = $userCashRegister->branch_id;
+                        } else {
+                            // Si no hay caja abierta, usar 0 como clave especial para procesar después
+                            // El código de registro en caja buscará la caja nuevamente y lanzará error si no existe
+                            $userBranchId = 0;
+                        }
+                    }
+                    
+                    if (!isset($paymentsByBranch[$userBranchId])) {
+                        $paymentsByBranch[$userBranchId] = [
+                            'amount' => 0,
+                            'sales' => [],
+                            'charges' => []
+                        ];
+                    }
+                    $paymentsByBranch[$userBranchId]['amount'] += $paymentAmount;
+                    $paymentsByBranch[$userBranchId]['charges'][] = $charge->movementType->name;
+                    
+                    $totalAmount += $paymentAmount;
+                    $processedCharges[] = [
+                        'charge_id' => $chargeId,
+                        'charge_type' => $charge->movementType->name,
+                        'description' => $charge->description,
+                        'amount_paid' => $paymentAmount,
+                        'payment_status' => $paymentStatus,
+                        'branch_id' => $userBranchId
+                    ];
+                }
+            }
+            
+            // Registrar en caja por cada sucursal si hay método de pago y NO es crédito a favor
+            if ($paymentMethodId && $totalAmount > 0 && !$isFavorCreditPayment) {
                 // Obtener el método de pago para usar su nombre
                 $paymentMethod = \App\Models\PaymentMethod::find($paymentMethodId);
                 $paymentMethodName = $paymentMethod ? $paymentMethod->name : 'Desconocido';
@@ -568,71 +855,82 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 }
                 
                 foreach ($paymentsByBranch as $branchId => $branchData) {
-                    // Cargar sucursal para mensajes de error
-                    $branch = \App\Models\Branch::find($branchId);
-                    $branchName = $branch ? $branch->description : "ID {$branchId}";
-                    
-                    Log::info('Procesando pago en caja para sucursal', [
-                        'branch_id' => $branchId,
-                        'branch_name' => $branchName,
-                        'amount' => $branchData['amount'],
-                        'payment_method_id' => $paymentMethodId,
-                        'user_id' => auth()->id()
-                    ]);
-                    
-                    // Buscar caja abierta en esta sucursal
-                    $cashRegister = \App\Models\CashRegister::where('status', 'open')
-                        ->where('branch_id', $branchId)
-                        ->where('user_id', auth()->id())
-                        ->first();
-                    
-                    // Si no hay caja del usuario, buscar cualquier caja abierta de la sucursal
-                    if (!$cashRegister) {
+                    // Manejar caso especial: branchId = 0 significa cargos sin sucursal asignada
+                    if ($branchId == 0) {
+                        // Buscar directamente la caja abierta del usuario en cualquier sucursal
+                        $cashRegister = \App\Models\CashRegister::where('status', 'open')
+                            ->where('user_id', auth()->id())
+                            ->first();
+                        
+                        if (!$cashRegister) {
+                            Log::error('No hay caja abierta del usuario para procesar cargos administrativos', [
+                                'user_id' => auth()->id()
+                            ]);
+                            throw new Exception('No hay ninguna caja abierta para procesar el pago. Debe abrir una caja primero.');
+                        }
+                        
+                        $branchName = $cashRegister->branch ? $cashRegister->branch->description : "ID {$cashRegister->branch_id}";
+                    } else {
+                        // Cargar sucursal para mensajes de error
+                        $branch = \App\Models\Branch::find($branchId);
+                        $branchName = $branch ? $branch->description : "ID {$branchId}";
+                        
+                        // Buscar caja abierta en esta sucursal
                         $cashRegister = \App\Models\CashRegister::where('status', 'open')
                             ->where('branch_id', $branchId)
+                            ->where('user_id', auth()->id())
                             ->first();
+                        
+                        // Si no hay caja del usuario, buscar cualquier caja abierta de la sucursal
+                        if (!$cashRegister) {
+                            $cashRegister = \App\Models\CashRegister::where('status', 'open')
+                                ->where('branch_id', $branchId)
+                                ->first();
+                        }
+                        
+                        if (!$cashRegister) {
+                            Log::error('No hay caja abierta en la sucursal', [
+                                'branch_id' => $branchId,
+                                'branch_name' => $branchName
+                            ]);
+                            throw new Exception("No hay ninguna caja abierta en la sucursal '{$branchName}' para procesar el pago. Debe abrir una caja primero.");
+                        }
                     }
                     
-                    if (!$cashRegister) {
-                        Log::error('No hay caja abierta en la sucursal', [
-                            'branch_id' => $branchId,
-                            'branch_name' => $branchName
-                        ]);
-                        throw new Exception("No hay ninguna caja abierta en la sucursal '{$branchName}' para procesar el pago. Debe abrir una caja primero.");
+                    // Construir descripción del movimiento de caja
+                    $description = '';
+                    if (!empty($branchData['sales'])) {
+                        $salesList = implode(', ', $branchData['sales']);
+                        $description = "Ingreso por venta realizada en {$paymentMethodName} - Ventas: {$salesList}";
+                    }
+                    if (!empty($branchData['charges'])) {
+                        $chargesList = implode(', ', $branchData['charges']);
+                        if ($description) {
+                            $description .= " | Cargos: {$chargesList}";
+                        } else {
+                            $description = "Ingreso por pago de cargos administrativos - {$chargesList}";
+                        }
                     }
                     
-                    Log::info('Caja encontrada', [
-                        'cash_register_id' => $cashRegister->id,
-                        'branch_id' => $branchId
-                    ]);
-                    
-                    $salesList = implode(', ', $branchData['sales']);
                     $cashMovement = \App\Models\CashMovement::create([
                         'cash_register_id' => $cashRegister->id,
                         'movement_type_id' => $cashMovementType->id,
                         'payment_method_id' => $paymentMethodId,
                         'amount' => $branchData['amount'],
-                        'description' => "Ingreso por venta realizada en {$paymentMethodName} - Ventas: {$salesList}",
+                        'description' => $description,
                         'user_id' => auth()->id(),
                     ]);
-                    
-                    Log::info('Movimiento de caja creado', [
-                        'cash_movement_id' => $cashMovement->id,
-                        'branch_id' => $branchId,
-                        'amount' => $branchData['amount']
-                    ]);
                 }
-            } else {
-                Log::warning('No se registró en caja', [
-                    'payment_method_id' => $paymentMethodId,
-                    'total_amount' => $totalAmount
-                ]);
             }
+            
+            // Refrescar la cuenta para obtener el balance actualizado
+            $account->refresh();
             
             return [
                 'total_amount' => $totalAmount,
                 'sales_processed' => $processedSales,
-                'account_balance' => $account->fresh()->current_balance,
+                'charges_processed' => $processedCharges,
+                'account_balance' => $account->current_balance,
             ];
         });
     }
@@ -676,19 +974,36 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     }
 
     /**
-     * Obtener crédito a favor disponible (balance negativo)
+     * Obtener crédito disponible para usar en pagos
+     * 
+     * Este método calcula el crédito disponible de dos formas:
+     * 1. Si el balance es negativo: el cliente tiene crédito a favor directo
+     * 2. Si el balance es positivo pero hay ventas pendientes y el balance es menor que el total pendiente:
+     *    la diferencia representa bonificaciones/ajustes que redujeron la deuda y pueden usarse como crédito
+     * 
+     * Ejemplo:
+     * - Venta pendiente: $280,500
+     * - Bonificaciones: -$20,000
+     * - Balance actual: $260,500 (positivo = deuda)
+     * - Crédito disponible: $280,500 - $260,500 = $20,000 (las bonificaciones pueden usarse para pagar)
      * 
      * @param int $accountId ID de la cuenta corriente
-     * @return float Crédito disponible (si balance es negativo, retorna el valor absoluto, sino 0)
+     * @return float Crédito disponible para usar en pagos
      */
     public function getAvailableFavorCredit(int $accountId): float
     {
         $account = CurrentAccount::findOrFail($accountId);
         $balance = (float) $account->current_balance;
+        $accumulatedCredit = (float) $account->accumulated_credit;
         
-        // Si el balance es negativo, el cliente tiene crédito a favor
-        // Retornar el valor absoluto del balance negativo
-        return $balance < 0 ? abs($balance) : 0.0;
+        // El crédito disponible proviene de DOS fuentes:
+        // 1. Balance negativo: Cliente pagó de más o recibió depósitos
+        // 2. Crédito acumulado: Bonificaciones/ajustes a favor que aún no usó
+        
+        $creditFromBalance = $balance < 0 ? abs($balance) : 0.0;
+        $totalCredit = $creditFromBalance + $accumulatedCredit;
+        
+        return $totalCredit;
     }
 
     /**
@@ -758,29 +1073,56 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         // Para lograr esto, necesitamos crear un movimiento especial que ajuste el balance para reflejar el crédito consumido
         
         return DB::transaction(function () use ($accountId, $creditUsageType, $amount, $saleNumber, $saleId, $account, $availableCredit) {
-            // Obtener el balance actual antes de aplicar el crédito
+            // Obtener el balance y crédito acumulado actual
             $account->refresh();
             $balanceBefore = (float) $account->current_balance;
+            $accumulatedCreditBefore = (float) $account->accumulated_credit;
             
-            // IMPORTANTE: El crédito a favor debe consumirse del crédito original
-            // Si el balance actual es positivo (deuda), el crédito reduce la deuda normalmente
-            // Pero necesitamos guardar cuánto crédito original había para que cuando el balance vuelva a ser negativo,
-            // refleje el crédito restante después de consumir el crédito usado
+            // ESTRATEGIA: Consumir crédito en este orden:
+            // 1. Primero del crédito acumulado (bonificaciones/ajustes)
+            // 2. Después del balance negativo (depósitos)
             
-            // Si hay deuda (balance positivo), reducirla normalmente
-            // Si hay crédito (balance negativo), consumirlo
-            $balanceAfter = $balanceBefore > 0 
-                ? $balanceBefore - $amount  // Reducir deuda: 269379 - 10000 = 259379
-                : $balanceBefore + $amount; // Consumir crédito: -11121 + 10000 = -1121
+            $amountToApply = $amount;
+            $creditUsedFromAccumulated = 0;
+            $creditUsedFromBalance = 0;
+            
+            // 1. Consumir del crédito acumulado primero
+            if ($accumulatedCreditBefore > 0) {
+                $creditUsedFromAccumulated = min($amountToApply, $accumulatedCreditBefore);
+                $amountToApply -= $creditUsedFromAccumulated;
+            }
+            
+            // 2. Si aún queda monto por aplicar, consumir del balance negativo
+            if ($amountToApply > 0 && $balanceBefore < 0) {
+                $creditAvailableFromBalance = abs($balanceBefore);
+                $creditUsedFromBalance = min($amountToApply, $creditAvailableFromBalance);
+                $amountToApply -= $creditUsedFromBalance;
+            }
+            
+            // Calcular nuevo balance y crédito acumulado
+            $accumulatedCreditAfter = $accumulatedCreditBefore - $creditUsedFromAccumulated;
+            
+            // El balance solo se modifica si usamos crédito del balance negativo O si hay deuda que pagar
+            if ($creditUsedFromBalance > 0) {
+                // Balance negativo: usar crédito aumenta el balance hacia cero
+                $balanceAfter = $balanceBefore + $creditUsedFromBalance;
+            } else if ($creditUsedFromAccumulated > 0 && $balanceBefore > 0) {
+                // Balance positivo (deuda): usar crédito acumulado reduce la deuda
+                $balanceAfter = $balanceBefore - $creditUsedFromAccumulated;
+            } else {
+                // No hay cambio en el balance
+                $balanceAfter = $balanceBefore;
+            }
             
             $balanceChange = $balanceAfter - $balanceBefore;
             
-            // Guardar el crédito original disponible en los metadatos para referencia futura
-            // Esto nos permitirá ajustar el balance cuando vuelva a ser negativo
+            // Guardar detalles del crédito en metadatos
             $metadata = [
                 'sale_id' => $saleId,
                 'receipt_number' => $saleNumber,
                 'credit_applied' => $amount,
+                'credit_from_accumulated' => $creditUsedFromAccumulated,
+                'credit_from_balance' => $creditUsedFromBalance,
                 'payment_method' => 'Crédito a favor',
                 'applied_at' => now()->toDateTimeString(),
                 'original_credit_available' => $availableCredit,
@@ -802,8 +1144,27 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 'movement_date' => now(),
             ]);
             
-            // Actualizar el balance de la cuenta
-            $account->updateBalance($balanceChange);
+            // Actualizar el balance y crédito acumulado de la cuenta
+            if ($balanceChange != 0) {
+                $account->updateBalance($balanceChange);
+            }
+            
+            // Consumir el crédito acumulado usado
+            if ($creditUsedFromAccumulated > 0) {
+                $account->accumulated_credit = $accumulatedCreditAfter;
+                $account->last_movement_at = now();
+                $account->save();
+            }
+            
+            // Refrescar la cuenta para asegurar que todo se actualizó correctamente
+            $account->refresh();
+            
+            // Verificar que el balance se actualizó correctamente
+            if (abs((float)$account->current_balance - $balanceAfter) > 0.01) {
+                // Forzar la actualización del balance
+                $account->current_balance = $balanceAfter;
+                $account->save();
+            }
             
             return $movement->load(['movementType', 'user.person']);
         });
@@ -1184,5 +1545,267 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 ];
             }),
         ];
+    }
+
+    /**
+     * Obtener cargos administrativos pendientes de pago
+     * 
+     * Retorna movimientos de débito (Ajuste en contra, Interés aplicado) que:
+     * - No están asociados a una venta
+     * - No han sido completamente pagados
+     * - Son del tipo "salida" (aumentan deuda)
+     * 
+     * @param int $accountId ID de la cuenta corriente
+     * @return SupportCollection Colección de cargos administrativos pendientes con información de pagos
+     */
+    public function getAdministrativeCharges(int $accountId): SupportCollection
+    {
+        // Obtener todos los movimientos de débito administrativos
+        // (Ajuste en contra, Interés aplicado) que no son ventas
+        $charges = CurrentAccountMovement::with(['movementType', 'user.person'])
+            ->where('current_account_id', $accountId)
+            ->whereNull('sale_id') // No asociados a ventas
+            ->whereHas('movementType', function($query) {
+                $query->where('operation_type', 'salida') // Solo débitos
+                      ->whereIn('name', [
+                          'Ajuste en contra',
+                          'Interés aplicado'
+                      ]);
+            })
+            ->orderBy('movement_date', 'desc')
+            ->get();
+        
+        // Calcular el monto pagado y pendiente para cada cargo
+        return $charges->map(function ($charge) use ($accountId) {
+            // Buscar pagos asociados a este cargo específico
+            // Los pagos tienen metadata con 'charge_id' que referencia el cargo
+            $payments = CurrentAccountMovement::where('current_account_id', $accountId)
+                ->whereNotNull('metadata')
+                ->whereJsonContains('metadata->charge_id', $charge->id)
+                ->sum('amount');
+            
+            $totalAmount = (float) $charge->amount;
+            $paidAmount = (float) $payments;
+            $pendingAmount = $totalAmount - $paidAmount;
+            
+            return [
+                'id' => $charge->id,
+                'movement_type' => $charge->movementType->name,
+                'description' => $charge->description,
+                'reference' => $charge->reference,
+                'total_amount' => $totalAmount,
+                'paid_amount' => $paidAmount,
+                'pending_amount' => max(0, $pendingAmount), // No permitir negativos
+                'movement_date' => $charge->movement_date?->format('Y-m-d H:i:s'),
+                'created_at' => $charge->created_at->format('Y-m-d H:i:s'),
+                'payment_status' => $pendingAmount <= 0 ? 'paid' : ($paidAmount > 0 ? 'partial' : 'pending'),
+            ];
+        })->filter(function ($charge) {
+            // Solo retornar cargos con monto pendiente mayor a 0
+            return $charge['pending_amount'] > 0;
+        })->values(); // Re-indexar la colección
+    }
+
+    /**
+     * Calcular el total de cargos administrativos pendientes de pago
+     * 
+     * Este método calcula de forma optimizada el total de deuda pendiente
+     * por cargos administrativos (Ajuste en contra, Interés aplicado)
+     * sin cargar todos los cargos en memoria.
+     * 
+     * @param int $accountId ID de la cuenta corriente
+     * @return float Total de cargos administrativos pendientes
+     */
+    public function getTotalAdministrativeChargesPending(int $accountId): float
+    {
+        // Obtener todos los cargos administrativos (débitos no asociados a ventas)
+        $charges = CurrentAccountMovement::where('current_account_id', $accountId)
+            ->whereNull('sale_id')
+            ->whereHas('movementType', function($query) {
+                $query->where('operation_type', 'salida')
+                      ->whereIn('name', [
+                          'Ajuste en contra',
+                          'Interés aplicado'
+                      ]);
+            })
+            ->get(['id', 'amount']);
+        
+        $totalPending = 0.0;
+        
+        foreach ($charges as $charge) {
+            // Calcular monto pagado de este cargo
+            $paidAmount = CurrentAccountMovement::where('current_account_id', $accountId)
+                ->whereNotNull('metadata')
+                ->whereJsonContains('metadata->charge_id', $charge->id)
+                ->sum('amount');
+            
+            $totalAmount = (float) $charge->amount;
+            $paid = (float) $paidAmount;
+            $pending = $totalAmount - $paid;
+            
+            if ($pending > 0) {
+                $totalPending += $pending;
+            }
+        }
+        
+        return $totalPending;
+    }
+
+    /**
+     * Aplicar crédito a favor a un cargo administrativo
+     * 
+     * Similar a applyFavorCreditToSale pero para cargos administrativos
+     * 
+     * @param int $accountId ID de la cuenta corriente
+     * @param int $chargeId ID del cargo administrativo
+     * @param float $amount Monto de crédito a aplicar
+     * @param float $availableCredit Crédito disponible (para validación)
+     * @return CurrentAccountMovement Movimiento creado
+     */
+    private function applyFavorCreditToCharge(int $accountId, int $chargeId, float $amount, float $availableCredit): CurrentAccountMovement
+    {
+        $account = CurrentAccount::findOrFail($accountId);
+        $charge = CurrentAccountMovement::with(['movementType'])->findOrFail($chargeId);
+        
+        // Validar que es un cargo administrativo válido
+        if ($charge->sale_id !== null) {
+            throw new Exception("El movimiento #{$chargeId} está asociado a una venta y no es un cargo administrativo");
+        }
+        
+        // Validar monto
+        if ($amount <= 0) {
+            throw new Exception('El monto debe ser mayor a 0');
+        }
+        
+        if ($amount > $availableCredit) {
+            throw new Exception(
+                sprintf(
+                    'El monto de crédito ($%.2f) excede el crédito disponible ($%.2f)',
+                    $amount,
+                    $availableCredit
+                )
+            );
+        }
+        
+        // Calcular monto ya pagado de este cargo
+        $paidAmount = CurrentAccountMovement::where('current_account_id', $accountId)
+            ->whereNotNull('metadata')
+            ->whereJsonContains('metadata->charge_id', $chargeId)
+            ->sum('amount');
+        
+        $totalChargeAmount = (float) $charge->amount;
+        $pendingAmount = $totalChargeAmount - (float) $paidAmount;
+        
+        // Validar que el crédito no exceda el monto pendiente
+        if ($amount > $pendingAmount) {
+            throw new Exception(
+                sprintf(
+                    'El monto de crédito ($%.2f) excede el monto pendiente ($%.2f) para el cargo "%s"',
+                    $amount,
+                    $pendingAmount,
+                    $charge->description
+                )
+            );
+        }
+        
+        return DB::transaction(function () use ($accountId, $chargeId, $amount, $charge, $availableCredit) {
+            // Obtener la cuenta y el balance y crédito acumulado actual
+            $account = CurrentAccount::findOrFail($accountId);
+            $account->refresh();
+            $balanceBefore = (float) $account->current_balance;
+            $accumulatedCreditBefore = (float) $account->accumulated_credit;
+            
+            // ESTRATEGIA: Consumir crédito en este orden:
+            // 1. Primero del crédito acumulado (bonificaciones/ajustes)
+            // 2. Después del balance negativo (depósitos)
+            
+            $amountToApply = $amount;
+            $creditUsedFromAccumulated = 0;
+            $creditUsedFromBalance = 0;
+            
+            // 1. Consumir del crédito acumulado primero
+            if ($accumulatedCreditBefore > 0) {
+                $creditUsedFromAccumulated = min($amountToApply, $accumulatedCreditBefore);
+                $amountToApply -= $creditUsedFromAccumulated;
+            }
+            
+            // 2. Si aún queda monto por aplicar, consumir del balance negativo
+            if ($amountToApply > 0 && $balanceBefore < 0) {
+                $creditAvailableFromBalance = abs($balanceBefore);
+                $creditUsedFromBalance = min($amountToApply, $creditAvailableFromBalance);
+                $amountToApply -= $creditUsedFromBalance;
+            }
+            
+            // Calcular nuevo balance y crédito acumulado
+            $accumulatedCreditAfter = $accumulatedCreditBefore - $creditUsedFromAccumulated;
+            
+            // El balance solo se modifica si usamos crédito del balance negativo O si hay deuda que pagar
+            if ($creditUsedFromBalance > 0) {
+                // Balance negativo: usar crédito aumenta el balance hacia cero
+                $balanceAfter = $balanceBefore + $creditUsedFromBalance;
+            } else if ($creditUsedFromAccumulated > 0 && $balanceBefore > 0) {
+                // Balance positivo (deuda): usar crédito acumulado reduce la deuda
+                $balanceAfter = $balanceBefore - $creditUsedFromAccumulated;
+            } else {
+                // No hay cambio en el balance
+                $balanceAfter = $balanceBefore;
+            }
+            
+            $balanceChange = $balanceAfter - $balanceBefore;
+            
+            // Obtener tipo de movimiento para crédito a favor
+            $creditUsageType = MovementType::where('operation_type', 'entrada')
+                ->where('is_current_account_movement', true)
+                ->whereIn('name', [
+                    CurrentAccountMovementTypes::ACCOUNT_PAYMENT,
+                    CurrentAccountMovementTypes::CREDIT_USAGE
+                ])
+                ->first();
+            
+            if (!$creditUsageType) {
+                throw new Exception('No se encontró un tipo de movimiento válido para aplicar crédito a favor');
+            }
+            
+            // Guardar detalles del crédito en metadatos
+            $metadata = [
+                'charge_id' => $chargeId,
+                'charge_type' => $charge->movementType->name,
+                'credit_applied' => $amount,
+                'credit_from_accumulated' => $creditUsedFromAccumulated,
+                'credit_from_balance' => $creditUsedFromBalance,
+                'payment_method' => 'Crédito a favor',
+                'applied_at' => now()->toDateTimeString(),
+                'original_credit_available' => $availableCredit,
+                'credit_remaining_after_use' => max(0, $availableCredit - $amount)
+            ];
+            
+            // Crear el movimiento manualmente para tener control sobre el cálculo del balance
+            $movement = CurrentAccountMovement::create([
+                'current_account_id' => $accountId,
+                'movement_type_id' => $creditUsageType->id,
+                'amount' => $amount,
+                'description' => "Pago de {$charge->movementType->name} - {$charge->description} - Crédito a favor",
+                'reference' => $charge->reference ?? "CARGO-{$chargeId}",
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'metadata' => $metadata,
+                'user_id' => auth()->id(),
+                'movement_date' => now(),
+            ]);
+            
+            // Actualizar el balance y crédito acumulado de la cuenta
+            if ($balanceChange != 0) {
+                $account->updateBalance($balanceChange);
+            }
+            
+            // Consumir el crédito acumulado usado
+            if ($creditUsedFromAccumulated > 0) {
+                $account->accumulated_credit = $accumulatedCreditAfter;
+                $account->last_movement_at = now();
+                $account->save();
+            }
+            
+            return $movement->load(['movementType', 'user.person']);
+        });
     }
 }

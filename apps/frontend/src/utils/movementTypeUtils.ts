@@ -1,57 +1,49 @@
-import { MovementType } from '@/types/currentAccount';
-
 /**
- * Lista de nombres de tipos de movimiento que son automáticos y no deben mostrarse
- * en diálogos de creación manual de movimientos
+ * Tipos de movimiento manuales permitidos:
+ * 
+ * CRÉDITO (Entrada - Reduce deuda o acumula crédito):
+ * 1. Ajuste a favor: Bonificación/descuento (acumula crédito, NO afecta caja)
+ * 2. Depósito a cuenta: Dinero real (acumula crédito, SÍ afecta caja)
+ * 
+ * DÉBITO (Salida - Aumenta deuda):
+ * 3. Ajuste en contra: Corrección contable (aumenta deuda, NO afecta caja)
+ * 4. Interés aplicado: Interés por mora (aumenta deuda, NO afecta caja)
  */
-const AUTOMATIC_MOVEMENT_NAMES = [
-  'venta',
-  'pago de venta',
-  'pago en efectivo',
-  'pago con tarjeta',
-  'pago con transferencia',
-  'compra de mercadería',
-  'compra de mercaderia',
-  'pago de cuenta corriente',
-  'pago cuenta corriente',
-  'uso de crédito a favor', // Movimiento automático cuando se usa crédito en una venta
-  'uso de credito a favor'
+const MANUAL_MOVEMENT_NAMES = [
+  // Crédito (Entrada)
+  'ajuste a favor',
+  'depósito a cuenta',
+  'deposito a cuenta',
+  // Débito (Salida)
+  'ajuste en contra',
+  'interés aplicado',
+  'interes aplicado',
 ] as const;
 
 /**
- * Determina si un tipo de movimiento es automático (no debe aparecer en creación manual)
- * 
- * @param movementType - Tipo de movimiento a evaluar
- * @returns true si el movimiento es automático, false si es manual
+ * Filtra tipos de movimiento para mostrar solo los tipos manuales permitidos
  */
-export function isAutomaticMovement(movementType: MovementType): boolean {
-  const name = movementType.name.toLowerCase();
-  return AUTOMATIC_MOVEMENT_NAMES.some(automaticName => name.includes(automaticName));
+export function filterManualMovementTypes(movementTypes: any[]): any[] {
+  return movementTypes.filter(type => {
+    const name = type.name.toLowerCase().trim();
+    // Incluir solo movimientos manuales permitidos
+    return MANUAL_MOVEMENT_NAMES.some(manualName => name === manualName || name.includes(manualName));
+  });
 }
 
 /**
- * Filtra tipos de movimiento para mostrar solo los que pueden ser creados manualmente
- * 
- * @param movementTypes - Array de tipos de movimiento a filtrar
- * @returns Array filtrado con solo tipos de movimiento manuales
- */
-export function filterManualMovementTypes(movementTypes: MovementType[]): MovementType[] {
-  return movementTypes.filter(type => !isAutomaticMovement(type));
-}
-
-/**
- * Obtiene el título y descripción según el tipo de operación
- * 
- * @param operationType - Tipo de operación ('entrada' o 'salida')
- * @returns Objeto con título y descripción
+ * Obtiene información del tipo de operación (entrada/salida)
  */
 export function getOperationTypeInfo(operationType: 'entrada' | 'salida') {
-  return {
-    isCredit: operationType === 'entrada',
-    title: operationType === 'entrada' ? 'Agregar Crédito' : 'Agregar Débito',
-    description: operationType === 'entrada'
-      ? 'Registrar un movimiento que reduce la deuda (pago, nota de crédito, ajuste a favor)'
-      : 'Registrar un movimiento que aumenta la deuda (compra, nota de débito, ajuste en contra)'
-  };
+  return operationType === 'entrada' 
+    ? { 
+        label: 'Crédito (Entrada)', 
+        description: 'Reduce la deuda del cliente o acumula crédito',
+        color: 'text-green-600' 
+      }
+    : { 
+        label: 'Débito (Salida)', 
+        description: 'Aumenta la deuda del cliente',
+        color: 'text-red-600' 
+      };
 }
-
