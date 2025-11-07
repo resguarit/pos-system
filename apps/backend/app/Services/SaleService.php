@@ -1238,11 +1238,6 @@ class SaleService implements SaleServiceInterface
             if (!$paymentMethod) { return null; }
             $name = strtolower(trim($paymentMethod->name ?? ''));
             if ($name === '') { return null; }
-            
-            // IMPORTANTE: "Crédito a favor" NO debe generar movimiento de caja
-            if (str_contains($name, 'crédito a favor') || str_contains($name, 'credito a favor')) {
-                return null;
-            }
 
             // Determinar nombre/desc canónicos por método de pago
             $canonicalName = null;

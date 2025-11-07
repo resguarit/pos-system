@@ -12,6 +12,7 @@ import { shipmentService } from '@/services/shipmentService';
 import { Shipment, ShipmentStage } from '@/types/shipment';
 import { PaymentShipmentDialog } from './PaymentShipmentDialog';
 import { useAuth } from '@/context/AuthContext';
+import { parseShippingCost } from '@/utils/shipmentUtils';
 
 interface EditShipmentDialogProps {
   open: boolean;
@@ -675,7 +676,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           open={showPaymentDialog}
           onOpenChange={setShowPaymentDialog}
           shipmentId={shipmentId}
-          shippingCost={parseFloat(shipment.shipping_cost?.toString() || '0')}
+          shippingCost={parseShippingCost(shipment.shipping_cost)}
           onSuccess={() => {
             fetchShipmentData();
             onSuccess();

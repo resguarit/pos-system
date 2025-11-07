@@ -44,15 +44,32 @@ export function UserPermissionsDisplay({
 
   const groupPermissionsByModule = () => {
     const grouped: Record<string, string[]> = {};
+    // Permisos del flujo de envíos que ya no se usan
+    const flowPermissions = [
+      'crear_etapas_envio',
+      'editar_etapas_envio',
+      'eliminar_etapas_envio',
+      'configurar_visibilidad_atributos',
+      'configurar_envios',
+      'configurar_flujo_envio',
+    ];
+    
     permissions.forEach(permission => {
+      // Filtrar permisos del flujo de envíos
+      if (flowPermissions.includes(permission)) {
+        return; // Saltar este permiso
+      }
+      
       // Extraer el módulo del nombre del permiso (por ejemplo: "ver_productos" -> "productos")
       const parts = permission.split('_');
       if (parts.length >= 2) {
         const module = parts.slice(1).join('_');
-        if (!grouped[module]) {
-          grouped[module] = [];
+        // Mapear "envios" o "shipments" al mismo módulo
+        const normalizedModule = module === 'envios' || module === 'shipments' ? 'envios' : module;
+        if (!grouped[normalizedModule]) {
+          grouped[normalizedModule] = [];
         }
-        grouped[module].push(permission);
+        grouped[normalizedModule].push(permission);
       } else {
         if (!grouped['general']) {
           grouped['general'] = [];
@@ -86,7 +103,9 @@ export function UserPermissionsDisplay({
       'turnos': 'turnos',
       'zonas_entrega': 'zonasEntrega',
       'solicitudes': 'solicitudes',
-      'facturacion': 'facturacion'
+      'facturacion': 'facturacion',
+      'envios': 'shipments',
+      'shipments': 'shipments'
     };
 
     const filtered: Record<string, string[]> = {};
@@ -136,7 +155,10 @@ export function UserPermissionsDisplay({
       'fiscal': 'Fiscal',
       'configuracion': 'Configuración',
       'auditoria': 'Auditoría',
-      'general': 'General'
+      'general': 'General',
+      'shipments': 'Envios',
+      'envios': 'Envios',
+      'envíos': 'Envios'
     };
     return moduleNames[module] || module.charAt(0).toUpperCase() + module.slice(1);
   };

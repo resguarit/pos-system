@@ -8,12 +8,13 @@ import { Loader2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
+import { parseShippingCost } from '@/utils/shipmentUtils';
 
 interface PaymentShipmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   shipmentId: number | null;
-  shippingCost: number;
+  shippingCost?: number | null;
   onSuccess: () => void;
 }
 
@@ -29,6 +30,15 @@ export const PaymentShipmentDialog: React.FC<PaymentShipmentDialogProps> = ({
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
   const [notes, setNotes] = useState('');
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
 
   useEffect(() => {
     if (open) {
@@ -91,7 +101,7 @@ export const PaymentShipmentDialog: React.FC<PaymentShipmentDialogProps> = ({
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm font-medium text-blue-900">Costo de Envío</p>
             <p className="text-2xl font-bold text-blue-900">
-              ${shippingCost.toFixed(2)}
+              {formatCurrency(parseShippingCost(shippingCost))}
             </p>
           </div>
 

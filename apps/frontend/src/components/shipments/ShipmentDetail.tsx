@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, Package, Calendar, Hash, User, MapPin, Building2, FileText, Phone, Mail, CreditCard, DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { PaymentShipmentDialog } from './PaymentShipmentDialog';
+import { parseShippingCost } from '@/utils/shipmentUtils';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 
@@ -513,7 +514,7 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
           open={showPaymentDialog}
           onOpenChange={setShowPaymentDialog}
           shipmentId={shipmentId}
-          shippingCost={parseFloat(shipment.shipping_cost.toString())}
+          shippingCost={parseShippingCost(shipment.shipping_cost)}
           onSuccess={handlePaymentSuccess}
         />
       )}

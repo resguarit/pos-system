@@ -230,20 +230,10 @@ class ShipmentDemoDataSeeder extends Seeder
             'admin' => [
                 'ver_envios',
                 'mover_envios',
-                'configurar_envios',
-                'crear_etapas_envio',
-                'editar_etapas_envio',
-                'eliminar_etapas_envio',
-                'configurar_visibilidad_atributos',
             ],
             'logistics_manager' => [
                 'ver_envios',
                 'mover_envios',
-                'configurar_envios',
-                'crear_etapas_envio',
-                'editar_etapas_envio',
-                'eliminar_etapas_envio',
-                'configurar_visibilidad_atributos',
             ],
             'driver' => [
                 'ver_envios',

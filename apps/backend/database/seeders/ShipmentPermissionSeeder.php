@@ -16,42 +16,37 @@ class ShipmentPermissionSeeder extends Seeder
             [
                 'name' => 'ver_envios',
                 'description' => 'Ver envíos',
-                'module' => 'shipments',
+                'module' => 'envios',
             ],
             [
                 'name' => 'crear_envios',
                 'description' => 'Crear nuevos envíos',
-                'module' => 'shipments',
+                'module' => 'envios',
             ],
             [
                 'name' => 'editar_envios',
                 'description' => 'Editar envíos existentes',
-                'module' => 'shipments',
+                'module' => 'envios',
             ],
             [
                 'name' => 'cancelar_envio',
                 'description' => 'Cancelar envíos',
-                'module' => 'shipments',
+                'module' => 'envios',
             ],
             [
                 'name' => 'registrar_pago_envio',
                 'description' => 'Registrar pago de envío',
-                'module' => 'shipments',
+                'module' => 'envios',
             ],
             [
                 'name' => 'imprimir_etiqueta_envio',
                 'description' => 'Imprimir etiquetas de envío',
-                'module' => 'shipments',
-            ],
-            [
-                'name' => 'configurar_envios',
-                'description' => 'Configurar envíos',
-                'module' => 'shipments',
+                'module' => 'envios',
             ],
         ];
 
         foreach ($permissions as $permission) {
-            Permission::firstOrCreate(
+            Permission::updateOrCreate(
                 ['name' => $permission['name']],
                 $permission
             );

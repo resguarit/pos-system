@@ -104,27 +104,31 @@ class ShipmentPolicy
 
     /**
      * Determine whether the user can configure shipment stages.
+     * @deprecated Esta funcionalidad ha sido eliminada
      */
     public function configure(User $user): bool
     {
-        return $user->hasPermission('configurar_envios');
+        // Funcionalidad eliminada - siempre retorna false
+        return false;
     }
 
     /**
      * Determine whether the user can manage stages.
+     * @deprecated Esta funcionalidad ha sido eliminada
      */
     public function manageStages(User $user): bool
     {
-        return $user->hasPermission('crear_etapas_envio') ||
-               $user->hasPermission('editar_etapas_envio') ||
-               $user->hasPermission('eliminar_etapas_envio');
+        // Funcionalidad eliminada - siempre retorna false
+        return false;
     }
 
     /**
      * Determine whether the user can configure visibility.
+     * @deprecated Esta funcionalidad ha sido eliminada
      */
     public function configureVisibility(User $user): bool
     {
-        return $user->hasPermission('configurar_visibilidad_atributos');
+        // Funcionalidad eliminada - siempre retorna false
+        return false;
     }
 }

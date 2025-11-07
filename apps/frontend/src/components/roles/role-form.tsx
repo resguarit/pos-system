@@ -42,9 +42,22 @@ interface RoleFormProps {
   viewOnly?: boolean;
 }
 
-// --- Helper para formatear nombres de permisos ---
+// --- Helper para formatear nombres de permisos y módulos ---
 function formatPermissionName(name: string): string {
   if (!name) return 'Permiso';
+  
+  // Mapeo especial para nombres de módulos
+  const moduleNameMap: Record<string, string> = {
+    'shipments': 'Envios',
+    'envios': 'Envios',
+    'envíos': 'Envios',
+  };
+  
+  const normalizedName = name.toLowerCase().trim();
+  if (moduleNameMap[normalizedName]) {
+    return moduleNameMap[normalizedName];
+  }
+  
   return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
@@ -97,6 +110,8 @@ function getFeatureForModule(moduleName: string): boolean {
     'purchaseOrders': 'purchaseOrders',
     'envios': 'shipments',
     'envíos': 'shipments',
+    'shipments': 'shipments',
+    'envio': 'shipments',
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();
@@ -160,6 +175,19 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
 
         if (permissionsData.length > 0) {
           const grouped = permissionsData.reduce((acc: Record<string, Module>, perm: any) => {
+            // Filtrar permisos del flujo de envíos que ya no se usan
+            const flowPermissions = [
+              'crear_etapas_envio',
+              'editar_etapas_envio',
+              'eliminar_etapas_envio',
+              'configurar_visibilidad_atributos',
+              'configurar_envios',
+              'configurar_flujo_envio',
+            ];
+            if (flowPermissions.includes(perm.name)) {
+              return acc; // Saltar este permiso
+            }
+            
             const moduleName = perm.module || "Permisos Generales";
             if (!acc[moduleName]) {
               acc[moduleName] = { id: moduleName, name: moduleName, description: "", permissions: [] };

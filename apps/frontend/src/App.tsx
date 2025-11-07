@@ -48,7 +48,6 @@ import ZonasEntregaPage from '@/pages/dashboard/ZonasEntregaPage'
 import ReparacionesPage from '@/pages/dashboard/ReparacionesPage'
 import CombosPage from '@/pages/dashboard/CombosPage'
 import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
-import ShipmentStagesPage from '@/pages/shipments/ShipmentStagesPage'
 import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
 import features from '@/config/features'
 
@@ -109,7 +108,6 @@ function App() {
           {features.zonasEntrega && <Route path="zonas-entrega" element={<ZonasEntregaPage />} />}
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
           {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
-          {features.shipments && <Route path="shipments/stages" element={<ProtectedRoute permissions={['configurar_envios']}><ShipmentStagesPage /></ProtectedRoute>} />}
         </Route>
 
         {/* Redirección por defecto */}

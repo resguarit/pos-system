@@ -367,8 +367,7 @@ export const PERMISSIONS_CONFIG = {
       'editar_envios',      // Editar envíos existentes
       'cancelar_envio',     // Cancelar envíos
       'registrar_pago_envio', // Registar pago de envío
-      'imprimir_etiqueta_envio', // Imprimir etiquetas
-      'configurar_envios'  // Configurar envíos (implementación futura)
+      'imprimir_etiqueta_envio' // Imprimir etiquetas
     ]
   }
 };

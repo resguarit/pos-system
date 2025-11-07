@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, ArrowLeft, Package, Calendar, Hash, User, MapPin, Building2, FileText, Phone, Mail, CreditCard, DollarSign, CheckCircle, XCircle, Clock, Receipt } from 'lucide-react';
 import { PaymentShipmentDialog } from '@/components/shipments/PaymentShipmentDialog';
+import { parseShippingCost } from '@/utils/shipmentUtils';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 
@@ -493,6 +494,7 @@ const ViewShipmentPage: React.FC = () => {
           shipmentId={shipment.id}
           open={showPaymentDialog}
           onOpenChange={setShowPaymentDialog}
+          shippingCost={parseShippingCost(shipment.shipping_cost)}
           onSuccess={handlePaymentSuccess}
         />
       )}

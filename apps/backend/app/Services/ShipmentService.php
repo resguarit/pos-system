@@ -288,7 +288,18 @@ class ShipmentService implements ShipmentServiceInterface
             }
 
             // Get the open cash register for the shipment's branch
-            $cashRegister = $branch->cashRegisters()->where('status', 'open')->first();
+            // Primero intentar buscar la caja del usuario que está registrando el pago
+            $cashRegister = $branch->cashRegisters()
+                ->where('status', 'open')
+                ->where('user_id', $user->id)
+                ->first();
+            
+            // Si no hay caja del usuario, buscar cualquier caja abierta de la sucursal
+            if (!$cashRegister) {
+                $cashRegister = $branch->cashRegisters()
+                    ->where('status', 'open')
+                    ->first();
+            }
             
             if (!$cashRegister) {
                 throw new \Exception('No cash register is open for this branch');
