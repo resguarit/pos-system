@@ -106,6 +106,8 @@ class CurrentAccountMovementTypeSeeder extends Seeder
             );
         }
 
-        $this->command->info('Tipos de movimiento de cuenta corriente creados/actualizados exitosamente.');
+        if ($this->command) {
+            $this->command->info('Tipos de movimiento de cuenta corriente creados/actualizados exitosamente.');
+        }
     }
 }
