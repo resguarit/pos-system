@@ -110,20 +110,6 @@ export default function CuentaCorrienteClientePage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Crédito Disponible
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(
-                (accountData?.credit_limit || 0) - (accountData?.balance || 0)
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Movimientos */}

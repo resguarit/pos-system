@@ -31,10 +31,8 @@ export interface CurrentAccount {
   };
   credit_limit: number | null;
   current_balance: number;
-  accumulated_credit: number; // Crédito acumulado por bonificaciones/depósitos
   total_pending_debt: number; // Total de ventas pendientes (saldo adeudado)
   available_credit: number | null;
-  available_favor_credit: number; // Crédito total disponible para usar
   credit_usage_percentage: number | null;
   status: 'active' | 'suspended' | 'closed';
   status_text: string;

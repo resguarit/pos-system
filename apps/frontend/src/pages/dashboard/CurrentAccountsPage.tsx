@@ -25,7 +25,6 @@ import { CurrentAccountList } from '@/components/currentAccount/CurrentAccountLi
 import { CurrentAccountForm } from '@/components/currentAccount/CurrentAccountForm';
 import { CurrentAccountDetails } from '@/components/currentAccount/CurrentAccountDetails';
 import { PaymentDialog } from '@/components/currentAccount/PaymentDialog';
-import { CreditPurchaseDialog } from '@/components/currentAccount/CreditPurchaseDialog';
 import { usePermissions } from '@/hooks/usePermissions';
 
 type ViewMode = 'list' | 'details' | 'form';
@@ -35,7 +34,6 @@ export default function CurrentAccountsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [selectedAccount, setSelectedAccount] = useState<CurrentAccount | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  const [showCreditPurchaseDialog, setShowCreditPurchaseDialog] = useState(false);
   const [statistics, setStatistics] = useState<GeneralStatistics | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -112,14 +110,6 @@ export default function CurrentAccountsPage() {
     window.location.reload();
   };
 
-  const handleCreditPurchaseSuccess = () => {
-    setShowCreditPurchaseDialog(false);
-    if (selectedAccount) {
-      // Recargar detalles de la cuenta
-      loadAccountDetails();
-    }
-    loadStatistics();
-  };
 
   const handleExport = async () => {
     try {
@@ -427,14 +417,6 @@ export default function CurrentAccountsPage() {
             onSuccess={handlePaymentSuccess}
           />
           
-          <CreditPurchaseDialog
-            open={showCreditPurchaseDialog}
-            onOpenChange={setShowCreditPurchaseDialog}
-            accountId={selectedAccount.id}
-            currentBalance={selectedAccount.current_balance}
-            creditLimit={selectedAccount.credit_limit || 0}
-            onSuccess={handleCreditPurchaseSuccess}
-          />
         </>
       )}
     </div>

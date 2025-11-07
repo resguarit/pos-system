@@ -144,16 +144,6 @@ export class CurrentAccountService {
     return data.available;
   }
 
-  // Obtener crédito a favor disponible (balance negativo)
-  static async getAvailableFavorCredit(accountId: number): Promise<number> {
-    // Este método calcula el crédito disponible para usar en pagos
-    // Puede ser:
-    // 1. Balance negativo (crédito a favor directo)
-    // 2. Diferencia entre ventas pendientes y balance actual (bonificaciones aplicables)
-    const response = await api.get(`${this.baseUrl}/${accountId}/available-favor-credit`);
-    const data = this.handleResponse(response) as { available_favor_credit: number; has_favor_credit: boolean };
-    return data.available_favor_credit || 0;
-  }
 
   // Ventas pendientes y pagos
   static async getPendingSales(accountId: number): Promise<PendingSale[]> {
