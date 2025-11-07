@@ -386,7 +386,6 @@ export default function CurrentAccountsPage() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="justify-between min-w-[160px]">
                 {balanceFilter === '' ? 'Todos los balances' : 
-                 balanceFilter === 'positive' ? 'Con crédito disponible' :
                  balanceFilter === 'negative' ? 'Con deuda' : 'Todos los balances'}
                 <ChevronDown className="ml-2 h-4 w-4" />
               </Button>
@@ -395,10 +394,6 @@ export default function CurrentAccountsPage() {
               <DropdownMenuItem onClick={() => setBalanceFilter('')}>
                 <Check className={`mr-2 h-4 w-4 ${balanceFilter === '' ? 'opacity-100' : 'opacity-0'}`} />
                 Todos los balances
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setBalanceFilter('positive')}>
-                <Check className={`mr-2 h-4 w-4 ${balanceFilter === 'positive' ? 'opacity-100' : 'opacity-0'}`} />
-                Con crédito disponible
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setBalanceFilter('negative')}>
                 <Check className={`mr-2 h-4 w-4 ${balanceFilter === 'negative' ? 'opacity-100' : 'opacity-0'}`} />

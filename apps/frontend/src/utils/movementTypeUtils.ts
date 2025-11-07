@@ -1,19 +1,11 @@
 /**
  * Tipos de movimiento manuales permitidos:
  * 
- * CRÉDITO (Entrada - Reduce deuda o acumula crédito):
- * 1. Ajuste a favor: Bonificación/descuento (acumula crédito, NO afecta caja)
- * 2. Depósito a cuenta: Dinero real (acumula crédito, SÍ afecta caja)
- * 
  * DÉBITO (Salida - Aumenta deuda):
- * 3. Ajuste en contra: Corrección contable (aumenta deuda, NO afecta caja)
- * 4. Interés aplicado: Interés por mora (aumenta deuda, NO afecta caja)
+ * - Ajuste en contra: Corrección contable (aumenta deuda, NO afecta caja)
+ * - Interés aplicado: Interés por mora (aumenta deuda, NO afecta caja)
  */
 const MANUAL_MOVEMENT_NAMES = [
-  // Crédito (Entrada)
-  'ajuste a favor',
-  'depósito a cuenta',
-  'deposito a cuenta',
   // Débito (Salida)
   'ajuste en contra',
   'interés aplicado',
@@ -35,15 +27,15 @@ export function filterManualMovementTypes(movementTypes: any[]): any[] {
  * Obtiene información del tipo de operación (entrada/salida)
  */
 export function getOperationTypeInfo(operationType: 'entrada' | 'salida') {
-  return operationType === 'entrada' 
+  return operationType === 'salida' 
     ? { 
-        label: 'Crédito (Entrada)', 
-        description: 'Reduce la deuda del cliente o acumula crédito',
-        color: 'text-green-600' 
-      }
-    : { 
         label: 'Débito (Salida)', 
         description: 'Aumenta la deuda del cliente',
         color: 'text-red-600' 
+      }
+    : { 
+        label: 'Crédito (Entrada)', 
+        description: 'Reduce la deuda del cliente',
+        color: 'text-green-600' 
       };
 }

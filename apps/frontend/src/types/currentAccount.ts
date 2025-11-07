@@ -279,6 +279,7 @@ export interface PendingSale {
   paid_amount: number;
   pending_amount: number;
   payment_status: 'pending' | 'partial' | 'paid';
+  branch_id: number;
 }
 
 export interface SalePayment {

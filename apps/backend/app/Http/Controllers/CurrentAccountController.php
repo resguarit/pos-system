@@ -260,43 +260,6 @@ class CurrentAccountController extends Controller
         }
     }
 
-    /**
-     * Obtener crédito a favor disponible
-     */
-    public function getAvailableFavorCredit(int $id): JsonResponse
-    {
-        try {
-            $availableCredit = $this->currentAccountService->getAvailableFavorCredit($id);
-            
-            return response()->json([
-                'status' => 200,
-                'success' => true,
-                'message' => 'Crédito a favor obtenido correctamente',
-                'data' => [
-                    'available_favor_credit' => $availableCredit,
-                    'has_favor_credit' => $availableCredit > 0
-                ]
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error('Error al obtener crédito a favor', [
-                'account_id' => $id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-            return response()->json([
-                'status' => 400,
-                'success' => false,
-                'message' => $e->getMessage(),
-                'error_details' => config('app.debug') ? [
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString()
-                ] : null
-            ], 400);
-        }
-    }
 
     /**
      * Obtener movimientos de cuenta corriente
@@ -343,43 +306,6 @@ class CurrentAccountController extends Controller
         }
     }
 
-    /**
-     * Obtener cargos administrativos pendientes
-     * 
-     * Retorna cargos administrativos (Ajuste en contra, Interés aplicado)
-     * que no han sido completamente pagados.
-     * 
-     * @param int $accountId ID de la cuenta corriente
-     * @return JsonResponse Lista de cargos administrativos pendientes
-     */
-    public function administrativeCharges(int $accountId): JsonResponse
-    {
-        try {
-            $charges = $this->currentAccountService->getAdministrativeCharges($accountId);
-            
-            return response()->json([
-                'status' => 200,
-                'success' => true,
-                'message' => 'Cargos administrativos obtenidos correctamente',
-                'data' => $charges
-            ], 200);
-        } catch (\Exception $e) {
-            Log::error('Error al obtener cargos administrativos', [
-                'account_id' => $accountId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ]);
-            
-            return response()->json([
-                'status' => 500,
-                'success' => false,
-                'message' => 'Error interno del servidor',
-                'error' => config('app.debug') ? $e->getMessage() : null
-            ], 500);
-        }
-    }
 
     /**
      * Obtener balance de cuenta corriente
@@ -748,6 +674,7 @@ class CurrentAccountController extends Controller
                         'paid_amount' => (float)($sale->paid_amount ?? 0),
                         'pending_amount' => (float)$sale->pending_amount,
                         'payment_status' => $sale->payment_status ?? 'pending',
+                        'branch_id' => $sale->branch_id,
                     ];
                 })
                 ->values(); // Re-indexar el array después del filter

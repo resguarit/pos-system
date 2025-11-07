@@ -36,7 +36,6 @@ import { useCombosInPOS } from "@/hooks/useCombosInPOS"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { CartFloatingButton } from "@/components/pos/CartFloatingButton"
 import type { Combo, CartItem } from "@/types/combo"
-import { useCustomerCredit } from "@/hooks/useCustomerCredit"
 
 interface CustomerOption {
   id: number;
@@ -127,17 +126,6 @@ export default function POSPage() {
   const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [completedSale, setCompletedSale] = useState<any>(null);
 
-  // Crédito a favor del cliente usando hook personalizado
-  const {
-    availableCredit: availableFavorCredit,
-    currentAccountId,
-    isLoading: isLoadingCredit,
-    calculateCreditToApply,
-    resetCredit: resetCreditState,
-  } = useCustomerCredit({
-    customerId: selectedCustomer?.id || null,
-    enabled: !!selectedCustomer,
-  });
 
   // Descuento global (opcional)
   const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('')
@@ -247,23 +235,24 @@ export default function POSPage() {
                      Array.isArray(response?.data?.data) ? response.data.data :
                      Array.isArray(response?.data) ? response.data : [];
       
-      // Filtrar métodos de pago según condiciones
-      let filteredMethods = apiData.map((item: any) => ({ 
-        id: item.id, 
-        name: item.name || item.description 
-      }));
-      
-      // Filtrar "Crédito a favor": solo mostrarlo si el cliente tiene crédito disponible
-      if (availableFavorCredit <= 0) {
-        filteredMethods = filteredMethods.filter(m => m.name !== 'Crédito a favor');
-      }
+      // Mapear y filtrar métodos de pago (excluir "Crédito a favor")
+      const filteredMethods = apiData
+        .filter((item: any) => {
+          const name = (item.name || item.description || '').toLowerCase().trim();
+          return !name.includes('crédito a favor') && 
+                 !name.includes('credito a favor');
+        })
+        .map((item: any) => ({ 
+          id: item.id, 
+          name: item.name || item.description 
+        }));
       
       setPaymentMethods(filteredMethods);
     } catch (err) {
       setPaymentMethods([]);
       toast.error("Error al cargar los métodos de pago.");
     }
-  }, [availableFavorCredit, request]);
+  }, [request]);
 
   const fetchReceiptTypes = async () => {
     try {
@@ -676,13 +665,6 @@ export default function POSPage() {
     // 4. CALCULAR TOTALES FINALES
     const total = Math.max(0, round2(subtotalConIva - globalDiscountAmount));
     
-    // 5. Calcular crédito a favor aplicado desde los pagos (si el usuario seleccionó "Crédito a favor")
-    const favorCreditPayment = payments.find(p => {
-      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id);
-      return paymentMethod?.name === 'Crédito a favor';
-    });
-    const favorCreditToApply = favorCreditPayment ? parseFloat(favorCreditPayment.amount || '0') || 0 : 0;
-    
     const totalItemDiscount = prepared.reduce((s, p, i) => {
         const originalBase = round2((cart[i].price || 0) * (cart[i].quantity || 0));
         return s + Math.max(0, originalBase - p.netBase); // Asegurar que nunca sea negativo
@@ -694,37 +676,11 @@ export default function POSPage() {
       subtotalNet: round2(subtotalAfterItemDiscounts),
       totalIva: round2(totalIva),
       total,
-      favorCreditToApply: round2(favorCreditToApply),
-      totalAfterCredit: Math.max(0, round2(total - favorCreditToApply)),
     };
   };
 
-  const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total, favorCreditToApply, totalAfterCredit } = computeTotals()
+  const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = computeTotals()
 
-  // Recargar métodos de pago cuando cambia el crédito disponible (para mostrar/ocultar "Crédito a favor")
-  useEffect(() => {
-    fetchPaymentMethods();
-  }, [fetchPaymentMethods]);
-
-  // Validar que el monto de crédito a favor no exceda el disponible
-  useEffect(() => {
-    const favorCreditPayment = payments.find(p => {
-      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id);
-      return paymentMethod?.name === 'Crédito a favor';
-    });
-    
-    if (favorCreditPayment && availableFavorCredit > 0) {
-      const amount = parseFloat(favorCreditPayment.amount || '0') || 0;
-      if (amount > availableFavorCredit) {
-        toast.warning(`El monto de crédito a favor no puede exceder ${formatCurrency(availableFavorCredit)}`);
-        updatePayment(
-          payments.indexOf(favorCreditPayment),
-          'amount',
-          availableFavorCredit.toFixed(2)
-        );
-      }
-    }
-  }, [payments, availableFavorCredit, paymentMethods]);
 
   // Funciones auxiliares para el comprobante
   const formatDate = (dateString: string | null | undefined) => {
@@ -792,21 +748,6 @@ export default function POSPage() {
     const pad = (n: number) => n.toString().padStart(2, '0');
     const argDateString = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
-    // Verificar si hay un pago con método "Crédito a favor"
-    const favorCreditPayment = payments.find(p => {
-      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id);
-      return paymentMethod?.name === 'Crédito a favor';
-    });
-
-    // IMPORTANTE: Solo incluir metadata de crédito a favor si:
-    // 1. Hay un pago con método "Crédito a favor" seleccionado
-    // 2. El monto de crédito a aplicar es mayor a 0
-    // 3. Hay un currentAccountId válido
-    const shouldIncludeFavorCreditMetadata = favorCreditPayment && 
-                                             favorCreditToApply > 0 && 
-                                             currentAccountId &&
-                                             parseFloat(favorCreditPayment.amount || '0') > 0;
-
     const saleData: any = {
       branch_id: selectedBranch.id,
       customer_id: selectedCustomer?.id || null,
@@ -824,14 +765,6 @@ export default function POSPage() {
       ...(globalDiscountType && Number(globalDiscountValue) > 0
         ? { discount_type: globalDiscountType, discount_value: Number(globalDiscountValue) }
         : {}),
-      // Metadata para crédito a favor (SOLO si se seleccionó explícitamente como método de pago)
-      ...(shouldIncludeFavorCreditMetadata ? {
-        metadata: {
-          use_favor_credit: true,
-          favor_credit_amount: favorCreditToApply,
-          current_account_id: currentAccountId
-        }
-      } : {}),
       items: cart.map((item, index) => {
         // ✅ Función robusta para extraer product_id
         let productId: number;
@@ -905,7 +838,6 @@ export default function POSPage() {
       setShowAdvancedSaleModal(false);
       setSelectedCustomer(null);
       setCustomerSearch('');
-      resetCreditState();
       const defaultReceipt = findReceiptTypeByAfipCode(receiptTypes, DEFAULT_RECEIPT_TYPES.DEFAULT_SALE);
       setReceiptTypeId(defaultReceipt ? defaultReceipt.id : undefined);
 
@@ -1409,18 +1341,6 @@ export default function POSPage() {
                                             <span className="font-medium text-blue-900">{selectedCustomer.fiscal_condition_name}</span>
                                         </div>
                                     )}
-                                    {/* Mostrar crédito disponible si existe */}
-                                    {isLoadingCredit ? (
-                                        <div className="flex justify-between pt-2 border-t border-blue-200">
-                                            <span className="text-blue-700 font-medium">Crédito a favor:</span>
-                                            <span className="text-blue-700">Cargando...</span>
-                                        </div>
-                                    ) : availableFavorCredit > 0 ? (
-                                        <div className="flex justify-between pt-2 border-t border-blue-200">
-                                            <span className="text-blue-700 font-medium">Crédito a favor:</span>
-                                            <span className="font-bold text-green-700">{formatCurrency(availableFavorCredit)}</span>
-                                        </div>
-                                    ) : null}
                                 </div>
                              </div>
                          </div>
@@ -1462,25 +1382,13 @@ export default function POSPage() {
                            </div>
                            <span>{formatCurrency(total)}</span>
                          </div>
-                         {favorCreditToApply > 0 && (
-                           <div className="flex justify-between text-sm text-green-700 bg-green-50 p-2 rounded">
-                             <span className="font-medium">Crédito a favor aplicado:</span>
-                             <span className="font-bold">- {formatCurrency(favorCreditToApply)}</span>
-                           </div>
-                         )}
                          <div className="flex justify-between text-base">
                            <span>Falta:</span>
                            {(() => {
-                             // Calcular pagos excluyendo "Crédito a favor" porque ya está restado en totalAfterCredit
                              const paid = payments.reduce((s, p) => {
-                               const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id);
-                               // Si es "Crédito a favor", no incluirlo en los pagos porque ya está restado en totalAfterCredit
-                               if (paymentMethod?.name === 'Crédito a favor') {
-                                 return s;
-                               }
                                return s + (parseFloat(p.amount || '0') || 0);
                              }, 0);
-                             const diff = round2(totalAfterCredit - paid);
+                             const diff = round2(total - paid);
                              return (
                                <span className={diff > 0 ? 'text-red-600 font-bold' : 'text-green-600 font-bold'}>
                                  {formatCurrency(Math.max(0, diff))}
@@ -1616,17 +1524,10 @@ export default function POSPage() {
                      operationName="realizar ventas"
                    >
                      {(() => {
-                       // Calcular pagos excluyendo "Crédito a favor" porque ya está restado en totalAfterCredit
                        const paid = payments.reduce((s, p) => {
-                         const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id);
-                         // Si es "Crédito a favor", no incluirlo en los pagos porque ya está restado en totalAfterCredit
-                         if (paymentMethod?.name === 'Crédito a favor') {
-                           return s;
-                         }
                          return s + (parseFloat(p.amount || '0') || 0);
                        }, 0);
-                       // Usar totalAfterCredit para la validación (total después de aplicar crédito a favor)
-                       const diff = round2(totalAfterCredit - paid);
+                       const diff = round2(total - paid);
                        const canConfirm = (cart.length > 0 && receiptTypeId !== undefined && diff === 0 && allPaymentsValid && currentAccountPaymentValid && selectedBranch);
                        return (
                          <Button 

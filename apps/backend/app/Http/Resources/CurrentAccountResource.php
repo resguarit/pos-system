@@ -14,11 +14,8 @@ class CurrentAccountResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Calcular crédito a favor disponible usando el servicio
-        $currentAccountService = app(\App\Services\CurrentAccountService::class);
-        $availableFavorCredit = $currentAccountService->getAvailableFavorCredit($this->id);
-        
         // Calcular total de ventas pendientes (saldo adeudado)
+        $currentAccountService = app(\App\Services\CurrentAccountService::class);
         // Usar una consulta optimizada con sum() en lugar de get()->sum() para mejor rendimiento
         $totalPendingSales = 0;
         if ($this->customer_id) {
@@ -33,11 +30,8 @@ class CurrentAccountResource extends JsonResource
                 ->value('total_pending') ?? 0;
         }
         
-        // Calcular total de cargos administrativos pendientes
-        $totalAdministrativeChargesPending = $currentAccountService->getTotalAdministrativeChargesPending($this->id);
-        
-        // El saldo adeudado total incluye ventas pendientes + cargos administrativos pendientes
-        $totalPendingDebt = $totalPendingSales + $totalAdministrativeChargesPending;
+        // El saldo adeudado total es solo las ventas pendientes
+        $totalPendingDebt = $totalPendingSales;
         
         return [
             'id' => $this->id,
@@ -74,10 +68,8 @@ class CurrentAccountResource extends JsonResource
             ],
             'credit_limit' => $this->credit_limit,
             'current_balance' => $this->current_balance,
-            'accumulated_credit' => $this->accumulated_credit, // Crédito acumulado por bonificaciones
             'total_pending_debt' => $totalPendingDebt, // Total de deuda pendiente (ventas + cargos administrativos)
             'available_credit' => $this->available_credit,
-            'available_favor_credit' => $availableFavorCredit, // Crédito a favor disponible para usar en pagos (accumulated + balance negativo)
             'credit_usage_percentage' => $this->credit_usage_percentage,
             'status' => $this->status,
             'status_text' => $this->status_text,

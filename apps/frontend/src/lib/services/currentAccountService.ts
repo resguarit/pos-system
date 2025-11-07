@@ -17,9 +17,7 @@ import type {
   PaginatedResponse,
   ExportData,
   PendingSale,
-  ProcessPaymentBySaleData,
-  AdministrativeCharge,
-  ProcessPaymentWithChargesData
+  ProcessPaymentBySaleData
 } from '@/types/currentAccount';
 
 export class CurrentAccountService {
@@ -163,16 +161,8 @@ export class CurrentAccountService {
     return this.handleResponse(response) as PendingSale[];
   }
 
-  /**
-   * Obtener cargos administrativos pendientes (Ajuste en contra, Interés aplicado)
-   * Estos son movimientos de débito que no están asociados a ventas y requieren pago
-   */
-  static async getAdministrativeCharges(accountId: number): Promise<AdministrativeCharge[]> {
-    const response = await api.get(`${this.baseUrl}/${accountId}/administrative-charges`);
-    return this.handleResponse(response) as AdministrativeCharge[];
-  }
 
-  static async processPaymentBySale(accountId: number, data: ProcessPaymentBySaleData | ProcessPaymentWithChargesData): Promise<any> {
+  static async processPaymentBySale(accountId: number, data: ProcessPaymentBySaleData): Promise<any> {
     const response = await api.post(`${this.baseUrl}/${accountId}/payments`, data);
     return this.handleResponse(response);
   }

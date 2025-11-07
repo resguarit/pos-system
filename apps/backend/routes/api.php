@@ -334,13 +334,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/movements', [CurrentAccountController::class, 'createMovement']);
         Route::get('/{accountId}/balance', [CurrentAccountController::class, 'balance']);
         Route::get('/{accountId}/pending-sales', [CurrentAccountController::class, 'pendingSales']);
-        Route::get('/{accountId}/administrative-charges', [CurrentAccountController::class, 'administrativeCharges']);
         
         // Operaciones financieras
         Route::post('/{accountId}/payments', [CurrentAccountController::class, 'processPayment']);
         Route::post('/{accountId}/credit-purchases', [CurrentAccountController::class, 'processCreditPurchase']);
         Route::post('/{accountId}/check-credit', [CurrentAccountController::class, 'checkAvailableCredit']);
-        Route::get('/{accountId}/available-favor-credit', [CurrentAccountController::class, 'getAvailableFavorCredit']);
         
         // Gestión de límites
         Route::patch('/{accountId}/credit-limit', [CurrentAccountController::class, 'updateCreditLimit']);

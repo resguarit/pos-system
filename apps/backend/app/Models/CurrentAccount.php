@@ -21,7 +21,6 @@ class CurrentAccount extends Model
         'customer_id',
         'credit_limit',
         'current_balance',
-        'accumulated_credit',
         'status',
         'notes',
         'opened_at',
@@ -31,7 +30,6 @@ class CurrentAccount extends Model
 
     protected $casts = [
         'current_balance' => 'decimal:2',
-        'accumulated_credit' => 'decimal:2',
         'opened_at' => 'datetime',
         'closed_at' => 'datetime',
         'last_movement_at' => 'datetime',

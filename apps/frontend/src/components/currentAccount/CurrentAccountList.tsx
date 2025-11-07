@@ -63,7 +63,6 @@ export function CurrentAccountList({
     { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
     { id: 'credit_limit', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
     { id: 'pending_debt', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
-    { id: 'accumulated_credit', minWidth: 140, maxWidth: 200, defaultWidth: 160 },
     { id: 'last_movement', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
     { id: 'actions', minWidth: 180, maxWidth: 220, defaultWidth: 200 }
   ];
@@ -97,12 +96,7 @@ export function CurrentAccountList({
       if (balanceFilter) {
         // Mapear balanceFilter a los campos existentes
         // IMPORTANTE: En este sistema, balance POSITIVO = cliente debe dinero (deuda)
-        // Balance NEGATIVO = cliente tiene saldo a favor (crédito disponible)
         switch (balanceFilter) {
-          case 'positive':
-            // Con crédito disponible = cuentas con balance negativo O crédito acumulado > 0
-            filters.balance_filter = 'positive';
-            break;
           case 'negative':
             // Con deuda = tiene ventas pendientes O cargos administrativos pendientes
             filters.balance_filter = 'negative';
@@ -299,14 +293,6 @@ export function CurrentAccountList({
                   SALDO ADEUDADO
                 </ResizableTableHeader>
             <ResizableTableHeader
-              columnId="accumulated_credit"
-              getResizeHandleProps={getResizeHandleProps}
-              getColumnHeaderProps={getColumnHeaderProps}
-              className="hidden md:table-cell"
-            >
-              CRÉDITO DISPONIBLE
-            </ResizableTableHeader>
-                <ResizableTableHeader
                   columnId="last_movement"
                   getResizeHandleProps={getResizeHandleProps}
                   getColumnHeaderProps={getColumnHeaderProps}
@@ -376,18 +362,6 @@ export function CurrentAccountList({
                         (account.total_pending_debt || 0) > 0 ? 'text-red-600' : 'text-gray-500'
                       }`}>
                         {CurrentAccountUtils.formatCurrency(account.total_pending_debt || 0)}
-                      </span>
-                    </ResizableTableCell>
-                    <ResizableTableCell
-                      columnId="accumulated_credit"
-                      getColumnCellProps={getColumnCellProps}
-                      className="hidden md:table-cell text-right text-sm"
-                    >
-                      {/* Mostrar crédito disponible total: acumulado + balance negativo */}
-                      <span className={`font-medium ${
-                        (account.available_favor_credit || 0) > 0 ? 'text-green-600' : 'text-gray-500'
-                      }`}>
-                        {CurrentAccountUtils.formatCurrency(account.available_favor_credit || 0)}
                       </span>
                     </ResizableTableCell>
                     <ResizableTableCell
