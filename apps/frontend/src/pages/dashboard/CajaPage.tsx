@@ -385,11 +385,14 @@ export default function CajaPage() {
 
   // Cargar todos los movimientos cuando se carga la caja actual (para una sola sucursal)
   useEffect(() => {
-    if (currentRegister?.id && canViewMovements && selectedBranchIdsArray.length === 1) {
-      // Cargar todos los movimientos para que los cálculos funcionen correctamente
+    if (currentRegister?.id && canViewMovements && selectedBranchIdsArray.length === 1 && currentRegister.status === 'open') {
+      // Cargar todos los movimientos solo de la caja actualmente abierta
       loadAllMovements(currentRegister.id)
+    } else if (!currentRegister || currentRegister.status !== 'open') {
+      // Si no hay caja abierta, limpiar los movimientos
+      // Esto se hace automáticamente en el hook cuando se cierra la caja, pero por si acaso
     }
-  }, [currentRegister?.id, canViewMovements, selectedBranchIdsArray.length, loadAllMovements])
+  }, [currentRegister?.id, currentRegister?.status, canViewMovements, selectedBranchIdsArray.length, loadAllMovements])
 
   // Cuando cambia la página de movimientos, perPage o filtros, recargar
   useEffect(() => {
@@ -672,6 +675,8 @@ export default function CajaPage() {
 
     setIsPageLoading(true)
     try {
+      // addMovement ya actualiza allMovementsFromRegister con optimistic update
+      // y luego recarga todos los movimientos para sincronización
       await addMovement({
         cash_register_id: currentRegister.id,
         movement_type_id: parseInt(formData.movement_type_id),
@@ -681,8 +686,12 @@ export default function CajaPage() {
         user_id: Number(user.id),
       }, { page: movementsPage, perPage: movementsPerPage })
 
+      // Refrescar el balance optimizado para actualizar las tarjetas de resumen
       await refetchOptimized()
-      await loadAllMovements(currentRegister.id)
+      
+      // No necesitamos delay ni recargar manualmente porque addMovement ya lo hace
+      // El optimistic update ya agregó el movimiento a allMovementsFromRegister
+      // y loadAllMovements dentro de addMovement asegura sincronización completa
 
       setOpenNewMovementDialog(false)
 
@@ -872,9 +881,16 @@ export default function CajaPage() {
   }
 
   // Filtrar movimientos por tipo seleccionado
+  // Para una sola sucursal, usar allMovementsFromRegister del hook useCashRegister
+  const movementsForFiltering = selectedBranchIdsArray.length > 1 
+    ? allMovements 
+    : (currentRegister?.id 
+        ? (allMovementsFromRegister || []).filter(m => m.cash_register_id === currentRegister.id)
+        : [])
+  
   const allFilteredMovements = movementTypeFilter === "all"
-    ? (selectedBranchIdsArray.length > 1 ? allMovements : (movements || []))
-    : (selectedBranchIdsArray.length > 1 ? allMovements : (movements || [])).filter(movement => movement.movement_type?.id === parseInt(movementTypeFilter))
+    ? movementsForFiltering
+    : movementsForFiltering.filter(movement => movement.movement_type?.id === parseInt(movementTypeFilter))
 
   // Aplicar paginación a los movimientos filtrados
   const startIndex = (movementsPage - 1) * movementsPerPage
@@ -1693,16 +1709,44 @@ export default function CajaPage() {
               </div>
 
               <MovementsTable
-                movements={selectedBranchIdsArray.length > 1 ? filteredMovements : allMovements.slice((movementsPage - 1) * movementsPerPage, movementsPage * movementsPerPage)}
-                loading={selectedBranchIdsArray.length > 1 ? false : allMovementsLoading}
+                movements={selectedBranchIdsArray.length > 1 
+                  ? filteredMovements 
+                  : (() => {
+                      // Para una sola sucursal, usar allMovementsFromRegister del hook useCashRegister
+                      // que se actualiza cuando agregamos un movimiento
+                      if (!currentRegister?.id) {
+                        return []
+                      }
+                      // Filtrar movimientos que pertenecen a la caja actual
+                      const movementsToUse = allMovementsFromRegister || []
+                      const currentRegisterMovements = movementsToUse.filter(
+                        movement => movement.cash_register_id === currentRegister.id
+                      )
+                      // Aplicar paginación
+                      return currentRegisterMovements.slice(
+                        (movementsPage - 1) * movementsPerPage, 
+                        movementsPage * movementsPerPage
+                      )
+                    })()}
+                loading={selectedBranchIdsArray.length > 1 ? false : (hookLoading || allMovementsLoading)}
                 canDeleteMovements={canDeleteMovements}
                 onViewSale={handleViewSaleFromMovement}
                 onViewPurchaseOrder={handleViewPurchaseOrderFromMovement}
                 onDeleteMovement={handleDeleteMovement}
                 isCashPaymentMethod={isCashPaymentMethod}
                 currentPage={selectedBranchIdsArray.length > 1 ? movementsMeta.currentPage : movementsPage}
-                lastPage={selectedBranchIdsArray.length > 1 ? movementsMeta.lastPage : Math.ceil(allMovements.length / movementsPerPage)}
-                total={selectedBranchIdsArray.length > 1 ? movementsMeta.total : allMovements.length}
+                lastPage={selectedBranchIdsArray.length > 1 
+                  ? movementsMeta.lastPage 
+                  : Math.ceil(
+                      (currentRegister?.id 
+                        ? (allMovementsFromRegister || []).filter(m => m.cash_register_id === currentRegister.id).length 
+                        : 0) / movementsPerPage
+                    )}
+                total={selectedBranchIdsArray.length > 1 
+                  ? movementsMeta.total 
+                  : (currentRegister?.id 
+                      ? (allMovementsFromRegister || []).filter(m => m.cash_register_id === currentRegister.id).length 
+                      : 0)}
                 onPageChange={(page: number) => {
                 setMovementsPage(page)
               }}

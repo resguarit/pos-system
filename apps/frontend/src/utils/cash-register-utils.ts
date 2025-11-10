@@ -1,19 +1,45 @@
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import type { CashMovement, MovementType, PaymentMethodBreakdown } from "@/types/cash-register.types"
+import { SYSTEM_MOVEMENT_TYPES, PAYMENT_METHOD_KEYWORDS } from "@/types/cash-register.types"
 
-// Función para formatear moneda
-export const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    minimumFractionDigits: 2
-  }).format(amount)
+// ============================================================================
+// Constants
+// ============================================================================
+
+const CURRENCY_FORMAT_OPTIONS: Intl.NumberFormatOptions = {
+  style: 'currency',
+  currency: 'ARS',
+  minimumFractionDigits: 2
+} as const
+
+const DATE_FORMAT_PATTERN = 'dd/MM/yyyy HH:mm' as const
+
+// ============================================================================
+// Formatting Utilities
+// ============================================================================
+
+/**
+ * Formats a number as currency in Argentine Peso format
+ * @param amount - The amount to format
+ * @returns Formatted currency string
+ */
+export const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('es-AR', CURRENCY_FORMAT_OPTIONS).format(amount)
 }
 
-// Función para formatear fechas
-export const formatDate = (dateString: string) => {
+/**
+ * Formats a date string to a readable format
+ * @param dateString - ISO date string
+ * @returns Formatted date string or original string if invalid
+ */
+export const formatDate = (dateString: string): string => {
   try {
-    return format(new Date(dateString), 'dd/MM/yyyy HH:mm', { locale: es })
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) {
+      return dateString
+    }
+    return format(date, DATE_FORMAT_PATTERN, { locale: es })
   } catch {
     return dateString
   }
@@ -35,9 +61,72 @@ export const getReceiptType = (sale: any) => {
   }
 }
 
-// Función para determinar el método de pago de un movimiento
-export const getPaymentMethod = (movement: any, isCashPaymentMethod?: (name: string) => boolean) => {
-  // Prioridad 1: Usar payment_method.name si está disponible (más confiable)
+// ============================================================================
+// Payment Method Detection
+// ============================================================================
+
+/**
+ * Finds payment method from description using keyword matching
+ * @param description - Movement description to search
+ * @returns Payment method name or null if not found
+ */
+const findPaymentMethodFromDescription = (description: string): string | null => {
+  const lowerDescription = description.toLowerCase()
+  
+  for (const [methodName, keywords] of Object.entries(PAYMENT_METHOD_KEYWORDS)) {
+    if (keywords.some(keyword => lowerDescription.includes(keyword))) {
+      return methodName
+    }
+  }
+  
+  return null
+}
+
+/**
+ * Determines payment method from movement type
+ * @param movementType - Movement type object
+ * @returns Payment method name or null
+ */
+const inferPaymentMethodFromType = (movementType?: MovementType): string | null => {
+  if (!movementType) return null
+  
+  if (movementType.id === 1) {
+    return 'No especificado'
+  }
+  
+  if (movementType.is_cash_movement === true) {
+    return 'Efectivo'
+  }
+  
+  const typeDescription = (movementType.description || '').toLowerCase()
+  const cashKeywords = ['gasto', 'depósito', 'retiro']
+  
+  if (cashKeywords.some(keyword => typeDescription.includes(keyword))) {
+    return 'Efectivo'
+  }
+  
+  return null
+}
+
+/**
+ * Determines the payment method for a cash movement
+ * Uses a priority-based approach for maximum reliability
+ * 
+ * Priority order:
+ * 1. payment_method.name (most reliable)
+ * 2. Infer from description when payment_method_id exists
+ * 3. Search in description
+ * 4. Infer from movement type
+ * 
+ * @param movement - Cash movement object
+ * @param isCashPaymentMethod - Optional function to check if a method is cash
+ * @returns Payment method name
+ */
+export const getPaymentMethod = (
+  movement: CashMovement,
+  isCashPaymentMethod?: (name: string) => boolean
+): string => {
+  // Priority 1: Use payment_method.name if available (most reliable)
   if (movement.payment_method?.name) {
     const methodName = movement.payment_method.name
     if (isCashPaymentMethod && isCashPaymentMethod(methodName)) {
@@ -46,162 +135,172 @@ export const getPaymentMethod = (movement: any, isCashPaymentMethod?: (name: str
     return methodName
   }
   
-  // Prioridad 2: Si hay payment_method_id pero no name, intentar inferir desde la descripción
-  // o usar un valor por defecto basado en el tipo de movimiento
-  if (movement.payment_method_id) {
-    // Si hay ID pero no name, puede que la relación no esté cargada
-    // Intentar inferir desde la descripción
-    const description = (movement.description || '').toLowerCase()
-    
-    const paymentMethodKeywords = {
-      'Efectivo': ['efectivo', 'cash', 'contado'],
-      'Tarjeta Débito': ['tarjeta de débito', 'débito', 'debito'],
-      'Tarjeta Crédito': ['tarjeta de crédito', 'crédito', 'credito'],
-      'Transferencia': ['transferencia', 'transfer', 'banco'],
-      'Mercado Pago': ['mercado pago', 'mp', 'mercadopago'],
-      'Tarjeta': ['tarjeta', 'card']
-    }
-    
-    for (const [methodName, keywords] of Object.entries(paymentMethodKeywords)) {
-      if (keywords.some(keyword => description.includes(keyword))) {
-        return methodName
-      }
-    }
+  // Priority 2: If payment_method_id exists but name is missing, infer from description
+  if (movement.payment_method_id && movement.description) {
+    const inferred = findPaymentMethodFromDescription(movement.description)
+    if (inferred) return inferred
   }
   
-  // Prioridad 3: Buscar en la descripción del movimiento
-  const description = (movement.description || '').toLowerCase()
-  
-  const paymentMethodKeywords = {
-    'Efectivo': ['efectivo', 'cash', 'contado'],
-    'Tarjeta Débito': ['tarjeta de débito', 'débito', 'debito'],
-    'Tarjeta Crédito': ['tarjeta de crédito', 'crédito', 'credito'],
-    'Transferencia': ['transferencia', 'transfer', 'banco'],
-    'Mercado Pago': ['mercado pago', 'mp', 'mercadopago'],
-    'Tarjeta': ['tarjeta', 'card']
+  // Priority 3: Search in description
+  if (movement.description) {
+    const inferred = findPaymentMethodFromDescription(movement.description)
+    if (inferred) return inferred
   }
   
-  for (const [methodName, keywords] of Object.entries(paymentMethodKeywords)) {
-    if (keywords.some(keyword => description.includes(keyword))) {
-      return methodName
-    }
-  }
+  // Priority 4: Infer from movement type
+  const typeInferred = inferPaymentMethodFromType(movement.movement_type)
+  if (typeInferred) return typeInferred
   
-  // Prioridad 4: Inferir desde el tipo de movimiento
-  if (movement.movement_type?.id === 1) {
-    return 'No especificado'
-  }
-  
-  if (movement.movement_type?.is_cash_movement === true) {
-    return 'Efectivo'
-  }
-  
-  const typeDescription = (movement.movement_type?.description || '').toLowerCase()
-  if (typeDescription.includes('gasto') || 
-      typeDescription.includes('depósito') || 
-      typeDescription.includes('retiro')) {
-    return 'Efectivo'
-  }
-  
-  // Por defecto, si no se puede determinar, usar "No especificado"
+  // Default: Return "No especificado" if nothing matches
   return 'No especificado'
 }
 
-// Función para limpiar la descripción de un movimiento
-export const cleanMovementDescription = (description: string) => {
-  return typeof description === 'string'
-    ? description.replace(/\s*-\s*Pago:\s*.*/i, '')
-    : description
+// ============================================================================
+// Movement Utilities
+// ============================================================================
+
+/**
+ * Cleans movement description by removing payment method suffix
+ * @param description - Movement description
+ * @returns Cleaned description
+ */
+export const cleanMovementDescription = (description: string): string => {
+  if (typeof description !== 'string') {
+    return description
+  }
+  return description.replace(/\s*-\s*Pago:\s*.*/i, '')
 }
 
-// Función para determinar si un movimiento es de ingreso
-export const isIncomeMovement = (movement: any) => {
-  const opRaw = (movement.movement_type as any)?.operation_type
-  return typeof opRaw === 'string' ? opRaw.toLowerCase() === 'entrada' : !!(movement.movement_type as any)?.is_income
+/**
+ * Determines if a movement is an income (entrada)
+ * @param movement - Cash movement object
+ * @returns True if movement is income
+ */
+export const isIncomeMovement = (movement: CashMovement): boolean => {
+  const movementType = movement.movement_type
+  if (!movementType) return false
+  
+  const operationType = movementType.operation_type
+  if (typeof operationType === 'string') {
+    return operationType.toLowerCase() === 'entrada'
+  }
+  
+  return movementType.is_income === true
 }
 
-// Función para extraer ID de venta de la descripción
-export const extractSaleIdFromDescription = (description: string) => {
+/**
+ * Extracts sale ID from movement description
+ * @param description - Movement description
+ * @returns Sale ID string or null
+ */
+export const extractSaleIdFromDescription = (description: string): string | null => {
   const match = description.match(/#(\d{8})/)
   return match ? match[1] : null
 }
 
-// Función para verificar si un movimiento está vinculado a una venta
-export const isSaleReference = (movement: any) => {
-  return (movement as any)?.reference_type === 'sale' && 
-    ((movement as any)?.reference_id || (movement as any)?.metadata?.sale_id) ||
-    movement.description.includes('Venta #')
+/**
+ * Checks if a movement is linked to a sale
+ * @param movement - Cash movement object
+ * @returns True if movement is linked to a sale
+ */
+export const isSaleReference = (movement: CashMovement): boolean => {
+  return (
+    movement.reference_type === 'sale' && 
+    (movement.reference_id !== undefined || (movement as any)?.metadata?.sale_id)
+  ) || movement.description.includes('Venta #')
 }
 
-// Función para verificar si un movimiento está vinculado a una orden de compra
-export const isPurchaseOrderReference = (movement: any) => {
-  return (movement as any)?.reference_type === 'purchase_order' && (movement as any)?.reference_id
+/**
+ * Checks if a movement is linked to a purchase order
+ * @param movement - Cash movement object
+ * @returns True if movement is linked to a purchase order
+ */
+export const isPurchaseOrderReference = (movement: CashMovement): boolean => {
+  return movement.reference_type === 'purchase_order' && movement.reference_id !== undefined
 }
 
-// Función para calcular desglose de métodos de pago
-export const calculatePaymentMethodBreakdown = (
-  movements: any[], 
-  openingBalance: number, 
-  isCashPaymentMethod?: (name: string) => boolean
-) => {
-  let paymentBreakdown: Record<string, number> = {}
+// ============================================================================
+// Payment Method Breakdown Calculation
+// ============================================================================
+
+/**
+ * Checks if a movement should be excluded from breakdown calculation
+ * @param movement - Cash movement object
+ * @returns True if movement should be excluded
+ */
+const shouldExcludeMovement = (movement: CashMovement): boolean => {
+  // Exclude movements that don't affect balance
+  if (movement.affects_balance === false) {
+    return true
+  }
   
-  // Primero, identificar todos los métodos de pago únicos para asegurar que todos aparezcan
+  // Exclude automatic system movements
+  const movementTypeName = movement.movement_type?.name || ''
+  return SYSTEM_MOVEMENT_TYPES.includes(movementTypeName as any)
+}
+
+/**
+ * Calculates payment method breakdown from movements
+ * 
+ * @param movements - Array of cash movements
+ * @param openingBalance - Initial cash balance
+ * @param isCashPaymentMethod - Optional function to check if a method is cash
+ * @returns Payment method breakdown object
+ */
+export const calculatePaymentMethodBreakdown = (
+  movements: CashMovement[],
+  openingBalance: number,
+  isCashPaymentMethod?: (name: string) => boolean
+): PaymentMethodBreakdown => {
+  const paymentBreakdown: PaymentMethodBreakdown = {}
   const uniquePaymentMethods = new Set<string>()
   
-  // Procesar movimientos
-  movements.forEach(movement => {
-    // Solo procesar movimientos que afectan el balance
-    if (movement.affects_balance === false) {
-      return
+  // Process movements
+  for (const movement of movements) {
+    // Skip excluded movements
+    if (shouldExcludeMovement(movement)) {
+      continue
     }
     
-    // Excluir movimientos automáticos del sistema
-    const movementTypeName = movement.movement_type?.name || ''
-    if (['Apertura automática', 'Cierre automático', 'Ajuste del sistema'].includes(movementTypeName)) {
-      return
-    }
-    
-    // Obtener el método de pago
+    // Get payment method
     const paymentMethod = getPaymentMethod(movement, isCashPaymentMethod)
     
-    // Asegurar que el método de pago se agregue al conjunto de métodos únicos
+    // Track unique payment methods
     if (paymentMethod && paymentMethod !== 'No especificado') {
       uniquePaymentMethods.add(paymentMethod)
     }
     
-    const amount = parseFloat(movement.amount) || 0
-    
-    // Determinar si es ingreso o egreso
-    const opRaw = movement.movement_type?.operation_type || 
-                  (movement.movement_type as any)?.operation_type
-    const isIncome = typeof opRaw === 'string' 
-      ? opRaw.toLowerCase() === 'entrada' 
-      : !!(movement.movement_type as any)?.is_income
-    
-    // Inicializar el método de pago en el desglose si no existe
+    // Initialize payment method in breakdown if not exists
     if (!paymentBreakdown[paymentMethod]) {
       paymentBreakdown[paymentMethod] = 0
     }
     
-    // Sumar o restar según sea ingreso o egreso
+    // Calculate amount
+    const amount = typeof movement.amount === 'string' 
+      ? parseFloat(movement.amount) || 0 
+      : movement.amount || 0
+    
+    // Determine if income or expense
+    const isIncome = isIncomeMovement(movement)
+    
+    // Add or subtract based on income/expense
     paymentBreakdown[paymentMethod] += isIncome ? Math.abs(amount) : -Math.abs(amount)
-  })
+  }
   
-  // Asegurar que todos los métodos de pago únicos estén en el desglose (inicializados en 0 si no tienen movimientos)
-  uniquePaymentMethods.forEach(method => {
+  // Ensure all unique payment methods are in breakdown (initialized to 0 if no movements)
+  for (const method of uniquePaymentMethods) {
     if (paymentBreakdown[method] === undefined) {
       paymentBreakdown[method] = 0
     }
-  })
+  }
   
-  // Agregar saldo inicial al efectivo
+  // Add opening balance to cash
   if (paymentBreakdown['Efectivo'] !== undefined) {
     paymentBreakdown['Efectivo'] += openingBalance
   } else if (openingBalance > 0) {
     paymentBreakdown['Efectivo'] = openingBalance
   } else if (uniquePaymentMethods.has('Efectivo')) {
-    // Si hay movimientos de efectivo pero el saldo es 0, asegurar que aparezca
+    // If there are cash movements but balance is 0, ensure it appears
     paymentBreakdown['Efectivo'] = openingBalance
   }
   

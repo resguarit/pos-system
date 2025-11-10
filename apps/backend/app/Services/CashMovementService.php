@@ -27,6 +27,9 @@ class CashMovementService implements CashMovementServiceInterface
                 }
             }
             
+            // Cargar relaciones para que el frontend tenga toda la información
+            $movement->load(['movementType', 'paymentMethod', 'user']);
+            
             return $movement;
         });
     }

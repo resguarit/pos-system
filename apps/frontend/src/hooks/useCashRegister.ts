@@ -2,81 +2,16 @@ import { useState, useCallback } from 'react'
 import useApi from './useApi'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
-
-// Tipos de datos
-interface CashRegister {
-  id: number
-  branch_id: number
-  user_id: number
-  opened_at: string
-  closed_at?: string
-  initial_amount: string // usamos este campo del backend
-  closing_balance?: string
-  status: 'open' | 'closed'
-  notes?: string
-  branch?: {
-    id: number
-    description: string
-  }
-  user?: {
-    id: number
-    username?: string
-    full_name?: string
-  }
-}
-
-interface CashMovement {
-  id: number
-  cash_register_id: number
-  movement_type_id: number
-  payment_method_id?: number
-  amount: string
-  description: string
-  user_id: number
-  reference_type?: string
-  reference_id?: number
-  created_at: string
-  affects_balance?: boolean
-  movement_type?: {
-    id: number
-    code: string
-    description: string
-    affects_cash?: boolean
-    is_cash_movement?: boolean
-    is_income?: boolean
-    operation_type?: 'entrada' | 'salida' | string
-  }
-  payment_method?: {
-    id: number
-    name: string
-    description?: string
-    is_active?: boolean
-  }
-  user?: {
-    id: number
-    name?: string
-    username?: string
-    full_name?: string
-    email?: string
-  }
-}
-
-interface MovementType {
-  id: number
-  code: string
-  description: string
-  affects_cash?: boolean
-  is_cash_movement?: boolean
-  is_income?: boolean
-  operation_type?: 'entrada' | 'salida' | string
-}
-
-interface MovementsPaginationMeta {
-  currentPage: number
-  perPage: number
-  total: number
-  lastPage: number // Added lastPage property
-}
+import type {
+  CashRegister,
+  CashMovement,
+  MovementType,
+  CreateMovementRequest,
+  MovementPaginationOptions,
+  MovementsPaginationMeta,
+  OpenCashRegisterRequest,
+  CloseCashRegisterRequest
+} from '@/types/cash-register.types'
 
 interface UseCashRegisterReturn {
   // Estado
@@ -85,20 +20,20 @@ interface UseCashRegisterReturn {
   allMovements: CashMovement[]
   movementsMeta: MovementsPaginationMeta
   movementTypes: MovementType[]
-  paymentMethods: any[] // Añadir métodos de pago
+  paymentMethods: any[] // TODO: Create PaymentMethod type
   registerHistory: CashRegister[]
   isLoading: boolean
   
   // Operaciones
   loadCurrentCashRegister: (branchId: number) => Promise<void>
-  openCashRegister: (data: { branch_id: number; user_id: number; opening_balance: number; notes?: string }) => Promise<CashRegister>
-  closeCashRegister: (registerId: number, data: { closing_balance: number; notes?: string }) => Promise<void>
-  addMovement: (data: { cash_register_id: number; movement_type_id: number; payment_method_id?: number; amount: number; description: string; user_id: number }, opts?: { page?: number; perPage?: number; q?: string }) => Promise<void>
-  deleteMovement: (movementId: number, opts?: { page?: number; perPage?: number; q?: string }) => Promise<void>
+  openCashRegister: (data: OpenCashRegisterRequest) => Promise<CashRegister>
+  closeCashRegister: (registerId: number, data: CloseCashRegisterRequest) => Promise<void>
+  addMovement: (data: CreateMovementRequest, opts?: MovementPaginationOptions) => Promise<CashMovement>
+  deleteMovement: (movementId: number, opts?: MovementPaginationOptions) => Promise<void>
   loadMovements: (cashRegisterId: number, page?: number, perPage?: number, q?: string, cashOnly?: boolean) => Promise<void>
   loadAllMovements: (cashRegisterId: number) => Promise<void>
   loadMovementTypes: () => Promise<void>
-  loadPaymentMethods: () => Promise<void> // Añadir función
+  loadPaymentMethods: () => Promise<void>
   loadRegisterHistory: (branchId: number, fromDate?: Date, toDate?: Date) => Promise<void>
   loadCashOnlyMovements: (cashRegisterId: number, page?: number, perPage?: number, q?: string) => Promise<void>
   
@@ -148,6 +83,13 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
         // 2. RESPONSABILIDAD ÚNICA: Solo actualizamos el estado de la caja.
         setCurrentRegister(registerData);
         
+        // Si la caja está cerrada, limpiar los movimientos
+        if (registerData.status !== 'open') {
+          setMovements([]);
+          setAllMovements([]);
+          setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 });
+        }
+        
         // 3. LÍNEA ELIMINADA: Ya no llamamos a loadMovements desde aquí.
         // Esto evita la llamada redundante y la condición de carrera.
         // await loadMovements(response.data.id); 
@@ -155,6 +97,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
       } else {
         setCurrentRegister(null);
         setMovements([]);
+        setAllMovements([]); // Limpiar también allMovements cuando no hay caja
         setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 });
       }
     } catch (error: any) {
@@ -182,6 +125,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     // Limpiar estado anterior inmediatamente
     setCurrentRegister(null)
     setMovements([])
+    setAllMovements([]) // Limpiar también allMovements al abrir una nueva caja
     setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
     
     try {
@@ -201,6 +145,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
 
       setCurrentRegister(response.data)
       setMovements([])
+      setAllMovements([]) // Asegurar que allMovements esté limpio para la nueva caja
       setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
       toast.success('Caja abierta exitosamente')
       
@@ -214,11 +159,15 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     }
   }, [request])
 
-  // Cerrar caja
-  const closeCashRegister = useCallback(async (registerId: number, data: { 
-    closing_balance: number
-    notes?: string 
-  }) => {
+  /**
+   * Closes a cash register
+   * @param registerId - Cash register ID
+   * @param data - Closing data (balance and optional notes)
+   */
+  const closeCashRegister = useCallback(async (
+    registerId: number,
+    data: CloseCashRegisterRequest
+  ): Promise<void> => {
     setIsLoading(true)
     
     try {
@@ -236,6 +185,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
 
       setCurrentRegister(null)
       setMovements([])
+      setAllMovements([]) // Limpiar también allMovements cuando se cierra la caja
       setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
       toast.success('Caja cerrada exitosamente')
     } catch (error: any) {
@@ -247,22 +197,44 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     }
   }, [request])
 
-  // Cargar movimientos (no paginado)
-  // Función para cargar TODOS los movimientos de la caja (para estadísticas)
-  const loadAllMovements = useCallback(async (cashRegisterId: number) => {
+  /**
+   * Extracts movement items from paginated API response
+   * Handles different response formats from Laravel pagination
+   */
+  const extractMovementsFromResponse = (response: any): CashMovement[] => {
+    if (Array.isArray(response?.data)) {
+      return response.data
+    }
+    
+    if (response?.data?.data && Array.isArray(response.data.data)) {
+      return response.data.data
+    }
+    
+    if (response?.data && typeof response.data === 'object' && 'data' in response.data) {
+      return Array.isArray(response.data.data) ? response.data.data : []
+    }
+    
+    return []
+  }
+
+  /**
+   * Loads all movements for a cash register (for statistics)
+   * Uses a high per_page limit to get all movements in one request
+   */
+  const loadAllMovements = useCallback(async (cashRegisterId: number): Promise<void> => {
     try {
-      const params: any = {
+      const params = {
         cash_register_id: cashRegisterId,
-        per_page: 10000, // Cargar todos los movimientos
+        per_page: 10000, // Load all movements
       }
 
       const response = await request({
         method: 'GET',
-        url: `/cash-movements`,
+        url: '/cash-movements',
         params,
       })
 
-      const items = Array.isArray(response?.data) ? response.data : []
+      const items = extractMovementsFromResponse(response)
       setAllMovements(items)
     } catch (error) {
       console.error('Error loading all cash movements:', error)
@@ -307,17 +279,21 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     }
   }, [request])
 
-  // Agregar movimiento
-  const addMovement = useCallback(async (data: {
-    cash_register_id: number
-    movement_type_id: number
-    amount: number
-    description: string
-    user_id: number
-  }, opts?: { page?: number; perPage?: number; q?: string }) => {
+  /**
+   * Adds a new movement to the cash register with optimistic update
+   * 
+   * @param data - Movement data
+   * @param opts - Pagination options
+   * @returns Created movement
+   */
+  const addMovement = useCallback(async (
+    data: CreateMovementRequest,
+    opts?: MovementPaginationOptions
+  ): Promise<CashMovement> => {
     setIsLoading(true)
+    
     try {
-      await request({
+      const response = await request({
         method: 'POST',
         url: '/cash-movements',
         data,
@@ -325,18 +301,56 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
 
       toast.success('Movimiento registrado exitosamente')
       
-      await loadMovements(data.cash_register_id, opts?.page ?? 1, opts?.perPage ?? 10, opts?.q || '', false)
-    } catch (error: any) {
+      // Extract created movement from response
+      const newMovement = response?.data?.data || response?.data
+      
+      // Optimistic update: Add movement to allMovements if it belongs to current register
+      if (newMovement && currentRegister?.id === newMovement.cash_register_id) {
+        setAllMovements(prev => {
+          // Check if movement already exists (idempotency)
+          const exists = prev.some(m => m.id === newMovement.id)
+          if (exists) return prev
+          
+          // Add to beginning of list (most recent first)
+          return [newMovement, ...prev]
+        })
+      }
+      
+      // Reload paginated movements
+      await loadMovements(
+        data.cash_register_id,
+        opts?.page ?? 1,
+        opts?.perPage ?? 10,
+        opts?.q || '',
+        false
+      )
+      
+      // Reload all movements to ensure complete synchronization
+      await loadAllMovements(data.cash_register_id)
+      
+      return newMovement
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : (error as any)?.response?.data?.message || 'Error al registrar el movimiento'
+      
       console.error('Error adding movement:', error)
-      toast.error(error.response?.data?.message || 'Error al registrar el movimiento')
+      toast.error(errorMessage)
       throw error
     } finally {
       setIsLoading(false)
     }
-  }, [request, loadMovements])
+  }, [request, loadMovements, loadAllMovements, currentRegister])
 
-  // Eliminar movimiento
-  const deleteMovement = useCallback(async (movementId: number, opts?: { page?: number; perPage?: number; q?: string }) => {
+  /**
+   * Deletes a cash movement
+   * @param movementId - Movement ID to delete
+   * @param opts - Pagination options
+   */
+  const deleteMovement = useCallback(async (
+    movementId: number,
+    opts?: MovementPaginationOptions
+  ): Promise<void> => {
     try {
       await request({
         method: 'DELETE',
@@ -346,14 +360,17 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
       toast.success('Movimiento eliminado exitosamente')
       
       if (currentRegister) {
+        // Recargar movimientos paginados
         await loadMovements(currentRegister.id, opts?.page ?? 1, opts?.perPage ?? 10, opts?.q || '', false)
+        // Recargar todos los movimientos para actualizar la tabla
+        await loadAllMovements(currentRegister.id)
       }
     } catch (error: any) {
       console.error('Error deleting movement:', error)
       toast.error(error.response?.data?.message || 'Error al eliminar el movimiento')
       throw error
     }
-  }, [request, currentRegister, loadMovements])
+  }, [request, currentRegister, loadMovements, loadAllMovements])
 
   // Cargar tipos de movimiento
   const loadMovementTypes = useCallback(async () => {
