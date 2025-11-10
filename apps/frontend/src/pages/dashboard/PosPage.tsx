@@ -1,62 +1,42 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { DEFAULT_RECEIPT_TYPES, findReceiptTypeByAfipCode, type ReceiptType } from '@/lib/constants/afipCodes'
 import { toast } from "sonner"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import useApi from "@/hooks/useApi"
 import { useBranch } from "@/context/BranchContext"
-import { useAuth } from "@/context/AuthContext"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
-import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import CashRegisterStatusBadge from "@/components/cash-register-status-badge"
-import CashRegisterProtectedButton from "@/components/cash-register-protected-button"
 import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus"
-import CustomerForm from "@/components/customers/customer-form"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExchangeRateUpdates } from "@/hooks/useExchangeRateUpdates"
 import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status"
-import { Building, Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Info, Loader2, AlertTriangle, Package } from "lucide-react"
+import { Building, Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Package } from "lucide-react"
 import { ComboSection } from "@/components/ComboSection"
 import { useCombosInPOS } from "@/hooks/useCombosInPOS"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { CartFloatingButton } from "@/components/pos/CartFloatingButton"
 import type { Combo, CartItem } from "@/types/combo"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { formatCurrency, roundToTwoDecimals } from '@/utils/sale-calculations'
+import { useSaleTotals } from '@/hooks/useSaleTotals'
 
-interface CustomerOption {
-  id: number;
-  name: string;
-  dni: string;
-  cuit?: string;
-  fiscal_condition_id?: number;
-  fiscal_condition_name?: string;
-}
 
 export default function POSPage() {
+  const navigate = useNavigate()
   const [cart, setCart] = useState<CartItem[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   // Mapa de stock por producto en la sucursal seleccionada
   const [stocksMap, setStocksMap] = useState<Record<number, { current: number; min: number }>>({})
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([])
   const { request } = useApi()
   const { selectedBranch, selectionChangeToken, selectedBranchIds, branches, setSelectedBranchIds } = useBranch()
-  const { user, hasPermission } = useAuth()
 
   // Funciones para manejar localStorage del carrito
   const CART_STORAGE_KEY = 'pos_cart'
@@ -110,26 +90,6 @@ export default function POSPage() {
   const [addQtyPerClick, setAddQtyPerClick] = useState<number>(1)
   const [qtySelectorOpen, setQtySelectorOpen] = useState<boolean>(false)
 
-  const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([]);
-
-  const [showAdvancedSaleModal, setShowAdvancedSaleModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOption | null>(null);
-  const [customerSearch, setCustomerSearch] = useState('');
-  const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
-  const [showCustomerOptions, setShowCustomerOptions] = useState(false);
-  const [receiptTypeId, setReceiptTypeId] = useState<number | undefined>(undefined);
-  const [payments, setPayments] = useState<{ payment_method_id: string; amount: string }[]>([{ payment_method_id: '', amount: '' }]);
-  const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
-  const [isProcessingSale, setIsProcessingSale] = useState(false);
-
-  // Estados para el comprobante
-  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
-  const [completedSale, setCompletedSale] = useState<any>(null);
-
-
-  // Descuento global (opcional)
-  const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('')
-  const [globalDiscountValue, setGlobalDiscountValue] = useState<string>('')
 
   // Hook para manejar combos en POS
   const { getComboPriceDetails } = useCombosInPOS()
@@ -157,11 +117,6 @@ export default function POSPage() {
   // Recargar productos cuando se actualice la tasa de cambio
   useExchangeRateUpdates(handleExchangeRateUpdate);
 
-  const addPayment = () => setPayments([...payments, { payment_method_id: '', amount: '' }]);
-  const removePayment = (idx: number) => setPayments(payments.filter((_, i) => i !== idx));
-  const updatePayment = (idx: number, field: string, value: string) => {
-    setPayments(payments.map((p, i) => i === idx ? { ...p, [field]: value } : p));
-  };
 
   // Cargar carrito desde localStorage al montar el componente
   useEffect(() => {
@@ -224,95 +179,8 @@ export default function POSPage() {
   useEffect(() => {
     fetchCategories();
     fetchProducts();
-    fetchPaymentMethods();
-    fetchReceiptTypes();
   }, []);
 
-  const fetchPaymentMethods = useCallback(async () => {
-    try {
-      const response = await request({ method: 'GET', url: '/pos/payment-methods' });
-      const apiData = Array.isArray(response) ? response : 
-                     Array.isArray(response?.data?.data) ? response.data.data :
-                     Array.isArray(response?.data) ? response.data : [];
-      
-      // Mapear y filtrar métodos de pago (excluir "Crédito a favor")
-      const filteredMethods = apiData
-        .filter((item: any) => {
-          const name = (item.name || item.description || '').toLowerCase().trim();
-          return !name.includes('crédito a favor') && 
-                 !name.includes('credito a favor');
-        })
-        .map((item: any) => ({ 
-          id: item.id, 
-          name: item.name || item.description 
-        }));
-      
-      setPaymentMethods(filteredMethods);
-    } catch (err) {
-      setPaymentMethods([]);
-      toast.error("Error al cargar los métodos de pago.");
-    }
-  }, [request]);
-
-  const fetchReceiptTypes = async () => {
-    try {
-      const response = await request({ method: 'GET', url: '/receipt-types' });
-      const apiData = Array.isArray(response) ? response : 
-                     Array.isArray(response?.data?.data) ? response.data.data :
-                     Array.isArray(response?.data) ? response.data : [];
-      const mappedData = apiData.map((item: any) => ({ 
-        id: item.id, 
-        name: item.description || item.name,
-        afip_code: item.afip_code || item.code
-      }));
-      
-      setReceiptTypes(mappedData);
-      
-      const defaultReceipt = findReceiptTypeByAfipCode(mappedData, DEFAULT_RECEIPT_TYPES.DEFAULT_SALE);
-      if (defaultReceipt) {
-        setReceiptTypeId(defaultReceipt.id);
-      }
-    } catch (err) {
-      setReceiptTypes([]);
-      toast.error("Error al cargar los tipos de comprobante.");
-    }
-  };
-
-  useEffect(() => {
-    // No mostrar ni buscar si el dropdown está cerrado
-    if (!showCustomerOptions) {
-      setCustomerOptions([]);
-      return;
-    }
-    if (customerSearch.length < 3) {
-      setCustomerOptions([]);
-      return;
-    }
-    const fetchCustomers = async () => {
-      try {
-        const response = await request({ method: 'GET', url: `/customers?search=${encodeURIComponent(customerSearch)}` });
-        const customers = Array.isArray(response) ? response : response?.data ?? [];
-        const mappedCustomers = customers.map((customer: any) => {
-          // Determinar qué documento mostrar: CUIT tiene prioridad, luego DNI
-          const hasCuit = customer.person?.cuit;
-          const hasDni = customer.person?.documento;
-          
-          return {
-            id: customer.id,
-            name: customer.person ? `${customer.person.first_name} ${customer.person.last_name}`.trim() : `Cliente ${customer.id}`,
-            dni: hasDni ? customer.person.documento : null,
-            cuit: hasCuit ? customer.person.cuit : null,
-            fiscal_condition_id: customer.person?.fiscal_condition_id || null,
-            fiscal_condition_name: customer.person?.fiscal_condition?.description || customer.person?.fiscal_condition?.name || null,
-          };
-        });
-        setCustomerOptions(mappedCustomers);
-      } catch {
-        setCustomerOptions([]);
-      }
-    };
-    fetchCustomers();
-  }, [customerSearch, showCustomerOptions, request]);
 
   const fetchCategories = async () => {
     try {
@@ -601,277 +469,8 @@ export default function POSPage() {
     clearCartFromStorage()
   }
 
-  // Utilidades de redondeo y moneda (2 decimales)
-  const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
-  const currencyFormatter = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 2, maximumFractionDigits: 2 })
-
-  // Calcular totales aplicando descuentos por ítem y global ANTES del IVA (2 decimales)
-  const computeTotals = () => {
-    const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-
-    // 1. APLICAR DESCUENTOS POR ÍTEM - USANDO SALE_PRICE (CON IVA)
-    const prepared = cart.map((item) => {
-      const unit_with_iva = Number(item.price_with_iva || item.sale_price || 0);
-      const qty = Math.max(1, Number(item.quantity || 0));
-      const ivaRate = (item.iva_rate || 0) / 100;
-
-      const unit_without_iva = ivaRate > 0 ? unit_with_iva / (1 + ivaRate) : unit_with_iva;
-      const base_without_iva = unit_without_iva * qty;
-
-      let itemDiscount_on_base = 0; // Este es el descuento que se aplicará al subtotal (sin IVA)
-      const dv = Number(item.discount_value ?? 0);
-
-      if (item.discount_type && dv > 0) {
-        if (item.discount_type === 'percent') {
-          // El descuento por % siempre se calcula sobre la base sin IVA.
-          itemDiscount_on_base = (base_without_iva * (dv / 100));
-        } else { // discount_type === 'amount'
-          // El descuento por monto se interpreta como un descuento al precio final.
-          // Calculamos cuánto de ese descuento corresponde a la base sin IVA.
-          itemDiscount_on_base = (dv / (1 + ivaRate));
-        }
-      }
-      
-      itemDiscount_on_base = Math.max(0, Math.min(itemDiscount_on_base, base_without_iva));
-      const netBase = (base_without_iva - itemDiscount_on_base);
-      return { item, netBase };
-    });
-
-    const subtotalAfterItemDiscounts = (prepared.reduce((s, x) => s + x.netBase, 0));
-
-    // 2. CALCULAR IVA SOBRE EL SUBTOTAL SIN DESCUENTO GLOBAL
-    let totalIva = 0;
-    prepared.forEach((row) => {
-      const ivaForItem = (row.netBase * ((row.item.iva_rate || 0) / 100));
-      totalIva += ivaForItem;
-    });
-    totalIva = round2(totalIva);
-
-    // 3. APLICAR DESCUENTO GLOBAL SOBRE EL TOTAL CON IVA
-    const subtotalConIva = round2(subtotalAfterItemDiscounts + totalIva);
-    let globalDiscountAmount = 0;
-    const gVal = Number(globalDiscountValue);
-
-    if (globalDiscountType && gVal > 0) {
-      if (globalDiscountType === 'percent') {
-        globalDiscountAmount = round2(subtotalConIva * (gVal / 100));
-      } else { // globalDiscountType === 'amount'
-        globalDiscountAmount = round2(gVal);
-      }
-      // Limitar el descuento al total con IVA para que no sea negativo
-      globalDiscountAmount = Math.max(0, Math.min(globalDiscountAmount, subtotalConIva));
-    }
-
-    // 4. CALCULAR TOTALES FINALES
-    const total = Math.max(0, round2(subtotalConIva - globalDiscountAmount));
-    
-    const totalItemDiscount = prepared.reduce((s, p, i) => {
-        const originalBase = round2((cart[i].price || 0) * (cart[i].quantity || 0));
-        return s + Math.max(0, originalBase - p.netBase); // Asegurar que nunca sea negativo
-    }, 0);
-
-    return {
-      totalItemDiscount: round2(totalItemDiscount),
-      globalDiscountAmount: globalDiscountAmount,
-      subtotalNet: round2(subtotalAfterItemDiscounts),
-      totalIva: round2(totalIva),
-      total,
-    };
-  };
-
-  const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = computeTotals()
-
-
-  // Funciones auxiliares para el comprobante
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'N/A';
-    try {
-      return new Date(dateString).toLocaleDateString('es-AR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return 'N/A';
-    }
-  };
-
-  const formatCurrency = (amount: number | null | undefined, currency: string = 'ARS') => {
-    const v = Number(amount || 0);
-    if (currency === 'USD') {
-      return `$ ${round2(v).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
-    }
-    return currencyFormatter.format(round2(v)) + ' ARS';
-  };
-
-  const getCustomerName = (sale: any) => {
-    if (!sale?.customer) return 'Consumidor Final';
-    const customer = sale.customer;
-    if (customer.person) {
-      return `${customer.person.first_name || ''} ${customer.person.last_name || ''}`.trim();
-    }
-    return customer.name || 'Cliente';
-  };
-
-  const handleConfirmSale = async () => {
-    if (isProcessingSale) return; // Prevenir doble envío
-    
-    // Validar que hay una sucursal seleccionada
-    if (!selectedBranch) {
-      toast.error('Debe seleccionar una sucursal antes de realizar la venta', {
-        description: 'Use el selector de sucursal en la parte superior del POS'
-      });
-      return;
-    }
-    
-    setIsProcessingSale(true);
-    
-    try {
-      // Validar que la caja esté abierta antes de proceder
-      const isValid = await validateCashRegisterForOperation('realizar ventas');
-      if (!isValid) {
-        setIsProcessingSale(false); // Resetear el estado si la validación falla
-        return; // La función validateCashRegisterForOperation ya muestra el toast de error
-      }
-
-      if (!user || !selectedBranch) {
-        toast.error("Error de sesión o sucursal. Recargue la página.");
-        setIsProcessingSale(false); // Resetear el estado si hay error
-        return;
-      }
-
-    // Payload con estructura esperada
-    // Obtener fecha y hora local actual (sin conversiones de zona horaria)
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const argDateString = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
-    const saleData: any = {
-      branch_id: selectedBranch.id,
-      customer_id: selectedCustomer?.id || null,
-      sale_document_number: (selectedCustomer?.cuit || selectedCustomer?.dni) 
-        ? String(selectedCustomer?.cuit || selectedCustomer?.dni) 
-        : null,
-      receipt_type_id: receiptTypeId,
-      sale_fiscal_condition_id: selectedCustomer?.fiscal_condition_id || null,
-      sale_date: argDateString, // Fecha y hora local de Argentina
-      // Enviar los totales calculados por el frontend
-      subtotal_net: subtotalNet,
-      total_iva: totalIva,
-      total: total,
-      total_discount: Math.max(0, totalItemDiscount + globalDiscountAmount), // Total de descuentos (items + global)
-      ...(globalDiscountType && Number(globalDiscountValue) > 0
-        ? { discount_type: globalDiscountType, discount_value: Number(globalDiscountValue) }
-        : {}),
-      items: cart.map((item, index) => {
-        // ✅ Función robusta para extraer product_id
-        let productId: number;
-        
-        if (item.product_id && !isNaN(item.product_id)) {
-          // Si ya tiene product_id válido, usarlo
-          productId = item.product_id;
-        } else if (item.id.startsWith('combo-')) {
-          // Si es un producto de combo, extraer el product_id del ID
-          // Formato: combo-{comboId}-{productId}
-          const parts = item.id.split('-');
-          if (parts.length >= 3) {
-            productId = parseInt(parts[2]); // Tercera parte es el product_id
-          } else {
-            productId = parseInt(parts[parts.length - 1]); // Fallback: última parte
-          }
-        } else {
-          // Si es un producto individual, parsear el ID
-          productId = parseInt(item.id);
-        }
-        
-        // Validar que productId sea válido
-        if (isNaN(productId) || productId <= 0) {
-          console.error(`Invalid product_id for item ${item.id}:`, productId);
-          throw new Error(`Invalid product_id for item ${item.id}`);
-        }
-        
-        const mappedItem = {
-          product_id: productId,
-          quantity: item.quantity,
-          unit_price: Number(item.price || 0),
-          ...(item.discount_type && (item.discount_value ?? 0) > 0
-            ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
-            : {}),
-        };
-        
-        return mappedItem;
-      }),
-      payments: payments.map(p => ({
-        payment_method_id: parseInt(p.payment_method_id),
-        amount: parseFloat(p.amount || '0') || 0, // Sin round2, usar el monto exacto
-      })),
-    };
-
-      const saleResponse = await request({ url: '/pos/sales', method: 'POST', data: saleData });
-      toast.success('¡Venta realizada con éxito!');
-      
-      // Actualizar productos y stocks inmediatamente después de la venta exitosa
-      await Promise.all([
-        fetchProducts(),
-        fetchStocks()
-      ]);
-      
-      try {
-        const saleId = (saleResponse as any)?.id || (saleResponse as any)?.data?.id;
-        if (saleId) {
-          const saleDetails = await request({ 
-            method: 'GET', 
-            url: `/sales/${saleId}?include=items,customer,receipt_type,saleFiscalCondition,branch,saleIvas` 
-          });
-          const normalizedSale = (saleDetails as any)?.data ?? saleDetails;
-          setCompletedSale(normalizedSale);
-          // setShowReceiptPreview(true); // Oculto por solicitud del usuario
-        }
-      } catch (err) {
-        console.error('Error al obtener detalles de la venta:', err);
-      }
-      
-      clearCart();
-      setPayments([{ payment_method_id: '', amount: '' }]);
-      setShowAdvancedSaleModal(false);
-      setSelectedCustomer(null);
-      setCustomerSearch('');
-      const defaultReceipt = findReceiptTypeByAfipCode(receiptTypes, DEFAULT_RECEIPT_TYPES.DEFAULT_SALE);
-      setReceiptTypeId(defaultReceipt ? defaultReceipt.id : undefined);
-
-    } catch (err: any) {
-      console.error("Error del backend:", err?.response?.data);
-      const errors = err?.response?.data?.errors;
-      let errorMessage = 'Ocurrió un error inesperado.';
-      if (errors) {
-        errorMessage = Object.keys(errors).map(key => {
-          return `${key}: ${errors[key].join(', ')}`;
-        }).join('; ');
-      } else if(err?.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      }
-      toast.error('Error al procesar la venta', {
-        description: errorMessage,
-        duration: 9000,
-      });
-    } finally {
-      setIsProcessingSale(false);
-    }
-  };
-
-  const allPaymentsValid = payments
-    .filter(p => p.amount && parseFloat(p.amount || '0') > 0)
-    .every(p => p.payment_method_id);
-
-  // Validar si hay pagos a cuenta corriente sin cliente seleccionado
-  const hasCurrentAccountPayment = payments.some(p => {
-    const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id);
-    return paymentMethod && paymentMethod.name === 'Cuenta Corriente' && parseFloat(p.amount || '0') > 0;
-  });
-
-  const currentAccountPaymentValid = !hasCurrentAccountPayment || selectedCustomer !== null;
+  // Calcular totales usando hook personalizado (sin descuento global en POS)
+  const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = useSaleTotals(cart, { type: '', value: '' })
 
   // Componente del contenido del carrito (reutilizable para desktop y mobile)
   const CartContent = () => (
@@ -982,7 +581,7 @@ export default function POSPage() {
           </div>
           <div className="flex justify-between py-1 text-xs sm:text-sm text-muted-foreground">
             <span>Descuentos</span>
-            <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
+            <span>- {formatCurrency(roundToTwoDecimals(totalItemDiscount + globalDiscountAmount))}</span>
           </div>
           <div className="border-t pt-2 sm:pt-3 mt-2 sm:mt-3">
             <div className="flex justify-between text-sm sm:text-base lg:text-lg font-bold">
@@ -993,7 +592,7 @@ export default function POSPage() {
         </div>
 
         <Button className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" size="sm" disabled={cart.length === 0} onClick={() => {
-          setShowAdvancedSaleModal(true)
+          navigate("/dashboard/pos/completar-venta", { state: { cart } })
           if (isMobile) setCartSheetOpen(false)
         }}>
           Completar Venta
@@ -1217,380 +816,6 @@ export default function POSPage() {
         )}
       </div>
 
-      {/* Dialogs fuera del contenedor principal */}
-      <Dialog open={showAdvancedSaleModal} onOpenChange={setShowAdvancedSaleModal}>
-              <DialogContent className="max-w-4xl w-full p-0 flex flex-col max-h-[85vh]">
-                <DialogHeader className="px-6 pt-4 pb-2 shrink-0">
-                   <DialogTitle>Completar Venta</DialogTitle>
-                   <DialogDescription>
-                     Completa los detalles de la venta y selecciona los métodos de pago.
-                   </DialogDescription>
-                 </DialogHeader>
-                <div className="overflow-y-auto px-6 py-4 grow">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     <div>
-                       <div className="mb-4">
-                         <div className="flex items-end justify-between gap-2">
-                           <div className="flex-1">
-                             <Label>Buscar cliente (DNI o nombre)</Label>
-                             <div className="relative">
-                               <Input
-                                 value={customerSearch}
-                                 onChange={e => {
-                                   const v = e.target.value;
-                                   setCustomerSearch(v);
-                                   setShowCustomerOptions(!!v && v.length >= 1);
-                                   if (!v) {
-                                     setSelectedCustomer(null);
-                                   }
-                                 }}
-                                 onFocus={() => setShowCustomerOptions(customerSearch.length >= 1)}
-                                 onBlur={() => setTimeout(() => setShowCustomerOptions(false), 120)}
-                                 onKeyDown={(e) => {
-                                   if (e.key === 'Escape') setShowCustomerOptions(false);
-                                 }}
-                                 placeholder="Ingrese para buscar..."
-                               />
-                               {customerOptions.length > 0 && showCustomerOptions && (
-                                 <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                                   {customerOptions.map((c) => (
-                                     <div
-                                       key={c.id}
-                                       className="p-2 cursor-pointer hover:bg-gray-100"
-                                       role="button"
-                                       tabIndex={0}
-                                       onMouseDown={(e) => {
-                                         e.preventDefault();
-                                         e.stopPropagation();
-                                         setSelectedCustomer(c);
-                                         setCustomerSearch(`${c.name}`);
-                                         setCustomerOptions([]);
-                                         setShowCustomerOptions(false);
-                                         const el = document.activeElement as HTMLElement | null;
-                                         if (el && typeof el.blur === 'function') el.blur();
-                                       }}
-                                     >
-                                       {c.name}
-                                     </div>
-                                   ))}
-                                 </div>
-                               )}
-                             </div>
-                           </div>
-                           <Button className="mt-6 whitespace-nowrap" variant="outline" onClick={() => setShowNewCustomerDialog(true)}>+</Button>
-                         </div>
-                       </div>
-                       <div className="mb-4">
-                         <Label>Tipo de comprobante</Label>
-                         <Select value={receiptTypeId?.toString() || ''} onValueChange={val => setReceiptTypeId(Number(val))}>
-                             <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                             <SelectContent className="max-h-60 overflow-y-auto" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                             {receiptTypes.map(rt => (
-                                 <SelectItem key={rt.id} value={rt.id.toString()}>{rt.name}</SelectItem>
-                             ))}
-                             </SelectContent>
-                         </Select>
-                       </div>
-                       {/* Descuento global */}
-                       {hasPermission('aplicar_descuentos') && (
-                       <div className="mb-4 grid grid-cols-4 gap-2 items-end">
-                         <Label className="col-span-4">Descuento global</Label>
-                         <Select value={globalDiscountType} onValueChange={(v) => setGlobalDiscountType(v as any)}>
-                           <SelectTrigger className="col-span-2"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                           <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                             <SelectItem value="percent">Porcentaje %</SelectItem>
-                             <SelectItem value="amount">Monto $</SelectItem>
-                           </SelectContent>
-                         </Select>
-                         <Input
-                           className="col-span-2"
-                           type="number"
-                           min={0}
-                           step={0.01}
-                           placeholder={'0.00'}
-                           value={globalDiscountValue}
-                           onChange={(e) => setGlobalDiscountValue(e.target.value)}
-                         />
-                       </div>
-                       )}
-                       {selectedCustomer && (
-                         <div className="space-y-3">
-                             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                 <h4 className="text-sm font-medium text-blue-900 mb-2">Información del Cliente</h4>
-                                <div className="grid grid-cols-1 gap-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-blue-700">Nombre:</span>
-                                        <span className="font-medium text-blue-900">{selectedCustomer.name}</span>
-                                    </div>
-                                    {/* Mostrar solo CUIT o DNI si existe, no mostrar nada si no hay ninguno */}
-                                    {selectedCustomer.cuit && (
-                                        <div className="flex justify-between">
-                                            <span className="text-blue-700">CUIT:</span>
-                                            <span className="font-medium text-blue-900">{selectedCustomer.cuit}</span>
-                                        </div>
-                                    )}
-                                    {selectedCustomer.dni && !selectedCustomer.cuit && (
-                                        <div className="flex justify-between">
-                                            <span className="text-blue-700">DNI:</span>
-                                            <span className="font-medium text-blue-900">{selectedCustomer.dni}</span>
-                                        </div>
-                                    )}
-                                    {selectedCustomer.fiscal_condition_name && (
-                                        <div className="flex justify-between">
-                                            <span className="text-blue-700">Condición Fiscal:</span>
-                                            <span className="font-medium text-blue-900">{selectedCustomer.fiscal_condition_name}</span>
-                                        </div>
-                                    )}
-                                </div>
-                             </div>
-                         </div>
-                       )}
-                     </div>
-
-                     <div>
-                       <div className="mb-2 flex flex-col gap-2">
-                         {/* Resumen para no duplicar: Subtotal, IVA, Descuentos, Total y Falta en un solo bloque */}
-                         <div className="space-y-1.5 text-sm">
-                           <div className="flex justify-between">
-                             <span>Subtotal (sin IVA)</span>
-                             <span>{formatCurrency(subtotalNet)}</span>
-                           </div>
-                           <div className="flex justify-between">
-                             <span>Impuestos (IVA)</span>
-                             <span>{formatCurrency(totalIva)}</span>
-                           </div>
-                           <div className="flex justify-between text-muted-foreground">
-                             <span>Descuentos</span>
-                             <span>- {formatCurrency(round2(totalItemDiscount + globalDiscountAmount))}</span>
-                           </div>
-                         </div>
-                         <div className="flex justify-between text-base font-semibold">
-                           <div className="flex items-center gap-1">
-                             <span>Total</span>
-                             < TooltipProvider>
-                               <Tooltip>
-                                 <TooltipTrigger asChild>
-                                   <span className="inline-flex items-center text-muted-foreground cursor-help">
-                                     <Info className="h-4 w-4" />
-                                   </span>
-                                 </TooltipTrigger>
-                                 <TooltipContent>
-                                   <p>Precio unitario sin IVA. Descuentos antes del IVA. Cálculo con hasta 2 decimales.</p>
-                                 </TooltipContent>
-                               </Tooltip>
-                             </TooltipProvider>
-                           </div>
-                           <span>{formatCurrency(total)}</span>
-                         </div>
-                         <div className="flex justify-between text-base">
-                           <span>Falta:</span>
-                           {(() => {
-                             const paid = payments.reduce((s, p) => {
-                               return s + (parseFloat(p.amount || '0') || 0);
-                             }, 0);
-                             const diff = round2(total - paid);
-                             return (
-                               <span className={diff > 0 ? 'text-red-600 font-bold' : 'text-green-600 font-bold'}>
-                                 {formatCurrency(Math.max(0, diff))}
-                               </span>
-                             );
-                           })()}
-                         </div>
-                       </div>
-                       <div className="space-y-4">
-                           {payments.map((payment, idx) => (
-                           <div key={idx} className="flex gap-2 items-center">
-                               <Select value={payment.payment_method_id} onValueChange={val => updatePayment(idx, 'payment_method_id', val)}>
-                                   <SelectTrigger className="w-40"><SelectValue placeholder="Método" /></SelectTrigger>
-                                   <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                                       {paymentMethods.map((pm: any) => (
-                                       <SelectItem key={pm.id} value={pm.id.toString()}>{pm.name}</SelectItem>
-                                       ))}
-                                   </SelectContent>
-                               </Select>
-                               <Input
-                                   type="number"
-                                   min="0"
-                                   step="0.01"
-                                   placeholder="Monto"
-                                   value={payment.amount}
-                                   onChange={e => updatePayment(idx, 'amount', e.target.value)}
-                                   className="w-32"
-                               />
-                               {payments.length > 1 && (
-                               <Button variant="ghost" size="icon" onClick={() => removePayment(idx)}>
-                                   <Trash2 className="h-4 w-4" />
-                               </Button>
-                               )}
-                           </div>
-                           ))}
-                           <Button variant="outline" onClick={addPayment}>Agregar método de pago</Button>
-                       </div>
-                       
-                       {/* Mensaje de error para cuenta corriente sin cliente */}
-                       {hasCurrentAccountPayment && !selectedCustomer && (
-                         <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 mt-2">
-                           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                           <p>Para usar "Cuenta Corriente" como método de pago, debes seleccionar un cliente.</p>
-                         </div>
-                       )}
-                     </div>
-                   </div>
-
-                   <div className="mt-6">
-                     <h3 className="font-semibold mb-2">Productos en la venta</h3>
-                     {/* Aclaración de precios y cálculo */}
-                     <p className="text-xs text-muted-foreground mb-2">
-                       El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos por ítem se aplican antes del IVA, el descuento global se aplica sobre el total con IVA. Cálculo con hasta 2 decimales.
-                     </p>
-                     {!hasPermission('aplicar_descuentos') && (
-                       <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2 mb-2">
-                         <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                         <p>No tienes permiso para aplicar descuentos. Los campos de descuento están deshabilitados.</p>
-                       </div>
-                     )}
-                     <Table>
-                     <TableHeader>
-                         <TableRow>
-                         <TableHead>Producto</TableHead>
-                         <TableHead className="text-center">Cant.</TableHead>
-                         <TableHead className="text-right">P. Unit (sin IVA)</TableHead>
-                         <TableHead className="text-right">Subt. (sin IVA)</TableHead>
-                         <TableHead className="text-right">Desc. (importe)</TableHead>
-                         <TableHead className="text-right">IVA</TableHead>
-                         <TableHead className="text-right">Total</TableHead>
-                         <TableHead className="text-right">Desc. Tipo</TableHead>
-                         <TableHead className="text-right">Desc. Valor</TableHead>
-                         </TableRow>
-                     </TableHeader>
-                     <TableBody>
-                         {cart.map((item, idx) => {
-                         const base = round2((item.price || 0) * item.quantity)
-                         const itemDiscRaw = item.discount_type === 'percent' ? round2(base * ((item.discount_value || 0) / 100)) : round2(Number(item.discount_value || 0))
-                         const safeDisc = Math.max(0, Math.min(itemDiscRaw, base))
-                         const net = round2(base - safeDisc)
-                         const iva = round2(net * ((item.iva_rate || 0) / 100))
-                         const tot = round2(net + iva)
-                         return (
-                             <TableRow key={item.id}>
-                             <TableCell>{item.name}</TableCell>
-                             <TableCell className="text-center">{item.quantity}</TableCell>
-                             <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
-                             <TableCell className="text-right">{formatCurrency(base)}</TableCell>
-                             <TableCell className="text-right">{formatCurrency(safeDisc)}</TableCell>
-                             <TableCell className="text-right">{formatCurrency(iva)}</TableCell>
-                             <TableCell className="text-right">{formatCurrency(tot)}</TableCell>
-                             <TableCell className="text-right">
-                               <Select
-                                 value={item.discount_type || ''}
-                                 onValueChange={(v) => {
-                                   setCart((prev) => prev.map((ci, i) => i === idx ? { ...ci, discount_type: v as any, discount_value: ci.discount_value ?? 0 } : ci))
-                                 }}
-                                 disabled={!hasPermission('aplicar_descuentos')}
-                               >
-                                 <SelectTrigger className="w-[130px]"><SelectValue placeholder="Tipo" /></SelectTrigger>
-                                 <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                                   <SelectItem value="percent">% Porcentaje</SelectItem>
-                                   <SelectItem value="amount">$ Monto</SelectItem>
-                                 </SelectContent>
-                               </Select>
-                             </TableCell>
-                             <TableCell className="text-right">
-                               <Input
-                                 className="w-[120px] ml-auto"
-                                 type="number"
-                                 min={0}
-                                 step={item.discount_type === 'percent' ? 0.01 : 0.01}
-                                 placeholder={item.discount_type === 'percent' ? '0.00' : '0.00'}
-                                 value={item.discount_value?.toString() || ''}
-                                 onChange={(e) => {
-                                   const val = e.target.value
-                                   setCart((prev) => prev.map((ci, i) => i === idx ? { ...ci, discount_value: val === '' ? undefined : Number(val) } : ci))
-                                 }}
-                                 disabled={!hasPermission('aplicar_descuentos')}
-                               />
-                             </TableCell>
-                             </TableRow>
-                         );
-                         })}
-                     </TableBody>
-                     </Table>
-                   </div>
-                 </div>
-                <DialogFooter className="px-6 py-3 shrink-0">
-                   <Button variant="outline" onClick={() => setShowAdvancedSaleModal(false)}>Cancelar</Button>
-                   <CashRegisterProtectedButton 
-                     branchId={Number(selectedBranch?.id) || 1} 
-                     operationName="realizar ventas"
-                   >
-                     {(() => {
-                       const paid = payments.reduce((s, p) => {
-                         return s + (parseFloat(p.amount || '0') || 0);
-                       }, 0);
-                       const diff = round2(total - paid);
-                       const canConfirm = (cart.length > 0 && receiptTypeId !== undefined && diff === 0 && allPaymentsValid && currentAccountPaymentValid && selectedBranch);
-                       return (
-                         <Button 
-                           className="cursor-pointer" 
-                           onClick={handleConfirmSale} 
-                           disabled={!canConfirm || isProcessingSale}
-                         >
-                           {isProcessingSale ? (
-                             <>
-                               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                               Procesando...
-                             </>
-                           ) : (
-                             'Confirmar y Pagar'
-                           )}
-                         </Button>
-                       );
-                     })()}
-                   </CashRegisterProtectedButton>
-                 </DialogFooter>
-               </DialogContent>
-             </Dialog>
-
-
-      {/* Dialog para crear cliente desde POS */}
-      <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
-        <DialogContent className="max-w-4xl w-full" noOverlay>
-          <CustomerForm 
-            disableNavigate
-            onCancel={() => setShowNewCustomerDialog(false)}
-            onSuccess={(cust: any) => {
-              // Determinar qué documento mostrar: CUIT tiene prioridad, luego DNI
-              const hasCuit = cust.person?.cuit;
-              const hasDni = cust.person?.documento;
-              
-              const opt: CustomerOption = {
-                id: cust.id,
-                name: `${cust.person?.first_name ?? ''} ${cust.person?.last_name ?? ''}`.trim() || `Cliente ${cust.id}`,
-                dni: hasDni ? cust.person.documento : null,
-                cuit: hasCuit ? cust.person.cuit : null,
-                fiscal_condition_id: cust.person?.fiscal_condition_id || null,
-                fiscal_condition_name: cust.person?.fiscal_condition?.description || cust.person?.fiscal_condition?.name || null,
-              }
-              setSelectedCustomer(opt)
-              setCustomerSearch(opt.name)
-              setCustomerOptions([])
-              setShowNewCustomerDialog(false)
-              toast.success("Cliente agregado y seleccionado")
-            }}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Comprobante de venta */}
-      <SaleReceiptPreviewDialog
-        open={showReceiptPreview}
-        onOpenChange={setShowReceiptPreview}
-        sale={completedSale}
-        customerName={completedSale ? getCustomerName(completedSale) : ''}
-        customerCuit={completedSale?.customer?.person?.cuit}
-        formatDate={formatDate}
-        formatCurrency={formatCurrency}
-      />
     </ProtectedRoute>
   );
 }

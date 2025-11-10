@@ -65,14 +65,10 @@ class CashRegister extends Model
 
     /**
      * Calcular el saldo esperado en efectivo (excluyendo movimientos automáticos del sistema)
+     * NOTA: Este método calcula desde cero, no usa el valor guardado para asegurar precisión
      */
     public function calculateExpectedCashBalance()
     {
-        // Si ya está calculado y guardado, devolverlo
-        if ($this->expected_cash_balance !== null) {
-            return $this->expected_cash_balance;
-        }
-
         // Obtener métodos de pago que son efectivo
         $cashPaymentMethods = $this->getCashPaymentMethods();
         
@@ -188,11 +184,21 @@ class CashRegister extends Model
         // Empezamos el cálculo del efectivo esperado con el monto inicial de la caja
         $expectedCash = $this->initial_amount;
 
+        // Obtener métodos de pago que son efectivo (usar la misma lógica que calculateExpectedCashBalance)
+        $cashPaymentMethods = $this->getCashPaymentMethods();
+        $cashPaymentMethodIds = $cashPaymentMethods->pluck('id')->toArray();
+        
         // Iteramos sobre cada movimiento para hacer los cálculos
         foreach ($movements as $movement) {
             // CRÍTICO: Solo procesar movimientos que afectan el balance
             if (!$movement->affects_balance) {
                 continue; // Saltar movimientos informativos
+            }
+            
+            // Excluir movimientos automáticos del sistema (igual que calculateExpectedCashBalance)
+            $movementTypeName = $movement->movementType->name ?? '';
+            if (in_array($movementTypeName, ['Apertura automática', 'Cierre automático', 'Ajuste del sistema'])) {
+                continue;
             }
             
             // Determinamos si el monto es positivo (ingreso) o negativo (egreso)
@@ -203,6 +209,7 @@ class CashRegister extends Model
 
             // Obtenemos el nombre del método de pago. Si no tiene, usamos una categoría genérica.
             $paymentMethodName = $movement->paymentMethod->name ?? 'Indefinido';
+            $paymentMethodId = $movement->payment_method_id;
 
             // Inicializamos el total para este método de pago si aún no existe
             if (!isset($paymentTotals[$paymentMethodName])) {
@@ -212,9 +219,20 @@ class CashRegister extends Model
             // Sumamos (o restamos) el monto al total del método de pago correspondiente
             $paymentTotals[$paymentMethodName] += $amount;
             
-            // Si el método de pago es 'Efectivo', actualizamos el balance de efectivo esperado
-            // Es importante que el nombre coincida exactamente.
-            if (strtolower($paymentMethodName) === 'efectivo') {
+            // Si el método de pago es efectivo (usar la misma lógica que calculateExpectedCashBalance)
+            // Verificar por ID (más confiable) o por nombre si no hay ID
+            $isCashPayment = false;
+            if ($paymentMethodId && in_array($paymentMethodId, $cashPaymentMethodIds)) {
+                $isCashPayment = true;
+            } elseif (!$paymentMethodId && in_array(strtolower($paymentMethodName), ['efectivo', 'cash', 'contado'])) {
+                // Si no hay payment_method_id, verificar por nombre (para compatibilidad)
+                $isCashPayment = true;
+            } elseif ($paymentMethodId === null) {
+                // Si payment_method_id es null, considerar como efectivo (comportamiento por defecto)
+                $isCashPayment = true;
+            }
+            
+            if ($isCashPayment) {
                 $expectedCash += $amount;
             }
         }

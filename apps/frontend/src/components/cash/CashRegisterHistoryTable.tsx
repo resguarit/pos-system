@@ -56,26 +56,43 @@ export const CashRegisterHistoryTable = ({
 
   const calculateRegisterData = (register: any) => {
     const openingBalance = parseFloat((register as any).opening_balance || register.initial_amount) || 0
-    const closingBalance = parseFloat(((register as any).closing_balance || (register as any).final_amount || '0')) || 0
+    
+    // Obtener el saldo final, manejando null/undefined correctamente
+    const finalAmountValue = (register as any).closing_balance ?? (register as any).final_amount ?? null
+    const closingBalance = finalAmountValue !== null && finalAmountValue !== undefined
+      ? parseFloat(String(finalAmountValue))
+      : null
     
     let expectedCashBalance = openingBalance
-    let difference = 0
+    let difference: number | null = null
     
     if (currentRegister && register.id === currentRegister.id && optimizedCashRegister) {
       expectedCashBalance = optimizedCashRegister.expected_cash_balance || calculateCashOnlyBalance?.() || 0
-      difference = optimizedCashRegister.cash_difference !== undefined 
-        ? optimizedCashRegister.cash_difference 
-        : closingBalance - expectedCashBalance
+      if (optimizedCashRegister.cash_difference !== undefined) {
+        difference = optimizedCashRegister.cash_difference
+      } else if (closingBalance !== null) {
+        difference = closingBalance - expectedCashBalance
+      }
     } else {
-      expectedCashBalance = (register as any).calculated_expected_cash_balance || 
-                          (register as any).expected_cash_balance || 
+      expectedCashBalance = (register as any).calculated_expected_cash_balance ?? 
+                          (register as any).expected_cash_balance ?? 
                           openingBalance
-      difference = (register as any).calculated_cash_difference || 
-                 (register as any).cash_difference || 
-                 (closingBalance - expectedCashBalance)
+      
+      if ((register as any).calculated_cash_difference !== undefined) {
+        difference = (register as any).calculated_cash_difference
+      } else if ((register as any).cash_difference !== undefined) {
+        difference = (register as any).cash_difference
+      } else if (closingBalance !== null) {
+        difference = closingBalance - expectedCashBalance
+      }
     }
     
-    return { openingBalance, closingBalance, expectedCashBalance, difference }
+    return { 
+      openingBalance, 
+      closingBalance: closingBalance, 
+      expectedCashBalance, 
+      difference: difference 
+    }
   }
 
   return (
@@ -226,23 +243,32 @@ export const CashRegisterHistoryTable = ({
                     getColumnCellProps={getColumnCellProps}
                     className="text-right"
                   >
-                    <span className="truncate" title={formatCurrency(closingBalance)}>
-                      {formatCurrency(closingBalance)}
+                    <span className="truncate" title={closingBalance !== null ? formatCurrency(closingBalance) : '-'}>
+                      {closingBalance !== null ? formatCurrency(closingBalance) : '-'}
                     </span>
                   </ResizableTableCell>
                   <ResizableTableCell
                     columnId="difference"
                     getColumnCellProps={getColumnCellProps}
                     className={`text-right hidden md:table-cell font-semibold ${
-                      Math.abs(difference) < 0.01
-                        ? "text-blue-600"
-                        : difference > 0
-                          ? "text-green-600"
-                          : "text-red-600"
+                      difference === null
+                        ? "text-gray-500"
+                        : Math.abs(difference) < 0.01
+                          ? "text-blue-600"
+                          : difference > 0
+                            ? "text-green-600"
+                            : "text-red-600"
                     }`}
                   >
-                    <span className="truncate" title={formatCurrency(difference)}>
-                      {formatCurrency(difference)}
+                    <span className="truncate" title={difference !== null ? formatCurrency(difference) : '-'}>
+                      {difference === null 
+                        ? '-' 
+                        : Math.abs(difference) < 0.01
+                          ? 'Sin diferencia'
+                          : difference > 0
+                            ? `+${formatCurrency(difference)} (sobrante)`
+                            : `${formatCurrency(difference)} (faltante)`
+                      }
                     </span>
                   </ResizableTableCell>
                   <ResizableTableCell

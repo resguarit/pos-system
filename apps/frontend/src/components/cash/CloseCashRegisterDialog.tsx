@@ -27,6 +27,7 @@ interface CloseCashRegisterDialogProps {
   allMovements?: any[] // Movimientos de todas las sucursales
   calculateCashOnlyBalance?: () => number
   isCashPaymentMethod?: (name: string) => boolean
+  optimizedCashRegister?: any // Registro optimizado con expected_cash_balance calculado
 }
 
 export const CloseCashRegisterDialog = ({
@@ -41,7 +42,8 @@ export const CloseCashRegisterDialog = ({
   movements = [],
   allMovements = [],
   calculateCashOnlyBalance,
-  isCashPaymentMethod
+  isCashPaymentMethod,
+  optimizedCashRegister
 }: CloseCashRegisterDialogProps) => {
   const [closingForm, setClosingForm] = useState({
     closing_balance: '',
@@ -63,24 +65,61 @@ export const CloseCashRegisterDialog = ({
     
     const opening = parseFloat(registerToShow.initial_amount) || 0
     
-    // Determinar qué movimientos usar
-    let movementsToUse = movements
+    // Obtener el balance esperado del backend si está disponible
+    let expectedCashBalance = 0
     
-    if (selectedBranchForAction && allMovements.length > 0) {
-      // Si estamos cerrando desde múltiples sucursales, filtrar movimientos por sucursal
-      movementsToUse = allMovements.filter(movement => {
-        // Filtrar SOLO por cash_register_id de la caja específica
-        return movement.cash_register_id === registerToShow.id
-      })
-      
+    if (selectedBranchForAction) {
+      // Estamos cerrando desde múltiples sucursales
+      const registerToClose = multipleCashRegisters?.[selectedBranchForAction]
+      expectedCashBalance = registerToClose?.expected_cash_balance ?? 0
+    } else {
+      // Estamos cerrando desde una sola sucursal
+      // Priorizar optimizedCashRegister que tiene el balance calculado del backend
+      expectedCashBalance = optimizedCashRegister?.expected_cash_balance ?? 
+                           registerToShow?.expected_cash_balance ?? 
+                           calculateCashOnlyBalance?.() ?? 0
     }
     
-    // Usar la función utilitaria para calcular el desglose
+    // Determinar qué movimientos usar
+    // Priorizar allMovements si está disponible (tiene todos los movimientos, no solo los paginados)
+    let movementsToUse = allMovements.length > 0 ? allMovements : movements
+    
+    if (selectedBranchForAction && movementsToUse.length > 0) {
+      movementsToUse = movementsToUse.filter(movement => {
+        return movement.cash_register_id === registerToShow.id
+      })
+    } else if (!selectedBranchForAction && allMovements.length > 0) {
+      // Para una sola sucursal, filtrar por cash_register_id si allMovements tiene datos de múltiples cajas
+      movementsToUse = allMovements.filter(movement => {
+        return movement.cash_register_id === registerToShow?.id
+      })
+    }
+    
+    // Calcular el desglose desde los movimientos
     const breakdown = calculatePaymentMethodBreakdown(
       movementsToUse, 
       opening, 
       isCashPaymentMethod
     )
+    
+    // Debug: Log para verificar qué métodos de pago se están detectando
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Movements to use:', movementsToUse.length)
+      console.log('Payment methods found in movements:', movementsToUse.map(m => ({
+        id: m.id,
+        payment_method: m.payment_method?.name || 'N/A',
+        payment_method_id: m.payment_method_id,
+        description: m.description
+      })))
+      console.log('Breakdown calculated:', breakdown)
+    }
+    
+    // Si tenemos el balance esperado del backend (de optimizedCashRegister o del registro),
+    // ajustar el efectivo para que coincida con el balance esperado del backend
+    // Esto asegura consistencia con el cálculo del backend
+    if (optimizedCashRegister?.expected_cash_balance !== undefined || registerToShow?.expected_cash_balance !== undefined) {
+      breakdown['Efectivo'] = expectedCashBalance
+    }
     
     return breakdown
   }
@@ -94,10 +133,13 @@ export const CloseCashRegisterDialog = ({
     if (selectedBranchForAction) {
       // Estamos cerrando desde múltiples sucursales
       const registerToClose = multipleCashRegisters?.[selectedBranchForAction]
-      systemBalance = registerToClose?.expected_cash_balance || 0
+      systemBalance = registerToClose?.expected_cash_balance ?? 0
     } else {
       // Estamos cerrando desde una sola sucursal
-      systemBalance = calculateCashOnlyBalance?.() || 0
+      // Priorizar optimizedCashRegister que tiene el balance calculado del backend
+      systemBalance = optimizedCashRegister?.expected_cash_balance ?? 
+                     registerToShow?.expected_cash_balance ?? 
+                     calculateCashOnlyBalance?.() ?? 0
     }
     
     return finalAmount - systemBalance
@@ -148,21 +190,36 @@ export const CloseCashRegisterDialog = ({
           <div className="space-y-2">
             <Label>Desglose por Método de Pago (Sistema)</Label>
             <div className="bg-gray-50 p-3 rounded-md space-y-2">
-              {Object.entries(paymentBreakdown)
-                .filter(([_, amount]) => Math.abs(amount) > 0.01)
-                .sort(([a], [b]) => {
-                  if (a === 'Efectivo') return -1
-                  if (b === 'Efectivo') return 1
-                  return a.localeCompare(b)
-                })
-                .map(([method, amount]) => (
+              {(() => {
+                const breakdownEntries = Object.entries(paymentBreakdown)
+                  .sort(([a], [b]) => {
+                    if (a === 'Efectivo') return -1
+                    if (b === 'Efectivo') return 1
+                    return a.localeCompare(b)
+                  })
+                
+                if (breakdownEntries.length === 0) {
+                  return (
+                    <div className="text-sm text-gray-500 italic">
+                      No hay movimientos registrados
+                    </div>
+                  )
+                }
+                
+                return breakdownEntries.map(([method, amount]) => (
                   <div key={method} className="flex justify-between items-center text-sm">
                     <span className={method === 'Efectivo' ? 'font-semibold text-green-700' : ''}>{method}:</span>
-                    <span className={`font-medium ${amount >= 0 ? 'text-green-600' : 'text-red-600'} ${method === 'Efectivo' ? 'font-semibold' : ''}`}>
-                      {amount >= 0 ? formatCurrency(amount) : `-${formatCurrency(Math.abs(amount))}`}
+                    <span className={`font-medium ${Math.abs(amount) < 0.01 ? 'text-gray-500' : amount >= 0 ? 'text-green-600' : 'text-red-600'} ${method === 'Efectivo' ? 'font-semibold' : ''}`}>
+                      {Math.abs(amount) < 0.01 
+                        ? formatCurrency(0) 
+                        : amount >= 0 
+                          ? formatCurrency(amount) 
+                          : `-${formatCurrency(Math.abs(amount))}`
+                      }
                     </span>
                   </div>
-                ))}
+                ))
+              })()}
             </div>
           </div>
           
@@ -251,3 +308,4 @@ export const CloseCashRegisterDialog = ({
     </Dialog>
   )
 }
+

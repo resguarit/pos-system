@@ -1462,7 +1462,12 @@ export default function CajaPage() {
                               {formatCurrency(cashRegister.initial_amount || 0)}
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
-                              {cashRegister.status === 'open' ? '-' : formatCurrency(cashRegister.final_amount || 0)}
+                              {cashRegister.status === 'open' ? '-' : (() => {
+                                const finalAmount = cashRegister.final_amount !== null && cashRegister.final_amount !== undefined 
+                                  ? parseFloat(String(cashRegister.final_amount)) 
+                                  : null
+                                return finalAmount !== null ? formatCurrency(finalAmount) : '-'
+                              })()}
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                               {cashRegister.status === 'open' ? (
@@ -1470,8 +1475,18 @@ export default function CajaPage() {
                               ) : (
                                 (() => {
                                   // Calcular la diferencia entre lo que el sistema esperaba y lo que se contó físicamente
-                                  const expectedAmount = parseFloat(cashRegister.expected_cash_balance) || 0
-                                  const countedAmount = parseFloat(cashRegister.final_amount) || 0
+                                  const expectedAmount = cashRegister.expected_cash_balance !== null && cashRegister.expected_cash_balance !== undefined
+                                    ? parseFloat(String(cashRegister.expected_cash_balance))
+                                    : 0
+                                  const countedAmount = cashRegister.final_amount !== null && cashRegister.final_amount !== undefined
+                                    ? parseFloat(String(cashRegister.final_amount))
+                                    : null
+                                  
+                                  // Si no hay monto final contado, no podemos calcular diferencia
+                                  if (countedAmount === null) {
+                                    return <span className="text-gray-500">-</span>
+                                  }
+                                  
                                   const difference = countedAmount - expectedAmount
                                   
                                   return (
@@ -1871,7 +1886,13 @@ export default function CajaPage() {
                               {formatCurrency(Number(cashRegister.initial_amount) || 0)}
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
-                              {cashRegister.status === 'open' ? '-' : formatCurrency(Number(cashRegister.closing_balance) || 0)}
+                              {cashRegister.status === 'open' ? '-' : (() => {
+                                const finalAmount = (cashRegister.closing_balance !== null && cashRegister.closing_balance !== undefined) || 
+                                                   ((cashRegister as any).final_amount !== null && (cashRegister as any).final_amount !== undefined)
+                                  ? parseFloat(String(cashRegister.closing_balance || (cashRegister as any).final_amount || '0'))
+                                  : null
+                                return finalAmount !== null ? formatCurrency(finalAmount) : '-'
+                              })()}
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                               {cashRegister.status === 'open' ? (
@@ -1879,15 +1900,26 @@ export default function CajaPage() {
                               ) : (
                                 (() => {
                                   // Calcular la diferencia entre lo que el sistema esperaba y lo que se contó físicamente
-                                  const expectedAmount = parseFloat((cashRegister as any).expected_cash_balance) || 0
-                                  const countedAmount = parseFloat(cashRegister.closing_balance || '0') || 0
+                                  const expectedAmount = (cashRegister as any).expected_cash_balance !== null && (cashRegister as any).expected_cash_balance !== undefined
+                                    ? parseFloat(String((cashRegister as any).expected_cash_balance))
+                                    : 0
+                                  const countedAmount = (cashRegister.closing_balance !== null && cashRegister.closing_balance !== undefined) ||
+                                                       ((cashRegister as any).final_amount !== null && (cashRegister as any).final_amount !== undefined)
+                                    ? parseFloat(String(cashRegister.closing_balance || (cashRegister as any).final_amount || '0'))
+                                    : null
+                                  
+                                  // Si no hay monto final contado, no podemos calcular diferencia
+                                  if (countedAmount === null) {
+                                    return <span className="text-gray-500">-</span>
+                                  }
+                                  
                                   const difference = countedAmount - expectedAmount
                       
-                      return (
+                                  return (
                                     <span className={`${
-                              Math.abs(difference) < 0.01
+                                      Math.abs(difference) < 0.01
                                         ? 'text-blue-600' 
-                                : difference > 0
+                                        : difference > 0
                                           ? 'text-green-600' 
                                           : 'text-red-600'
                                     }`}>
@@ -1897,7 +1929,7 @@ export default function CajaPage() {
                                           ? `+${formatCurrency(difference)} (sobrante)`
                                           : `${formatCurrency(difference)} (faltante)`
                                       }
-                            </span>
+                                    </span>
                                   )
                                 })()
                               )}
@@ -1992,6 +2024,7 @@ export default function CajaPage() {
         allMovements={allMovements}
         calculateCashOnlyBalance={calculateCashOnlyBalance}
         isCashPaymentMethod={isCashPaymentMethod}
+        optimizedCashRegister={optimizedCashRegister}
       />
 
       <NewMovementDialog

@@ -28,6 +28,7 @@ import NuevoRolPage from '@/pages/dashboard/NuevoRolPage'
 import NuevoUsuarioPage from '@/pages/dashboard/NuevoUsuarioPage'
 import PerfilPage from '@/pages/dashboard/PerfilPage'
 import PosPage from '@/pages/dashboard/PosPage'
+import CompleteSalePage from '@/pages/dashboard/CompleteSalePage'
 import ProveedoresPage from '@/pages/dashboard/ProveedoresPage'
 import PurchaseOrderPage from '@/pages/dashboard/PurchaseOrderPage'
 import ReportesInventarioPage from '@/pages/dashboard/ReportesInventarioPage'
@@ -84,6 +85,7 @@ function App() {
           {features.inventario && <Route path="inventario" element={<ProtectedRoute permissions={['ver_productos']}><InventarioPage /></ProtectedRoute>} />}
           {features.perfil && <Route path="perfil" element={<PerfilPage />} />}
           {features.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
+          {features.pos && <Route path="pos/completar-venta" element={<ProtectedRoute permissions={['crear_ventas']}><CompleteSalePage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
           {features.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
           {features.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}
