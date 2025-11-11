@@ -89,6 +89,7 @@ class FinancialReportService
         // Ingresos por movimientos de caja (entradas)
         // Excluir movimientos relacionados con ventas para evitar doble contabilización
         // ya que las ventas ya se están contando en la sección de "sales"
+        // Solo incluir movimientos que afectan el balance (affects_balance = true o NULL)
         $cashMovementsQuery = CashMovement::with('movementType')
             ->whereHas('movementType', function ($query) {
                 $query->where('operation_type', 'entrada')
@@ -97,6 +98,10 @@ class FinancialReportService
             ->where(function ($query) {
                 $query->where('reference_type', '!=', 'sale')
                     ->orWhereNull('reference_type');
+            })
+            ->where(function ($query) {
+                $query->where('affects_balance', true)
+                    ->orWhereNull('affects_balance');
             })
             ->whereBetween('created_at', [$from, $to]);
 
@@ -163,6 +168,7 @@ class FinancialReportService
         // Egresos por movimientos de caja (salidas)
         // Excluir movimientos relacionados con órdenes de compra para evitar doble contabilización
         // ya que las compras ya se están contando en la sección de "purchases"
+        // Solo incluir movimientos que afectan el balance (affects_balance = true o NULL)
         $cashMovementsQuery = CashMovement::with('movementType')
             ->whereHas('movementType', function ($query) {
                 $query->where('operation_type', 'salida')
@@ -171,6 +177,10 @@ class FinancialReportService
             ->where(function ($query) {
                 $query->where('reference_type', '!=', 'purchase_order')
                     ->orWhereNull('reference_type');
+            })
+            ->where(function ($query) {
+                $query->where('affects_balance', true)
+                    ->orWhereNull('affects_balance');
             })
             ->whereBetween('created_at', [$from, $to]);
 
@@ -223,6 +233,7 @@ class FinancialReportService
         // Movimientos de entrada
         // Excluir movimientos relacionados con ventas para evitar duplicación
         // ya que las ventas ya se muestran en la sección "sales_detail"
+        // Solo incluir movimientos que afectan el balance (affects_balance = true o NULL)
         $incomeMovementsQuery = CashMovement::with(['movementType', 'user', 'cashRegister.branch'])
             ->whereHas('movementType', function ($query) {
                 $query->where('operation_type', 'entrada')
@@ -231,6 +242,10 @@ class FinancialReportService
             ->where(function ($query) {
                 $query->where('reference_type', '!=', 'sale')
                     ->orWhereNull('reference_type');
+            })
+            ->where(function ($query) {
+                $query->where('affects_balance', true)
+                    ->orWhereNull('affects_balance');
             })
             ->whereBetween('created_at', [$from, $to]);
 
@@ -251,6 +266,7 @@ class FinancialReportService
         // Movimientos de salida
         // Excluir movimientos relacionados con órdenes de compra para evitar duplicación
         // ya que las compras ya se muestran en la sección "purchases_detail"
+        // Solo incluir movimientos que afectan el balance (affects_balance = true o NULL)
         $expenseMovementsQuery = CashMovement::with(['movementType', 'user', 'cashRegister.branch'])
             ->whereHas('movementType', function ($query) {
                 $query->where('operation_type', 'salida')
@@ -259,6 +275,10 @@ class FinancialReportService
             ->where(function ($query) {
                 $query->where('reference_type', '!=', 'purchase_order')
                     ->orWhereNull('reference_type');
+            })
+            ->where(function ($query) {
+                $query->where('affects_balance', true)
+                    ->orWhereNull('affects_balance');
             })
             ->whereBetween('created_at', [$from, $to]);
 
