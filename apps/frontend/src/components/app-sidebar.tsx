@@ -356,7 +356,8 @@ export function AppSidebar({ className }: { className?: string }) {
           </SidebarGroupContent>
         </SidebarGroup>
         {((features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas')) || 
-          (features.reportesInventario && hasPermission('generar_reportes'))) && (
+          (features.reportesInventario && hasPermission('generar_reportes')) ||
+          (features.reportesFinancieros && hasPermission('generar_reportes'))) && (
           <>
             <SidebarSeparator />
             <SidebarGroup>
@@ -380,6 +381,16 @@ export function AppSidebar({ className }: { className?: string }) {
                         <Link to="/dashboard/reportes-inventario">
                           <ClipboardList className="h-4 w-4" />
                           <span>Reportes de Inventario</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {features.reportesFinancieros && hasPermission('generar_reportes') && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/dashboard/reportes-financieros"} tooltip="Reportes Financieros">
+                        <Link to="/dashboard/reportes-financieros">
+                          <FileBarChart className="h-4 w-4" />
+                          <span>Reportes Financieros</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
