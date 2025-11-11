@@ -160,10 +160,25 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
     if (!unitPrice || unitPrice <= 0 || !salePrice || salePrice <= 0) return 0;
     
     const costInArs = convertToARS(unitPrice, currency);
+    
+    // Validar que el costo sea válido
+    if (!costInArs || costInArs <= 0 || !isFinite(costInArs)) {
+      return 0;
+    }
+    
     const priceWithoutIva = salePrice / (1 + ivaRate);
+    
+    // Validar que el precio sin IVA sea válido
+    if (!priceWithoutIva || priceWithoutIva <= 0 || !isFinite(priceWithoutIva)) {
+      return 0;
+    }
+    
     const markup = (priceWithoutIva / costInArs) - 1;
     
-    return Math.round(markup * 10000) / 10000;
+    // Asegurar que el markup nunca sea negativo (mínimo 0%)
+    const safeMarkup = markup < 0 ? 0 : markup;
+    
+    return Math.round(safeMarkup * 10000) / 10000;
   };
 
   const getCurrentIvaRate = (): number => {

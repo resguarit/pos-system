@@ -87,6 +87,7 @@ export function usePricing({
   /**
    * Calcula el markup basado en precio de venta y costo
    * Fórmula: (precio_sin_iva / costo) - 1
+   * Asegura que el markup nunca sea negativo (mínimo 0%)
    */
   const calculateMarkup = useCallback((
     unitPrice: number,
@@ -94,8 +95,18 @@ export function usePricing({
     salePrice: number,
     ivaRate: number = 0
   ): number => {
+    // Validar entradas
+    if (!unitPrice || unitPrice <= 0 || !salePrice || salePrice <= 0) {
+      return 0;
+    }
+    
     // 1. Convertir costo a ARS
     const costInArs = currency === 'USD' ? convertUsdToArs(unitPrice, currency) : unitPrice;
+    
+    // Validar que el costo sea válido
+    if (!costInArs || costInArs <= 0 || !isFinite(costInArs)) {
+      return 0;
+    }
     
     console.log('calculateMarkup DEBUG:');
     console.log('  - unitPrice:', unitPrice);
@@ -108,12 +119,20 @@ export function usePricing({
     const priceWithoutIva = salePrice / (1 + ivaRate);
     console.log('  - priceWithoutIva:', priceWithoutIva);
     
+    // Validar que el precio sin IVA sea válido
+    if (!priceWithoutIva || priceWithoutIva <= 0 || !isFinite(priceWithoutIva)) {
+      return 0;
+    }
+    
     // 3. Calcular markup
     const markup = (priceWithoutIva / costInArs) - 1;
     console.log('  - markup calculado:', markup);
     
-    // 4. Redondear a 4 decimales
-    const finalMarkup = Math.round(markup * 10000) / 10000;
+    // 4. Asegurar que el markup nunca sea negativo (mínimo 0%)
+    const safeMarkup = markup < 0 ? 0 : markup;
+    
+    // 5. Redondear a 4 decimales
+    const finalMarkup = Math.round(safeMarkup * 10000) / 10000;
     console.log('  - markup final:', finalMarkup);
     
     return finalMarkup;

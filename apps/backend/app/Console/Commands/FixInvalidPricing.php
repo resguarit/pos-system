@@ -37,12 +37,10 @@ class FixInvalidPricing extends Command
         $this->info('🔍 Buscando productos con precios inválidos...');
         $this->newLine();
 
-        // Buscar productos con markup sospechoso
-        $suspiciousProducts = Product::where('currency', 'USD')
-            ->where(function($q) {
+        // Buscar productos con markup sospechoso (incluyendo markups negativos)
+        $suspiciousProducts = Product::where(function($q) {
                 $q->where('markup', '>', 1)  // markup > 100%
-                   ->orWhere('markup', '<', -0.1)  // markup < -10%
-                   ->orWhere('markup', '!=', DB::raw('CAST(0 AS DECIMAL(8,4))'))  // No zero
+                   ->orWhere('markup', '<', 0)  // markup negativo (cualquier valor < 0)
                    ->orWhere(function($subQ) {
                        $subQ->whereNull('sale_price')
                             ->orWhere('sale_price', '<=', 0);
@@ -95,7 +93,23 @@ class FixInvalidPricing extends Command
 
             if ($fix && !$dryRun) {
                 try {
-                    $product->update(['sale_price' => $expectedSalePrice]);
+                    $updateData = ['sale_price' => $expectedSalePrice];
+                    
+                    // Si el markup es negativo, corregirlo a 0
+                    if ($product->markup < 0) {
+                        $updateData['markup'] = 0.0;
+                        $this->line("  🔧 Markup negativo detectado, se corregirá a 0%");
+                        
+                        // Recalcular el precio de venta con markup 0
+                        $updateData['sale_price'] = $pricingService->calculateSalePrice(
+                            (float) $product->unit_price,
+                            $product->currency,
+                            0.0, // Markup corregido a 0
+                            $ivaRate
+                        );
+                    }
+                    
+                    $product->update($updateData);
                     $this->info("  ✅ Actualizado");
                     $fixed++;
                 } catch (\Exception $e) {

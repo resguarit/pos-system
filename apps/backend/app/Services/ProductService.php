@@ -80,6 +80,12 @@ class ProductService implements ProductServiceInterface
 
     public function createProduct(array $data)
     {
+        // Validar y corregir markup negativo antes de crear
+        if (isset($data['markup']) && $data['markup'] < 0) {
+            Log::warning("ProductService::createProduct - Markup negativo detectado: {$data['markup']}, corrigiendo a 0");
+            $data['markup'] = 0.0;
+        }
+        
         // Crear el producto
         $product = Product::create($data);
         
@@ -166,9 +172,22 @@ class ProductService implements ProductServiceInterface
         
         Log::info('ProductService::updateProduct - stockData final: ', $stockData);
         
+        // Validar y corregir markup negativo antes de guardar
+        if (isset($data['markup']) && $data['markup'] < 0) {
+            Log::warning("ProductService::updateProduct - Markup negativo detectado: {$data['markup']}, corrigiendo a 0");
+            $data['markup'] = 0.0;
+        }
+        
         // Actualizar los campos del producto
         foreach ($data as $key => $value) {
             $oldValue = $product->$key ?? null;
+            
+            // Validar markup antes de asignar
+            if ($key === 'markup' && $value < 0) {
+                Log::warning("ProductService::updateProduct - Markup negativo detectado en campo: {$value}, corrigiendo a 0");
+                $value = 0.0;
+            }
+            
             $product->$key = $value;
             
             // Log específico para status y web

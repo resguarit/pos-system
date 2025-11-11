@@ -163,7 +163,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
   // Función para calcular markup cuando se ingresa precio de venta manualmente
   const calculateMarkupFromSalePrice = (salePrice: number) => {
-    if (!unitPrice || !salePrice) return 0;
+    if (!unitPrice || !salePrice || unitPrice <= 0 || salePrice <= 0) return 0;
     
     let costInArs = unitPrice;
     
@@ -172,17 +172,30 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       costInArs = unitPrice * exchangeRate;
     }
     
+    // Validar que el costo sea válido
+    if (!costInArs || costInArs <= 0 || !isFinite(costInArs)) {
+      return 0;
+    }
+    
     // 2. Remover IVA del precio de venta si existe
     let priceWithoutIva = salePrice;
     if (selectedIva && selectedIva.rate > 0) {
       priceWithoutIva = salePrice / (1 + selectedIva.rate / 100);
     }
     
+    // Validar que el precio sin IVA sea válido
+    if (!priceWithoutIva || priceWithoutIva <= 0 || !isFinite(priceWithoutIva)) {
+      return 0;
+    }
+    
     // 3. Calcular markup: (precio_sin_iva / costo) - 1
     const markupDecimal = (priceWithoutIva / costInArs) - 1;
     
-    // 4. Convertir a porcentaje y redondear a 2 decimales
-    return Math.round(markupDecimal * 10000) / 100; // Redondear a 2 decimales
+    // 4. Asegurar que el markup nunca sea negativo (mínimo 0%)
+    const safeMarkup = markupDecimal < 0 ? 0 : markupDecimal;
+    
+    // 5. Convertir a porcentaje y redondear a 2 decimales
+    return Math.round(safeMarkup * 10000) / 100; // Redondear a 2 decimales
   };
 
   // Fetch all related data when component mounts

@@ -43,6 +43,7 @@ export const calculateSalePrice = (
 
 /**
  * Calcula el markup basado en precio unitario, precio de venta e IVA
+ * Asegura que el markup nunca sea negativo (mínimo 0%)
  */
 export const calculateMarkup = (
   unitPrice: number, 
@@ -50,11 +51,20 @@ export const calculateMarkup = (
   salePrice: number, 
   ivaRate: number
 ): number => {
-  if (unitPrice === 0) return 0;
+  if (unitPrice === 0 || unitPrice <= 0 || salePrice <= 0) return 0;
   
   const subtotal = salePrice / (1 + ivaRate);
+  
+  // Validar que el subtotal sea válido
+  if (!subtotal || subtotal <= 0 || !isFinite(subtotal)) {
+    return 0;
+  }
+  
   const markupAmount = subtotal - unitPrice;
-  return markupAmount / unitPrice;
+  const markup = markupAmount / unitPrice;
+  
+  // Asegurar que el markup nunca sea negativo (mínimo 0%)
+  return markup < 0 ? 0 : markup;
 };
 
 /**

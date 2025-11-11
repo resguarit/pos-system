@@ -59,7 +59,7 @@ class PricingService
      * @param string $currency Moneda del precio unitario
      * @param float $salePrice Precio de venta objetivo
      * @param int|null $ivaId ID del IVA aplicado
-     * @return float Markup como decimal
+     * @return float Markup como decimal (nunca negativo, mínimo 0)
      */
     public function calculateMarkup(
         float $unitPrice,
@@ -70,6 +70,11 @@ class PricingService
         // 1. Convertir costo a ARS
         $costInArs = $this->convertToArs($unitPrice, $currency);
         
+        // Validar que el costo sea válido
+        if ($costInArs <= 0 || !is_finite($costInArs)) {
+            return 0.0;
+        }
+        
         // 2. Remover IVA del precio de venta si existe
         $priceWithoutIva = $salePrice;
         if ($ivaId) {
@@ -79,10 +84,20 @@ class PricingService
             }
         }
         
+        // Validar que el precio sin IVA sea válido
+        if ($priceWithoutIva <= 0 || !is_finite($priceWithoutIva)) {
+            return 0.0;
+        }
+        
         // 3. Calcular markup: (precio_sin_iva / costo) - 1
         $markup = ($priceWithoutIva / $costInArs) - 1;
         
-        // 4. Redondear a 4 decimales
+        // 4. Asegurar que el markup nunca sea negativo (mínimo 0%)
+        if ($markup < 0) {
+            $markup = 0.0;
+        }
+        
+        // 5. Redondear a 4 decimales
         return round($markup, self::MARKUP_PRECISION);
     }
 
