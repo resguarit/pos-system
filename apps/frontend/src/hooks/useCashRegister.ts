@@ -498,37 +498,67 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     return initial + netSinceOpen
   }, [currentRegister, movements, allMovements])
 
-  // Calcular ingresos del día
+  /**
+   * Calcula los ingresos del día actual
+   * - Si la caja se abrió hoy: solo cuenta movimientos de esta caja
+   * - Si la caja se abrió otro día: cuenta todos los movimientos de hoy
+   */
   const calculateTodayIncome = useCallback(() => {
+    if (!currentRegister) return 0
+
     const today = format(new Date(), 'yyyy-MM-dd')
+    const openedAtDate = format(new Date(currentRegister.opened_at), 'yyyy-MM-dd')
+    const isOpenedToday = openedAtDate === today
+
     const source = (allMovements?.length ? allMovements : movements) || []
     return source
       .filter(movement => {
+        // Si la caja se abrió hoy, solo contar movimientos de esta caja
+        if (isOpenedToday && movement.cash_register_id !== currentRegister.id) {
+          return false
+        }
+
         const movementDate = format(new Date(movement.created_at), 'yyyy-MM-dd')
         const mt = movement.movement_type as any
         const affects = mt?.affects_cash ?? mt?.is_cash_movement ?? true
         const op = typeof mt?.operation_type === 'string' ? mt.operation_type.toLowerCase() : undefined
         const isIncome = op ? op === 'entrada' : !!mt?.is_income
+
         return movementDate === today && affects && isIncome
       })
       .reduce((total, movement) => total + Math.abs(parseFloat(movement.amount) || 0), 0)
-  }, [movements, allMovements])
+  }, [currentRegister, movements, allMovements])
 
-  // Calcular egresos del día
+  /**
+   * Calcula los egresos del día actual
+   * - Si la caja se abrió hoy: solo cuenta movimientos de esta caja
+   * - Si la caja se abrió otro día: cuenta todos los movimientos de hoy
+   */
   const calculateTodayExpenses = useCallback(() => {
+    if (!currentRegister) return 0
+
     const today = format(new Date(), 'yyyy-MM-dd')
+    const openedAtDate = format(new Date(currentRegister.opened_at), 'yyyy-MM-dd')
+    const isOpenedToday = openedAtDate === today
+
     const source = (allMovements?.length ? allMovements : movements) || []
     return source
       .filter(movement => {
+        // Si la caja se abrió hoy, solo contar movimientos de esta caja
+        if (isOpenedToday && movement.cash_register_id !== currentRegister.id) {
+          return false
+        }
+
         const movementDate = format(new Date(movement.created_at), 'yyyy-MM-dd')
         const mt = movement.movement_type as any
         const affects = mt?.affects_cash ?? mt?.is_cash_movement ?? true
         const op = typeof mt?.operation_type === 'string' ? mt.operation_type.toLowerCase() : undefined
         const isIncome = op ? op === 'entrada' : !!mt?.is_income
+
         return movementDate === today && affects && !isIncome
       })
       .reduce((total, movement) => total + Math.abs(parseFloat(movement.amount) || 0), 0)
-  }, [movements, allMovements])
+  }, [currentRegister, movements, allMovements])
 
   return {
     // Estado

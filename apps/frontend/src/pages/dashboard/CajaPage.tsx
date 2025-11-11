@@ -55,6 +55,7 @@ import {
   getReceiptType,
   extractSaleIdFromDescription
 } from "@/utils/cash-register-utils"
+import { filterCashMovementTypes } from "@/utils/movementTypeFilters"
 
 export default function CajaPage() {
   
@@ -161,6 +162,28 @@ export default function CajaPage() {
     consolidatedStats,
     isCashPaymentMethod
   })
+
+  // Determinar si la caja se abrió hoy para mostrar títulos dinámicos
+  const isOpenedToday = useMemo(() => {
+    if (!currentRegister) return false
+    const today = new Date().toISOString().split('T')[0]
+    const openedAtDate = new Date(currentRegister.opened_at).toISOString().split('T')[0]
+    return openedAtDate === today
+  }, [currentRegister])
+
+  // Títulos y descripciones dinámicos según el contexto
+  const { incomeTitle, expensesTitle, incomeDescription, expensesDescription } = useMemo(() => {
+    return {
+      incomeTitle: isOpenedToday ? "Entradas" : "Entradas de hoy",
+      expensesTitle: isOpenedToday ? "Salidas" : "Salidas de hoy",
+      incomeDescription: isOpenedToday 
+        ? "Total de ingresos de la caja actual" 
+        : "Total de ingresos de hoy (todas las cajas)",
+      expensesDescription: isOpenedToday 
+        ? "Total de egresos de la caja actual" 
+        : "Total de egresos de hoy (todas las cajas)"
+    }
+  }, [isOpenedToday])
 
   // Estados de UI
   const [openNewMovementDialog, setOpenNewMovementDialog] = useState(false)
@@ -1582,27 +1605,27 @@ export default function CajaPage() {
           colorClass="bg-orange-100 text-orange-700"
         />
         <StatCard
-          title="Entradas de hoy"
+          title={incomeTitle}
           value={formatCurrency(calculateTodayIncome())}
-          description="Total de ingresos de esta sesión de caja"
+          description={incomeDescription}
           icon={ArrowDownIcon}
           colorClass="bg-blue-100 text-blue-700"
         />
         <StatCard
-          title="Salidas de hoy"
+          title={expensesTitle}
           value={formatCurrency(calculateTodayExpenses())}
-          description="Total de egresos de esta sesión de caja"
+          description={expensesDescription}
           icon={ArrowUpIcon}
           colorClass="bg-amber-100 text-amber-700"
         />
         <StatCard
           title="Saldo desde apertura"
           value={formatCurrency(calculateBalanceSinceOpening())}
-            description={
-              currentRegister 
-                ? `Desde ${formatDate(currentRegister.opened_at)}` 
-                : 'Sin caja abierta'
-            }
+          description={
+            currentRegister 
+              ? `Desde ${formatDate(currentRegister.opened_at)}` 
+              : 'Sin caja abierta'
+          }
           icon={DollarSign}
           colorClass="bg-violet-100 text-violet-700"
         />
@@ -1698,7 +1721,7 @@ export default function CajaPage() {
                     </SelectTrigger>
                     <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
                       <SelectItem value="all">Todos los tipos</SelectItem>
-                      {movementTypes.map((type) => (
+                      {filterCashMovementTypes(movementTypes).map((type) => (
                         <SelectItem key={type.id} value={type.id.toString()}>
                           {type.description}
                         </SelectItem>
@@ -2053,6 +2076,7 @@ export default function CajaPage() {
         loading={hookLoading}
         selectedBranchForAction={selectedBranchForAction}
         branchInfo={getBranchInfo}
+        currentBranchId={currentBranchId}
       />
 
       <CloseCashRegisterDialog
