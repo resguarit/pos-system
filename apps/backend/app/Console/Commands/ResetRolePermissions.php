@@ -131,7 +131,6 @@ class ResetRolePermissions extends Command
                 'editar_ordenes_compra',
                 'eliminar_ordenes_compra',
                 'ver_historial_compras',
-                'ver_reportes',
                 'generar_reportes',
                 'exportar_reportes',
                 'ver_ventas',

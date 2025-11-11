@@ -98,7 +98,6 @@ class PermissionSeeder extends Seeder
             ['name' => 'ver_historico_caja', 'description' => 'Ver histórico y reportes de caja', 'module' => 'caja'],
             
             // Reportes
-            ['name' => 'ver_reportes', 'description' => 'Ver reportes', 'module' => 'reportes'],
             ['name' => 'generar_reportes', 'description' => 'Generar reportes personalizados', 'module' => 'reportes'],
             ['name' => 'exportar_reportes', 'description' => 'Exportar reportes', 'module' => 'reportes'],
             // ['name' => 'programar_reportes', 'description' => 'Programar reportes automáticos', 'module' => 'reportes'],

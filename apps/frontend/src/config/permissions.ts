@@ -241,7 +241,6 @@ export const PERMISSIONS_CONFIG = {
     feature: 'reportesFinancieros',
     permissions: [
       'generar_reportes',
-      'ver_reportes',
       'exportar_reportes'
     ]
   },

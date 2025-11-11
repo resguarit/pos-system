@@ -85,7 +85,7 @@ interface MovementsDetail {
 
 export default function ReportesFinancierosPage() {
   const { request, loading } = useApi()
-  const { branches } = useAuth()
+  const { branches, hasPermission } = useAuth()
   
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const today = new Date()
@@ -207,10 +207,12 @@ export default function ReportesFinancierosPage() {
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Reportes Financieros</h2>
-        <Button variant="outline" onClick={handleExport} disabled={!summary}>
-          <Download className="mr-2 h-4 w-4" />
-          Exportar Informe
-        </Button>
+        {hasPermission('exportar_reportes') && (
+          <Button variant="outline" onClick={handleExport} disabled={!summary}>
+            <Download className="mr-2 h-4 w-4" />
+            Exportar Informe
+          </Button>
+        )}
       </div>
 
       {/* Filtros */}
