@@ -278,6 +278,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/close', [CashRegisterController::class, 'close']);
         Route::get('/current', [CashRegisterController::class, 'current']);
         Route::get('/current-optimized', [CashRegisterController::class, 'currentOptimized']);
+        Route::get('/last-closure', [CashRegisterController::class, 'getLastClosure']);
         Route::get('/multiple-branches', [CashRegisterController::class, 'multipleBranches']);
         Route::get('/cash-registers-history', [CashRegisterController::class, 'cashRegistersHistory']);
         Route::get('/payment-methods-optimized', [CashRegisterController::class, 'getPaymentMethodsOptimized']);

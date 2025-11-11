@@ -12,4 +12,5 @@ interface CashRegisterServiceInterface
     public function getMultipleBranchesCashRegisterStatus(array $branchIds);
     public function getCashRegisterHistory(Request $request);
     public function getCashRegisterById(int $id);
+    public function getLastClosure(int $branchId): ?float;
 }

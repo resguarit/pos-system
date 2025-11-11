@@ -232,6 +232,56 @@ class CashRegisterController extends Controller
     }
 
     /**
+     * Obtener el último cierre de caja para una sucursal
+     * 
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getLastClosure(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'branch_id' => 'required|integer|min:1|exists:branches,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Error de validación',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $branchId = (int) $request->input('branch_id');
+            $lastClosure = $this->cashRegisterService->getLastClosure($branchId);
+            
+            return response()->json([
+                'message' => 'Último cierre obtenido exitosamente',
+                'data' => [
+                    'last_closure_amount' => $lastClosure,
+                    'branch_id' => $branchId,
+                    'has_previous_closure' => $lastClosure !== null
+                ]
+            ], 200);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'message' => 'Parámetro inválido',
+                'error' => $e->getMessage()
+            ], 400);
+        } catch (\Exception $e) {
+            \Log::error('Error al obtener último cierre de caja', [
+                'branch_id' => $request->input('branch_id'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al obtener el último cierre',
+                'error' => config('app.debug') ? $e->getMessage() : 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
      * Verificar el estado de caja para múltiples sucursales
      */
     public function checkMultipleBranchesStatus(Request $request): JsonResponse

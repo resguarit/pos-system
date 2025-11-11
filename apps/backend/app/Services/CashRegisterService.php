@@ -241,4 +241,27 @@ class CashRegisterService implements CashRegisterServiceInterface
         return CashRegister::with(['branch', 'user', 'cashMovements.movementType'])
             ->findOrFail($id);
     }
+
+    /**
+     * Obtener el último cierre de caja para una sucursal
+     * 
+     * @param int $branchId ID de la sucursal
+     * @return float|null El monto final de la última caja cerrada, o null si no existe
+     * @throws \InvalidArgumentException Si el branchId no es válido
+     */
+    public function getLastClosure(int $branchId): ?float
+    {
+        if ($branchId <= 0) {
+            throw new \InvalidArgumentException('El ID de sucursal debe ser un número positivo');
+        }
+
+        $lastClosed = CashRegister::where('branch_id', $branchId)
+            ->where('status', 'closed')
+            ->whereNotNull('final_amount')
+            ->whereNotNull('closed_at')
+            ->orderBy('closed_at', 'desc')
+            ->first();
+
+        return $lastClosed ? (float) $lastClosed->final_amount : null;
+    }
 }
