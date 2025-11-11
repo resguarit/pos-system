@@ -21,6 +21,7 @@ const features = {
   proveedores: true,
   purchaseOrders: true,
   reportesInventario: false,
+  reportesFinancieros: true,
   solicitudes: false,
   sucursales: true,
   turnos: false,

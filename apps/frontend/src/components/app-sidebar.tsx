@@ -5,6 +5,7 @@ import {
   CircleDollarSign,
   ClipboardList,
   CreditCard,
+  FileBarChart,
   FileText,
   FolderOpen,
   LayoutDashboard,

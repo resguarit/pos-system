@@ -236,6 +236,16 @@ export const PERMISSIONS_CONFIG = {
     ]
   },
   
+  // Reportes Financieros
+  reportesFinancieros: {
+    feature: 'reportesFinancieros',
+    permissions: [
+      'generar_reportes',
+      'ver_reportes',
+      'exportar_reportes'
+    ]
+  },
+  
   // Facturación (feature deshabilitada)
   facturacion: {
     feature: 'facturacion',

@@ -28,6 +28,7 @@ use App\Http\Controllers\CashMovementController;
 use App\Http\Controllers\CurrentAccountController;
 use App\Http\Controllers\MovementTypeController;
 use App\Http\Controllers\RepairController; // Added
+use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\ExchangeRateController; // **SOLUCIÓN BUG #2**
 use App\Http\Controllers\SaleAnnulmentController;
 use App\Http\Controllers\ComboController;
@@ -367,6 +368,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/sales-by-branch', [DashboardController::class, 'getSalesByBranch']);
         Route::get('/monthly-sales', [DashboardController::class, 'getMonthlySales']);
         Route::get('/general-stats', [DashboardController::class, 'getGeneralStats']);
+    });
+
+    // Financial Reports Routes
+    Route::prefix('financial-reports')->group(function () {
+        Route::get('/summary', [FinancialReportController::class, 'getSummary']);
+        Route::get('/movements-detail', [FinancialReportController::class, 'getMovementsDetail']);
+        Route::get('/daily-breakdown', [FinancialReportController::class, 'getDailyBreakdown']);
     });
 
     // Repairs Routes

@@ -32,6 +32,7 @@ import CompleteSalePage from '@/pages/dashboard/CompleteSalePage'
 import ProveedoresPage from '@/pages/dashboard/ProveedoresPage'
 import PurchaseOrderPage from '@/pages/dashboard/PurchaseOrderPage'
 import ReportesInventarioPage from '@/pages/dashboard/ReportesInventarioPage'
+import ReportesFinancierosPage from '@/pages/dashboard/ReportesFinancierosPage'
 import RolesPage from '@/pages/dashboard/RolesPage'
 import SolicitudesPage from '@/pages/dashboard/SolicitudesPage'
 import SucursalesPage from '@/pages/dashboard/SucursalesPage'
@@ -89,6 +90,8 @@ function App() {
           {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
           {features.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
           {features.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}
+          {/* Ruta provisoria sin permisos para pruebas en producción */}
+          <Route path="reportes-financieros" element={<ReportesFinancierosPage />} />
           {features.roles && <Route path="roles" element={<ProtectedRoute permissions={['ver_roles']}><RolesPage /></ProtectedRoute>} />}
           {features.roles && <Route path="roles/:id" element={<ProtectedRoute permissions={['editar_roles']}><EditarRolPage /></ProtectedRoute>} />}
           {features.roles && <Route path="roles/:id/ver" element={<ProtectedRoute permissions={['ver_roles']}><VerRolPage /></ProtectedRoute>} />}
