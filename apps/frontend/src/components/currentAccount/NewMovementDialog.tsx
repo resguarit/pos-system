@@ -22,7 +22,7 @@ import { Minus, Loader2 } from 'lucide-react';
 import { MovementType, CreateMovementData } from '@/types/currentAccount';
 import { CurrentAccountService, MovementTypeService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
 import { usePermissions } from '@/hooks/usePermissions';
-import { filterManualMovementTypes } from '@/utils/movementTypeUtils';
+import { filterManualCurrentAccountMovementTypes } from '@/utils/movementTypeUtils';
 
 
 interface NewMovementDialogProps {
@@ -66,7 +66,7 @@ export function NewMovementDialog({
     try {
       setLoadingTypes(true);
       const allTypes = await MovementTypeService.getOutflowTypes();
-      const manualTypes = filterManualMovementTypes(allTypes);
+      const manualTypes = filterManualCurrentAccountMovementTypes(allTypes);
       setMovementTypes(manualTypes);
     } catch (error) {
       console.error('Error loading movement types:', error);

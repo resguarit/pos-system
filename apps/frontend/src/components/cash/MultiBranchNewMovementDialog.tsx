@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { filterManualCashMovementTypes } from "@/utils/movementTypeFilters"
 
 interface MultiBranchNewMovementDialogProps {
   open: boolean
@@ -61,18 +62,8 @@ export const MultiBranchNewMovementDialog = ({
     onOpenChange(false)
   }
 
-  const filteredMovementTypes = movementTypes.filter((type) => {
-    const typeName = type.description?.toLowerCase() || ''
-    
-    const isAutomaticMovement = 
-      typeName.includes('venta') || 
-      typeName.includes('compra de mercadería') ||
-      typeName.includes('compra de mercaderia') ||
-      typeName.includes('pago de cuenta corriente') ||
-      typeName.includes('pago cuenta corriente')
-    
-    return !isAutomaticMovement
-  })
+  // Filtrar solo tipos manuales de caja (excluir automáticos generados por el sistema)
+  const filteredMovementTypes = filterManualCashMovementTypes(movementTypes)
 
   const availableBranchesWithOpenCash = availableBranches.filter(branch => branch.hasOpenCashRegister)
 

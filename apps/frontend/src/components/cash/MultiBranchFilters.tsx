@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { filterCashMovementTypes } from "@/utils/movementTypeFilters"
 
 interface MultiBranchFiltersProps {
   searchTerm: string
@@ -74,7 +75,7 @@ export const MultiBranchFilters = ({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los tipos</SelectItem>
-            {movementTypes.map((type) => (
+            {filterCashMovementTypes(movementTypes).map((type) => (
               <SelectItem key={type.id} value={type.id.toString()}>
                 {type.description}
               </SelectItem>
@@ -214,7 +215,7 @@ export const MultiBranchFilters = ({
           )}
           {movementTypeFilter !== "all" && (
             <Badge variant="secondary" className="flex items-center gap-1">
-              Tipo: {movementTypes.find(t => t.id.toString() === movementTypeFilter)?.description}
+              Tipo: {filterCashMovementTypes(movementTypes).find(t => t.id.toString() === movementTypeFilter)?.description || movementTypes.find(t => t.id.toString() === movementTypeFilter)?.description}
               <X 
                 className="h-3 w-3 cursor-pointer" 
                 onClick={() => onMovementTypeChange('all')}
