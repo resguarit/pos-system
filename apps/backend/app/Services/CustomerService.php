@@ -189,8 +189,9 @@ class CustomerService implements CustomerServiceInterface
 
     public function checkNameExists($firstName, $lastName): bool
     {
-        return Person::where('first_name', $firstName)
-                    ->where('last_name', $lastName)
-                    ->exists();
+        return Customer::whereHas('person', function ($query) use ($firstName, $lastName) {
+            $query->where('first_name', $firstName)
+                  ->where('last_name', $lastName);
+        })->exists();
     }
 }

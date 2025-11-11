@@ -238,6 +238,22 @@ class UserController extends Controller
         }
     }
 
+    public function checkName($firstName, $lastName): JsonResponse
+    {
+        try {
+            $exists = $this->userService->checkNameExists($firstName, $lastName);
+            
+            return response()->json([
+                'exists' => $exists
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error checking user name: ' . $e->getMessage());
+            return response()->json([
+                'exists' => false
+            ], 500);
+        }
+    }
+
     /**
      * Obtener historial de ventas por usuario
      */

@@ -252,4 +252,12 @@ class UserService implements UserServiceInterface // Implement the interface
     {
         return User::where('email', $email)->exists();
     }
+
+    public function checkNameExists($firstName, $lastName): bool
+    {
+        return User::whereHas('person', function ($query) use ($firstName, $lastName) {
+            $query->where('first_name', $firstName)
+                  ->where('last_name', $lastName);
+        })->exists();
+    }
 }

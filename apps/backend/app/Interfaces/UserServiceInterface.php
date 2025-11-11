@@ -29,4 +29,6 @@ interface UserServiceInterface
     public function checkUsernameExists($username): bool;
 
     public function checkEmailExists($email): bool;
+
+    public function checkNameExists($firstName, $lastName): bool;
 }

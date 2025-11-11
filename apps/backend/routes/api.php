@@ -191,6 +191,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('users')->group(function () {
         Route::get('/', [UserController::class, 'index']);
+        Route::get('/check-username/{username}', [UserController::class, 'checkUsername']);
+        Route::get('/check-email/{email}', [UserController::class, 'checkEmail']);
+        Route::get('/check-name/{firstName}/{lastName}', [UserController::class, 'checkName']);
         Route::get('/{id}', [UserController::class, 'show']);
         Route::post('/', [UserController::class, 'store']);
         Route::put('/{id}', [UserController::class, 'update']);

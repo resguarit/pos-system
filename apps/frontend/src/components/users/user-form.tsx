@@ -243,7 +243,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
     try {
       const response = await request({
         method: 'GET',
-        url: `/customers/check-name/${encodeURIComponent(firstName)}/${encodeURIComponent(lastName)}`
+        url: `/users/check-name/${encodeURIComponent(firstName)}/${encodeURIComponent(lastName)}`
       });
       
       if (response.exists && (firstName !== (userId ? formData.firstName : '') || lastName !== (userId ? formData.lastName : ''))) {
