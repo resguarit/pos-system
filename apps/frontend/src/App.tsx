@@ -51,6 +51,7 @@ import ReparacionesPage from '@/pages/dashboard/ReparacionesPage'
 import CombosPage from '@/pages/dashboard/CombosPage'
 import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
 import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
+import DebugInfoPage from '@/pages/DebugInfoPage'
 import features from '@/config/features'
 
 
@@ -60,6 +61,9 @@ function App() {
       {/* Simplemente renderiza las rutas, los providers están en main.tsx */}
       <Routes>
         <Route path="/auth/login" element={<LoginPage />} />
+        
+        {/* Ruta de debug escondida - No aparece en el menú */}
+        <Route path="/debug-info" element={<DebugInfoPage />} />
         
         {/* Rutas anidadas del Dashboard */}
         <Route path="/dashboard" element={<LayoutDashboard />}>
