@@ -107,6 +107,25 @@ jobs:
           DEPLOY_PATH="${{ secrets.CLIENT_ENRIQUETA_FRONTEND_DEPLOY_PATH }}"
           REPO_PATH="${{ secrets.CLIENT_ENRIQUETA_BACKEND_DEPLOY_PATH }}"
           
+          # Si los archivos están en dist/, moverlos a la raíz
+          if [ -d "$DEPLOY_PATH/dist" ] && [ -f "$DEPLOY_PATH/dist/index.html" ]; then
+            echo "⚠️  Archivos encontrados en subdirectorio dist/, moviendo a raíz..."
+            cd "$DEPLOY_PATH"
+            shopt -s dotglob
+            mv dist/* . 2>/dev/null || true
+            shopt -u dotglob
+            rmdir dist 2>/dev/null || true
+            echo "✅ Archivos movidos a la raíz"
+          fi
+          
+          # Verificar que index.html existe en la raíz
+          if [ ! -f "$DEPLOY_PATH/index.html" ]; then
+            echo "❌ ERROR: index.html no encontrado después del deployment"
+            echo "📂 Contenido del directorio:"
+            ls -la "$DEPLOY_PATH" || true
+            exit 1
+          fi
+          
           # Copiar .htaccess si existe en el repo
           if [ -f "$REPO_PATH/apps/frontend/public/.htaccess" ]; then
             cp "$REPO_PATH/apps/frontend/public/.htaccess" "$DEPLOY_PATH/.htaccess"
