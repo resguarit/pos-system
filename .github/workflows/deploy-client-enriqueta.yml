@@ -1,12 +1,11 @@
 name: 🚀 Deploy - La Enrique Tabar
 
 on:
-  # Manual deployment only - uncomment to enable automatic deployment
-  # push:
-  #   branches: [ master ]
-  #   paths-ignore:
-  #     - 'docs/**'
-  #     - '*.md'
+  push:
+    branches: [ master ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
   workflow_dispatch:
     inputs:
       deploy_frontend:
