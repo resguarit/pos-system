@@ -11,11 +11,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 use Carbon\Carbon;
 
 class CurrentAccount extends Model
 {
-    use HasFactory, SoftDeletes, LogsActivity;
+    use HasFactory, SoftDeletes, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'customer_id',

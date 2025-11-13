@@ -52,6 +52,7 @@ import CombosPage from '@/pages/dashboard/CombosPage'
 import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
 import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
 import DebugInfoPage from '@/pages/DebugInfoPage'
+import AuditoriasPage from '@/pages/dashboard/AuditoriasPage'
 import features from '@/config/features'
 
 
@@ -116,6 +117,7 @@ function App() {
           {features.zonasEntrega && <Route path="zonas-entrega" element={<ZonasEntregaPage />} />}
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
           {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
+          {features.auditorias && <Route path="auditorias" element={<ProtectedRoute permissions={['ver_auditorias']}><AuditoriasPage /></ProtectedRoute>} />}
         </Route>
 
         {/* Redirección por defecto */}

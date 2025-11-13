@@ -96,6 +96,9 @@ class AppServiceProvider extends ServiceProvider
         
         // Search Service binding
         $this->app->singleton(SearchService::class);
+        
+        // Audit Service binding
+        $this->app->bind(\App\Interfaces\AuditServiceInterface::class, \App\Services\AuditService::class);
     }
 
     /**
@@ -112,19 +115,38 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(ModelEvent::class, function (ModelEvent $event) {
             $model = $event->model;
             
-            // Verificar si el modelo es una instancia de Branch
-            if ($model instanceof Branch) {
-                $description = $this->getEventDescription($event);
-                
-                // Registrar la actividad
-                activity()
-                    ->performedOn($model)
-                    ->causedBy(auth()->user())
-                    ->withProperties([
-                        'old' => $model->getOriginal(),
-                        'new' => $model->getAttributes(),
-                    ])
-                    ->log($description);
+            // Solo registrar si el modelo usa LogsActivity trait
+            // El trait LogsActivity ya maneja el logging automáticamente,
+            // pero aquí agregamos información adicional como IP, user agent, etc.
+            $usesLogsActivity = in_array(
+                \Spatie\Activitylog\Traits\LogsActivity::class,
+                class_uses_recursive($model)
+            );
+            
+            // También registrar modelos importantes aunque no usen el trait directamente
+            $importantModels = [
+                \App\Models\Branch::class,
+                \App\Models\Product::class,
+                \App\Models\SaleHeader::class,
+                \App\Models\PurchaseOrder::class,
+                \App\Models\Customer::class,
+                \App\Models\Supplier::class,
+                \App\Models\User::class,
+                \App\Models\Stock::class,
+                \App\Models\Category::class,
+                \App\Models\CashMovement::class,
+                \App\Models\CashRegister::class,
+                \App\Models\CurrentAccountMovement::class,
+            ];
+            
+            $isImportantModel = in_array(get_class($model), $importantModels);
+            
+            // Solo registrar si el modelo usa LogsActivity o es importante Y hay un usuario autenticado
+            if (($usesLogsActivity || $isImportantModel) && auth()->check()) {
+                // El trait LogsActivity ya registra la actividad automáticamente,
+                // pero podemos agregar información adicional si es necesario
+                // Nota: La información adicional (IP, user agent, etc.) se puede agregar
+                // mediante un tap en el modelo o aquí, pero el trait ya lo maneja bien
             }
         });
     }

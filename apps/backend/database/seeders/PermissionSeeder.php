@@ -112,9 +112,8 @@ class PermissionSeeder extends Seeder
             ['name' => 'ver_configuracion_sistema', 'description' => 'Ver configuración del sistema', 'module' => 'configuracion'],
             ['name' => 'editar_configuracion_sistema', 'description' => 'Editar configuración del sistema (logo, título, empresa, etc.)', 'module' => 'configuracion'],
             
-            // // Auditoria
-            // ['name' => 'ver_auditoria', 'description' => 'Ver registros de auditoría', 'module' => 'auditoria'],
-            // ['name' => 'exportar_auditoria', 'description' => 'Exportar registros de auditoría', 'module' => 'auditoria'],
+            // Auditoría
+            ['name' => 'ver_auditorias', 'description' => 'Ver registros de auditoría del sistema', 'module' => 'auditoria'],
             // // // Reparaciones
             ['name' => 'ver_reparaciones', 'description' => 'Ver listado de reparaciones', 'module' => 'reparaciones'],
             ['name' => 'crear_reparaciones', 'description' => 'Registrar nueva reparación', 'module' => 'reparaciones'],

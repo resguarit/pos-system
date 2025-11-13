@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class SaleHeader extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, LogsActivity, LogsActivityWithContext;
 
     protected $table = 'sales_header';
 
@@ -168,5 +171,21 @@ class SaleHeader extends Model
     public function shipments()
     {
         return $this->belongsToMany(Shipment::class, 'shipment_sale');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'date', 'receipt_type_id', 'branch_id', 'receipt_number', 'customer_id',
+                'sale_fiscal_condition_id', 'sale_document_type_id', 'sale_document_number',
+                'subtotal', 'total_iva_amount', 'iibb', 'internal_tax', 'discount_type',
+                'discount_value', 'discount_amount', 'total', 'cae', 'cae_expiration_date',
+                'service_from_date', 'service_to_date', 'service_due_date', 'user_id',
+                'status', 'annulled_at', 'annulled_by', 'annulment_reason', 'paid_amount',
+                'payment_status'
+            ])
+            ->useLogName('sale')
+            ->logOnlyDirty();
     }
 }

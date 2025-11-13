@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class CashRegister extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'branch_id',
@@ -254,5 +257,17 @@ class CashRegister extends Model
     public function isOpen()
     {
         return $this->status === 'open';
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'branch_id', 'user_id', 'opened_at', 'closed_at', 'initial_amount',
+                'final_amount', 'expected_cash_balance', 'cash_difference',
+                'payment_method_totals', 'status', 'notes'
+            ])
+            ->useLogName('cash_register')
+            ->logOnlyDirty();
     }
 }

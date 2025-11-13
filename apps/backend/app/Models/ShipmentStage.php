@@ -9,10 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class ShipmentStage extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'name',

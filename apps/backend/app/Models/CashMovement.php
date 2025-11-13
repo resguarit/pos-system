@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Events\CashMovementCreated;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class CashMovement extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'cash_register_id',
@@ -59,5 +62,16 @@ class CashMovement extends Model
     public function currentAccountMovement()
     {
         return $this->hasOne(CurrentAccountMovement::class);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly([
+                'cash_register_id', 'movement_type_id', 'reference_type', 'reference_id',
+                'amount', 'description', 'user_id', 'payment_method_id', 'affects_balance'
+            ])
+            ->useLogName('cash_movement')
+            ->logOnlyDirty();
     }
 }

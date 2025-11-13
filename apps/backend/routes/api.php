@@ -34,6 +34,7 @@ use App\Http\Controllers\SaleAnnulmentController;
 use App\Http\Controllers\ComboController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\ProductCostHistoryController;
+use App\Http\Controllers\AuditController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -432,6 +433,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/', [ShipmentController::class, 'upsertStage']);
         Route::delete('/{id}', [ShipmentController::class, 'deleteStage']);
         Route::post('/visibility', [ShipmentController::class, 'configureVisibility']);
+    });
+
+    // Audit Routes
+    Route::prefix('audits')->group(function () {
+        Route::get('/', [AuditController::class, 'index']);
+        Route::get('/statistics', [AuditController::class, 'statistics']);
+        Route::get('/filter-options', [AuditController::class, 'filterOptions']);
+        Route::get('/{id}', [AuditController::class, 'show']);
+        Route::get('/user/{userId}', [AuditController::class, 'getUserAudits']);
+        Route::get('/model/{subjectType}/{subjectId}', [AuditController::class, 'getModelAudits']);
     });
 
 });

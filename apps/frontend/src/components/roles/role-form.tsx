@@ -115,6 +115,9 @@ function getFeatureForModule(moduleName: string): boolean {
     'envíos': 'shipments',
     'shipments': 'shipments',
     'envio': 'shipments',
+    'auditoria': 'auditorias',
+    'auditoría': 'auditorias',
+    'auditorias': 'auditorias',
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();

@@ -191,6 +191,14 @@ export const PERMISSIONS_CONFIG = {
     ]
   },
   
+  // Auditorías
+  auditorias: {
+    feature: 'auditorias',
+    permissions: [
+      'ver_auditorias'
+    ]
+  },
+  
   // Reparaciones (feature deshabilitada)
   repairs: {
     feature: 'repairs',

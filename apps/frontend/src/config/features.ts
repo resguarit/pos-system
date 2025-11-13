@@ -31,6 +31,7 @@ const features = {
   zonasEntrega: false,
   
   shipments: true,
+  auditorias: true,
 } as const;
 
 export default features;

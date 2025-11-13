@@ -10,11 +10,12 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, SoftDeletes, LogsActivity, HasApiTokens;
+    use HasFactory, Notifiable, SoftDeletes, LogsActivity, HasApiTokens, LogsActivityWithContext;
 
     /**
      * The attributes that are mass assignable.

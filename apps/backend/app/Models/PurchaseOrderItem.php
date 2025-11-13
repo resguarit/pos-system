@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class PurchaseOrderItem extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'purchase_order_id',

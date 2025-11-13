@@ -342,6 +342,16 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               )}
+              {features.auditorias && hasPermission('ver_auditorias') && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/dashboard/auditorias"} tooltip="Auditorías">
+                  <Link to="/dashboard/auditorias">
+                    <FileText className="h-4 w-4" />
+                    <span>Auditorías</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              )}
               {features.solicitudes && (
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/dashboard/solicitudes"} tooltip="Solicitudes">

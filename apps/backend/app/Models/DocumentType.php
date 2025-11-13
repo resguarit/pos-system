@@ -3,9 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class DocumentType extends Model
 {
+    use LogsActivity, LogsActivityWithContext;
+
     protected $fillable = [
         'name',
         'code',
@@ -19,7 +24,8 @@ class DocumentType extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->useLogName('DocumentType')
-            ->setDescriptionForEvent(fn (string $eventName) => "DocumentType {$eventName}");
+            ->logOnly(['name', 'code'])
+            ->useLogName('document_type')
+            ->logOnlyDirty();
     }
 }

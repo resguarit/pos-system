@@ -11,10 +11,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use Carbon\Carbon;
+use App\Traits\LogsActivityWithContext;
 
 class CurrentAccountMovement extends Model
 {
-    use HasFactory, SoftDeletes, LogsActivity;
+    use HasFactory, SoftDeletes, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'current_account_id',
