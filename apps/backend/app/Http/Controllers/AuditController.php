@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Interfaces\AuditServiceInterface;
-use Illuminate\Http\Request;
+use App\Http\Requests\GetAuditsRequest;
+use App\Http\Requests\GetAuditStatisticsRequest;
+use App\Http\Requests\GetUserAuditsRequest;
+use App\Http\Requests\GetModelAuditsRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class AuditController extends Controller
 {
@@ -19,24 +23,31 @@ class AuditController extends Controller
     /**
      * Obtener todas las auditorías con filtros opcionales
      *
-     * @param Request $request
+     * @param GetAuditsRequest $request
      * @return JsonResponse
      */
-    public function index(Request $request): JsonResponse
+    public function index(GetAuditsRequest $request): JsonResponse
     {
         try {
+            $validated = $request->validated();
+            
+            // Sanitizar búsqueda
+            if (isset($validated['search'])) {
+                $validated['search'] = Str::limit(trim($validated['search']), 255);
+            }
+
             $filters = [
-                'user_id' => $request->query('user_id'),
-                'subject_type' => $request->query('subject_type'),
-                'log_name' => $request->query('log_name'),
-                'event' => $request->query('event'),
-                'search' => $request->query('search'),
-                'date_from' => $request->query('date_from'),
-                'date_to' => $request->query('date_to'),
-                'ip_address' => $request->query('ip_address'),
+                'user_id' => $validated['user_id'] ?? null,
+                'subject_type' => $validated['subject_type'] ?? null,
+                'log_name' => $validated['log_name'] ?? null,
+                'event' => $validated['event'] ?? null,
+                'search' => $validated['search'] ?? null,
+                'date_from' => $validated['date_from'] ?? null,
+                'date_to' => $validated['date_to'] ?? null,
+                'ip_address' => $validated['ip_address'] ?? null,
             ];
 
-            $perPage = $request->query('per_page', 50);
+            $perPage = min($validated['per_page'] ?? 50, 100); // Máximo 100
 
             $audits = $this->auditService->getAudits($filters, $perPage);
 
@@ -72,6 +83,15 @@ class AuditController extends Controller
     public function show(int $id): JsonResponse
     {
         try {
+            // Verificar permiso
+            if (!auth()->user()?->hasPermission('ver_auditorias')) {
+                return response()->json([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'No tienes permiso para ver auditorías',
+                ], 403);
+            }
+
             $audit = $this->auditService->getAuditById($id);
 
             if (!$audit) {
@@ -102,14 +122,15 @@ class AuditController extends Controller
     /**
      * Obtener auditorías de un usuario específico
      *
-     * @param Request $request
+     * @param GetUserAuditsRequest $request
      * @param int $userId
      * @return JsonResponse
      */
-    public function getUserAudits(Request $request, int $userId): JsonResponse
+    public function getUserAudits(GetUserAuditsRequest $request, int $userId): JsonResponse
     {
         try {
-            $perPage = $request->query('per_page', 50);
+            $validated = $request->validated();
+            $perPage = min($validated['per_page'] ?? 50, 100); // Máximo 100
             $audits = $this->auditService->getUserAudits($userId, $perPage);
 
             return response()->json([
@@ -138,15 +159,16 @@ class AuditController extends Controller
     /**
      * Obtener auditorías de un modelo específico
      *
-     * @param Request $request
+     * @param GetModelAuditsRequest $request
      * @param string $subjectType
      * @param int $subjectId
      * @return JsonResponse
      */
-    public function getModelAudits(Request $request, string $subjectType, int $subjectId): JsonResponse
+    public function getModelAudits(GetModelAuditsRequest $request, string $subjectType, int $subjectId): JsonResponse
     {
         try {
-            $perPage = $request->query('per_page', 50);
+            $validated = $request->validated();
+            $perPage = min($validated['per_page'] ?? 50, 100); // Máximo 100
             $audits = $this->auditService->getModelAudits($subjectType, $subjectId, $perPage);
 
             return response()->json([
@@ -175,15 +197,16 @@ class AuditController extends Controller
     /**
      * Obtener estadísticas de auditorías
      *
-     * @param Request $request
+     * @param GetAuditStatisticsRequest $request
      * @return JsonResponse
      */
-    public function statistics(Request $request): JsonResponse
+    public function statistics(GetAuditStatisticsRequest $request): JsonResponse
     {
         try {
+            $validated = $request->validated();
             $filters = [
-                'date_from' => $request->query('date_from'),
-                'date_to' => $request->query('date_to'),
+                'date_from' => $validated['date_from'] ?? null,
+                'date_to' => $validated['date_to'] ?? null,
             ];
 
             $statistics = $this->auditService->getStatistics($filters);
@@ -213,9 +236,27 @@ class AuditController extends Controller
     public function filterOptions(): JsonResponse
     {
         try {
-            $subjectTypes = $this->auditService->getAvailableSubjectTypes();
-            $logNames = $this->auditService->getAvailableLogNames();
-            $users = $this->auditService->getAvailableUsers();
+            // Verificar permiso manualmente ya que no hay Request
+            if (!auth()->user()?->hasPermission('ver_auditorias')) {
+                return response()->json([
+                    'status' => 403,
+                    'success' => false,
+                    'message' => 'No tienes permiso para ver auditorías',
+                ], 403);
+            }
+
+            // Cachear opciones de filtros por 10 minutos
+            $subjectTypes = cache()->remember('audit_filter_subject_types', 600, function () {
+                return $this->auditService->getAvailableSubjectTypes();
+            });
+
+            $logNames = cache()->remember('audit_filter_log_names', 600, function () {
+                return $this->auditService->getAvailableLogNames();
+            });
+
+            $users = cache()->remember('audit_filter_users', 600, function () {
+                return $this->auditService->getAvailableUsers();
+            });
 
             return response()->json([
                 'status' => 200,

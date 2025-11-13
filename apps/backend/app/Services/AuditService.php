@@ -43,14 +43,16 @@ class AuditService implements AuditServiceInterface
             $query->where('event', $filters['event']);
         }
 
-        // Filtrar por descripción (búsqueda)
+        // Filtrar por descripción (búsqueda) - Sanitizado
         if (isset($filters['search']) && $filters['search']) {
-            $search = $filters['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('description', 'like', "%{$search}%")
-                  ->orWhereHas('causer.person', function ($q) use ($search) {
-                      $q->where('first_name', 'like', "%{$search}%")
-                        ->orWhere('last_name', 'like', "%{$search}%");
+            $search = trim($filters['search']);
+            // Escapar caracteres especiales para LIKE
+            $searchEscaped = str_replace(['%', '_'], ['\%', '\_'], $search);
+            $query->where(function ($q) use ($searchEscaped) {
+                $q->where('description', 'like', "%{$searchEscaped}%")
+                  ->orWhereHas('causer.person', function ($q) use ($searchEscaped) {
+                      $q->where('first_name', 'like', "%{$searchEscaped}%")
+                        ->orWhere('last_name', 'like', "%{$searchEscaped}%");
                   });
             });
         }

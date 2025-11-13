@@ -435,8 +435,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/visibility', [ShipmentController::class, 'configureVisibility']);
     });
 
-    // Audit Routes
-    Route::prefix('audits')->group(function () {
+    // Audit Routes - Rate limited to 60 requests per minute
+    Route::prefix('audits')->middleware('throttle:60,1')->group(function () {
         Route::get('/', [AuditController::class, 'index']);
         Route::get('/statistics', [AuditController::class, 'statistics']);
         Route::get('/filter-options', [AuditController::class, 'filterOptions']);
