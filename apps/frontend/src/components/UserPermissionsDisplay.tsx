@@ -11,6 +11,7 @@ import {
   Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { RoleBadge } from '@/components/roles/RoleBadge';
 import {
   Dialog,
   DialogContent,
@@ -184,15 +185,7 @@ export function UserPermissionsDisplay({
   };
 
   const getRoleBadge = () => {
-    if (isAdmin()) {
-      return <Badge className="bg-red-100 text-red-800 border-red-300">Administrador</Badge>;
-    }
-    
-    return (
-      <Badge variant="outline">
-        {user.role?.name || 'Sin rol'}
-      </Badge>
-    );
+    return <RoleBadge roleName={user.role?.name} />;
   };
 
   const BasicInfo = () => (
