@@ -33,6 +33,7 @@ use App\Http\Controllers\ExchangeRateController; // **SOLUCIÓN BUG #2**
 use App\Http\Controllers\SaleAnnulmentController;
 use App\Http\Controllers\ComboController;
 use App\Http\Controllers\ShipmentController;
+use App\Http\Controllers\ProductCostHistoryController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -114,6 +115,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/bulk-update-prices-by-category', [ProductController::class, 'bulkUpdatePricesByCategory']);
         Route::post('/bulk-update-prices-by-supplier', [ProductController::class, 'bulkUpdatePricesBySupplier']);
         Route::get('/by-categories', [ProductController::class, 'getProductsByCategories']);
+    });
+
+    // Product Cost History Routes
+    Route::prefix('product-cost-history')->group(function () {
+        Route::get('/product/{productId}', [ProductCostHistoryController::class, 'getProductHistory']);
+        Route::get('/product/{productId}/last', [ProductCostHistoryController::class, 'getLastCostChange']);
+        Route::post('/multiple', [ProductCostHistoryController::class, 'getMultipleProductsHistory']);
     });
 
     // Rutas específicas para actualización masiva (completamente fuera del grupo de productos)

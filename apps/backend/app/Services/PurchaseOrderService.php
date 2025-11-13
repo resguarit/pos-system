@@ -9,6 +9,8 @@ use App\Interfaces\PurchaseOrderServiceInterface;
 use App\Interfaces\StockServiceInterface;
 use App\Interfaces\ProductServiceInterface; 
 use App\Services\PricingService;
+use App\Services\ProductCostHistoryService;
+use App\Constants\ProductCostHistorySourceTypes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -277,11 +279,29 @@ public function createPurchaseOrder(array $data)
                 
                 // Solo hacer la actualización si hay cambios
                 if (!empty($updateData)) {
-                    $this->productService->updateProduct($product->id, $updateData);
+                    // Actualizar producto omitiendo el registro automático de historial
+                    // porque lo registraremos manualmente con el sourceType correcto
+                    $this->productService->updateProduct($product->id, $updateData, true); // skipCostHistory = true
                     
                     // Si cambió el precio unitario, recalcular el precio de venta manteniendo el markup
                     if ($shouldRecalculatePrice) {
                         $this->recalculateSalePriceMaintainingMarkup($product, $orderPrice);
+                        
+                        // Registrar historial de costo con el sourceType correcto
+                        try {
+                            $costHistoryService = app(ProductCostHistoryService::class);
+                            $supplierName = $purchaseOrder->supplier ? $purchaseOrder->supplier->name : 'N/A';
+                            $costHistoryService->recordCostChange(
+                                $product->fresh(), // Obtener el producto actualizado
+                                (float)$orderPrice,
+                                ProductCostHistorySourceTypes::PURCHASE_ORDER,
+                                $purchaseOrder->id,
+                                "Orden de compra #{$purchaseOrder->id} - Proveedor: {$supplierName}",
+                                (float)$product->unit_price // Pasar el costo anterior antes de la actualización
+                            );
+                        } catch (Exception $e) {
+                            Log::error("Error registrando historial de costo al completar orden {$purchaseOrder->id} para producto {$product->id}: " . $e->getMessage());
+                        }
                     }
                 }
                 

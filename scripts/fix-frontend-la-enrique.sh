@@ -68,3 +68,4 @@ echo ""
 echo "✅ Frontend corregido correctamente"
 echo "🌐 Prueba acceder a: https://laenriquetabar.com.ar"
 
+

@@ -10,6 +10,8 @@ use App\Models\Measure;
 use App\Models\Supplier;
 use App\Models\Stock;
 use App\Models\Branch;
+use App\Services\ProductCostHistoryService;
+use App\Constants\ProductCostHistorySourceTypes;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -138,11 +140,12 @@ class ProductService implements ProductServiceInterface
         return Product::with(['measure', 'category', 'iva', 'supplier', 'stocks'])->findOrFail($id);
     }
 
-    public function updateProduct($id, array $data)
+    public function updateProduct($id, array $data, bool $skipCostHistory = false)
     {
         Log::info('ProductService::updateProduct - INICIO');
         Log::info('ProductService::updateProduct - Product ID: ' . $id);
         Log::info('ProductService::updateProduct - Data recibida: ', $data);
+        Log::info('ProductService::updateProduct - Skip Cost History: ' . ($skipCostHistory ? 'true' : 'false'));
         
         // Logging específico para status y web
         if (array_key_exists('status', $data)) {
@@ -153,6 +156,10 @@ class ProductService implements ProductServiceInterface
         }
         
         $product = Product::findOrFail($id);
+        
+        // Guardar el costo anterior antes de actualizar
+        $previousCost = $product->unit_price;
+        $costChanged = isset($data['unit_price']) && (float)$previousCost !== (float)$data['unit_price'];
         
         // Log valores actuales antes de actualizar
         Log::info('ProductService::updateProduct - Valores actuales - Status: ' . var_export($product->status, true) . ', Web: ' . var_export($product->web, true));
@@ -257,6 +264,26 @@ class ProductService implements ProductServiceInterface
         
         $product->refresh();
         
+        // Registrar historial de costo si cambió y no se debe omitir
+        if ($costChanged && isset($data['unit_price']) && !$skipCostHistory) {
+            try {
+                $costHistoryService = app(ProductCostHistoryService::class);
+                $costHistoryService->recordCostChange(
+                    $product,
+                    (float)$data['unit_price'],
+                    ProductCostHistorySourceTypes::MANUAL,
+                    null,
+                    'Actualización manual del costo',
+                    $previousCost // Pasar el costo anterior explícitamente
+                );
+            } catch (Exception $e) {
+                Log::error("Error registrando historial de costo para producto {$product->id}: " . $e->getMessage());
+                // No lanzar excepción para no interrumpir la actualización del producto
+            }
+        } elseif ($costChanged && $skipCostHistory) {
+            Log::info("Historial de costo omitido para producto {$product->id} (skipCostHistory=true)");
+        }
+        
         Log::info("Product after update: " . json_encode($product->toArray()));
         Log::info('ProductService::updateProduct - FIN');
         
@@ -314,6 +341,21 @@ class ProductService implements ProductServiceInterface
                     
                     // Recalcular el precio de venta
                     $this->recalculateSalePrice($product);
+                    
+                    // Registrar historial de costo
+                    try {
+                        $costHistoryService = app(ProductCostHistoryService::class);
+                        $costHistoryService->recordCostChange(
+                            $product,
+                            (float)$update['unit_price'],
+                            ProductCostHistorySourceTypes::BULK_UPDATE,
+                            null,
+                            'Actualización masiva de precios',
+                            $oldPrice // Pasar el costo anterior explícitamente
+                        );
+                    } catch (Exception $e) {
+                        Log::error("Error registrando historial de costo en bulk update para producto {$product->id}: " . $e->getMessage());
+                    }
 
                     Log::info('Bulk price update', [
                         'product_id' => $product->id,
@@ -367,6 +409,21 @@ class ProductService implements ProductServiceInterface
                 
                 // Recalcular el precio de venta
                 $this->recalculateSalePrice($product);
+                
+                // Registrar historial de costo
+                try {
+                    $costHistoryService = app(ProductCostHistoryService::class);
+                    $costHistoryService->recordCostChange(
+                        $product,
+                        (float)$newPrice,
+                        ProductCostHistorySourceTypes::BULK_UPDATE_BY_CATEGORY,
+                        null,
+                        "Actualización masiva por categoría: {$updateType} {$value}",
+                        $oldPrice // Pasar el costo anterior explícitamente
+                    );
+                } catch (Exception $e) {
+                    Log::error("Error registrando historial de costo en bulk update por categoría para producto {$product->id}: " . $e->getMessage());
+                }
 
                 Log::info('Bulk category price update', [
                     'product_id' => $product->id,
@@ -408,6 +465,21 @@ class ProductService implements ProductServiceInterface
                 
                 // Recalcular el precio de venta
                 $this->recalculateSalePrice($product);
+                
+                // Registrar historial de costo
+                try {
+                    $costHistoryService = app(ProductCostHistoryService::class);
+                    $costHistoryService->recordCostChange(
+                        $product,
+                        (float)$newPrice,
+                        ProductCostHistorySourceTypes::BULK_UPDATE_BY_SUPPLIER,
+                        null,
+                        "Actualización masiva por proveedor: {$updateType} {$value}",
+                        $oldPrice // Pasar el costo anterior explícitamente
+                    );
+                } catch (Exception $e) {
+                    Log::error("Error registrando historial de costo en bulk update por proveedor para producto {$product->id}: " . $e->getMessage());
+                }
                 
                 $updatedCount++;
             }

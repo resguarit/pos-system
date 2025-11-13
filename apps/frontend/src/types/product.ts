@@ -107,3 +107,48 @@ export interface ExchangeRate {
   created_at: string;
   updated_at: string;
 }
+
+// Interface para el historial de costos de productos
+export interface ProductCostHistory {
+  id: number;
+  product_id: number;
+  previous_cost: number | null;
+  new_cost: number;
+  currency: 'USD' | 'ARS';
+  source_type: 'purchase_order' | 'manual' | 'bulk_update' | 'bulk_update_by_category' | 'bulk_update_by_supplier' | null;
+  source_id: number | null;
+  notes: string | null;
+  user_id: number | null;
+  created_at: string;
+  updated_at: string;
+  // Relaciones
+  product?: Product;
+  user?: {
+    id: number;
+    email: string;
+    person?: {
+      first_name: string;
+      last_name: string;
+    };
+  };
+  // Atributos calculados
+  percentage_change?: number | null;
+  absolute_change?: number;
+}
+
+// Interface para la respuesta del historial de costos de un producto
+export interface ProductCostHistoryResponse {
+  status: number;
+  success: boolean;
+  message: string;
+  data: {
+    product: {
+      id: number;
+      description: string;
+      code: string;
+      current_cost: number;
+      currency: 'USD' | 'ARS';
+    };
+    history: ProductCostHistory[];
+  };
+}

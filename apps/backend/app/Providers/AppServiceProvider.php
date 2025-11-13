@@ -48,6 +48,8 @@ use App\Interfaces\ShipmentServiceInterface;
 use App\Services\ShipmentService;
 use App\Interfaces\ShipmentStageServiceInterface;
 use App\Services\ShipmentStageService;
+use App\Interfaces\ProductCostHistoryServiceInterface;
+use App\Services\ProductCostHistoryService;
 use App\Services\SearchService;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
@@ -88,6 +90,9 @@ class AppServiceProvider extends ServiceProvider
         // Shipment bindings
         $this->app->bind(ShipmentServiceInterface::class, ShipmentService::class);
         $this->app->bind(ShipmentStageServiceInterface::class, ShipmentStageService::class);
+        
+        // Product Cost History binding
+        $this->app->bind(ProductCostHistoryServiceInterface::class, ProductCostHistoryService::class);
         
         // Search Service binding
         $this->app->singleton(SearchService::class);
