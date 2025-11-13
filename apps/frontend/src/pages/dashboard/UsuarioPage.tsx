@@ -5,12 +5,13 @@ import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, RotateCw, Search, Shield, Eye, Pencil, Trash2, UserCheck, ShoppingBag, BarChart3 } from "lucide-react"
+import { Plus, RotateCw, Search, Eye, Pencil, Trash2, BarChart3 } from "lucide-react"
 import { useEffect, useState, useCallback } from "react" 
 import useApi from "@/hooks/useApi"
 import { useAuth } from "@/hooks/useAuth"
 import { Link } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
+import { RoleBadge } from "@/components/roles/RoleBadge"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -369,30 +370,10 @@ export default function UsuariosPage() {
                       columnId="role"
                       getColumnCellProps={getColumnCellProps}
                     >
-                      {(() => {
-                        const roleName = typeof user.role === "string" ? user.role : user.role?.name || ""
-                        let badgeClass = ""
-                        let icon = <Shield className="mr-1 h-3 w-3" />
-                        if (roleName.toLowerCase() === "administrador") {
-                          badgeClass = "bg-purple-100 text-purple-800"
-                          icon = <Shield className="mr-1 h-3 w-3" />
-                        } else if (roleName.toLowerCase() === "supervisor") {
-                          badgeClass = "bg-green-100 text-green-800"
-                          icon = <UserCheck className="mr-1 h-3 w-3" />
-                        } else if (roleName.toLowerCase() === "vendedor") {
-                          badgeClass = "bg-orange-100 text-orange-800"
-                          icon = <ShoppingBag className="mr-1 h-3 w-3" />
-                        } else {
-                          badgeClass = "bg-blue-100 text-blue-800"
-                          icon = <Shield className="mr-1 h-3 w-3" />
-                        }
-                        return (
-                          <Badge className={badgeClass + " hover:bg-opacity-90 truncate"} title={roleName}>
-                            {icon}
-                            {roleName}
-                          </Badge>
-                        )
-                      })()}
+                      <RoleBadge
+                        roleName={typeof user.role === "string" ? user.role : user.role?.name}
+                        className="hover:bg-opacity-90 truncate"
+                      />
                     </ResizableTableCell>
                     <ResizableTableCell
                       columnId="status"

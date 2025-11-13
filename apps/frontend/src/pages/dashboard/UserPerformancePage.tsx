@@ -7,18 +7,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { CalendarIcon, ArrowLeft, Download, TrendingUp, BarChart3, DollarSign, Users, Target, Award, RefreshCw } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { ArrowLeft, Download, TrendingUp, BarChart3, DollarSign, Users, Target, Award, RefreshCw } from 'lucide-react';
+import { DatePickerWithRange } from '@/components/ui/date-range-picker';
+import type { DateRange } from '@/components/ui/date-range-picker';
 import * as XLSX from 'xlsx';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
@@ -123,9 +122,9 @@ export default function UserPerformancePage() {
   const [loadingUser, setLoadingUser] = useState(true);
 
   // Estados de filtros
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
-    from: new Date(2025, 9, 1), // 1 de octubre 2025 (mes 9 = octubre)
-    to: new Date(2025, 9, 21), // 21 de octubre 2025
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date()),
+    to: new Date(),
   });
   const [branchFilter, setBranchFilter] = useState<string>('all');
   const [branches, setBranches] = useState<Array<{ id: number; description: string }>>([]);
@@ -232,7 +231,7 @@ export default function UserPerformancePage() {
         per_page: 10,
       };
 
-      if (dateRange.from && dateRange.to) {
+      if (dateRange?.from && dateRange?.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
       }
@@ -272,7 +271,7 @@ export default function UserPerformancePage() {
     try {
       const params: any = {};
 
-      if (dateRange.from && dateRange.to) {
+      if (dateRange?.from && dateRange?.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
       }
@@ -320,7 +319,7 @@ export default function UserPerformancePage() {
     try {
       const params: any = {};
 
-      if (dateRange.from && dateRange.to) {
+      if (dateRange?.from && dateRange?.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
       }
@@ -355,7 +354,7 @@ export default function UserPerformancePage() {
     try {
       const params: any = {};
 
-      if (dateRange.from && dateRange.to) {
+      if (dateRange?.from && dateRange?.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
       }
@@ -390,7 +389,7 @@ export default function UserPerformancePage() {
     try {
       const params: any = {};
 
-      if (dateRange.from && dateRange.to) {
+      if (dateRange?.from && dateRange?.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
       }
@@ -431,7 +430,7 @@ export default function UserPerformancePage() {
         page: 1,
       };
 
-      if (dateRange.from && dateRange.to) {
+      if (dateRange?.from && dateRange?.to) {
         params.from_date = format(dateRange.from, 'yyyy-MM-dd');
         params.to_date = format(dateRange.to, 'yyyy-MM-dd');
       }
@@ -482,7 +481,7 @@ export default function UserPerformancePage() {
         // Obtener el nombre del usuario desde el estado o desde la respuesta del API
         const userNameRaw = user?.name || (response as any)?.user?.name || userId?.toString() || 'usuario';
         const userName = typeof userNameRaw === 'string' ? userNameRaw.replace(/\s+/g, '_') : 'usuario';
-        const fileName = `desempeno_${userName}_${format(dateRange.from || new Date(), 'yyyy-MM-dd')}_${format(dateRange.to || new Date(), 'yyyy-MM-dd')}.xlsx`;
+        const fileName = `desempeno_${userName}_${format(dateRange?.from || new Date(), 'yyyy-MM-dd')}_${format(dateRange?.to || new Date(), 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(workbook, fileName);
 
         toast.success(`Exportación completada: ${allSales.length} ventas exportadas.`, { id: 'export-toast' });
@@ -564,57 +563,15 @@ export default function UserPerformancePage() {
           <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
+          <div className="flex flex-col md:flex-row gap-2 items-end">
+            <div className="space-y-2 flex-1">
               <Label>Rango de fechas</Label>
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !dateRange.from && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.from ? format(dateRange.from, 'dd/MM/yyyy') : 'Desde'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.from}
-                      onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !dateRange.to && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange.to ? format(dateRange.to, 'dd/MM/yyyy') : 'Hasta'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateRange.to}
-                      onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <DatePickerWithRange
+                selected={dateRange}
+                onSelect={setDateRange}
+              />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 flex-1">
               <Label>Sucursal</Label>
               <Select value={branchFilter} onValueChange={setBranchFilter}>
                 <SelectTrigger>
@@ -633,11 +590,15 @@ export default function UserPerformancePage() {
             <div className="flex items-end">
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
-                  setDateRange({ from: undefined, to: undefined });
+                  setDateRange({
+                    from: startOfMonth(new Date()),
+                    to: new Date(),
+                  });
                   setBranchFilter('all');
                 }}
-                className="w-full cursor-pointer"
+                className="cursor-pointer"
               >
                 Limpiar filtros
               </Button>

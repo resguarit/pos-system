@@ -7,11 +7,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
 import { Loader2, User as UserIcon } from "lucide-react"
 import useApi from "@/hooks/useApi"
 import { toast } from "sonner"
-import { getRoleStyle } from "@/types/roles-styles"
+import { RoleBadge } from "@/components/roles/RoleBadge"
 
 interface User {
   id: string;
@@ -83,9 +82,6 @@ export function BranchPersonnelModal({
           ) : personnel.length > 0 ? (
             <ul className="space-y-3">
               {personnel.map((user) => {
-                const roleStyle = getRoleStyle(user.role.name);
-                const RoleIcon = roleStyle.icon;
-                const roleColor = roleStyle.color;
                 const firstName = user.person?.first_name || '';
                 const lastName = user.person?.last_name || '';
                 const userInitials = `${firstName[0] || ''}${lastName[0] || ''}` || 'U';
@@ -103,10 +99,10 @@ export function BranchPersonnelModal({
                         {fullName}
                       </span>
                     </div>
-                    <Badge variant="outline" className={`flex items-center gap-1.5 ${roleColor}`}>
-                      <RoleIcon className="h-3.5 w-3.5" />
-                      {user.role.name}
-                    </Badge>
+                    <RoleBadge 
+                      roleName={user.role.name}
+                      iconSize="h-3.5 w-3.5"
+                    />
                   </li>
                 );
               })}

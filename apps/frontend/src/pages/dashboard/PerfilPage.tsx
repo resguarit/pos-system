@@ -17,6 +17,7 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
+import { RoleBadge } from "@/components/roles/RoleBadge"
 
 interface UserProfile {
   id: string;
@@ -266,7 +267,11 @@ return (
             <div className="space-y-1 text-center">
               <h3 className="text-2xl font-bold">{getUserFullName()}</h3>
               <p className="text-sm text-muted-foreground">{profile?.email || 'Sin email'}</p>
-              <Badge className="mt-2">{profile?.role?.description || profile?.role?.name || 'Sin rol'}</Badge>
+              <RoleBadge
+                roleName={profile?.role?.name}
+                displayText={profile?.role?.description || profile?.role?.name}
+                className="mt-2"
+              />
             </div>
             <Button variant="outline" className="w-full">
               Cambiar Foto
