@@ -26,7 +26,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Eye, Search, Filter, X, Calendar, User, FileText, Activity, Database, FileBarChart, Users } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Eye, Search, X, User, FileText, Activity, Database, FileBarChart, Users, ChevronDown, Check } from 'lucide-react';
 import useApi from '@/hooks/useApi';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -609,96 +615,115 @@ export default function AuditoriasPage() {
         </div>
       )}
 
-      {/* Filtros */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Filtros de Búsqueda</CardTitle>
-            {activeFiltersCount > 0 && (
-              <Badge variant="secondary">
-                {activeFiltersCount} {activeFiltersCount === 1 ? 'filtro activo' : 'filtros activos'}
-              </Badge>
-            )}
+      {/* Barra de búsqueda y filtros */}
+      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+        <div className="flex flex-1 items-center space-x-2">
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar en descripciones y nombres de usuarios..."
+              className="w-full pl-8"
+              value={filters.search || ''}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+            />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Búsqueda</Label>
-              <Input
-                placeholder="Buscar en descripciones y nombres de usuarios..."
-                value={filters.search || ''}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-              />
-            </div>
+        </div>
+        <div className="flex items-center space-x-2">
+          {/* Dropdown para Usuario */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="justify-between min-w-[160px]">
+                {filters.user_id 
+                  ? filterOptions?.users.find(u => u.id === filters.user_id)?.name || 'Usuario'
+                  : 'Todos los usuarios'}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px] max-h-[300px] overflow-y-auto">
+              <DropdownMenuItem onClick={() => handleFilterChange('user_id', undefined)}>
+                <Check className={`mr-2 h-4 w-4 ${!filters.user_id ? 'opacity-100' : 'opacity-0'}`} />
+                Todos los usuarios
+              </DropdownMenuItem>
+              {filterOptions?.users.map((user) => (
+                <DropdownMenuItem 
+                  key={user.id} 
+                  onClick={() => handleFilterChange('user_id', user.id)}
+                >
+                  <Check className={`mr-2 h-4 w-4 ${filters.user_id === user.id ? 'opacity-100' : 'opacity-0'}`} />
+                  {user.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-            <div className="space-y-2">
-              <Label>Usuario</Label>
-              <Select
-                value={filters.user_id ? String(filters.user_id) : 'all'}
-                onValueChange={(value) => handleFilterChange('user_id', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todos los usuarios" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="all">Todos los usuarios</SelectItem>
-                  {filterOptions?.users.map((user) => (
-                    <SelectItem key={user.id} value={String(user.id)}>
-                      {user.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Dropdown para Área del Sistema */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="justify-between min-w-[180px]">
+                {filters.subject_type 
+                  ? getSubjectTypeLabel(filters.subject_type)
+                  : 'Todas las áreas'}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px] max-h-[300px] overflow-y-auto">
+              <DropdownMenuItem onClick={() => handleFilterChange('subject_type', undefined)}>
+                <Check className={`mr-2 h-4 w-4 ${!filters.subject_type ? 'opacity-100' : 'opacity-0'}`} />
+                Todas las áreas
+              </DropdownMenuItem>
+              {filterOptions?.subject_types.map((type) => (
+                <DropdownMenuItem 
+                  key={type} 
+                  onClick={() => handleFilterChange('subject_type', type)}
+                >
+                  <Check className={`mr-2 h-4 w-4 ${filters.subject_type === type ? 'opacity-100' : 'opacity-0'}`} />
+                  {getSubjectTypeLabel(type)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-            <div className="space-y-2">
-              <Label>Área del Sistema</Label>
-              <Select
-                value={filters.subject_type || 'all'}
-                onValueChange={(value) => handleFilterChange('subject_type', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Todas las áreas" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
-                  <SelectItem value="all">Todas las áreas</SelectItem>
-                  {filterOptions?.subject_types.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {getSubjectTypeLabel(type)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Dropdown para Evento */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="justify-between min-w-[140px]">
+                {filters.event === 'created' ? 'Creado' :
+                 filters.event === 'updated' ? 'Actualizado' :
+                 filters.event === 'deleted' ? 'Eliminado' :
+                 'Todos los eventos'}
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[140px]">
+              <DropdownMenuItem onClick={() => handleFilterChange('event', undefined)}>
+                <Check className={`mr-2 h-4 w-4 ${!filters.event ? 'opacity-100' : 'opacity-0'}`} />
+                Todos los eventos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleFilterChange('event', 'created')}>
+                <Check className={`mr-2 h-4 w-4 ${filters.event === 'created' ? 'opacity-100' : 'opacity-0'}`} />
+                Creado
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleFilterChange('event', 'updated')}>
+                <Check className={`mr-2 h-4 w-4 ${filters.event === 'updated' ? 'opacity-100' : 'opacity-0'}`} />
+                Actualizado
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleFilterChange('event', 'deleted')}>
+                <Check className={`mr-2 h-4 w-4 ${filters.event === 'deleted' ? 'opacity-100' : 'opacity-0'}`} />
+                Eliminado
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-            <div className="space-y-2">
-              <Label>Fecha Desde</Label>
-              <Input
-                type="date"
-                value={filters.date_from || ''}
-                onChange={(e) => handleFilterChange('date_from', e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Fecha Hasta</Label>
-              <Input
-                type="date"
-                value={filters.date_to || ''}
-                onChange={(e) => handleFilterChange('date_to', e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end mt-4">
-            <Button variant="outline" onClick={clearFilters}>
+          {/* Botón para limpiar filtros */}
+          {activeFiltersCount > 0 && (
+            <Button variant="outline" size="sm" onClick={clearFilters}>
               <X className="h-4 w-4 mr-2" />
-              Limpiar Filtros
+              Limpiar
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </div>
+      </div>
 
       {/* Tabla de Auditorías */}
       <Card>
@@ -825,7 +850,7 @@ export default function AuditoriasPage() {
                             size="sm"
                             onClick={() => handleViewDetails(audit)}
                           >
-                            <Eye className="h-4 w-4" />
+                            <Eye className="h-4 w-4 text-blue-600" />
                           </Button>
                         </TableCell>
                       </TableRow>
