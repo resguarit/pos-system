@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
-import { format, startOfYear } from "date-fns" // Removed unused startOfMonth
+import { format, startOfYear } from "date-fns"
 import { es } from "date-fns/locale"
 import * as XLSX from "xlsx"
 import axios from "axios"
@@ -20,21 +20,35 @@ import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-c
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import { useAuth } from "@/context/AuthContext"
+import Pagination from "@/components/ui/pagination"
 
 // Tipos y Utilidades
 import type { SaleHeader } from "@/types/sale"
 import type { DateRange } from "@/components/ui/date-range-picker"
-import { getReceiptStyle } from "@/lib/receipt-styles" 
+import { getReceiptStyle } from "@/lib/receipt-styles"
+import { NumberFormatter } from "@/lib/formatters/numberFormatter"
+
+// Tipos
+interface Branch {
+  id: string | number;
+  description: string;
+  address?: string;
+  phone?: string;
+  status?: number;
+} 
 
 // Iconos
 import { ArrowLeft, Download, Search, Filter, Eye, FileText, /*Receipt,*/ BarChart, Users, Loader2 } from "lucide-react"
+
+// Tamaño de página para paginación
+const PAGE_SIZE = 10;
 
 // --- Componente Principal ---
 export default function BranchSalesPage() {
   const params = useParams()
   const { request, loading } = useApi()
   const { hasPermission } = useAuth();
-  const [branch, setBranch] = useState<any>(null)
+  const [branch, setBranch] = useState<Branch | null>(null)
   const [sales, setSales] = useState<SaleHeader[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [receiptTypeFilter, setReceiptTypeFilter] = useState("all")
@@ -53,6 +67,12 @@ export default function BranchSalesPage() {
     client_count: 0,
   })
   const [isExporting, setIsExporting] = useState(false)
+  
+  // Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  
+  // Ref para hacer scroll a la tabla al cambiar de página
+  const tableRef = useRef<HTMLDivElement>(null)
 
   // --- Carga de Datos ---
   const fetchBranchAndSales = useCallback(async (id: string, from: Date, to: Date, signal: AbortSignal) => {
@@ -75,7 +95,7 @@ export default function BranchSalesPage() {
       // El backend puede devolver los datos directamente o dentro de .data
       const statsData = statsRes.data || statsRes;
       
-      setBranch(branchRes.data || { description: `Sucursal ${id}` });
+      setBranch((branchRes.data || { id, description: `Sucursal ${id}` }) as Branch);
       
       const salesData = salesRes.data || [];
       
@@ -164,15 +184,42 @@ export default function BranchSalesPage() {
     return { displayName: "N/A", filterKey: "N/A", afipCode: "N/A" };
   };
 
-  const filteredSales = sales.filter((sale: SaleHeader) => {
-    const receiptTypeInfo = getReceiptType(sale);
-    const matchesSearch =
-      searchTerm === "" ||
-      getCustomerName(sale).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sale.receipt_number.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesReceiptType = receiptTypeFilter === "all" || receiptTypeInfo.filterKey === receiptTypeFilter;
-    return matchesSearch && matchesReceiptType;
-  })
+  // Memoizar ventas filtradas para evitar recálculos innecesarios
+  const filteredSales = useMemo(() => {
+    return sales.filter((sale: SaleHeader) => {
+      const receiptTypeInfo = getReceiptType(sale);
+      const matchesSearch =
+        searchTerm === "" ||
+        getCustomerName(sale).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        sale.receipt_number?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesReceiptType = receiptTypeFilter === "all" || receiptTypeInfo.filterKey === receiptTypeFilter;
+      return matchesSearch && matchesReceiptType;
+    });
+  }, [sales, searchTerm, receiptTypeFilter]);
+
+  // Resetear a página 1 cuando cambien los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, receiptTypeFilter, dateRange]);
+
+  // Memoizar cálculos de paginación
+  const paginationData = useMemo(() => {
+    const totalItems = filteredSales.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const endIndex = startIndex + PAGE_SIZE;
+    const paginatedSales = filteredSales.slice(startIndex, endIndex);
+    
+    return { totalItems, totalPages, paginatedSales };
+  }, [filteredSales, currentPage]);
+
+  const goToPage = useCallback((pageNumber: number) => {
+    if (pageNumber >= 1 && pageNumber <= paginationData.totalPages && pageNumber !== currentPage) {
+      setCurrentPage(pageNumber);
+      // Scroll suave hacia la tabla
+      tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [currentPage, paginationData.totalPages]);
 
   // La función ahora espera `DateRange` y no `DateRange | undefined`
   const handleDateRangeChange = (range: DateRange) => {
@@ -313,12 +360,52 @@ export default function BranchSalesPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-5">
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Ventas</CardTitle><FileText className="h-4 w-4 text-sky-600" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.total_sales}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Monto Total</CardTitle><BarChart className="h-4 w-4 text-emerald-600" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatCurrency(stats.total_amount)}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total IVA</CardTitle><BarChart className="h-4 w-4 text-violet-600" /></CardHeader><CardContent><div className="text-2xl font-bold">{formatCurrency(stats.total_iva)}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Presupuestos</CardTitle><FileText className="h-4 w-4 text-emerald-600" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.budget_count}</div></CardContent></Card>
-        <Card><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Clientes Únicos</CardTitle><Users className="h-4 w-4 text-amber-600" /></CardHeader><CardContent><div className="text-2xl font-bold">{stats.client_count}</div></CardContent></Card>
+      <div className="grid gap-4 md:gap-6 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Ventas</CardTitle>
+            <FileText className="h-4 w-4 text-sky-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-bold break-words">{NumberFormatter.formatNumber(stats.total_sales)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Monto Total</CardTitle>
+            <BarChart className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg md:text-xl lg:text-2xl font-bold break-words leading-tight">{formatCurrency(stats.total_amount)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total IVA</CardTitle>
+            <BarChart className="h-4 w-4 text-violet-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-lg md:text-xl lg:text-2xl font-bold break-words leading-tight">{formatCurrency(stats.total_iva)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Presupuestos</CardTitle>
+            <FileText className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-bold break-words">{NumberFormatter.formatNumber(stats.budget_count)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Clientes Únicos</CardTitle>
+            <Users className="h-4 w-4 text-amber-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl md:text-2xl font-bold break-words">{NumberFormatter.formatNumber(stats.client_count)}</div>
+          </CardContent>
+        </Card>
       </div>
 
       <Collapsible open={showChart} onOpenChange={setShowChart} className="w-full space-y-2">
@@ -351,7 +438,7 @@ export default function BranchSalesPage() {
         </div>
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border" ref={tableRef}>
         <Table>
           <TableHeader>
             <TableRow>
@@ -367,7 +454,7 @@ export default function BranchSalesPage() {
           <TableBody>
             {loading && <TableRow><TableCell colSpan={7} className="text-center">Cargando ventas...</TableCell></TableRow>}
             {!loading && filteredSales.length === 0 && <TableRow><TableCell colSpan={7} className="text-center">No se encontraron ventas para el período seleccionado.</TableCell></TableRow>}
-            {!loading && filteredSales.map((sale) => {
+            {!loading && paginationData.paginatedSales.map((sale) => {
               const receiptTypeInfo = getReceiptType(sale);
               const { className: badgeClassName } = getReceiptStyle(receiptTypeInfo.displayName);
               
@@ -401,6 +488,19 @@ export default function BranchSalesPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Paginación */}
+      {!loading && filteredSales.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          lastPage={paginationData.totalPages}
+          total={paginationData.totalItems}
+          itemName="ventas"
+          onPageChange={goToPage}
+          disabled={loading}
+          className="mt-4"
+        />
+      )}
 
       {selectedSale && (<ViewSaleDialog open={isDetailOpen} onOpenChange={setIsDetailOpen} sale={selectedSale} getCustomerName={getCustomerName} formatDate={formatDate} getReceiptType={getReceiptType} onDownloadPdf={async (sale) => {
         if (!sale || !sale.id) {

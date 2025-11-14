@@ -915,7 +915,7 @@ export default function VentasPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats.total_sales}
+              {stats.total_sales.toLocaleString("es-AR")}
             </div>
             <p className="text-xs text-muted-foreground">
               {formatCurrency(stats.total_amount)} facturado
@@ -942,7 +942,7 @@ export default function VentasPage() {
             <FileText className="h-4 w-4 text-indigo-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.budget_count}</div>
+            <div className="text-2xl font-bold">{stats.budget_count.toLocaleString("es-AR")}</div>
             <p className="text-xs text-muted-foreground">
               Cantidad de presupuestos emitidos
             </p>
@@ -954,7 +954,7 @@ export default function VentasPage() {
             <Users className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.client_count}</div>
+            <div className="text-2xl font-bold">{stats.client_count.toLocaleString("es-AR")}</div>
             <p className="text-xs text-muted-foreground">
               Clientes distintos en el período
             </p>

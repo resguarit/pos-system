@@ -702,7 +702,7 @@ export default function UserPerformancePage() {
                         />
                         <Tooltip 
                           formatter={(value: any, name: string) => [
-                            name === 'total_amount' ? formatCurrency(value) : value,
+                            name === 'total_amount' ? formatCurrency(value) : value.toLocaleString("es-AR"),
                             name === 'total_amount' ? 'Monto' : 'Ventas'
                           ]}
                           labelFormatter={(value) => format(new Date(value), 'dd/MM/yyyy')}

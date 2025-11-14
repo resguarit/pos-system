@@ -353,8 +353,15 @@ const SalesHistoryChart: React.FC<SalesHistoryChartProps> = ({ branchId, classNa
                   return value;
                 }}
               />
-              <YAxis />
-              <Tooltip />
+              <YAxis 
+                tickFormatter={(value) => value.toLocaleString("es-AR")}
+              />
+              <Tooltip 
+                formatter={(value: number) => value.toLocaleString("es-AR", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2
+                })}
+              />
               <Legend />
               {chartData!.datasets.map(ds => (
                 <Bar 

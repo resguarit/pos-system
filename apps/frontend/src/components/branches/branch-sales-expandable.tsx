@@ -126,9 +126,9 @@ export function BranchSalesExpandable({
                   </CardHeader>
                   <CardContent className="px-3 pb-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm">
-                      <div><strong>Ventas:</strong> {branch.sales_count ?? 0}</div>
-                      <div><strong>Presupuestos:</strong> {branch.budget_count ?? 0}</div>
-                      <div><strong>Clientes Únicos:</strong> {branch.client_count ?? 0}</div>
+                      <div><strong>Ventas:</strong> {(branch.sales_count ?? 0).toLocaleString("es-AR")}</div>
+                      <div><strong>Presupuestos:</strong> {(branch.budget_count ?? 0).toLocaleString("es-AR")}</div>
+                      <div><strong>Clientes Únicos:</strong> {(branch.client_count ?? 0).toLocaleString("es-AR")}</div>
                       <div className="sm:col-span-1"><strong>Monto Total:</strong> {formatCurrency(branch.grand_total_amount)}</div>
                       <div className="sm:col-span-1"><strong>IVA Total:</strong> {formatCurrency(branch.grand_total_iva)}</div>
                       <div className="sm:col-span-1"><strong>Promedio Venta:</strong> {formatCurrency(branch.average_sale_amount)}</div>

@@ -177,7 +177,7 @@ export default function DashboardPage() {
                   />
                   <MetricCard
                     title="Clientes Únicos (Este Mes)"
-                    value={generalStats?.unique_customers || 0}
+                    value={(generalStats?.unique_customers || 0).toLocaleString("es-AR")}
                     subtitle="En el período actual"
                     isLoading={dashboardLoading}
                     icon={
@@ -199,7 +199,7 @@ export default function DashboardPage() {
                   />
                   <MetricCard
                     title="Ventas (Este Mes)"
-                    value={generalStats?.sales_count || 0}
+                    value={(generalStats?.sales_count || 0).toLocaleString("es-AR")}
                     subtitle="Transacciones realizadas"
                     isLoading={dashboardLoading}
                     icon={
@@ -223,7 +223,7 @@ export default function DashboardPage() {
               )}
               <MetricCard
                 title="Productos Activos"
-                value={generalStats?.active_products || 0}
+                value={(generalStats?.active_products || 0).toLocaleString("es-AR")}
                 subtitle="Disponibles para venta"
                 isLoading={dashboardLoading}
                 icon={

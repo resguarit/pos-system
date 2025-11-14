@@ -44,7 +44,7 @@ export default function SalesChart() {
     <ResponsiveContainer width="100%" height={350}>
       <LineChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
         <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={10} />
-        <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} tickMargin={10} />
+        <YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `$${value.toLocaleString("es-AR")}`} tickMargin={10} />
         <Tooltip
           content={({ active, payload }) => {
             if (active && payload && payload.length) {
@@ -52,7 +52,7 @@ export default function SalesChart() {
                 <Card>
                   <CardContent className="py-2 px-3">
                     <p className="text-sm font-medium">{payload[0].payload.date}</p>
-                    <p className="text-sm font-bold">${payload[0].value}</p>
+                    <p className="text-sm font-bold">${typeof payload[0].value === 'number' ? payload[0].value.toLocaleString("es-AR") : payload[0].value}</p>
                   </CardContent>
                 </Card>
               )

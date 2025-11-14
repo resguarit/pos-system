@@ -66,7 +66,7 @@ export default function ProductsChart() {
           <YAxis 
             tickLine={false}
             axisLine={false}
-            tickFormatter={(value) => metric === 'ingresos' ? `$${value}` : value}
+            tickFormatter={(value) => metric === 'ingresos' ? `$${value.toLocaleString("es-AR")}` : value.toLocaleString("es-AR")}
             tickMargin={10}
           />
           <Tooltip 
@@ -78,8 +78,8 @@ export default function ProductsChart() {
                       <p className="text-sm font-medium">{payload[0].payload.name}</p>
                       <p className="text-sm font-bold">
                         {metric === 'ingresos' 
-                          ? `$${payload[0].payload.ingresos}` 
-                          : `${payload[0].payload.cantidad} unidades`}
+                          ? `$${payload[0].payload.ingresos.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                          : `${payload[0].payload.cantidad.toLocaleString("es-AR")} unidades`}
                       </p>
                     </CardContent>
                   </Card>

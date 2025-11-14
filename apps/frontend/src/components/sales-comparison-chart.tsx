@@ -26,10 +26,13 @@ export default function SalesComparisonChart() {
       <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis dataKey="name" />
-        <YAxis tickFormatter={(value) => `$${value}`} />
+        <YAxis tickFormatter={(value) => `$${value.toLocaleString("es-AR")}`} />
         <Tooltip
           content={({ active, payload }) => {
             if (active && payload && payload.length) {
+              const actual = payload[0].payload.actual;
+              const anterior = payload[0].payload.anterior;
+              const diferencia = actual - anterior;
               return (
                 <Card>
                   <CardContent className="py-2 px-3">
@@ -40,22 +43,21 @@ export default function SalesComparisonChart() {
                           <span className="w-2 h-2 rounded-full bg-[#0ea5e9] mr-1"></span>
                           Período actual:
                         </span>
-                        <span className="font-bold">${payload[0].payload.actual}</span>
+                        <span className="font-bold">${actual.toLocaleString("es-AR")}</span>
                       </p>
                       <p className="text-xs flex items-center justify-between">
                         <span className="flex items-center">
                           <span className="w-2 h-2 rounded-full bg-[#94a3b8] mr-1"></span>
                           Período anterior:
                         </span>
-                        <span className="font-bold">${payload[0].payload.anterior}</span>
+                        <span className="font-bold">${anterior.toLocaleString("es-AR")}</span>
                       </p>
                       <p className="text-xs flex items-center justify-between mt-1 pt-1 border-t">
                         <span>Diferencia:</span>
                         <span
-                          className={`font-bold ${payload[0].payload.actual - payload[0].payload.anterior > 0 ? "text-green-600" : "text-red-600"}`}
+                          className={`font-bold ${diferencia > 0 ? "text-green-600" : "text-red-600"}`}
                         >
-                          {payload[0].payload.actual - payload[0].payload.anterior > 0 ? "+" : ""}$
-                          {payload[0].payload.actual - payload[0].payload.anterior}
+                          {diferencia > 0 ? "+" : ""}${diferencia.toLocaleString("es-AR")}
                         </span>
                       </p>
                     </div>

@@ -36,7 +36,7 @@ export default function InventoryValueChart() {
         <YAxis 
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value) => `$${value/1000}k`}
+          tickFormatter={(value) => `$${(value/1000).toLocaleString("es-AR", { maximumFractionDigits: 0 })}k`}
           tickMargin={10}
         />
         <Tooltip 
