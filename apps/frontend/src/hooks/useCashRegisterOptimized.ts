@@ -32,7 +32,8 @@ interface CashRegisterOptimized {
   cash_difference?: number
   payment_method_totals: Record<string, number>
   status: string
-  notes: string | null
+  today_income?: number
+  today_expenses?: number
 }
 
 interface UseCashRegisterOptimizedReturn {

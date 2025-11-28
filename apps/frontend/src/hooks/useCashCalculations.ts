@@ -148,6 +148,11 @@ export const useCashCalculations = ({
    */
   const calculateTodayIncome = useMemo(() => {
     return () => {
+      // Usar valores optimizados del backend si están disponibles
+      if (optimizedCashRegister?.today_income !== undefined) {
+        return optimizedCashRegister.today_income
+      }
+
       const sourceMovements = (allMovements?.length ? allMovements : movements) || []
       if (!currentRegister || !sourceMovements.length) return 0
 
@@ -174,6 +179,11 @@ export const useCashCalculations = ({
    */
   const calculateTodayExpenses = useMemo(() => {
     return () => {
+      // Usar valores optimizados del backend si están disponibles
+      if (optimizedCashRegister?.today_expenses !== undefined) {
+        return optimizedCashRegister.today_expenses
+      }
+
       const sourceMovements = (allMovements?.length ? allMovements : movements) || []
       if (!currentRegister || !sourceMovements.length) return 0
 

@@ -198,20 +198,19 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
   }, [request])
 
   /**
-   * Extracts movement items from paginated API response
-   * Handles different response formats from Laravel pagination
+   * Extracts movement items from API response
+   * NOTA: useApi.request() ya devuelve response.data, no el objeto response completo
+   * Entonces apiResponse es directamente el body: { current_page, data: [...], ... } o un array
    */
-  const extractMovementsFromResponse = (response: any): CashMovement[] => {
-    if (Array.isArray(response?.data)) {
-      return response.data
+  const extractMovementsFromApiResponse = (apiResponse: any): CashMovement[] => {
+    // Si apiResponse.data es un array (respuesta paginada de Laravel)
+    if (Array.isArray(apiResponse?.data)) {
+      return apiResponse.data
     }
     
-    if (response?.data?.data && Array.isArray(response.data.data)) {
-      return response.data.data
-    }
-    
-    if (response?.data && typeof response.data === 'object' && 'data' in response.data) {
-      return Array.isArray(response.data.data) ? response.data.data : []
+    // Si apiResponse es directamente un array (respuesta sin paginación)
+    if (Array.isArray(apiResponse)) {
+      return apiResponse
     }
     
     return []
@@ -228,13 +227,14 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
         per_page: 10000, // Load all movements
       }
 
-      const response = await request({
+      // IMPORTANTE: useApi.request() ya devuelve response.data
+      const apiResponse = await request({
         method: 'GET',
         url: '/cash-movements',
         params,
       })
 
-      const items = extractMovementsFromResponse(response)
+      const items = extractMovementsFromApiResponse(apiResponse)
       setAllMovements(items)
     } catch (error) {
       console.error('Error loading all cash movements:', error)
@@ -253,29 +253,34 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
       if (cashOnly) {
         params.cash_only = 'true'
       }
-      const response = await request({
+      
+      // IMPORTANTE: useApi.request() ya devuelve response.data, no el objeto response completo
+      // Entonces 'apiResponse' es directamente el body: { current_page, data: [...], last_page, ... }
+      const apiResponse = await request({
         method: 'GET',
         url: `/cash-movements`,
         params,
       })
       
-      // Los metadatos de paginación están en response, los datos en response.data
-      const items = Array.isArray(response?.data) ? response.data : []
+      // Extraer los movimientos del array 'data' dentro de la respuesta paginada
+      const items = extractMovementsFromApiResponse(apiResponse)
       setMovements(items)
       
-      // Los metadatos de paginación están en el nivel superior de response
+      // Extraer metadatos de paginación directamente de apiResponse
+      // Laravel devuelve: { current_page, data: [...], last_page, per_page, total, ... }
       const meta = {
-        currentPage: response?.current_page || page,
-        perPage: response?.per_page || perPage,
-        total: response?.total || items.length,
-        lastPage: response?.last_page || Math.ceil((response?.total || items.length) / perPage)
+        currentPage: apiResponse?.current_page ?? page,
+        perPage: apiResponse?.per_page ?? perPage,
+        total: apiResponse?.total ?? items.length,
+        lastPage: apiResponse?.last_page ?? Math.ceil((apiResponse?.total ?? items.length) / (apiResponse?.per_page ?? perPage))
       }
+      
       setMovementsMeta(meta)
     } catch (error) {
       console.error('Error loading cash movements:', error)
       toast.error('Error al cargar los movimientos de caja')
       setMovements([])
-      setMovementsMeta({ currentPage: 1, perPage: 10000, total: 0, lastPage: 1 })
+      setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
     }
   }, [request])
 
