@@ -28,6 +28,16 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $user = Auth::user();
+
+            // Verificar si el usuario está activo
+            if (!$user->active) {
+                Auth::logout();
+                return response()->json([
+                    'message' => 'Tu cuenta está desactivada. Contacta al administrador.'
+                ], 403);
+            }
+
+            $user->load(['branches', 'role.permissions', 'person']);
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
@@ -84,6 +94,7 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        return response()->json($request->user());
+        $user = $request->user()->load(['branches', 'role.permissions', 'person']);
+        return response()->json($user);
     }
 }

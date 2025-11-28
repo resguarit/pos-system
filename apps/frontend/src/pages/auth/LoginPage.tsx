@@ -42,6 +42,8 @@ export default function LoginPage() {
       console.error('Login error:', error);
       if (error.response?.status === 401) {
         toast.error('Credenciales incorrectas');
+      } else if (error.response?.status === 403) {
+        toast.error(error.response?.data?.message || 'Tu cuenta está desactivada. Contacta al administrador.');
       } else {
         toast.error('Error al iniciar sesión. Inténtalo de nuevo.');
       }
