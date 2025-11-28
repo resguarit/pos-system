@@ -208,7 +208,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
     );
   }
 
-  // Usar total_pending_debt del backend que incluye ventas + cargos administrativos
+  // Usar total_pending_debt que incluye ventas pendientes (el current_balance está corrupto)
   const totalPendingDebt = account?.total_pending_debt || 0;
   const balanceDescription = getOutstandingBalanceDescription(
     account?.current_balance || 0,
@@ -279,7 +279,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
               {CurrentAccountUtils.formatCurrency(totalPendingDebt)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Ventas y cargos administrativos pendientes
+              Ventas pendientes de pago
             </p>
           </CardContent>
         </Card>
