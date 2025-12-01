@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 function DashboardHeader() {
   const { isMobile } = useSidebar();
-  
+
   return (
     <header className={cn(
       "flex h-16 shrink-0 items-center justify-between border-b px-4 md:px-6 w-full",
@@ -18,7 +18,7 @@ function DashboardHeader() {
       <div className="flex items-center gap-2 md:gap-4">
         {/* Botón hamburguesa para mostrar/ocultar sidebar */}
         <SidebarTrigger className="sm:hidden" />
-        
+
         {/* BranchSelector responsive */}
         <div className={cn(
           "flex items-center",
@@ -26,7 +26,7 @@ function DashboardHeader() {
         )}>
           <BranchSelector />
         </div>
-        
+
         {/* ExchangeRateDisplay solo en desktop */}
         {!isMobile && (
           <ExchangeRateDisplay
@@ -36,7 +36,7 @@ function DashboardHeader() {
           />
         )}
       </div>
-      
+
       <div className="ml-auto flex items-center gap-2 md:gap-4">
         <UserNav />
       </div>
@@ -46,8 +46,8 @@ function DashboardHeader() {
 
 export default function DashboardLayout() {
   return (
-    <SidebarProvider>
-      <div className="flex h-screen w-full bg-gray-50 overflow-hidden">
+    <SidebarProvider className="h-svh overflow-hidden">
+      <div className="flex h-full w-full bg-gray-50 overflow-hidden">
         <AppSidebar />
         <div className="flex flex-1 flex-col overflow-hidden bg-white">
           <DashboardHeader />

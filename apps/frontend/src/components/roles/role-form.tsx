@@ -1,9 +1,9 @@
 import type React from "react"
 import features from "@/config/features"
 import { PERMISSIONS_CONFIG, getActivePermissions } from "@/config/permissions"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import axios from "axios"; 
+import axios from "axios";
 
 // Componentes de UI
 import { Button } from "@/components/ui/button"
@@ -45,19 +45,19 @@ interface RoleFormProps {
 // --- Helper para formatear nombres de permisos y módulos ---
 function formatPermissionName(name: string): string {
   if (!name) return 'Permiso';
-  
+
   // Mapeo especial para nombres de módulos
   const moduleNameMap: Record<string, string> = {
     'shipments': 'Envios',
     'envios': 'Envios',
     'envíos': 'Envios',
   };
-  
+
   const normalizedName = name.toLowerCase().trim();
   if (moduleNameMap[normalizedName]) {
     return moduleNameMap[normalizedName];
   }
-  
+
   return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
@@ -111,6 +111,8 @@ function getFeatureForModule(moduleName: string): boolean {
     'ordenes de compra': 'purchaseOrders',
     'purchase orders': 'purchaseOrders',
     'purchaseOrders': 'purchaseOrders',
+    'transferencias': 'transferencias',
+    'transferencias de stock': 'transferencias',
     'envios': 'shipments',
     'envíos': 'shipments',
     'shipments': 'shipments',
@@ -121,7 +123,7 @@ function getFeatureForModule(moduleName: string): boolean {
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();
-  
+
   // Buscar coincidencia exacta primero
   if (moduleToFeature[normalizedModuleName]) {
     return features[moduleToFeature[normalizedModuleName]];
@@ -159,6 +161,9 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const [isCheckingName, setIsCheckingName] = useState<boolean>(false)
   const [nameTimeoutId, setNameTimeoutId] = useState<number | null>(null)
 
+  // Ref para almacenar el nombre inicial del rol (para comparación en checkNameExists)
+  const initialNameRef = useRef<string>("")
+
   // Cleanup del timeout cuando el componente se desmonte
   useEffect(() => {
     return () => {
@@ -193,7 +198,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
             if (flowPermissions.includes(perm.name)) {
               return acc; // Saltar este permiso
             }
-            
+
             const moduleName = perm.module || "Permisos Generales";
             if (!acc[moduleName]) {
               acc[moduleName] = { id: moduleName, name: moduleName, description: "", permissions: [] };
@@ -215,13 +220,16 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
           const roleData = roleDetailsRes.data || roleDetailsRes;
           const assignedPermsIds = (assignedPermsRes.data || []).map((p: any) => String(p.id));
 
+          // Almacenar el nombre inicial en el ref para la validación
+          initialNameRef.current = roleData.name || "";
+
           setFormData({
             name: roleData.name || "",
             description: roleData.description || "",
             permissions: assignedPermsIds,
           });
           setIsSystem(!!roleData.is_system);
-          
+
           dispatch({ type: 'SET_ENTITY', entityType: 'roles', id: roleId, entity: { ...roleData, permissions: assignedPermsIds } });
         }
       } catch (error: any) {
@@ -241,7 +249,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   }, [roleId]); // Solo depender de roleId para evitar loops infinitos
 
   // Función para verificar si el nombre ya existe
-  const checkNameExists = async (name: string) => {
+  const checkNameExists = useCallback(async (name: string) => {
     if (!name.trim()) {
       setNameError("");
       return;
@@ -253,8 +261,9 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         method: 'GET',
         url: `/roles/check-name/${encodeURIComponent(name)}`
       });
-      
-      if (response.exists && name !== (roleId ? formData.name : '')) {
+
+      // Usar initialNameRef.current en lugar de formData.name para evitar dependencia circular
+      if (response.exists && name !== initialNameRef.current) {
         setNameError("Este nombre ya está en uso");
         toast.error("Este nombre ya está en uso", {
           description: "Por favor, elige un nombre diferente para el rol."
@@ -268,27 +277,27 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
     } finally {
       setIsCheckingName(false);
     }
-  };
+  }, [request]); // Remover dependencias innecesarias que causaban el loop
 
   // --- Manejadores y Lógica del Formulario ---
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-    
+
     // Validación de duplicados con debounce para el nombre
     if (e.target.name === 'name') {
       // Limpiar timeout anterior si existe
       if (nameTimeoutId) {
         clearTimeout(nameTimeoutId);
       }
-      
+
       // Crear nuevo timeout
       const newTimeoutId = window.setTimeout(() => {
         checkNameExists(e.target.value);
       }, 500);
-      
+
       setNameTimeoutId(newTimeoutId);
     }
-  }, []); // Sin dependencias para evitar re-renders innecesarios
+  }, [nameTimeoutId, checkNameExists]); // Incluir dependencias para evitar stale closures
 
   const handlePermissionChange = useCallback((permissionId: string, checked: boolean) => {
     setFormData((prev) => ({
@@ -298,15 +307,15 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         : prev.permissions.filter((id) => id !== permissionId),
     }));
   }, []);
-  
+
   const handleModuleToggle = useCallback((module: Module, checked: boolean) => {
     const permissionIds = module.permissions.map(p => p.id);
     setFormData(prev => {
-        const otherPermissions = prev.permissions.filter(pId => !permissionIds.includes(pId));
-        return {
-            ...prev,
-            permissions: checked ? [...otherPermissions, ...permissionIds] : otherPermissions
-        };
+      const otherPermissions = prev.permissions.filter(pId => !permissionIds.includes(pId));
+      return {
+        ...prev,
+        permissions: checked ? [...otherPermissions, ...permissionIds] : otherPermissions
+      };
     });
   }, []);
 
@@ -329,13 +338,13 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         // Actualizar permisos del rol
         await request({ method: 'PUT', url: `/roles/${roleId}/permissions`, data: { permissions: formData.permissions.map(Number) } });
         toast.success("Rol actualizado con éxito.");
-        
+
         // Marcar que hubo cambios en roles para forzar recarga de permisos
         localStorage.setItem('roles_updated', Date.now().toString());
       } else {
         await request({ method: 'POST', url: '/roles', data: payload });
         toast.success("Rol creado con éxito.");
-        
+
         // Marcar que hubo cambios en roles
         localStorage.setItem('roles_updated', Date.now().toString());
       }
@@ -347,6 +356,18 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
       setIsSubmitting(false);
     }
   }, [formData.name, formData.description, formData.permissions, roleId, request, navigate]);
+
+  // Ref para el scroll top
+  const topRef = useRef<HTMLDivElement>(null);
+
+  // Scroll al inicio cuando se monta el componente
+  useEffect(() => {
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'instant', block: 'start' });
+    }
+    // También intentar hacer scroll a window por si acaso
+    window.scrollTo(0, 0);
+  }, []);
 
   // --- Renderizado ---
   if (isDataLoading) {
@@ -361,8 +382,8 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const filteredModules = modules.filter(module => getFeatureForModule(module.name));
 
   return (
-    <div className="flex flex-col h-full max-h-screen w-full p-4 pt-6 md:p-8">
-      <div className="flex items-center justify-between flex-shrink-0 mb-4">
+    <div ref={topRef} className="w-full p-4 pt-6 md:p-8">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
             <Link to="/dashboard/roles"><ArrowLeft className="h-4 w-4" /></Link>
@@ -378,22 +399,22 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
           </Button>
         )}
       </div>
-      
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+
+      <div className="space-y-4 pb-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Card>
             <CardHeader><CardTitle>Información del Rol</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nombre del Rol <span className="text-red-500">*</span></Label>
                 <div className="relative">
-                  <Input 
-                    id="name" 
-                    name="name" 
-                    value={formData.name} 
-                    onChange={handleInputChange} 
-                    disabled={viewOnly || isSubmitting || isSystem || formData.name.toLowerCase() === 'admin'} 
-                    required 
+                  <Input
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    disabled={viewOnly || isSubmitting || isSystem || formData.name.toLowerCase() === 'admin'}
+                    required
                     className={nameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                     style={{ borderColor: nameError ? '#ef4444' : undefined }}
                   />
@@ -428,7 +449,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
                   <Info className="h-4 w-4 text-blue-600" />
                   <AlertTitle className="text-blue-900">Rol de Administrador</AlertTitle>
                   <AlertDescription className="text-blue-800">
-                    El rol <strong>Admin</strong> tiene acceso automático a todos los permisos del sistema, 
+                    El rol <strong>Admin</strong> tiene acceso automático a todos los permisos del sistema,
                     independientemente de los permisos seleccionados aquí. Esta configuración no puede ser modificada.
                   </AlertDescription>
                 </Alert>
@@ -451,8 +472,8 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
                         {module.permissions.map((permission) => (
                           <div key={permission.id} className="flex items-center justify-between gap-2 min-w-0">
                             <div className="min-w-0 flex-1">
-                              <Label 
-                                htmlFor={`permission-${permission.id}`} 
+                              <Label
+                                htmlFor={`permission-${permission.id}`}
                                 className="text-sm font-normal truncate block"
                                 title={permission.description || formatPermissionName(permission.name)}
                               >

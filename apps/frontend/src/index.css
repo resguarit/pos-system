@@ -82,6 +82,20 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    /* Prevent body scroll completely */
+    height: 100vh;
+    height: 100svh;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+
+  /* Ensure root div also doesn't scroll */
+  #root {
+    height: 100vh;
+    height: 100svh;
+    overflow: hidden;
+    width: 100%;
   }
 
   /* FIXES FOR TRANSPARENCY AND STYLING ISSUES */
