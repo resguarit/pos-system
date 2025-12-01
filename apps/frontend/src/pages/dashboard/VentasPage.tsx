@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/tooltip";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
+import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart";
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
@@ -61,7 +62,7 @@ const PAGE_SIZE = 5; // Temporalmente reducido para probar paginación
 export default function VentasPage() {
   const { request } = useApi();
   const { hasPermission, isAdmin, user } = useAuth();
-  
+
   const { selectionChangeToken, selectedBranch, selectedBranchIds, branches } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [stats, setStats] = useState({
@@ -190,30 +191,30 @@ export default function VentasPage() {
     try {
       // Para la primera carga, verificamos si necesitamos paginación del servidor
       const apiParams: any = {};
-      
+
       if (fromDate && toDate) {
         apiParams.from_date = format(fromDate, "yyyy-MM-dd");
         apiParams.to_date = format(toDate, "yyyy-MM-dd");
       }
-      
+
       // Agregar búsqueda al backend
       if (search) {
         apiParams.search = search;
       }
-      
+
       // Solo agregar parámetros de paginación si es la primera carga o si sabemos que hay paginación del servidor
       if (currentPage === 1 || allSales.length === 0) {
         apiParams.page = currentPage;
         apiParams.limit = PAGE_SIZE;
         apiParams.per_page = PAGE_SIZE; // Probar también per_page
       }
-      
+
       const response = await request({
         method: "GET",
         url: `/sales/global`,
         params: apiParams,
       });
-      
+
       // Soportar múltiples formatos de respuesta (paginada, array directa, objeto directo)
       let salesData: SaleHeader[] = [];
       if (Array.isArray(response?.data?.data)) {
@@ -229,11 +230,11 @@ export default function VentasPage() {
       } else if (response) {
         salesData = [response].flat();
       }
-        
+
       // Verificar si la API devuelve paginación del servidor útil o si necesitamos paginación del cliente
-      const hasServerPagination = (response.total !== undefined || response.data?.total !== undefined) && 
-                                  (response.last_page > 1 || response.data?.last_page > 1);
-      
+      const hasServerPagination = (response.total !== undefined || response.data?.total !== undefined) &&
+        (response.last_page > 1 || response.data?.last_page > 1);
+
       if (hasServerPagination) {
         // Paginación del servidor (Laravel)
         const paginationInfo = {
@@ -242,21 +243,21 @@ export default function VentasPage() {
           lastPage: response.last_page || response.data?.last_page || 1,
           perPage: response.per_page || response.data?.per_page || PAGE_SIZE,
         };
-        
+
         setTotalItems(paginationInfo.total);
         setTotalPages(paginationInfo.lastPage);
         setCurrentPage(paginationInfo.currentPage);
         setSales(salesData);
       } else {
         // Paginación del cliente - la API devuelve todas las ventas
-        
+
         // Solo cargar todas las ventas si no las tenemos o si cambiaron las fechas
         let allSalesData = allSales;
         if (allSales.length === 0 || currentPage === 1) {
           allSalesData = salesData;
           setAllSales(allSalesData);
         }
-        
+
         // Calcular paginación del cliente
         const totalCount = allSalesData.length;
         const totalPagesCalculated = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -264,13 +265,13 @@ export default function VentasPage() {
         const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
         const endIndex = startIndex + PAGE_SIZE;
         const paginatedSales = allSalesData.slice(startIndex, endIndex);
-        
+
         setTotalItems(totalCount);
         setTotalPages(totalPagesCalculated);
         setCurrentPage(safeCurrentPage);
         setSales(paginatedSales);
       }
-      
+
     } catch (error) {
       console.error('Error in fetchSales:', error);
       toast.error("Error", {
@@ -294,15 +295,15 @@ export default function VentasPage() {
       });
       const statsData =
         response.data &&
-        typeof response.data === 'object' &&
-        !Array.isArray(response.data)
+          typeof response.data === 'object' &&
+          !Array.isArray(response.data)
           ? response.data
           : response &&
             typeof response === 'object' &&
             !Array.isArray(response)
-          ? response
-          : {};
-          
+            ? response
+            : {};
+
       setStats({
         total_sales: statsData.sales_count ?? 0,
         total_amount: statsData.grand_total_amount ?? 0,
@@ -328,7 +329,7 @@ export default function VentasPage() {
   };
 
   const getCustomerName = (sale: SaleHeader): string => {
-    const customer = sale.customer as any;    
+    const customer = sale.customer as any;
     if (typeof customer === 'string') {
       const trimmed = customer.trim();
       if (trimmed === 'Consumidor Final') {
@@ -350,7 +351,7 @@ export default function VentasPage() {
 
   const getBranchColor = (sale: SaleHeader) => {
     let branchId: number | null = null;
-    
+
     if (typeof sale.branch === 'object' && sale.branch?.id) {
       branchId = Number(sale.branch.id);
     } else if (typeof sale.branch === 'string') {
@@ -358,12 +359,12 @@ export default function VentasPage() {
       const branch = branches.find(b => b.description === sale.branch);
       branchId = branch?.id ? Number(branch.id) : null;
     }
-    
+
     if (branchId) {
       const branch = branches.find(b => Number(b.id) === branchId);
       return branch?.color || '#6b7280';
     }
-    
+
     return '#6b7280'; // Color por defecto
   };
 
@@ -445,30 +446,30 @@ export default function VentasPage() {
         setLoadingAnnulled(true);
         try {
           const apiParams: any = {};
-          
+
           if (dateRange.from && dateRange.to) {
             apiParams.from_date = format(dateRange.from, "yyyy-MM-dd");
             apiParams.to_date = format(dateRange.to, "yyyy-MM-dd");
           }
-          
+
           // Incluir filtro de sucursales si hay selección
           if (selectedBranchIds.length > 0) {
             apiParams.branch_id = selectedBranchIds;
           }
-          
+
           // Buscar sin paginación para obtener todas las anuladas
           apiParams.paginate = 'false';
-          
+
           if (searchTerm) {
             apiParams.search = searchTerm;
           }
-          
+
           const response = await request({
             method: "GET",
             url: `/sales/global`,
             params: apiParams,
           });
-          
+
           let salesData: SaleHeader[] = [];
           if (Array.isArray(response?.data?.data)) {
             salesData = response.data.data;
@@ -483,7 +484,7 @@ export default function VentasPage() {
           } else if (response) {
             salesData = [response].flat();
           }
-          
+
           // Filtrar solo las anuladas
           const annulled = salesData.filter((sale: SaleHeader) => sale.status === 'annulled');
           setAnnulledSales(annulled);
@@ -497,7 +498,7 @@ export default function VentasPage() {
           setLoadingAnnulled(false);
         }
       };
-      
+
       fetchAllAnnulled();
     } else {
       // Limpiar cuando cambiamos de filtro
@@ -511,10 +512,10 @@ export default function VentasPage() {
     if (statusFilter === 'annulled') {
       // Para anuladas, usar todas las anuladas cargadas
       const sourceSales = annulledSales.length > 0 ? annulledSales : sales.filter((s: SaleHeader) => s.status === 'annulled');
-      
+
       // Aplicar filtro de sucursal
       return sourceSales.filter((sale: SaleHeader) => {
-        const matchesBranch = branchFilter === 'all' ? true : 
+        const matchesBranch = branchFilter === 'all' ? true :
           (() => {
             let branchId: number | null = null;
             if (typeof sale.branch === 'object' && sale.branch?.id) {
@@ -525,19 +526,19 @@ export default function VentasPage() {
             }
             return branchId ? branchId.toString() === branchFilter : false;
           })();
-        
+
         return matchesBranch;
       });
     }
-    
+
     // Para 'all' y 'active', usar el filtrado normal
     return sales.filter((sale: SaleHeader) => {
       const matchesStatus =
         statusFilter === 'all' ? true :
-        statusFilter === 'active' ? sale.status !== 'annulled' :
-        sale.status === 'annulled';
+          statusFilter === 'active' ? sale.status !== 'annulled' :
+            sale.status === 'annulled';
 
-      const matchesBranch = branchFilter === 'all' ? true : 
+      const matchesBranch = branchFilter === 'all' ? true :
         (() => {
           let branchId: number | null = null;
           if (typeof sale.branch === 'object' && sale.branch?.id) {
@@ -552,7 +553,7 @@ export default function VentasPage() {
       return matchesStatus && matchesBranch;
     });
   })();
-  
+
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange({ from: range?.from ?? new Date(), to: range?.to ?? new Date() });
   };
@@ -560,13 +561,13 @@ export default function VentasPage() {
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "Fecha inválida";
     try {
-      const date = new Date(dateString); 
+      const date = new Date(dateString);
       return format(date, "dd/MM/yyyy HH:mm", { locale: es });
     } catch {
-      return dateString; 
+      return dateString;
     }
   };
-  
+
   const formatShortDate = (dateString: string | null | undefined) => {
     if (!dateString) return "Fecha inválida";
     try {
@@ -599,8 +600,8 @@ export default function VentasPage() {
       Comprobante: getReceiptType(sale).displayName,
       Cliente: getCustomerName(sale),
       Sucursal: typeof sale.branch === 'string' ? sale.branch : sale.branch?.description || "N/A",
-      Total: formatCurrency(sale.total), 
-      Fecha: formatShortDate(sale.date), 
+      Total: formatCurrency(sale.total),
+      Fecha: formatShortDate(sale.date),
     }));
     const worksheet = XLSX.utils.json_to_sheet(data, { header: headers });
     const workbook = XLSX.utils.book_new();
@@ -612,14 +613,14 @@ export default function VentasPage() {
   const handleViewDetail = async (sale: SaleHeader) => {
     const actionKey = `view-${sale.id}`;
     setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
-    
+
     try {
       const response = await request({
         method: "GET",
         url: `/sales/${sale.id}`,
       });
       const fullSaleData: SaleHeader = response.data?.data || response.data;
-      setSelectedSale(fullSaleData); 
+      setSelectedSale(fullSaleData);
       setIsDetailOpen(true);
     } catch (error) {
       toast.error("Error", {
@@ -629,6 +630,34 @@ export default function VentasPage() {
       setIsDetailOpen(true);
     } finally {
       setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
+    }
+  };
+
+  /**
+   * Maneja la actualización de una venta después de autorización AFIP
+   * Actualiza la venta en la lista local y recarga si es necesario
+   */
+  const handleSaleUpdated = async (updatedSale: SaleHeader) => {
+    // Actualizar en la lista local
+    setSales(prevSales =>
+      prevSales.map(sale =>
+        sale.id === updatedSale.id ? updatedSale : sale
+      )
+    );
+    setAllSales(prevSales =>
+      prevSales.map(sale =>
+        sale.id === updatedSale.id ? updatedSale : sale
+      )
+    );
+
+    // Actualizar la venta seleccionada
+    if (selectedSale && selectedSale.id === updatedSale.id) {
+      setSelectedSale(updatedSale);
+    }
+
+    // Recargar estadísticas para reflejar cambios
+    if (dateRange.from && dateRange.to) {
+      fetchStats(dateRange.from, dateRange.to);
     }
   };
 
@@ -655,39 +684,39 @@ export default function VentasPage() {
 
   const handleDownloadPdf = async (sale: SaleHeader) => {
     if (!sale || !sale.id) {
-            alert("No se puede descargar el PDF: ID de venta faltante.");
-            return;
-          }
-          
-          const actionKey = `download-${sale.id}`;
-          setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
-          
-          try {
-            const response = await request({ 
-              method: 'GET', 
-              url: `/pos/sales/${sale.id}/pdf`,
-              responseType: 'blob'
-            });
-            if (!response || !(response instanceof Blob)) {
-              throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-            }
-            const blob = new Blob([response], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-            const receiptNumber = sale.receipt_number || sale.id;
-            const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-          } catch (error) {
-            alert("Error al descargar PDF");
-          } finally {
-            setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
-          }
+      alert("No se puede descargar el PDF: ID de venta faltante.");
+      return;
+    }
+
+    const actionKey = `download-${sale.id}`;
+    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
+
+    try {
+      const response = await request({
+        method: 'GET',
+        url: `/pos/sales/${sale.id}/pdf`,
+        responseType: 'blob'
+      });
+      if (!response || !(response instanceof Blob)) {
+        throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+      }
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+      const receiptNumber = sale.receipt_number || sale.id;
+      const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert("Error al descargar PDF");
+    } finally {
+      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
+    }
   };
 
   const handlePrintPdf = async (sale: SaleHeader) => {
@@ -701,16 +730,16 @@ export default function VentasPage() {
 
     try {
       // Descargar el PDF con autenticación usando request (incluye token)
-      const response = await request({ 
-        method: 'GET', 
+      const response = await request({
+        method: 'GET',
         url: `/pos/sales/${sale.id}/pdf`,
         responseType: 'blob'
       });
-      
+
       if (!response || !(response instanceof Blob)) {
         throw new Error("La respuesta del servidor no es un archivo PDF válido.");
       }
-      
+
       // Crear blob URL del PDF descargado
       const blob = new Blob([response], { type: 'application/pdf' });
       const blobUrl = window.URL.createObjectURL(blob);
@@ -722,13 +751,13 @@ export default function VentasPage() {
       iframe.style.width = '0';
       iframe.style.height = '0';
       iframe.style.border = 'none';
-      
+
       // Agregar al DOM
       document.body.appendChild(iframe);
-      
+
       // Asignar blob URL al iframe
       iframe.src = blobUrl;
-      
+
       // Cuando el iframe cargue, ejecutar print
       iframe.onload = () => {
         setTimeout(() => {
@@ -739,7 +768,7 @@ export default function VentasPage() {
           } catch (err) {
             toast.error("No se pudo abrir el diálogo de impresión.");
           }
-          
+
           // Limpiar después de un tiempo
           setTimeout(() => {
             if (document.body.contains(iframe)) {
@@ -749,7 +778,7 @@ export default function VentasPage() {
           }, 1000);
         }, 500);
       };
-      
+
       // Timeout de seguridad
       setTimeout(() => {
         if (document.body.contains(iframe)) {
@@ -757,7 +786,7 @@ export default function VentasPage() {
           window.URL.revokeObjectURL(blobUrl);
         }
       }, 10000);
-      
+
       setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
 
     } catch (error) {
@@ -786,7 +815,7 @@ export default function VentasPage() {
   const goToPage = (pageNumber: number) => {
     if (pageNumber >= 1 && pageNumber <= totalPages && pageNumber !== currentPage && !pageLoading) {
       setCurrentPage(pageNumber);
-      
+
       // Si tenemos todas las ventas cargadas, hacer paginación del cliente
       if (allSales.length > 0) {
         const startIndex = (pageNumber - 1) * PAGE_SIZE;
@@ -796,7 +825,7 @@ export default function VentasPage() {
       } else {
         fetchSales(dateRange.from, dateRange.to, pageNumber);
       }
-      
+
     }
   };
 
@@ -814,621 +843,630 @@ export default function VentasPage() {
 
   return (
     <ProtectedRoute permissions={['ver_ventas']} requireAny={true}>
-      <BranchRequiredWrapper 
-        title="Selecciona una sucursal" 
+      <BranchRequiredWrapper
+        title="Selecciona una sucursal"
         description="Las ventas necesitan una sucursal seleccionada para mostrar los datos correspondientes."
         allowMultipleBranches={true}
       >
         <div className="h-full w-full flex flex-col gap-4 p-4 md:p-6">
-      {/* Cash Register Status - Show appropriate component based on selection */}
-      {selectedBranchIds.length > 1 ? (
-        <MultipleBranchesCashStatus 
-          className="mb-2"
-          showOpenButton={true}
-          compact={false}
-        />
-      ) : (
-        <CashRegisterStatusBadge 
-          branchId={currentBranchId}
-          compact={true}
-          showOperator={false}
-          showOpenTime={false}
-          className="mb-2"
-        />
-      )}
-      
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Ventas Globales</h1>
-          {isAdmin() && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1">
-                    <ShieldCheck className="h-3 w-3" />
-                    Admin
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Como administrador, tienes acceso a todas las funciones independientemente de los permisos configurados</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Botón de recarga (igual al de Inventario) */}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={reloadData}
-            disabled={pageLoading}
-            className="cursor-pointer"
-            title="Recargar ventas"
-            type="button"
-          >
-            <RefreshCw className={`h-4 w-4 ${pageLoading ? "animate-spin" : ""}`} />
-          </Button>
-          <div className="relative w-full md:w-auto">
-            <input
-              type="text"
-              placeholder="Buscar ventas..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background w-full"
+          {/* Cash Register Status - Show appropriate component based on selection */}
+          {selectedBranchIds.length > 1 ? (
+            <MultipleBranchesCashStatus
+              className="mb-2"
+              showOpenButton={true}
+              compact={false}
             />
-          </div>
-          <DatePickerWithRange
-            selected={dateRange} 
-            onSelect={handleDateRangeChange} 
-            className="md:w-auto"
-          />
-          {hasPermission('exportar_reportes') && (
-            <Button
-              variant="outline"
-              className="cursor-pointer"
-              onClick={handleExportCSV}
-              disabled={pageLoading}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Exportar CSV
-            </Button>
+          ) : (
+            <CashRegisterStatusBadge
+              branchId={currentBranchId}
+              compact={true}
+              showOperator={false}
+              showOpenTime={false}
+              className="mb-2"
+            />
           )}
-          <Button
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => setShowChart(!showChart)}
-          >
-            <TrendingUp className="mr-2 h-4 w-4" />
-            {showChart ? "Ocultar Gráfico" : "Mostrar Gráfico"}
-          </Button>
-        </div>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ventas Totales</CardTitle>
-            <Wallet className="h-4 w-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.total_sales.toLocaleString("es-AR")}
+          {/* Header Section */}
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold">Ventas Globales</h1>
+              {isAdmin() && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1">
+                        <ShieldCheck className="h-3 w-3" />
+                        Admin
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Como administrador, tienes acceso a todas las funciones independientemente de los permisos configurados</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {formatCurrency(stats.total_amount)} facturado
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">IVA Total</CardTitle>
-            <TrendingUp className="h-4 w-4 text-violet-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(stats.total_iva)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Calculado sobre ventas
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Presupuestos</CardTitle>
-            <FileText className="h-4 w-4 text-indigo-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.budget_count.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground">
-              Cantidad de presupuestos emitidos
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Únicos</CardTitle>
-            <Users className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.client_count.toLocaleString("es-AR")}</div>
-            <p className="text-xs text-muted-foreground">
-              Clientes distintos en el período
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ticket Promedio</CardTitle>
-            <Wallet className="h-4 w-4 text-sky-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(stats.average_sale_amount)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Valor promedio por transacción
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Status Filter Tabs */}
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center">
-        <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'annulled')} className="w-fit">
-          <TabsList>
-            <TabsTrigger value="all">
-              <FileText className="w-4 h-4 mr-2" />
-              Todas
-            </TabsTrigger>
-            <TabsTrigger value="active">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Vigentes
-            </TabsTrigger>
-            <TabsTrigger value="annulled">
-              <X className="w-4 h-4 mr-2" />
-              Anuladas
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {/* Branch Filter - Only show when multiple branches are selected */}
-        {selectedBranchIds.length > 1 && (
-          <div className="flex items-center gap-2">
-            <Label className="text-sm font-medium">Filtrar por sucursal:</Label>
-            <Select value={branchFilter} onValueChange={setBranchFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Todas las sucursales" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas las sucursales</SelectItem>
-                {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
-                  <SelectItem key={branch.id} value={branch.id.toString()}>
-                    <div className="flex items-center gap-2">
-                      {branch.color && (
-                        <div 
-                          className="w-3 h-3 rounded-full border"
-                          style={{ backgroundColor: branch.color }}
-                        />
-                      )}
-                      <span>{branch.description}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-      </div>
-
-      {/* Chart Section */}
-      {showChart && (
-            <SalesHistoryChart dateRange={dateRange} /> 
-      )}
-
-      {/* Table Section */}
-      <div className="rounded-md border">
-        <Table ref={tableRef}>
-          <TableHeader>
-            <TableRow>
-              <ResizableTableHeader
-                columnId="receipt_number"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* Botón de recarga (igual al de Inventario) */}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={reloadData}
+                disabled={pageLoading}
+                className="cursor-pointer"
+                title="Recargar ventas"
+                type="button"
               >
-                Nº Venta
-              </ResizableTableHeader>
-              <ResizableTableHeader
-                columnId="customer"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
-              >
-                Cliente
-              </ResizableTableHeader>
-              <ResizableTableHeader
-                columnId="receipt_type"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
-              >
-                Comprobante
-              </ResizableTableHeader>
-              <ResizableTableHeader
-                columnId="branch"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
-                className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
-              >
-                Sucursal
-              </ResizableTableHeader>
-              <ResizableTableHeader
-                columnId="items"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
-                className="hidden md:table-cell text-center"
-              >
-                Items
-              </ResizableTableHeader>
-              <ResizableTableHeader
-                columnId="date"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
-                className="hidden sm:table-cell"
-              >
-                Fecha
-              </ResizableTableHeader>
-              <ResizableTableHeader
-                columnId="total"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
-                className="text-right"
-              >
-                Total
-              </ResizableTableHeader>
-              <ResizableTableHeader
-                columnId="actions"
-                getResizeHandleProps={getResizeHandleProps}
-                getColumnHeaderProps={getColumnHeaderProps}
-                className="text-center"
-              >
-                Acciones
-              </ResizableTableHeader>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(pageLoading || (statusFilter === 'annulled' && loadingAnnulled)) && (
-              <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
-                  <div className="flex flex-col items-center justify-center">
-                    <Loader2 className="animate-spin h-6 w-6 text-primary mb-2" />
-                    <span className="text-sm text-muted-foreground">
-                      {statusFilter === 'annulled' ? 'Cargando ventas anuladas...' : 'Cargando ventas...'}
-                    </span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-            {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) && filteredSales.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
-                  <div className="flex flex-col items-center justify-center">
-                    <FileText className="h-8 w-8 text-muted-foreground mb-2 opacity-40" />
-                    <span className="text-muted-foreground">No se encontraron ventas para el período seleccionado.</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )}
-            {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) &&
-              filteredSales.map((sale: SaleHeader) => (
-                <TableRow
-                  key={sale.id}
-                  className={sale.status === 'annulled' ? 'group bg-red-50 hover:bg-red-100 transition-colors' : ''}
+                <RefreshCw className={`h-4 w-4 ${pageLoading ? "animate-spin" : ""}`} />
+              </Button>
+              {hasPermission('exportar_reportes') && (
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  onClick={handleExportCSV}
+                  disabled={pageLoading}
                 >
-                  <ResizableTableCell
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar CSV
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                className="cursor-pointer"
+                onClick={() => setShowChart(!showChart)}
+              >
+                <TrendingUp className="mr-2 h-4 w-4" />
+                {showChart ? "Ocultar Gráfico" : "Mostrar Gráfico"}
+              </Button>
+            </div>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Ventas Totales</CardTitle>
+                <Wallet className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {stats.total_sales.toLocaleString("es-AR")}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {formatCurrency(stats.total_amount)} facturado
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">IVA Total</CardTitle>
+                <TrendingUp className="h-4 w-4 text-violet-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(stats.total_iva)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Calculado sobre ventas
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Presupuestos</CardTitle>
+                <FileText className="h-4 w-4 text-indigo-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.budget_count.toLocaleString("es-AR")}</div>
+                <p className="text-xs text-muted-foreground">
+                  Cantidad de presupuestos emitidos
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Clientes Únicos</CardTitle>
+                <Users className="h-4 w-4 text-amber-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.client_count.toLocaleString("es-AR")}</div>
+                <p className="text-xs text-muted-foreground">
+                  Clientes distintos en el período
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Ticket Promedio</CardTitle>
+                <Wallet className="h-4 w-4 text-sky-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(stats.average_sale_amount)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Valor promedio por transacción
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Status Filter Tabs and Search/Date */}
+          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'annulled')} className="w-fit">
+              <TabsList>
+                <TabsTrigger value="all">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Todas
+                </TabsTrigger>
+                <TabsTrigger value="active">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Vigentes
+                </TabsTrigger>
+                <TabsTrigger value="annulled">
+                  <X className="w-4 h-4 mr-2" />
+                  Anuladas
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Search and Date Picker */}
+            <div className="flex flex-wrap gap-2 items-center">
+              <div className="relative w-full md:w-auto">
+                <input
+                  type="text"
+                  placeholder="Buscar ventas..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background w-full"
+                />
+              </div>
+              <DatePickerWithRange
+                selected={dateRange}
+                onSelect={handleDateRangeChange}
+                className="md:w-auto"
+              />
+            </div>
+          </div>
+
+          {/* Branch Filter - Only show when multiple branches are selected */}
+          {selectedBranchIds.length > 1 && (
+            <div className="flex items-center gap-2">
+              <Label className="text-sm font-medium">Filtrar por sucursal:</Label>
+              <Select value={branchFilter} onValueChange={setBranchFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Todas las sucursales" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las sucursales</SelectItem>
+                  {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        {branch.color && (
+                          <div
+                            className="w-3 h-3 rounded-full border"
+                            style={{ backgroundColor: branch.color }}
+                          />
+                        )}
+                        <span>{branch.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Chart Section */}
+          {showChart && (
+            <SalesHistoryChart dateRange={dateRange} />
+          )}
+
+          {/* Table Section */}
+          <div className="rounded-md border">
+            <Table ref={tableRef}>
+              <TableHeader>
+                <TableRow>
+                  <ResizableTableHeader
                     columnId="receipt_number"
-                    getColumnCellProps={getColumnCellProps}
-                    className={`font-medium ${sale.status === 'annulled' ? 'text-red-700' : ''}`}
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
                   >
-                    {sale.receipt_number || sale.id}
-                  </ResizableTableCell>
-                  <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
-                    <div
-                      className={`truncate ${sale.status === 'annulled' ? 'text-red-600' : ''}`}
-                      title={getCustomerName(sale)}
-                    >
-                      {getCustomerName(sale)}
-                    </div>
-                  </ResizableTableCell>
-                  <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
-                    {getReceiptTypeBadge(getReceiptType(sale))}
-                  </ResizableTableCell>
-                  <ResizableTableCell
+                    Nº Venta
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
+                    columnId="customer"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                  >
+                    Cliente
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
+                    columnId="receipt_type"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                  >
+                    Comprobante
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
                     columnId="branch"
-                    getColumnCellProps={getColumnCellProps}
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
                     className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
                   >
-                    {(() => {
-                      const branchColor = getBranchColor(sale);
-                      const branchName = getBranchName(sale);
-                      
-                      return (
-                        <Badge 
-                          variant="outline" 
-                          className={`text-xs border-2 font-medium ${sale.status === 'annulled' ? 'opacity-60' : ''}`}
-                          style={{
-                            borderColor: branchColor,
-                            color: branchColor,
-                            backgroundColor: `${branchColor}10`
-                          }}
-                        >
-                          {branchName}
-                        </Badge>
-                      );
-                    })()}
-                  </ResizableTableCell>
-                  <ResizableTableCell
+                    Sucursal
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
                     columnId="items"
-                    getColumnCellProps={getColumnCellProps}
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
                     className="hidden md:table-cell text-center"
                   >
-                    <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{getItemsCount(sale)}</span>
-                  </ResizableTableCell>
-                  <ResizableTableCell
+                    Items
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
                     columnId="date"
-                    getColumnCellProps={getColumnCellProps}
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
                     className="hidden sm:table-cell"
                   >
-                    <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{formatShortDate(sale.date)}</span>
-                  </ResizableTableCell>
-                  <ResizableTableCell
+                    Fecha
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
                     columnId="total"
-                    getColumnCellProps={getColumnCellProps}
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
                     className="text-right"
                   >
-                    <span
-                      className={`${sale.status === 'annulled' ? 'line-through text-red-500 font-medium' : ''}`}
-                      title={sale.status === 'annulled' ? 'Venta anulada' : ''}
-                    >
-                      {formatCurrency(sale.total)}
-                    </span>
-                  </ResizableTableCell>
-                  <ResizableTableCell
+                    Total
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
                     columnId="actions"
-                    getColumnCellProps={getColumnCellProps}
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
                     className="text-center"
                   >
-                    <div className="flex justify-center items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
-                        onClick={() => handleViewDetail(sale)}
-                        title="Ver Detalle"
-                        type="button"
-                        disabled={loadingActions[`view-${sale.id}`]}
-                      >
-                        {loadingActions[`view-${sale.id}`] ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className={`text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
-                        size="icon"
-                        onClick={
-                          hasPermission('reimprimir_comprobantes')
-                            ? () => handleDownloadPdf(sale)
-                            : undefined
-                        }
-                        title={
-                          hasPermission('reimprimir_comprobantes') ? 'Descargar PDF' : ''
-                        }
-                        type="button"
-                        disabled={loadingActions[`download-${sale.id}`]}
-                      >
-                        {loadingActions[`download-${sale.id}`] ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Download className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className={`text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
-                        size="icon"
-                        onClick={
-                          hasPermission('reimprimir_comprobantes')
-                            ? () => handlePrintPdf(sale)
-                            : undefined
-                        }
-                        title={
-                          hasPermission('reimprimir_comprobantes') ? 'Imprimir comprobante' : ''
-                        }
-                        type="button"
-                        disabled={loadingActions[`print-${sale.id}`]}
-                      >
-                        {loadingActions[`print-${sale.id}`] ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Printer className="h-4 w-4" />
-                        )}
-                      </Button>
-                      {hasPermission('anular_ventas') && (sale.status === 'active' || sale.status === 'completed') && (
-                        <Button
-                          variant="ghost"
-                          className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
-                          size="icon"
-                          onClick={() => handleAnnulSale(sale)}
-                          title="Anular Venta"
-                          type="button"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </ResizableTableCell>
+                    Acciones
+                  </ResizableTableHeader>
                 </TableRow>
-              ))}
-          </TableBody>
-        </Table>
-      </div>
-      
-      {/* Paginación para ventas - Solo mostrar si no estamos en el filtro de anuladas */}
-      {statusFilter !== 'annulled' && (
-        <Pagination
-          currentPage={currentPage}
-          lastPage={totalPages}
-          total={totalItems}
-          itemName="ventas"
-          onPageChange={(page) => goToPage(page)}
-          disabled={pageLoading}
-          className="mt-4 mb-6"
-        />
-      )}
-      {statusFilter === 'annulled' && !loadingAnnulled && (
-        <div className="mt-4 mb-6 text-center text-sm text-muted-foreground">
-          Mostrando {filteredSales.length} {filteredSales.length === 1 ? 'venta anulada' : 'ventas anuladas'} en el período seleccionado
-        </div>
-      )}
-      
-      {/* Dialogs */}
-      {selectedSale && (
-        <ViewSaleDialog
-          open={isDetailOpen}
-          onOpenChange={setIsDetailOpen}
-          sale={selectedSale}
-          getCustomerName={getCustomerName}
-          formatDate={formatDate}
-          getReceiptType={getReceiptType}
-          onPrintPdf={async (sale) => {
-            if (!sale || !sale.id) {
-              toast.error("No se puede imprimir: ID de venta faltante.");
-              return;
-            }
-            try {
-              // Descargar el PDF con autenticación usando request (incluye token)
-              const response = await request({ 
-                method: 'GET', 
-                url: `/pos/sales/${sale.id}/pdf`,
-                responseType: 'blob'
-              });
-              
-              if (!response || !(response instanceof Blob)) {
-                throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-              }
-              
-              // Crear blob URL del PDF descargado
-              const blob = new Blob([response], { type: 'application/pdf' });
-              const blobUrl = window.URL.createObjectURL(blob);
+              </TableHeader>
+              <TableBody>
+                {(pageLoading || (statusFilter === 'annulled' && loadingAnnulled)) && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-24 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <Loader2 className="animate-spin h-6 w-6 text-primary mb-2" />
+                        <span className="text-sm text-muted-foreground">
+                          {statusFilter === 'annulled' ? 'Cargando ventas anuladas...' : 'Cargando ventas...'}
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) && filteredSales.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-24 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <FileText className="h-8 w-8 text-muted-foreground mb-2 opacity-40" />
+                        <span className="text-muted-foreground">No se encontraron ventas para el período seleccionado.</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) &&
+                  filteredSales.map((sale: SaleHeader) => (
+                    <TableRow
+                      key={sale.id}
+                      className={sale.status === 'annulled' ? 'group bg-red-50 hover:bg-red-100 transition-colors' : ''}
+                    >
+                      <ResizableTableCell
+                        columnId="receipt_number"
+                        getColumnCellProps={getColumnCellProps}
+                        className={`font-medium ${sale.status === 'annulled' ? 'text-red-700' : ''}`}
+                      >
+                        {sale.receipt_number || sale.id}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
+                        <div
+                          className={`truncate ${sale.status === 'annulled' ? 'text-red-600' : ''}`}
+                          title={getCustomerName(sale)}
+                        >
+                          {getCustomerName(sale)}
+                        </div>
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
+                        <div className="flex items-center gap-2">
+                          {getReceiptTypeBadge(getReceiptType(sale))}
+                          <AfipStatusBadge sale={sale} />
+                        </div>
+                      </ResizableTableCell>
+                      <ResizableTableCell
+                        columnId="branch"
+                        getColumnCellProps={getColumnCellProps}
+                        className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
+                      >
+                        {(() => {
+                          const branchColor = getBranchColor(sale);
+                          const branchName = getBranchName(sale);
 
-              // Crear iframe oculto para imprimir
-              const iframe = document.createElement('iframe');
-              iframe.style.display = 'none';
-              iframe.style.position = 'fixed';
-              iframe.style.width = '0';
-              iframe.style.height = '0';
-              iframe.style.border = 'none';
-              
-              // Agregar al DOM
-              document.body.appendChild(iframe);
-              
-              // Asignar blob URL al iframe
-              iframe.src = blobUrl;
-              
-              // Cuando el iframe cargue, ejecutar print
-              iframe.onload = () => {
-                setTimeout(() => {
-                  try {
-                    // Ejecutar impresión desde el iframe
-                    iframe.contentWindow?.focus();
-                    iframe.contentWindow?.print();
-                  } catch (err) {
-                    toast.error("No se pudo abrir el diálogo de impresión.");
+                          return (
+                            <Badge
+                              variant="outline"
+                              className={`text-xs border-2 font-medium ${sale.status === 'annulled' ? 'opacity-60' : ''}`}
+                              style={{
+                                borderColor: branchColor,
+                                color: branchColor,
+                                backgroundColor: `${branchColor}10`
+                              }}
+                            >
+                              {branchName}
+                            </Badge>
+                          );
+                        })()}
+                      </ResizableTableCell>
+                      <ResizableTableCell
+                        columnId="items"
+                        getColumnCellProps={getColumnCellProps}
+                        className="hidden md:table-cell text-center"
+                      >
+                        <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{getItemsCount(sale)}</span>
+                      </ResizableTableCell>
+                      <ResizableTableCell
+                        columnId="date"
+                        getColumnCellProps={getColumnCellProps}
+                        className="hidden sm:table-cell"
+                      >
+                        <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{formatShortDate(sale.date)}</span>
+                      </ResizableTableCell>
+                      <ResizableTableCell
+                        columnId="total"
+                        getColumnCellProps={getColumnCellProps}
+                        className="text-right"
+                      >
+                        <span
+                          className={`${sale.status === 'annulled' ? 'line-through text-red-500 font-medium' : ''}`}
+                          title={sale.status === 'annulled' ? 'Venta anulada' : ''}
+                        >
+                          {formatCurrency(sale.total)}
+                        </span>
+                      </ResizableTableCell>
+                      <ResizableTableCell
+                        columnId="actions"
+                        getColumnCellProps={getColumnCellProps}
+                        className="text-center"
+                      >
+                        <div className="flex justify-center items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
+                            onClick={() => handleViewDetail(sale)}
+                            title="Ver Detalle"
+                            type="button"
+                            disabled={loadingActions[`view-${sale.id}`]}
+                          >
+                            {loadingActions[`view-${sale.id}`] ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Eye className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className={`text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
+                            size="icon"
+                            onClick={
+                              hasPermission('reimprimir_comprobantes')
+                                ? () => handleDownloadPdf(sale)
+                                : undefined
+                            }
+                            title={
+                              hasPermission('reimprimir_comprobantes') ? 'Descargar PDF' : ''
+                            }
+                            type="button"
+                            disabled={loadingActions[`download-${sale.id}`]}
+                          >
+                            {loadingActions[`download-${sale.id}`] ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className={`text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
+                            size="icon"
+                            onClick={
+                              hasPermission('reimprimir_comprobantes')
+                                ? () => handlePrintPdf(sale)
+                                : undefined
+                            }
+                            title={
+                              hasPermission('reimprimir_comprobantes') ? 'Imprimir comprobante' : ''
+                            }
+                            type="button"
+                            disabled={loadingActions[`print-${sale.id}`]}
+                          >
+                            {loadingActions[`print-${sale.id}`] ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Printer className="h-4 w-4" />
+                            )}
+                          </Button>
+                          {hasPermission('anular_ventas') && (sale.status === 'active' || sale.status === 'completed') && (
+                            <Button
+                              variant="ghost"
+                              className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                              size="icon"
+                              onClick={() => handleAnnulSale(sale)}
+                              title="Anular Venta"
+                              type="button"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </ResizableTableCell>
+                    </TableRow>
+                  ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Paginación para ventas - Solo mostrar si no estamos en el filtro de anuladas */}
+          {statusFilter !== 'annulled' && (
+            <Pagination
+              currentPage={currentPage}
+              lastPage={totalPages}
+              total={totalItems}
+              itemName="ventas"
+              onPageChange={(page) => goToPage(page)}
+              disabled={pageLoading}
+              className="mt-4 mb-6"
+            />
+          )}
+          {statusFilter === 'annulled' && !loadingAnnulled && (
+            <div className="mt-4 mb-6 text-center text-sm text-muted-foreground">
+              Mostrando {filteredSales.length} {filteredSales.length === 1 ? 'venta anulada' : 'ventas anuladas'} en el período seleccionado
+            </div>
+          )}
+
+          {/* Dialogs */}
+          {selectedSale && (
+            <ViewSaleDialog
+              open={isDetailOpen}
+              onOpenChange={setIsDetailOpen}
+              sale={selectedSale}
+              getCustomerName={getCustomerName}
+              formatDate={formatDate}
+              getReceiptType={getReceiptType}
+              onPrintPdf={async (sale) => {
+                if (!sale || !sale.id) {
+                  toast.error("No se puede imprimir: ID de venta faltante.");
+                  return;
+                }
+                try {
+                  // Descargar el PDF con autenticación usando request (incluye token)
+                  const response = await request({
+                    method: 'GET',
+                    url: `/pos/sales/${sale.id}/pdf`,
+                    responseType: 'blob'
+                  });
+
+                  if (!response || !(response instanceof Blob)) {
+                    throw new Error("La respuesta del servidor no es un archivo PDF válido.");
                   }
-                  
-                  // Limpiar después de un tiempo
+
+                  // Crear blob URL del PDF descargado
+                  const blob = new Blob([response], { type: 'application/pdf' });
+                  const blobUrl = window.URL.createObjectURL(blob);
+
+                  // Crear iframe oculto para imprimir
+                  const iframe = document.createElement('iframe');
+                  iframe.style.display = 'none';
+                  iframe.style.position = 'fixed';
+                  iframe.style.width = '0';
+                  iframe.style.height = '0';
+                  iframe.style.border = 'none';
+
+                  // Agregar al DOM
+                  document.body.appendChild(iframe);
+
+                  // Asignar blob URL al iframe
+                  iframe.src = blobUrl;
+
+                  // Cuando el iframe cargue, ejecutar print
+                  iframe.onload = () => {
+                    setTimeout(() => {
+                      try {
+                        // Ejecutar impresión desde el iframe
+                        iframe.contentWindow?.focus();
+                        iframe.contentWindow?.print();
+                      } catch (err) {
+                        toast.error("No se pudo abrir el diálogo de impresión.");
+                      }
+
+                      // Limpiar después de un tiempo
+                      setTimeout(() => {
+                        if (document.body.contains(iframe)) {
+                          document.body.removeChild(iframe);
+                        }
+                        window.URL.revokeObjectURL(blobUrl);
+                      }, 1000);
+                    }, 500);
+                  };
+
+                  // Timeout de seguridad
                   setTimeout(() => {
                     if (document.body.contains(iframe)) {
                       document.body.removeChild(iframe);
+                      window.URL.revokeObjectURL(blobUrl);
                     }
-                    window.URL.revokeObjectURL(blobUrl);
-                  }, 1000);
-                }, 500);
-              };
-              
-              // Timeout de seguridad
-              setTimeout(() => {
-                if (document.body.contains(iframe)) {
-                  document.body.removeChild(iframe);
-                  window.URL.revokeObjectURL(blobUrl);
+                  }, 10000);
+                } catch (error) {
+                  toast.error("Error al imprimir el PDF");
                 }
-              }, 10000);
-            } catch (error) {
-              toast.error("Error al imprimir el PDF");
-            }
-          }}
-          onDownloadPdf={async (sale) => {
-            if (!sale || !sale.id) {
-              toast.error("No se puede descargar el PDF: ID de venta faltante.");
-              return;
-            }
-            try {
-              const response = await request({ 
-                method: 'GET', 
-                url: `/pos/sales/${sale.id}/pdf`,
-                responseType: 'blob'
-              });
-              if (!response || !(response instanceof Blob)) {
-                throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-              }
-              const blob = new Blob([response], { type: 'application/pdf' });
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-              const receiptNumber = sale.receipt_number || sale.id;
-              const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-              a.download = fileName;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              window.URL.revokeObjectURL(url);
-              toast.success("PDF descargado exitosamente");
-            } catch (error) {
-              toast.error("Error al descargar PDF");
-            }
-          }}
-        />
-      )}
+              }}
+              onDownloadPdf={async (sale) => {
+                if (!sale || !sale.id) {
+                  toast.error("No se puede descargar el PDF: ID de venta faltante.");
+                  return;
+                }
+                try {
+                  const response = await request({
+                    method: 'GET',
+                    url: `/pos/sales/${sale.id}/pdf`,
+                    responseType: 'blob'
+                  });
+                  if (!response || !(response instanceof Blob)) {
+                    throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+                  }
+                  const blob = new Blob([response], { type: 'application/pdf' });
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+                  const receiptNumber = sale.receipt_number || sale.id;
+                  const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+                  a.download = fileName;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  window.URL.revokeObjectURL(url);
+                  toast.success("PDF descargado exitosamente");
+                } catch (error) {
+                  toast.error("Error al descargar PDF");
+                }
+              }}
+              onSaleUpdated={handleSaleUpdated}
+            />
+          )}
 
-      {/* Annul Sale Dialog */}
-      {saleToAnnul && (
-        <AnnulSaleDialog
-          isOpen={isAnnulDialogOpen}
-          onClose={() => setIsAnnulDialogOpen(false)}
-          sale={saleToAnnul}
-          onSuccess={handleAnnulSuccess}
-        />
-      )}
+          {/* Annul Sale Dialog */}
+          {saleToAnnul && (
+            <AnnulSaleDialog
+              isOpen={isAnnulDialogOpen}
+              onClose={() => setIsAnnulDialogOpen(false)}
+              sale={saleToAnnul}
+              onSuccess={handleAnnulSuccess}
+            />
+          )}
 
-      {selectedSale && isReceiptOpen && (
-        <SaleReceiptPreviewDialog
-          open={isReceiptOpen}
-          onOpenChange={setIsReceiptOpen}
-          sale={selectedSale}
-          customerName={getCustomerName(selectedSale)}
-          customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
-          formatDate={formatDate}
-          formatCurrency={formatCurrency}
-          onPrint={() => window.print()}
-        />
-      )}
+          {selectedSale && isReceiptOpen && (
+            <SaleReceiptPreviewDialog
+              open={isReceiptOpen}
+              onOpenChange={setIsReceiptOpen}
+              sale={selectedSale}
+              customerName={getCustomerName(selectedSale)}
+              customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
+              formatDate={formatDate}
+              formatCurrency={formatCurrency}
+              onPrint={() => window.print()}
+            />
+          )}
 
-      <style>{`
+          <style>{`
         @media print {
           body > *:not(#print-area) { 
             display: none !important; 
