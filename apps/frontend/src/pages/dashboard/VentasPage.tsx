@@ -30,9 +30,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
-import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
+
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart";
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
@@ -45,6 +51,8 @@ import useApi from "@/hooks/useApi";
 import { type SaleHeader } from "@/types/sale";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import CashRegisterStatusBadge from "@/components/cash-register-status-badge";
 import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status";
 import { useLocation } from "react-router-dom";
@@ -610,6 +618,35 @@ export default function VentasPage() {
     toast.success("Exportación CSV generada.");
   };
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+
+    const tableColumn = ["Número", "Comprobante", "Cliente", "Sucursal", "Total", "Fecha"];
+    const tableRows: any[] = [];
+
+    filteredSales.forEach((sale) => {
+      const saleData = [
+        sale.receipt_number || sale.id,
+        getReceiptType(sale).displayName,
+        getCustomerName(sale),
+        typeof sale.branch === 'string' ? sale.branch : sale.branch?.description || "N/A",
+        formatCurrency(sale.total),
+        formatShortDate(sale.date),
+      ];
+      tableRows.push(saleData);
+    });
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 20,
+    });
+
+    doc.text("Reporte de Ventas", 14, 15);
+    doc.save("reporte_ventas.pdf");
+    toast.success("Exportación PDF generada.");
+  };
+
   const handleViewDetail = async (sale: SaleHeader) => {
     const actionKey = `view-${sale.id}`;
     setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
@@ -901,15 +938,28 @@ export default function VentasPage() {
                 <RefreshCw className={`h-4 w-4 ${pageLoading ? "animate-spin" : ""}`} />
               </Button>
               {hasPermission('exportar_reportes') && (
-                <Button
-                  variant="outline"
-                  className="cursor-pointer"
-                  onClick={handleExportCSV}
-                  disabled={pageLoading}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Exportar CSV
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="cursor-pointer"
+                      disabled={pageLoading}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Exportar
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer">
+                      <FileText className="mr-2 h-4 w-4" />
+                      Exportar CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
+                      <FileText className="mr-2 h-4 w-4" />
+                      Exportar PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
               <Button
                 variant="outline"
@@ -1178,7 +1228,7 @@ export default function VentasPage() {
                       <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
                         <div className="flex items-center gap-2">
                           {getReceiptTypeBadge(getReceiptType(sale))}
-                          <AfipStatusBadge sale={sale} />
+
                         </div>
                       </ResizableTableCell>
                       <ResizableTableCell
