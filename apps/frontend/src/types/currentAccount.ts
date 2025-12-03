@@ -313,7 +313,7 @@ export interface ProcessPaymentWithChargesData {
   sale_payments?: SalePayment[];
   charge_payments?: ChargePayment[];
   payment_method_id: number;
-  favor_credit_amount?: number;
   branch_id?: number; // Sucursal para registrar movimiento de caja (requerido para cargos administrativos)
 }
+
 
