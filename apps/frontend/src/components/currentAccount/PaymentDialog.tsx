@@ -27,8 +27,8 @@ import {
 } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { DollarSign, CreditCard, Loader2 } from 'lucide-react';
-import { 
-  PendingSale, 
+import {
+  PendingSale,
   SalePayment,
   ProcessPaymentBySaleData
 } from '@/types/currentAccount';
@@ -75,28 +75,23 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
       setLoadingMethods(true);
       const response = await api.get('/payment-methods');
       const allMethods = response.data.data || response.data;
-      
-      // Filtrar métodos activos y excluir "Cuenta Corriente" y "Crédito a favor"
+
+      // Filtrar métodos activos y excluir "Cuenta Corriente"
       const filteredMethods = allMethods.filter((method: PaymentMethod) => {
         // Solo métodos activos
         if (!method.is_active) return false;
-        
+
         const nameLower = method.name.toLowerCase().trim();
         // Excluir "Cuenta Corriente"
-        if (nameLower.includes('cuenta corriente') || 
-            nameLower.includes('cta cte') ||
-            nameLower.includes('cta. cte') ||
-            nameLower === 'corriente') {
-          return false;
-        }
-        // Excluir "Crédito a favor"
-        if (nameLower.includes('crédito a favor') || 
-            nameLower.includes('credito a favor')) {
+        if (nameLower.includes('cuenta corriente') ||
+          nameLower.includes('cta cte') ||
+          nameLower.includes('cta. cte') ||
+          nameLower === 'corriente') {
           return false;
         }
         return true;
       });
-      
+
       setPaymentMethods(filteredMethods);
     } catch (error) {
       console.error('Error loading payment methods:', error);
@@ -111,7 +106,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
       setLoadingSales(true);
       const sales = await CurrentAccountService.getPendingSales(accountId);
       setPendingSales(sales);
-      
+
       // Inicializar formulario
       const initialForm: SalePaymentForm = {};
       sales.forEach(sale => {
@@ -135,14 +130,14 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
     const selectedSaleIds = Object.entries(salePayments)
       .filter(([_, payment]) => payment.selected)
       .map(([saleId]) => parseInt(saleId));
-    
+
     const branchIds = selectedSaleIds
       .map(saleId => {
         const sale = pendingSales.find(s => s.id === saleId);
         return sale?.branch_id;
       })
       .filter((branchId): branchId is number => branchId !== undefined);
-    
+
     return [...new Set(branchIds)]; // Eliminar duplicados
   }, [salePayments, pendingSales]);
 
@@ -156,10 +151,10 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
   const canSelectSale = useCallback((saleId: number): boolean => {
     const sale = pendingSales.find(s => s.id === saleId);
     if (!sale) return false;
-    
+
     const selectedBranchId = getSelectedBranchId();
     if (!selectedBranchId) return true; // Si no hay ventas seleccionadas, se puede seleccionar
-    
+
     return sale.branch_id === selectedBranchId;
   }, [pendingSales, getSelectedBranchId]);
 
@@ -176,7 +171,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
   // Actualizar sucursal cuando cambian las ventas seleccionadas
   useEffect(() => {
     const selectedBranchId = getSelectedBranchId();
-    
+
     // Si hay una sucursal única de las ventas seleccionadas, usarla automáticamente
     if (selectedBranchId !== null) {
       setSelectedBranchId(selectedBranchId.toString());
@@ -195,7 +190,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
       const currentlySelectedSales = Object.entries(salePayments)
         .filter(([_, payment]) => payment.selected)
         .map(([id]) => parseInt(id));
-      
+
       if (currentlySelectedSales.length > 0) {
         // Verificar que todas las ventas seleccionadas sean de la misma sucursal
         const selectedBranchIds = currentlySelectedSales
@@ -204,9 +199,9 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
             return s?.branch_id;
           })
           .filter((id): id is number => id !== undefined);
-        
+
         const uniqueBranchIds = [...new Set(selectedBranchIds)];
-        
+
         // Si hay ventas seleccionadas y la nueva venta es de otra sucursal, no permitir
         if (uniqueBranchIds.length > 0 && !uniqueBranchIds.includes(sale.branch_id)) {
           const branchName = branches.find(b => b.id === sale.branch_id.toString())?.description || 'otra sucursal';
@@ -232,7 +227,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
     if (sale) {
       const numAmount = parseFloat(amount) || 0;
       const maxAmount = sale.pending_amount;
-      
+
       if (numAmount > maxAmount) {
         toast.warning(`El monto no puede exceder el pendiente de $${maxAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`);
         setSalePayments(prev => ({
@@ -245,7 +240,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
         return;
       }
     }
-    
+
     setSalePayments(prev => ({
       ...prev,
       [saleId]: {
@@ -274,7 +269,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedPaymentMethod) {
       toast.error('Selecciona un método de pago');
       return;
@@ -307,12 +302,12 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
         toast.error(`Venta #${salePayment.sale_id} no encontrada`);
         return;
       }
-      
+
       if (salePayment.amount <= 0) {
         toast.error(`El monto debe ser mayor a 0 para la venta #${sale.receipt_number}`);
         return;
       }
-      
+
       if (salePayment.amount > sale.pending_amount) {
         toast.error(`El pago de $${salePayment.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} excede el monto pendiente de $${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} para la venta #${sale.receipt_number}`);
         return;
@@ -321,24 +316,24 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
 
     // Obtener la sucursal de las ventas seleccionadas (debe ser única)
     const selectedBranchIdFromSales = getSelectedBranchId();
-    
+
     if (!selectedBranchIdFromSales) {
       toast.error('Error: No se pudo determinar la sucursal de las ventas seleccionadas');
       return;
     }
-    
+
     const branchIdToUse = selectedBranchIdFromSales.toString();
 
     // Procesar pago
     try {
       setLoading(true);
-      
+
       const paymentData: ProcessPaymentBySaleData = {
         payment_method_id: parseInt(selectedPaymentMethod),
         sale_payments: selectedSales,
         ...(branchIdToUse ? { branch_id: parseInt(branchIdToUse) } : {})
       };
-      
+
       await CurrentAccountService.processPaymentBySale(accountId, paymentData);
 
       toast.success('Pago procesado exitosamente');
@@ -369,7 +364,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
             Registrar Pago
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="bg-muted p-4 rounded-lg">
             <div className="flex items-center justify-between">
@@ -394,106 +389,106 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
               {pendingSales.length > 0 && (
                 <div className="space-y-2">
                   <Label>Ventas Pendientes</Label>
-                <div className="border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12"></TableHead>
-                        <TableHead>Venta #</TableHead>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-right">Pagado</TableHead>
-                        <TableHead className="text-right">Pendiente</TableHead>
-                        <TableHead className="text-right">Monto a Pagar</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {pendingSales.map(sale => {
-                        const isSelected = salePayments[sale.id]?.selected || false;
-                        const canSelect = canSelectSale(sale.id);
-                        const isDisabled = !isSelected && !canSelect;
-                        
-                        return (
-                          <TableRow key={sale.id} className={isDisabled ? 'opacity-50' : ''}>
-                            <TableCell>
-                              <Checkbox
-                                checked={isSelected}
-                                disabled={isDisabled}
-                                onCheckedChange={(checked) => 
-                                  handleSaleSelection(sale.id, checked as boolean)
-                                }
-                              />
-                            </TableCell>
-                          <TableCell className="font-medium">{sale.receipt_number}</TableCell>
-                          <TableCell>{new Date(sale.date).toLocaleDateString('es-AR')}</TableCell>
-                          <TableCell className="text-right">
-                            ${sale.total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            ${sale.paid_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-red-600">
-                            ${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell>
-                            <div className="relative">
-                              <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                max={sale.pending_amount}
-                                value={salePayments[sale.id]?.amount || ''}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  const numValue = parseFloat(value) || 0;
-                                  // Validar en tiempo real que no exceda el pendiente
-                                  if (value && numValue > sale.pending_amount) {
-                                    // Limitar automáticamente al máximo permitido
-                                    handleAmountChange(sale.id, sale.pending_amount.toFixed(2));
-                                    toast.warning(`El monto máximo para esta venta es $${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`);
-                                  } else {
-                                    handleAmountChange(sale.id, value);
-                                  }
-                                }}
-                                onBlur={(e) => {
-                                  // Asegurar que el valor final no exceda el pendiente
-                                  const numValue = parseFloat(e.target.value) || 0;
-                                  if (numValue > sale.pending_amount) {
-                                    handleAmountChange(sale.id, sale.pending_amount.toFixed(2));
-                                  } else if (numValue < 0) {
-                                    handleAmountChange(sale.id, '0.00');
-                                  }
-                                }}
-                                disabled={!salePayments[sale.id]?.selected}
-                                className="pl-10"
-                                placeholder="0.00"
-                              />
-                            </div>
-                            {salePayments[sale.id]?.selected && parseFloat(salePayments[sale.id]?.amount || '0') > sale.pending_amount && (
-                              <p className="text-xs text-red-600 mt-1">
-                                Máximo permitido: ${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                              </p>
-                            )}
-                          </TableCell>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12"></TableHead>
+                          <TableHead>Venta #</TableHead>
+                          <TableHead>Fecha</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-right">Pagado</TableHead>
+                          <TableHead className="text-right">Pendiente</TableHead>
+                          <TableHead className="text-right">Monto a Pagar</TableHead>
                         </TableRow>
-                      );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingSales.map(sale => {
+                          const isSelected = salePayments[sale.id]?.selected || false;
+                          const canSelect = canSelectSale(sale.id);
+                          const isDisabled = !isSelected && !canSelect;
+
+                          return (
+                            <TableRow key={sale.id} className={isDisabled ? 'opacity-50' : ''}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={isSelected}
+                                  disabled={isDisabled}
+                                  onCheckedChange={(checked) =>
+                                    handleSaleSelection(sale.id, checked as boolean)
+                                  }
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">{sale.receipt_number}</TableCell>
+                              <TableCell>{new Date(sale.date).toLocaleDateString('es-AR')}</TableCell>
+                              <TableCell className="text-right">
+                                ${sale.total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                ${sale.paid_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold text-red-600">
+                                ${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                              </TableCell>
+                              <TableCell>
+                                <div className="relative">
+                                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    max={sale.pending_amount}
+                                    value={salePayments[sale.id]?.amount || ''}
+                                    onChange={(e) => {
+                                      const value = e.target.value;
+                                      const numValue = parseFloat(value) || 0;
+                                      // Validar en tiempo real que no exceda el pendiente
+                                      if (value && numValue > sale.pending_amount) {
+                                        // Limitar automáticamente al máximo permitido
+                                        handleAmountChange(sale.id, sale.pending_amount.toFixed(2));
+                                        toast.warning(`El monto máximo para esta venta es $${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`);
+                                      } else {
+                                        handleAmountChange(sale.id, value);
+                                      }
+                                    }}
+                                    onBlur={(e) => {
+                                      // Asegurar que el valor final no exceda el pendiente
+                                      const numValue = parseFloat(e.target.value) || 0;
+                                      if (numValue > sale.pending_amount) {
+                                        handleAmountChange(sale.id, sale.pending_amount.toFixed(2));
+                                      } else if (numValue < 0) {
+                                        handleAmountChange(sale.id, '0.00');
+                                      }
+                                    }}
+                                    disabled={!salePayments[sale.id]?.selected}
+                                    className="pl-10"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                                {salePayments[sale.id]?.selected && parseFloat(salePayments[sale.id]?.amount || '0') > sale.pending_amount && (
+                                  <p className="text-xs text-red-600 mt-1">
+                                    Máximo permitido: ${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                  </p>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               )}
 
               {/* Mostrar información de la sucursal cuando hay ventas seleccionadas */}
               {(() => {
                 const selectedBranchIdFromSales = getSelectedBranchId();
-                
+
                 if (!selectedBranchIdFromSales) return null;
-                
+
                 const branch = branches.find(b => b.id === selectedBranchIdFromSales.toString());
                 if (!branch) return null;
-                
+
                 return (
                   <div className="space-y-2 mt-4 p-3 bg-muted rounded-md">
                     <p className="text-sm font-medium">
@@ -508,9 +503,9 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
 
               <div className="space-y-2">
                 <Label htmlFor="payment_method">Método de Pago *</Label>
-                
-                <Select 
-                  value={selectedPaymentMethod} 
+
+                <Select
+                  value={selectedPaymentMethod}
                   onValueChange={setSelectedPaymentMethod}
                   disabled={loadingMethods}
                 >
@@ -539,32 +534,32 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
           )}
 
           <DialogFooter>
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
             >
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={(() => {
                 if (loading || loadingSales) return true;
-                
+
                 // Validar que haya al menos una venta seleccionada
                 const hasSelectedSales = Object.values(salePayments).some(p => p.selected);
-                
+
                 if (!hasSelectedSales) return true;
-                
+
                 // Validar que haya un método de pago y un total a pagar
                 if (!selectedPaymentMethod) return true;
-                
+
                 // Si hay múltiples sucursales, validar que haya sucursal seleccionada
                 if (branches.length > 1 && !selectedBranchId) {
                   return true;
                 }
-                
+
                 return totalAmount === 0;
               })()}
             >

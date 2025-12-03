@@ -6,7 +6,8 @@ import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resiza
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { usePendingSalesData } from '@/hooks/usePendingSalesData';
 import { toast } from 'sonner';
-import { Eye, Pause, Play, CreditCard, DollarSign, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Eye, Pause, Play, CreditCard, DollarSign, Loader2 } from 'lucide-react';
+import Pagination from '@/components/ui/pagination';
 import { CurrentAccount, CurrentAccountFilters, PaginatedResponse } from '@/types/currentAccount';
 import { CurrentAccountService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
 import { InfinitySymbol } from '@/components/ui/InfinitySymbol';
@@ -241,9 +242,9 @@ export function CurrentAccountList({
 
 
   return (
-    <div className="rounded-md border bg-card">
+    <div className="space-y-4">
       {accounts.length === 0 ? (
-        <div className="text-center py-12">
+        <div className="rounded-md border bg-card text-center py-12">
           <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
             <CreditCard className="h-6 w-6 text-muted-foreground" />
           </div>
@@ -258,7 +259,7 @@ export function CurrentAccountList({
           </div>
         </div>
       ) : (
-        <div className="relative">
+        <div className="rounded-md border overflow-hidden">
           <Table ref={tableRef} className="w-full">
             <TableHeader>
               <TableRow>
@@ -440,53 +441,14 @@ export function CurrentAccountList({
 
       {/* Paginación */}
       {!loading && pagination.total > 0 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t">
-          <div className="flex items-center text-sm text-gray-700">
-            <span>
-              Mostrando {pagination.from} a {pagination.to} de {pagination.total} resultados
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(pagination.current_page - 1)}
-              disabled={pagination.current_page <= 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Anterior
-            </Button>
-            
-            <div className="flex items-center space-x-1">
-              {Array.from({ length: Math.min(5, pagination.last_page) }, (_, i) => {
-                const pageNumber = Math.max(1, pagination.current_page - 2) + i;
-                if (pageNumber > pagination.last_page) return null;
-                
-                return (
-                  <Button
-                    key={pageNumber}
-                    variant={pageNumber === pagination.current_page ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => handlePageChange(pageNumber)}
-                    className="w-8 h-8 p-0"
-                  >
-                    {pageNumber}
-                  </Button>
-                );
-              })}
-            </div>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(pagination.current_page + 1)}
-              disabled={pagination.current_page >= pagination.last_page}
-            >
-              Siguiente
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={pagination.current_page}
+          lastPage={pagination.last_page}
+          total={pagination.total}
+          itemName="cuentas corrientes"
+          onPageChange={handlePageChange}
+          disabled={loading}
+        />
       )}
     </div>
   );
