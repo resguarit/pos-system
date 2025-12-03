@@ -303,7 +303,7 @@ export function AppSidebar({ className }: { className?: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {hasPermission('ver_metodos_pago') && (
+              {features.metodosPago && hasPermission('ver_metodos_pago') && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/metodos-pago"} tooltip="Métodos de Pago">
                     <Link to="/dashboard/metodos-pago">

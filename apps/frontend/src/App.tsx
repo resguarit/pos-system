@@ -97,7 +97,7 @@ function App() {
           {features.pos && <Route path="pos/completar-venta" element={<ProtectedRoute permissions={['crear_ventas']}><CompleteSalePage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
           {features.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
-          <Route path="stock-transfers" element={<ProtectedRoute permissions={['ver_transferencias']}><StockTransfersPage /></ProtectedRoute>} />
+          {features.transferencias && <Route path="stock-transfers" element={<ProtectedRoute permissions={['ver_transferencias']}><StockTransfersPage /></ProtectedRoute>} />}
           {features.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}
           {features.reportesFinancieros && <Route path="reportes-financieros" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesFinancierosPage /></ProtectedRoute>} />}
           {features.roles && <Route path="roles" element={<ProtectedRoute permissions={['ver_roles']}><RolesPage /></ProtectedRoute>} />}
@@ -122,7 +122,7 @@ function App() {
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
           {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
           {features.auditorias && <Route path="auditorias" element={<ProtectedRoute permissions={['ver_auditorias']}><AuditoriasPage /></ProtectedRoute>} />}
-          <Route path="metodos-pago" element={<ProtectedRoute permissions={['ver_metodos_pago']}><PaymentMethodsPage /></ProtectedRoute>} />
+          {features.metodosPago && <Route path="metodos-pago" element={<ProtectedRoute permissions={['ver_metodos_pago']}><PaymentMethodsPage /></ProtectedRoute>} />}
         </Route>
 
         {/* Redirección por defecto */}

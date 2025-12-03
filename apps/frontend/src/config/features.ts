@@ -2,11 +2,11 @@ const features = {
   // Core features
   dashboard: true,
   roles: true,
-  
+
   categorias: true,
   combos: true,
   repairs: false,
-  
+
   analisisventas: false,
   caja: true,
   clientes: true,
@@ -20,6 +20,7 @@ const features = {
   pos: true,
   proveedores: true,
   purchaseOrders: true,
+  transferencias: true,
   reportesInventario: false,
   reportesFinancieros: true,
   solicitudes: false,
@@ -29,9 +30,9 @@ const features = {
   empleados: false,
   ventas: true,
   zonasEntrega: false,
-  
   shipments: true,
   auditorias: true,
+  metodosPago: true,
 } as const;
 
 export default features;
