@@ -389,6 +389,11 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
           getReceiptType={getReceiptType}
           onDownloadPdf={async () => {
           }}
+          onSaleUpdated={(updatedSale) => {
+            if (selectedSale && selectedSale.id === updatedSale.id) {
+              setSelectedSale(updatedSale);
+            }
+          }}
         />
       )}
     </Card>
