@@ -825,6 +825,8 @@ class CashRegisterController extends Controller
             'filters.search' => 'nullable|string',
             'filters.movement_type' => 'nullable|integer',
             'filters.branch' => 'nullable|integer',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => 'nullable|integer|min:1|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -833,124 +835,106 @@ class CashRegisterController extends Controller
 
         $branchIds = $request->input('branch_ids');
         $filters = $request->input('filters', []);
+        $page = $request->input('page', 1);
+        $perPage = $request->input('per_page', 15);
         
         try {
-            // Obtener todas las cajas (abiertas y cerradas) de las sucursales especificadas
-            $cashRegisters = CashRegister::with(['branch', 'user'])
+            // 1. Obtener cajas ABIERTAS para el estado actual y estadísticas de balance
+            // Optimizamos trayendo solo las cajas abiertas
+            $openCashRegisters = CashRegister::with(['branch', 'user'])
                 ->whereIn('branch_id', $branchIds)
+                ->where('status', 'open')
                 ->get();
 
-            // Calcular estadísticas consolidadas
+            // 2. Calcular estadísticas consolidadas
             $consolidatedStats = [
                 'total_balance' => 0.0,
                 'total_income' => 0.0,
                 'total_expenses' => 0.0,
                 'total_saldo' => 0.0,
-                'open_cash_registers' => 0,
-                'closed_cash_registers' => 0,
+                'open_cash_registers' => $openCashRegisters->count(),
+                'closed_cash_registers' => 0, // Se calculará después
                 'total_branches' => count($branchIds)
             ];
 
+            // Calcular balance total (suma de esperados de cajas abiertas)
+            foreach ($openCashRegisters as $register) {
+                $consolidatedStats['total_balance'] += (float) ($register->expected_cash_balance ?? $register->calculateExpectedCashBalance());
+            }
+
+            // Calcular cajas cerradas
+            // Asumimos que si una sucursal no tiene caja abierta, está cerrada.
+            // Esto es una aproximación, ya que branchIds son todas las solicitadas.
+            // Pero el código original restaba open de total.
+            $consolidatedStats['closed_cash_registers'] = count($branchIds) - $consolidatedStats['open_cash_registers'];
+
+            // 3. Calcular Totales de Ingresos/Egresos (Entradas/Salidas)
+            // El código original aplicaba filtros Y ademas restringia a HOY.
+            // Vamos a replicar la lógica: Filtros de request + Filtro de HOY para las estadisticas
+            
+            $statsQuery = \App\Models\CashMovement::whereHas('cashRegister', function($q) use ($branchIds) {
+                $q->whereIn('branch_id', $branchIds);
+            });
+
+            // Aplicar filtros del request (search, branch, type, date_range...)
+            $this->applyFiltersToQuery($statsQuery, $filters);
+            
+            // ADEMAS, restringir a HOY para coincidir con la lógica original de "todayIncome"
+            // Si el filtro de fecha del request excluye hoy, esto dará 0, lo cual es correcto según la lógica original.
+            $statsQuery->where('created_at', '>=', now()->startOfDay());
+
+            // Clonar para ingresos y egresos
+            $incomeQuery = clone $statsQuery;
+            $expensesQuery = clone $statsQuery;
+
+            $consolidatedStats['total_income'] = (float) $incomeQuery->whereHas('movementType', function($q) {
+                $q->where('operation_type', 'entrada');
+            })->sum('amount');
+
+            $consolidatedStats['total_expenses'] = (float) $expensesQuery->whereHas('movementType', function($q) {
+                $q->where('operation_type', 'salida');
+            })->sum('amount');
+
+            $consolidatedStats['total_saldo'] = $consolidatedStats['total_income'] - $consolidatedStats['total_expenses'];
+
+
+            // 4. Obtener Movimientos Paginados (All Movements)
+            $movementsQuery = \App\Models\CashMovement::with(['movementType', 'user', 'paymentMethod', 'cashRegister.branch'])
+                ->whereHas('cashRegister', function($q) use ($branchIds) {
+                    $q->whereIn('branch_id', $branchIds);
+                });
+            
+            // Aplicar filtros
+            $this->applyFiltersToQuery($movementsQuery, $filters);
+            
+            // Paginar
+            $paginatedMovements = $movementsQuery->orderBy('created_at', 'desc')
+                ->paginate($perPage, ['*'], 'page', $page);
+            
+            // Formatear movimientos para incluir branch_name (compatibilidad)
+            $paginatedMovements->getCollection()->transform(function ($movement) {
+                $movement->branch_id = $movement->cashRegister->branch_id;
+                $movement->branch_name = $movement->cashRegister->branch->description ?? 'N/A';
+                return $movement;
+            });
+
+            // 5. Preparar datos de cash_registers para la respuesta
+            // Solo devolvemos las cajas abiertas para mantener la respuesta ligera y relevante para "Estados"
+            // Si el frontend necesita historial de cajas, usa otro endpoint.
             $cashRegistersData = [];
-            $allMovements = [];
-
-            foreach ($cashRegisters as $cashRegister) {
-                // Forzar actualización de campos calculados para obtener datos frescos
-                $cashRegister->updateCalculatedFields();
-                $cashRegister->refresh();
-
-                // Obtener movimientos de esta caja
-                $movementsQuery = $cashRegister->cashMovements()
-                    ->with(['movementType', 'user', 'paymentMethod']);
+            foreach ($openCashRegisters as $cashRegister) {
+                // Recalcular income/expenses de HOY para esta caja especifica
+                // Esto es necesario para las tarjetas individuales
+                // Podriamos optimizarlo, pero son pocos registros (cajas abiertas).
                 
-                // Aplicar filtros de búsqueda si existen
-                if (!empty($filters['search'])) {
-                    $search = $filters['search'];
-                    $movementsQuery->where(function($q) use ($search) {
-                        $q->where('description', 'like', "%{$search}%")
-                          ->orWhereHas('user', function($userQuery) use ($search) {
-                              $userQuery->where('username', 'like', "%{$search}%")
-                                        ->orWhereHas('person', function($personQuery) use ($search) {
-                                            $personQuery->where('first_name', 'like', "%{$search}%")
-                                                      ->orWhere('last_name', 'like', "%{$search}%");
-                                        });
-                          });
-                    });
-                }
+                $regMovements = $cashRegister->cashMovements()
+                    ->with('movementType')
+                    ->where('created_at', '>=', now()->startOfDay())
+                    ->get();
                 
-                // Aplicar filtro por tipo de movimiento si existe
-                if (!empty($filters['movement_type'])) {
-                    $movementsQuery->where('movement_type_id', $filters['movement_type']);
-                }
-                
-                // Aplicar filtro por sucursal si existe
-                if (!empty($filters['branch'])) {
-                    $movementsQuery->whereHas('cashRegister', function($q) use ($filters) {
-                        $q->where('branch_id', $filters['branch']);
-                    });
-                }
-                
-                // Aplicar filtros de fecha si existen
-                if (!empty($filters['date_range'])) {
-                    $customDates = [];
-                    if ($filters['date_range'] === 'custom' && !empty($filters['custom_dates'])) {
-                        $customDates = $filters['custom_dates'];
-                    }
-                    $this->applyDateFilter($movementsQuery, $filters['date_range'], $customDates);
-                }
-                
-                $movements = $movementsQuery->orderBy('created_at', 'desc')->get();
+                $todayIncome = $regMovements->filter(fn($m) => $m->movementType->operation_type === 'entrada')->sum('amount');
+                $todayExpenses = $regMovements->filter(fn($m) => $m->movementType->operation_type === 'salida')->sum('amount');
 
-                // Agregar información de sucursal a cada movimiento
-                foreach ($movements as $movement) {
-                    $movement->branch_id = $cashRegister->branch_id;
-                    $movement->branch_name = $cashRegister->branch->description;
-                    $allMovements[] = $movement;
-                }
-
-                // Calcular estadísticas de esta caja
-                $expectedCashBalance = $cashRegister->expected_cash_balance ?? $cashRegister->calculateExpectedCashBalance();
-                $paymentMethodTotals = $cashRegister->payment_method_totals ?? [];
-                
-                // Contar solo cajas abiertas
-                if ($cashRegister->status === 'open') {
-                    $consolidatedStats['open_cash_registers']++;
-                    
-                    // Sumar a estadísticas consolidadas SOLO si la caja está abierta
-                    $consolidatedStats['total_balance'] += (float) $expectedCashBalance;
-
-                    // Calcular ingresos y egresos de hoy
-                    $todayIncome = $movements->where('created_at', '>=', now()->startOfDay())
-                        ->filter(function($movement) {
-                            return $movement->movementType->operation_type === 'entrada';
-                        })
-                        ->sum('amount');
-
-                    $todayExpenses = $movements->where('created_at', '>=', now()->startOfDay())
-                        ->filter(function($movement) {
-                            return $movement->movementType->operation_type === 'salida';
-                        })
-                        ->sum('amount');
-
-                    $consolidatedStats['total_income'] += (float) $todayIncome;
-                    $consolidatedStats['total_expenses'] += (float) $todayExpenses;
-                    $consolidatedStats['total_saldo'] += (float) ($todayIncome - $todayExpenses);
-                } else {
-                    // Para cajas cerradas, calcular ingresos y egresos de hoy para mostrar en datos individuales
-                    $todayIncome = $movements->where('created_at', '>=', now()->startOfDay())
-                        ->filter(function($movement) {
-                            return $movement->movementType->operation_type === 'entrada';
-                        })
-                        ->sum('amount');
-
-                    $todayExpenses = $movements->where('created_at', '>=', now()->startOfDay())
-                        ->filter(function($movement) {
-                            return $movement->movementType->operation_type === 'salida';
-                        })
-                        ->sum('amount');
-                }
-
-                // Datos de la caja individual
                 $cashRegistersData[] = [
                     'id' => $cashRegister->id,
                     'branch_id' => $cashRegister->branch_id,
@@ -958,28 +942,30 @@ class CashRegisterController extends Controller
                     'user' => $cashRegister->user,
                     'opened_at' => $cashRegister->opened_at,
                     'initial_amount' => $cashRegister->initial_amount,
-                    'expected_cash_balance' => $expectedCashBalance,
-                    'payment_method_totals' => $paymentMethodTotals,
+                    'expected_cash_balance' => $cashRegister->expected_cash_balance ?? $cashRegister->calculateExpectedCashBalance(),
+                    'payment_method_totals' => $cashRegister->payment_method_totals ?? [],
                     'status' => $cashRegister->status,
                     'notes' => $cashRegister->notes,
                     'today_income' => $todayIncome,
                     'today_expenses' => $todayExpenses,
-                    'movements_count' => $movements->count()
+                    'movements_count' => $regMovements->count() // Count of today's movements
                 ];
             }
-
-            // Contar cajas cerradas (total de cajas - cajas abiertas)
-            $consolidatedStats['closed_cash_registers'] = count($cashRegisters) - $consolidatedStats['open_cash_registers'];
-
-            // Ordenar movimientos por fecha (más recientes primero)
-            $allMovements = collect($allMovements)->sortByDesc('created_at')->values();
 
             return response()->json([
                 'message' => 'Datos consolidados de múltiples sucursales obtenidos',
                 'data' => [
                     'consolidated_stats' => $consolidatedStats,
                     'cash_registers' => $cashRegistersData,
-                    'all_movements' => $allMovements,
+                    'all_movements' => $paginatedMovements->items(),
+                    'pagination' => [
+                        'total' => $paginatedMovements->total(),
+                        'per_page' => $paginatedMovements->perPage(),
+                        'current_page' => $paginatedMovements->currentPage(),
+                        'last_page' => $paginatedMovements->lastPage(),
+                        'from' => $paginatedMovements->firstItem(),
+                        'to' => $paginatedMovements->lastItem(),
+                    ],
                     'branches_count' => count($branchIds),
                     'timestamp' => now()->toISOString()
                 ]
@@ -988,8 +974,49 @@ class CashRegisterController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al obtener datos consolidados',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine()
             ], 500);
+        }
+    }
+
+    /**
+     * Helper para aplicar filtros a una query de CashMovement
+     */
+    private function applyFiltersToQuery($query, array $filters)
+    {
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function($q) use ($search) {
+                $q->where('description', 'like', "%{$search}%")
+                  ->orWhereHas('user', function($userQuery) use ($search) {
+                      $userQuery->where('username', 'like', "%{$search}%")
+                                ->orWhereHas('person', function($personQuery) use ($search) {
+                                    $personQuery->where('first_name', 'like', "%{$search}%")
+                                              ->orWhere('last_name', 'like', "%{$search}%");
+                                });
+                  });
+                  // Eliminamos filtro por branch description aquí si ya filtramos por branch_ids arriba, 
+                  // pero si es búsqueda global, está bien dejarlo.
+                  // Pero la query base ya filtra por las branches seleccionadas.
+            });
+        }
+        
+        if (!empty($filters['movement_type'])) {
+            $query->where('movement_type_id', $filters['movement_type']);
+        }
+        
+        if (!empty($filters['branch'])) {
+            $query->whereHas('cashRegister', function($q) use ($filters) {
+                $q->where('branch_id', $filters['branch']);
+            });
+        }
+        
+        if (!empty($filters['date_range'])) {
+            $customDates = [];
+            if ($filters['date_range'] === 'custom' && !empty($filters['custom_dates'])) {
+                $customDates = $filters['custom_dates'];
+            }
+            $this->applyDateFilter($query, $filters['date_range'], $customDates);
         }
     }
 

@@ -29,6 +29,15 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
   const [allMovementsLoading, setAllMovementsLoading] = useState(false)
   const [consolidatedStats, setConsolidatedStats] = useState<any>({})
 
+    const [pagination, setPagination] = useState<{
+    total: number
+    per_page: number
+    current_page: number
+    last_page: number
+    from: number
+    to: number
+  } | null>(null)
+
   // Función para cargar caja de una sucursal específica
   const loadCashRegisterForBranch = useCallback(async (branchId: number) => {
     try {
@@ -55,7 +64,7 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
   }, [request])
 
   // Función para cargar datos consolidados de múltiples sucursales
-  const loadMultipleBranchesData = useCallback(async (filters?: AllFilters) => {
+  const loadMultipleBranchesData = useCallback(async (filters?: AllFilters, page = 1, perPage = 15) => {
     if (selectedBranchIdsArray.length === 0) {
       return
     }
@@ -64,7 +73,9 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
       setAllMovementsLoading(true)
       
       const requestParams: any = {
-        branch_ids: selectedBranchIdsArray
+        branch_ids: selectedBranchIdsArray,
+        page,
+        per_page: perPage
       }
       
       // Agregar filtros si existen
@@ -104,6 +115,10 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
         // Actualizar movimientos consolidados
         setAllMovements(data.all_movements || [])
         
+        if (data.pagination) {
+          setPagination(data.pagination)
+        }
+        
         // Actualizar datos de cajas individuales
         const cashRegistersMap: Record<number, any> = {}
         data.cash_registers?.forEach((cashRegister: any) => {
@@ -128,6 +143,7 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
     allMovements,
     allMovementsLoading,
     consolidatedStats,
+    pagination,
     loadCashRegisterForBranch,
     loadMultipleBranchesData
   }

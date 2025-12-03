@@ -121,7 +121,8 @@ export default function CajaPage() {
     allMovementsLoading,
     consolidatedStats,
     loadCashRegisterForBranch,
-    loadMultipleBranchesData
+    loadMultipleBranchesData,
+    pagination
   } = useMultipleBranchesCash({ selectedBranchIdsArray })
 
   // Hook para historial de cajas
@@ -367,7 +368,9 @@ export default function CajaPage() {
         custom_dates: customDateRange,
         search: multiBranchSearchTerm,
         movement_type: multiBranchMovementTypeFilter,
-        branch: branchFilter
+        branch: branchFilter,
+        page: movementsPage,
+        perPage: movementsPerPage
       })
       
       // Solo recargar si los filtros realmente cambiaron
@@ -385,10 +388,10 @@ export default function CajaPage() {
           branch: branchFilter !== 'all' ? branchFilter : undefined
         }
         
-        loadMultipleBranchesData(backendFilters)
+        loadMultipleBranchesData(backendFilters, movementsPage, movementsPerPage)
       }
     }
-  }, [dateRangeFilter, customDateRange, multiBranchSearchTerm, multiBranchMovementTypeFilter, branchFilter, selectedBranchIdsArray.length])
+  }, [dateRangeFilter, customDateRange, multiBranchSearchTerm, multiBranchMovementTypeFilter, branchFilter, selectedBranchIdsArray.length, movementsPage, movementsPerPage])
 
   // Cargar historial de cajas cuando cambien los filtros de fecha
   useEffect(() => {
@@ -419,15 +422,12 @@ export default function CajaPage() {
 
   // Cuando cambia la página de movimientos, perPage o filtros, recargar
   useEffect(() => {
-    // Solo cargar movimientos del servidor si tenemos múltiples sucursales
-    // Para una sola sucursal, usar allMovements con paginación del cliente
-    if (currentRegister?.id && canViewMovements && activeTab === "current" && selectedBranchIdsArray.length > 1) {
+    // Cargar movimientos del servidor paginados
+    // Funciona tanto para monosucursal como para multisucursal (si se usa loadMovements)
+    // PERO: para multisucursal usamos loadMultipleBranchesData arriba.
+    // Así que aquí solo manejamos monosucursal:
+    if (currentRegister?.id && canViewMovements && activeTab === "current" && selectedBranchIdsArray.length === 1) {
       loadMovements(currentRegister.id, movementsPage, movementsPerPage, searchTerm, false)
-      
-      // Solo cargar todos los movimientos si estamos en la primera página
-      if (movementsPage === 1) {
-        loadAllMovements(currentRegister.id)
-      }
       
       const sp = new URLSearchParams(searchParams)
       sp.set('page', String(movementsPage))
@@ -940,10 +940,12 @@ export default function CajaPage() {
 
   // Resetear página cuando cambien los filtros (solo para múltiples sucursales)
   useEffect(() => {
-    if (selectedBranchIdsArray.length > 1 && movementsPage > 1 && allFilteredMovements.length <= (movementsPage - 1) * movementsPerPage) {
-      setMovementsPage(1)
+    // Si cambiaron los filtros (no la página), resetear a página 1
+    if (selectedBranchIdsArray.length > 1 && movementsPage > 1) {
+       setMovementsPage(1)
     }
-  }, [allFilteredMovements.length, movementsPage, movementsPerPage, selectedBranchIdsArray.length])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRangeFilter, customDateRange, multiBranchSearchTerm, multiBranchMovementTypeFilter, branchFilter, selectedBranchIdsArray.length])
 
   // Refrescar datos (caja actual + historial)
   const handleRefresh = async () => {
@@ -981,7 +983,7 @@ export default function CajaPage() {
           movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
           branch: branchFilter !== 'all' ? branchFilter : undefined
         }
-        await loadMultipleBranchesData(backendFilters)
+        await loadMultipleBranchesData(backendFilters, movementsPage, movementsPerPage)
         
         // Cargar cajas individuales para todas las sucursales (incluye las cerradas que no vienen en el consolidado)
         await Promise.all(
@@ -1342,15 +1344,15 @@ export default function CajaPage() {
 
             {/* Tabla de movimientos con paginación completa - TODOS los movimientos de la historia */}
             <MovementsTable
-              movements={allMovements.slice((movementsPage - 1) * movementsPerPage, movementsPage * movementsPerPage)}
+              movements={selectedBranchIdsArray.length > 1 ? allMovements : filteredMovements}
               loading={allMovementsLoading}
               canDeleteMovements={false}
               isCashPaymentMethod={isCashPaymentMethod}
               getBranchInfo={getBranchInfo}
               showBranchColumn={selectedBranchIdsArray.length > 1}
               currentPage={movementsPage}
-              lastPage={Math.ceil(allMovements.length / movementsPerPage)}
-              total={allMovements.length}
+              lastPage={selectedBranchIdsArray.length > 1 ? (pagination?.last_page || 1) : Math.ceil(allFilteredMovements.length / movementsPerPage)}
+              total={selectedBranchIdsArray.length > 1 ? (pagination?.total || 0) : allFilteredMovements.length}
               onPageChange={(page: number) => {
                 setMovementsPage(page)
               }}
@@ -1732,47 +1734,19 @@ export default function CajaPage() {
               </div>
 
               <MovementsTable
-                movements={selectedBranchIdsArray.length > 1 
-                  ? filteredMovements 
-                  : (() => {
-                      // Para una sola sucursal, usar allMovementsFromRegister del hook useCashRegister
-                      // que se actualiza cuando agregamos un movimiento
-                      if (!currentRegister?.id) {
-                        return []
-                      }
-                      // Filtrar movimientos que pertenecen a la caja actual
-                      const movementsToUse = allMovementsFromRegister || []
-                      const currentRegisterMovements = movementsToUse.filter(
-                        movement => movement.cash_register_id === currentRegister.id
-                      )
-                      // Aplicar paginación
-                      return currentRegisterMovements.slice(
-                        (movementsPage - 1) * movementsPerPage, 
-                        movementsPage * movementsPerPage
-                      )
-                    })()}
-                loading={selectedBranchIdsArray.length > 1 ? false : (hookLoading || allMovementsLoading)}
+                movements={movements}
+                loading={hookLoading}
                 canDeleteMovements={canDeleteMovements}
                 onViewSale={handleViewSaleFromMovement}
                 onViewPurchaseOrder={handleViewPurchaseOrderFromMovement}
                 onDeleteMovement={handleDeleteMovement}
                 isCashPaymentMethod={isCashPaymentMethod}
-                currentPage={selectedBranchIdsArray.length > 1 ? movementsMeta.currentPage : movementsPage}
-                lastPage={selectedBranchIdsArray.length > 1 
-                  ? movementsMeta.lastPage 
-                  : Math.ceil(
-                      (currentRegister?.id 
-                        ? (allMovementsFromRegister || []).filter(m => m.cash_register_id === currentRegister.id).length 
-                        : 0) / movementsPerPage
-                    )}
-                total={selectedBranchIdsArray.length > 1 
-                  ? movementsMeta.total 
-                  : (currentRegister?.id 
-                      ? (allMovementsFromRegister || []).filter(m => m.cash_register_id === currentRegister.id).length 
-                      : 0)}
+                currentPage={movementsPage}
+                lastPage={movementsMeta.lastPage}
+                total={movementsMeta.total}
                 onPageChange={(page: number) => {
-                setMovementsPage(page)
-              }}
+                  setMovementsPage(page)
+                }}
                 pageLoading={isPageLoading || hookLoading}
               />
             </>
@@ -1814,18 +1788,18 @@ export default function CajaPage() {
               />
 
               <MovementsTable
-                movements={allMovements.slice((movementsPage - 1) * movementsPerPage, movementsPage * movementsPerPage)}
+                movements={allMovements}
                 loading={allMovementsLoading}
                 canDeleteMovements={false}
                 isCashPaymentMethod={isCashPaymentMethod}
                 getBranchInfo={getBranchInfo}
                 showBranchColumn={false}
                 currentPage={movementsPage}
-                lastPage={Math.ceil(allMovements.length / movementsPerPage)}
-                total={allMovements.length}
+                lastPage={pagination?.last_page || 1}
+                total={pagination?.total || 0}
                 onPageChange={(page: number) => {
-                setMovementsPage(page)
-              }}
+                  setMovementsPage(page)
+                }}
                 pageLoading={isPageLoading || hookLoading}
               />
             </>
@@ -2144,6 +2118,12 @@ export default function CajaPage() {
           } catch (error) {
             console.error("Error downloading PDF:", error);
             alert("Error al descargar PDF");
+          }
+        }}
+        onSaleUpdated={(updatedSale) => {
+          // Actualizar la venta seleccionada si es la misma
+          if (selectedSale && selectedSale.id === updatedSale.id) {
+            setSelectedSale(updatedSale);
           }
         }}
       />

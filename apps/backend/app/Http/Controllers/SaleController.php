@@ -277,5 +277,72 @@ class SaleController extends Controller
         } catch (Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
-   }
+    }
+
+    /**
+     * Autoriza una venta con AFIP
+     * 
+     * @param int $id ID de la venta
+     * @return JsonResponse Respuesta con los datos de autorización
+     */
+    public function authorizeWithAfip(int $id): JsonResponse
+    {
+        try {
+            $sale = \App\Models\SaleHeader::with([
+                'receiptType',
+                'customer.person',
+            ])->findOrFail($id);
+
+            // Validar que no sea presupuesto
+            if ($sale->receiptType && $sale->receiptType->afip_code === '016') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Los presupuestos no requieren autorización AFIP',
+                ], 400);
+            }
+
+            // Validar que no tenga CAE ya
+            if ($sale->cae) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La venta ya está autorizada con CAE: ' . $sale->cae,
+                    'data' => [
+                        'cae' => $sale->cae,
+                        'cae_expiration_date' => $sale->cae_expiration_date?->format('Y-m-d'),
+                    ],
+                ], 400);
+            }
+
+            // Autorizar con AFIP
+            $result = $this->saleService->authorizeWithAfip($sale);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'cae' => $result['cae'] ?? null,
+                    'cae_expiration_date' => $result['cae_expiration_date'] ?? null,
+                    'invoice_number' => $result['invoice_number'] ?? null,
+                    'point_of_sale' => $result['point_of_sale'] ?? null,
+                    'invoice_type' => $result['invoice_type'] ?? null,
+                ],
+                'message' => 'Venta autorizada con AFIP exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            // Extraer código AFIP si existe
+            $afipCode = null;
+            if (method_exists($e, 'getPrevious') && $e->getPrevious()) {
+                $previous = $e->getPrevious();
+                if (method_exists($previous, 'getAfipCode')) {
+                    $afipCode = $previous->getAfipCode();
+                }
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al autorizar con AFIP: ' . $e->getMessage(),
+                'afip_code' => $afipCode,
+            ], 500);
+        }
+    }
 }

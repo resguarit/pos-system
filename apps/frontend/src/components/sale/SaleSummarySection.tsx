@@ -8,6 +8,8 @@ interface SaleSummarySectionProps {
   totalItemDiscount: number
   globalDiscountAmount: number
   total: number
+  totalPaymentDiscount?: number
+  finalTotal?: number
 }
 
 export function SaleSummarySection({
@@ -16,7 +18,12 @@ export function SaleSummarySection({
   totalItemDiscount,
   globalDiscountAmount,
   total,
+  totalPaymentDiscount = 0,
+  finalTotal,
 }: SaleSummarySectionProps) {
+  const showPaymentDiscount = totalPaymentDiscount > 0
+  const displayFinalTotal = finalTotal !== undefined ? finalTotal : total
+
   return (
     <div className="flex flex-col gap-2">
       <div className="space-y-1.5 text-sm">
@@ -29,11 +36,17 @@ export function SaleSummarySection({
           <span>{formatCurrency(totalIva)}</span>
         </div>
         <div className="flex justify-between text-muted-foreground">
-          <span>Descuentos</span>
+          <span>Descuentos (Items/Global)</span>
           <span>- {formatCurrency(roundToTwoDecimals(totalItemDiscount + globalDiscountAmount))}</span>
         </div>
+        {showPaymentDiscount && (
+          <div className="flex justify-between text-green-600">
+            <span>Descuento por pago</span>
+            <span>- {formatCurrency(totalPaymentDiscount)}</span>
+          </div>
+        )}
       </div>
-      <div className="flex justify-between text-base font-semibold">
+      <div className="flex justify-between text-base font-semibold border-t pt-2 mt-2">
         <div className="flex items-center gap-1">
           <span>Total</span>
           <TooltipProvider>
@@ -44,14 +57,13 @@ export function SaleSummarySection({
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Precio unitario sin IVA. Descuentos antes del IVA. Cálculo con hasta 2 decimales.</p>
+                <p>Monto final a pagar incluyendo todos los descuentos e impuestos.</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
-        <span>{formatCurrency(total)}</span>
+        <span className="text-lg">{formatCurrency(displayFinalTotal)}</span>
       </div>
     </div>
   )
 }
-
