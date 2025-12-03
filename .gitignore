@@ -147,3 +147,11 @@ public/images/logo.jpg
 # Mantener solo logos específicos en el repo:
 # - apps/backend/public/images/logo-heladitos.jpg (OK)
 # - apps/backend/public/images/logo-heroe.jpg (si existe, OK)
+
+# Security - Ignore certificates and keys
+*.crt
+*.key
+*.csr
+*.pem
+*.p12
+
