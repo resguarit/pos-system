@@ -51,6 +51,8 @@ use App\Services\ShipmentStageService;
 use App\Interfaces\ProductCostHistoryServiceInterface;
 use App\Services\ProductCostHistoryService;
 use App\Services\SearchService;
+use App\Interfaces\StockTransferServiceInterface;
+use App\Services\StockTransferService;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 class AppServiceProvider extends ServiceProvider
@@ -60,6 +62,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // SDK AFIP ahora maneja SSL automáticamente (v2.x+)
+        // Ya no necesitamos CustomWsfeService ni CustomWsPadronService
+        
         // Registrar los bindings de las interfaces con sus implementaciones
         $this->app->bind(\App\Interfaces\BranchServiceInterface::class, \App\Services\BranchService::class);
         $this->app->bind(\App\Interfaces\CategoryServiceInterface::class, \App\Services\CategoryService::class);
@@ -93,6 +98,9 @@ class AppServiceProvider extends ServiceProvider
         
         // Product Cost History binding
         $this->app->bind(ProductCostHistoryServiceInterface::class, ProductCostHistoryService::class);
+        
+        // Stock Transfer binding
+        $this->app->bind(StockTransferServiceInterface::class, StockTransferService::class);
         
         // Search Service binding
         $this->app->singleton(SearchService::class);
