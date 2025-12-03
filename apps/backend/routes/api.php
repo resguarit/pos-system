@@ -35,6 +35,9 @@ use App\Http\Controllers\ComboController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\ProductCostHistoryController;
 use App\Http\Controllers\AuditController;
+use App\Http\Controllers\AfipController;
+use App\Http\Controllers\AfipCertificateController;
+use App\Http\Controllers\StockTransferController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -81,14 +84,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Todas las rutas protegidas con autenticación
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     Route::prefix('pos')->group(function () {
         Route::get('/products', [PosController::class, 'searchProducts']);
         Route::get('/payment-methods', [PosController::class, 'getPaymentMethods']);
         Route::middleware('cash.open')->group(function () {
             Route::post('/sales', [PosController::class, 'storeSale']);
         });
-        
+
         Route::get('/sales/{id}/pdf', [SaleController::class, 'downloadPdf'])->whereNumber('id');
     });
 
@@ -101,6 +104,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [BranchController::class, 'destroy']);
         Route::get('/active', [BranchController::class, 'active']);
         Route::get('/{id}/personnel', [BranchController::class, 'personnel']);
+    });
+
+    // AFIP Routes - Facturación electrónica
+    Route::prefix('afip')->group(function () {
+        Route::get('/receipt-types', [AfipController::class, 'getReceiptTypes']);
+        Route::get('/points-of-sale', [AfipController::class, 'getPointsOfSale']);
+        Route::get('/status', [AfipController::class, 'checkAfipStatus']);
+        
+        // Certificate management routes (multi-CUIT support)
+        Route::prefix('certificates')->group(function () {
+            Route::get('/', [AfipCertificateController::class, 'index']);
+            Route::get('/valid', [AfipCertificateController::class, 'getValid']);
+            Route::get('/check', [AfipCertificateController::class, 'checkCuit']);
+            Route::post('/', [AfipCertificateController::class, 'store']);
+            Route::get('/{afipCertificate}', [AfipCertificateController::class, 'show']);
+            Route::put('/{afipCertificate}', [AfipCertificateController::class, 'update']);
+            Route::delete('/{afipCertificate}', [AfipCertificateController::class, 'destroy']);
+            Route::post('/{afipCertificate}/certificate', [AfipCertificateController::class, 'uploadCertificate']);
+            Route::post('/{afipCertificate}/private-key', [AfipCertificateController::class, 'uploadPrivateKey']);
+        });
     });
 
     Route::prefix('products')->group(function () {
@@ -162,21 +185,31 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [SupplierController::class, 'index']);
         Route::get('/check-name/{name}', [SupplierController::class, 'checkName']);
         Route::get('/{id}', [SupplierController::class, 'show']);
-        Route::post('/', [SupplierController::class, 'store']); 
+        Route::post('/', [SupplierController::class, 'store']);
         Route::put('/{id}', [SupplierController::class, 'update']);
         Route::delete('/{id}', [SupplierController::class, 'destroy']);
     });
 
     Route::prefix('purchase-orders')->group(function () {
-    Route::get('/', [PurchaseOrderController::class, 'index']);
-    Route::get('/summary-by-currency', [PurchaseOrderController::class, 'summaryByCurrency']);
-    Route::get('/{id}', [PurchaseOrderController::class, 'show']);
-    Route::post('/', [PurchaseOrderController::class, 'store']);
-    Route::put('/{id}', [PurchaseOrderController::class, 'update']);
-    Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
-    Route::patch('/{id}/finalize', [PurchaseOrderController::class, 'finalize']);
-    Route::patch('/{id}/cancel', [PurchaseOrderController::class, 'cancel']);
-    Route::get('/{id}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->whereNumber('id');
+        Route::get('/', [PurchaseOrderController::class, 'index']);
+        Route::get('/summary-by-currency', [PurchaseOrderController::class, 'summaryByCurrency']);
+        Route::get('/{id}', [PurchaseOrderController::class, 'show']);
+        Route::post('/', [PurchaseOrderController::class, 'store']);
+        Route::put('/{id}', [PurchaseOrderController::class, 'update']);
+        Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
+        Route::patch('/{id}/finalize', [PurchaseOrderController::class, 'finalize']);
+        Route::patch('/{id}/cancel', [PurchaseOrderController::class, 'cancel']);
+        Route::get('/{id}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->whereNumber('id');
+    });
+
+    Route::prefix('stock-transfers')->group(function () {
+        Route::get('/', [StockTransferController::class, 'index']);
+        Route::get('/{id}', [StockTransferController::class, 'show']);
+        Route::post('/', [StockTransferController::class, 'store']);
+        Route::put('/{id}', [StockTransferController::class, 'update']);
+        Route::delete('/{id}', [StockTransferController::class, 'destroy']);
+        Route::patch('/{id}/complete', [StockTransferController::class, 'complete']);
+        Route::patch('/{id}/cancel', [StockTransferController::class, 'cancel']);
     });
 
     Route::prefix('ivas')->group(function () {
@@ -266,18 +299,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('sales')->group(function () {
         Route::get('/', [SaleController::class, 'index']);
-        Route::get('/summary', [SaleController::class, 'summary']); 
-        Route::get('/summary/all-branches', [SaleController::class, 'summaryAllBranches']); 
+        Route::get('/summary', [SaleController::class, 'summary']);
+        Route::get('/summary/all-branches', [SaleController::class, 'summaryAllBranches']);
         Route::get('/{id}', [SaleController::class, 'show'])->whereNumber('id');
-        
+
         // Rutas que requieren caja abierta
         Route::middleware('cash.open')->group(function () {
             Route::post('/', [SaleController::class, 'store']);
             Route::put('/{id}', [SaleController::class, 'update'])->whereNumber('id');
         });
-        
+
         Route::delete('/{id}', [SaleController::class, 'destroy'])->whereNumber('id');
         Route::post('/{id}/annul', [SaleAnnulmentController::class, 'annulSale'])->whereNumber('id');
+        Route::post('/{id}/authorize-afip', [SaleController::class, 'authorizeWithAfip'])->whereNumber('id');
         Route::get('/download-pdf/{id}', [SaleController::class, 'downloadPdf'])->whereNumber('id');
         Route::get('/history/branch/{branchId}', [SaleController::class, 'salesHistoryByBranch'])->whereNumber('branchId');
         Route::get('/global', [SaleController::class, 'indexGlobal']);
@@ -299,7 +333,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/check-multiple-branches-status', [CashRegisterController::class, 'checkMultipleBranchesStatus']);
         Route::get('/history', [CashRegisterController::class, 'history']);
         Route::get('/transactions/history', [CashRegisterController::class, 'transactionsHistory']);
-        
+
         // Reports
         Route::get('/reports/movements', [CashRegisterController::class, 'reportsMovements']);
         Route::get('/reports/closures', [CashRegisterController::class, 'reportsClosures']);
@@ -319,44 +353,44 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Current Account Routes
     Route::prefix('current-accounts')->group(function () {
-            // CRUD básico
+        // CRUD básico
         Route::get('/', [CurrentAccountController::class, 'index']);
         Route::post('/', [CurrentAccountController::class, 'store']);
-        
+
         // Consultas específicas ANTES de las rutas dinámicas {id}
         Route::get('/customer/{customerId}', [CurrentAccountController::class, 'getByCustomer']);
         Route::get('/status/{status}', [CurrentAccountController::class, 'getByStatus']);
         Route::get('/at-credit-limit', [CurrentAccountController::class, 'getAtCreditLimit']);
         Route::get('/overdrawn', [CurrentAccountController::class, 'getOverdrawn']);
-        
+
         // Estadísticas generales (sin parámetro dinámico)
         Route::get('/statistics/general', [CurrentAccountController::class, 'generalStatistics']);
         Route::get('/reports/generate', [CurrentAccountController::class, 'generateReport']);
-        
+
         // Rutas con {id} o {accountId} - DEBEN ir DESPUÉS de las rutas específicas
         Route::get('/{id}', [CurrentAccountController::class, 'show']);
         Route::put('/{id}', [CurrentAccountController::class, 'update']);
         Route::delete('/{id}', [CurrentAccountController::class, 'destroy']);
-        
+
         // Gestión de estado
         Route::patch('/{id}/suspend', [CurrentAccountController::class, 'suspend']);
         Route::patch('/{id}/reactivate', [CurrentAccountController::class, 'reactivate']);
         Route::patch('/{id}/close', [CurrentAccountController::class, 'close']);
-        
+
         // Movimientos
         Route::get('/{accountId}/movements', [CurrentAccountController::class, 'movements']);
         Route::post('/movements', [CurrentAccountController::class, 'createMovement']);
         Route::get('/{accountId}/balance', [CurrentAccountController::class, 'balance']);
         Route::get('/{accountId}/pending-sales', [CurrentAccountController::class, 'pendingSales']);
-        
+
         // Operaciones financieras
         Route::post('/{accountId}/payments', [CurrentAccountController::class, 'processPayment']);
         Route::post('/{accountId}/credit-purchases', [CurrentAccountController::class, 'processCreditPurchase']);
         Route::post('/{accountId}/check-credit', [CurrentAccountController::class, 'checkAvailableCredit']);
-        
+
         // Gestión de límites
         Route::patch('/{accountId}/credit-limit', [CurrentAccountController::class, 'updateCreditLimit']);
-        
+
         // Estadísticas y reportes (con parámetro)
         Route::get('/{accountId}/statistics', [CurrentAccountController::class, 'statistics']);
         Route::get('/{accountId}/export-movements', [CurrentAccountController::class, 'exportMovements']);
@@ -426,7 +460,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/{id}/webhook', [ShipmentController::class, 'webhook']);
         Route::post('/{id}/pay', [ShipmentController::class, 'pay']);
     });
-    
+
     // Shipment Stages Routes
     Route::prefix('shipment-stages')->group(function () {
         Route::get('/', [ShipmentController::class, 'stages']);
