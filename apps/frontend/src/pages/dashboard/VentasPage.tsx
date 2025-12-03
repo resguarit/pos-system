@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
+import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
 
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart";
@@ -619,14 +620,19 @@ export default function VentasPage() {
   };
 
   const handleExportPDF = () => {
+    if (filteredSales.length === 0) {
+      toast.error("No hay ventas para exportar.");
+      return;
+    }
+
     const doc = new jsPDF();
 
     const tableColumn = ["Número", "Comprobante", "Cliente", "Sucursal", "Total", "Fecha"];
-    const tableRows: any[] = [];
+    const tableRows: string[][] = [];
 
     filteredSales.forEach((sale) => {
       const saleData = [
-        sale.receipt_number || sale.id,
+        (sale.receipt_number || sale.id).toString(),
         getReceiptType(sale).displayName,
         getCustomerName(sale),
         typeof sale.branch === 'string' ? sale.branch : sale.branch?.description || "N/A",
@@ -1228,6 +1234,7 @@ export default function VentasPage() {
                       <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
                         <div className="flex items-center gap-2">
                           {getReceiptTypeBadge(getReceiptType(sale))}
+                          <AfipStatusBadge sale={sale} />
 
                         </div>
                       </ResizableTableCell>

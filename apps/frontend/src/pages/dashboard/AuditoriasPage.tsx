@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Eye, Search, X, User, FileText, Activity, Database, FileBarChart, Users, ChevronDown, Check } from 'lucide-react';
+import Pagination from '@/components/ui/pagination';
 import useApi from '@/hooks/useApi';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -860,34 +861,16 @@ export default function AuditoriasPage() {
               </div>
 
               {/* Paginación */}
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-muted-foreground">
-                  Mostrando {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalItems)} de {totalItems} auditorías
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => loadAudits(currentPage - 1)}
-                    disabled={currentPage === 1 || loading}
-                  >
-                    Anterior
-                  </Button>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">
-                      Página {currentPage} de {totalPages}
-                    </span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => loadAudits(currentPage + 1)}
-                    disabled={currentPage === totalPages || loading}
-                  >
-                    Siguiente
-                  </Button>
-                </div>
-              </div>
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  lastPage={totalPages}
+                  total={totalItems}
+                  itemName="auditorías"
+                  onPageChange={loadAudits}
+                  disabled={loading}
+                />
+              )}
             </>
           )}
         </CardContent>

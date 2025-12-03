@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Upload, Building2, Mail, Phone, MapPin, FileText, Palette, ImageIcon, Settings, Save } from "lucide-react"
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Palette, ImageIcon, Settings, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,13 +12,14 @@ import api from "@/lib/api"
 
 interface SystemConfig {
   logo_url?: string | null
+  favicon_url?: string | null
   system_title?: string
   primary_color?: string
   company_name?: string
-  company_ruc?: string
   company_address?: string
   company_email?: string
   company_phone?: string
+  [key: string]: any
 }
 
 export default function ConfiguracionSistemaPage() {
@@ -32,7 +33,6 @@ export default function ConfiguracionSistemaPage() {
     system_title: "RG Gestión",
     primary_color: "#3B82F6",
     company_name: "",
-    company_ruc: "",
     company_address: "",
     company_email: "",
     company_phone: ""
@@ -336,33 +336,18 @@ export default function ConfiguracionSistemaPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="companyName" className="flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  Nombre de la Empresa
-                </Label>
-                <Input
-                  id="companyName"
-                  value={config.company_name || ''}
-                  onChange={(e) => setConfig(prev => ({ ...prev, company_name: e.target.value }))}
-                  placeholder="Mi Empresa S.A."
-                  disabled={!hasPermission('editar_configuracion_sistema')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ruc" className="flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  RUC / CUIT / NIT
-                </Label>
-                <Input
-                  id="ruc"
-                  value={config.company_ruc || ''}
-                  onChange={(e) => setConfig(prev => ({ ...prev, company_ruc: e.target.value }))}
-                  placeholder="20123456789"
-                  disabled={!hasPermission('editar_configuracion_sistema')}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="companyName" className="flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Nombre de la Empresa
+              </Label>
+              <Input
+                id="companyName"
+                value={config.company_name || ''}
+                onChange={(e) => setConfig(prev => ({ ...prev, company_name: e.target.value }))}
+                placeholder="Mi Empresa S.A."
+                disabled={!hasPermission('editar_configuracion_sistema')}
+              />
             </div>
 
             <div className="space-y-2">

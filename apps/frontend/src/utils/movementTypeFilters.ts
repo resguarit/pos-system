@@ -51,23 +51,19 @@ const AUTOMATIC_MOVEMENT_KEYWORDS: readonly string[] = [
   'venta a crédito',
   'venta con tarjeta',
   'venta por',
-  
+
   // Compras (generadas automáticamente)
   'compra de mercadería',
   'compra de mercaderia',
   'compra realizada',
-  
+
   // Pagos de cuenta corriente (generados automáticamente)
   'pago realizado a una venta',
-  
-  // Uso de crédito (generado automáticamente)
-  'uso de crédito acumulado para pagar',
-  'uso de crédito a favor del cliente en una venta',
-  
+
   // Anulaciones (generadas automáticamente)
   'anulación de venta',
   'salida por anulación',
-  
+
   // Notas (generadas automáticamente)
   'nota de crédito emitida',
   'nota de débito',
@@ -86,7 +82,6 @@ const AUTOMATIC_MOVEMENT_NAMES: readonly string[] = [
   'Venta por transferencia',
   'Venta por Mercado Pago',
   'Venta por cheque',
-  'Uso de crédito a favor',
   'Anulación de Venta realizada al cliente',
   'Salida por anulación de venta a crédito',
 ] as const;
@@ -104,11 +99,11 @@ const NON_CASH_MOVEMENT_KEYWORDS: readonly string[] = [
   'interés aplicado',
   'comisión aplicada',
   'gastos administrativos aplicados',
-  
+
   // Notas que no afectan caja directamente
   'nota de crédito emitida por devolución',
   'nota de débito por interés',
-  
+
   // Movimientos de cuenta corriente puros
   'venta realizada a cuenta corriente',
   'compra realizada por el cliente a crédito',
@@ -118,7 +113,6 @@ const NON_CASH_MOVEMENT_KEYWORDS: readonly string[] = [
  * Nombres exactos de tipos que NO pueden estar en la caja.
  */
 const NON_CASH_MOVEMENT_NAMES: readonly string[] = [
-  'Ajuste a favor',
   'Ajuste en contra',
   'Interés aplicado',
   'Comisión aplicada por servicios administrativos',
@@ -189,20 +183,20 @@ export function isAutomaticMovementType(type: MovementTypeForFilter | null | und
   if (!type) {
     return false;
   }
-  
+
   const name = normalizeString(type.name);
   const description = normalizeString(type.description);
-  
+
   // Verificar nombres exactos primero (más rápido y preciso)
   if (matchesExactName(name, AUTOMATIC_MOVEMENT_NAMES)) {
     return true;
   }
-  
+
   // Verificar palabras clave en la descripción
   if (containsKeyword(description, AUTOMATIC_MOVEMENT_KEYWORDS)) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -231,31 +225,31 @@ export function isCashMovementType(type: MovementTypeForFilter | null | undefine
   if (!type) {
     return false;
   }
-  
+
   // Si explícitamente no es movimiento de caja, excluir
   if (type.is_cash_movement === false) {
     return false;
   }
-  
+
   // Si es solo de cuenta corriente (sin afectar caja), excluir
   if (type.is_current_account_movement === true && type.is_cash_movement !== true) {
     return false;
   }
-  
+
   const name = normalizeString(type.name);
   const description = normalizeString(type.description);
-  
+
   // Verificar nombres exactos que NO pueden estar en caja
   if (matchesExactName(name, NON_CASH_MOVEMENT_NAMES)) {
     return false;
   }
-  
+
   // Verificar palabras clave que indican que NO puede estar en caja
-  if (containsKeyword(description, NON_CASH_MOVEMENT_KEYWORDS) || 
-      containsKeyword(name, NON_CASH_MOVEMENT_KEYWORDS)) {
+  if (containsKeyword(description, NON_CASH_MOVEMENT_KEYWORDS) ||
+    containsKeyword(name, NON_CASH_MOVEMENT_KEYWORDS)) {
     return false;
   }
-  
+
   // Por defecto, si tiene is_cash_movement = true, puede estar en caja
   return type.is_cash_movement === true;
 }
@@ -290,7 +284,7 @@ export function filterManualCashMovementTypes(
   if (!Array.isArray(movementTypes)) {
     return [];
   }
-  
+
   return movementTypes.filter(type => !isAutomaticMovementType(type));
 }
 
@@ -306,7 +300,7 @@ export function filterAutomaticMovementTypes(
   if (!Array.isArray(movementTypes)) {
     return [];
   }
-  
+
   return movementTypes.filter(type => isAutomaticMovementType(type));
 }
 
@@ -333,7 +327,7 @@ export function filterCashMovementTypes(
   if (!Array.isArray(movementTypes)) {
     return [];
   }
-  
+
   return movementTypes.filter(type => isCashMovementType(type));
 }
 
@@ -368,7 +362,7 @@ export function groupMovementTypesByCategory(
       cash: [],
     };
   }
-  
+
   return {
     manual: filterManualCashMovementTypes(movementTypes),
     automatic: filterAutomaticMovementTypes(movementTypes),

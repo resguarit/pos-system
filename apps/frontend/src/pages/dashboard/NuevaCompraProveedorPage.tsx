@@ -300,7 +300,7 @@ export default function NuevaCompraPage() {
                       {orderProducts.map((product, index) => (
                         <TableRow key={`${product.id}-${index}`}>
                           <TableCell>{product.name}</TableCell>
-                          <TableCell className="text-right">${product.price.toFixed(2)} {product.currency}</TableCell>
+                          <TableCell className="text-right">${product.price.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {product.currency}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center">
                               <Button
@@ -322,7 +322,7 @@ export default function NuevaCompraPage() {
                               </Button>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right">${product.subtotal.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">${product.subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -350,15 +350,15 @@ export default function NuevaCompraPage() {
                 <div className="flex flex-col items-end space-y-1.5 pt-4">
                   <div className="flex w-full justify-between md:w-80">
                     <span>Subtotal:</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>${subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex w-full justify-between md:w-80">
                     <span>IVA (16%):</span>
-                    <span>${tax.toFixed(2)}</span>
+                    <span>${tax.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <div className="flex w-full justify-between md:w-80 text-lg font-bold">
                     <span>Total:</span>
-                    <span>${total.toFixed(2)}</span>
+                    <span>${total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               )}

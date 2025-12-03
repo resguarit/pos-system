@@ -19,6 +19,7 @@ import { toast } from "sonner"
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart"
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
+import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge"
 import { useAuth } from "@/context/AuthContext"
 import Pagination from "@/components/ui/pagination"
 
@@ -278,6 +279,47 @@ export default function BranchSalesPage() {
     }
   };
 
+  /**
+   * Maneja la actualización de una venta después de autorización AFIP
+   */
+  const handleSaleUpdated = async (updatedSale: SaleHeader) => {
+    // Actualizar en la lista local
+    setSales(prevSales => 
+      prevSales.map(sale => 
+        sale.id === updatedSale.id ? updatedSale : sale
+      )
+    );
+    
+    // Actualizar la venta seleccionada
+    if (selectedSale && selectedSale.id === updatedSale.id) {
+      setSelectedSale(updatedSale);
+    }
+
+    // Recargar datos si es necesario
+    if (branch && dateRange.from && dateRange.to) {
+      const apiParams = {
+        branch_id: branch.id,
+        from_date: format(dateRange.from, "yyyy-MM-dd"),
+        to_date: format(dateRange.to, "yyyy-MM-dd"),
+      };
+      
+      try {
+        const [salesRes, statsRes] = await Promise.all([
+          request({ method: "GET", url: `/sales`, params: apiParams }),
+          request({ method: "GET", url: `/sales/summary`, params: apiParams })
+        ]);
+        
+        const salesData = salesRes.data || [];
+        setSales(Array.isArray(salesData) ? salesData : []);
+        
+        const statsData = statsRes.data || statsRes;
+        setStats(statsData);
+      } catch (error) {
+        console.error("Error al recargar datos:", error);
+      }
+    }
+  };
+
   /*
   const handleViewReceipt = async (sale: SaleHeader) => {
     try {
@@ -463,9 +505,12 @@ export default function BranchSalesPage() {
                   <TableCell className="font-medium">{sale.receipt_number || sale.id}</TableCell>
                   <TableCell>{getCustomerName(sale)}</TableCell>
                   <TableCell>
-                    <Badge className={badgeClassName}>
-                      {receiptTypeInfo.displayName}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge className={badgeClassName}>
+                        {receiptTypeInfo.displayName}
+                      </Badge>
+                      <AfipStatusBadge sale={sale} />
+                    </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">{formatDate(sale.date)}</TableCell>
                   <TableCell className="hidden md:table-cell text-center">{getItemsCount(sale)}</TableCell>
@@ -532,7 +577,9 @@ export default function BranchSalesPage() {
           console.error("Error downloading PDF:", error);
           alert("Error al descargar PDF");
         }
-      }}/>)}
+      }}
+      onSaleUpdated={handleSaleUpdated}
+      />)}
       {selectedSale && branch && (
         <SaleReceiptPreviewDialog 
           open={isReceiptOpen} 

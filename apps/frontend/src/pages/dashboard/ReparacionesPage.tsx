@@ -133,7 +133,7 @@ export default function ReparacionesPage() {
     customer_id: null,
     technician_id: null,
   })
-  
+
   // Opciones de estado/prioridad para selects
   const [options, setOptions] = useState<{ statuses: RepairStatus[]; priorities: RepairPriority[] }>({
     statuses: [
@@ -181,16 +181,16 @@ export default function ReparacionesPage() {
   const [editMode, setEditMode] = useState(false)
   const [selectedRepair, setSelectedRepair] = useState<Repair | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [editForm, setEditForm] = useState<{ 
-    status: RepairStatus; 
-    priority: RepairPriority; 
-    cost: number | null; 
-    technician_id: number | null; 
-    device: string; 
-    serial_number: string; 
-    issue_description: string; 
-    customer_id: number | null; 
-    branch_id: number | null; 
+  const [editForm, setEditForm] = useState<{
+    status: RepairStatus;
+    priority: RepairPriority;
+    cost: number | null;
+    technician_id: number | null;
+    device: string;
+    serial_number: string;
+    issue_description: string;
+    customer_id: number | null;
+    branch_id: number | null;
   }>({
     status: RepairStatus.Recibido,
     priority: RepairPriority.Media,
@@ -290,15 +290,15 @@ export default function ReparacionesPage() {
   }
 
   const resetForm = () => {
-    setForm({ 
-      device: "", 
-      serial_number: "", 
-      issue_description: "", 
-      status: RepairStatus.Recibido, 
-      priority: RepairPriority.Media, 
-      initial_notes: "", 
-      customer_id: null, 
-      technician_id: null 
+    setForm({
+      device: "",
+      serial_number: "",
+      issue_description: "",
+      status: RepairStatus.Recibido,
+      priority: RepairPriority.Media,
+      initial_notes: "",
+      customer_id: null,
+      technician_id: null
     })
     setCustomerSearch("")
     setTechnicianSearch("")
@@ -730,555 +730,560 @@ export default function ReparacionesPage() {
   }
 
   return (
-    <BranchRequiredWrapper 
-      title="Selecciona una sucursal" 
+    <BranchRequiredWrapper
+      title="Selecciona una sucursal"
       description="Las reparaciones necesitan una sucursal seleccionada para funcionar correctamente."
       allowMultipleBranches={true}
     >
       <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Reparaciones</h2>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="cursor-pointer" onClick={handleRefresh} disabled={loading} title="Recargar">
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Recargar
-          </Button>
-          <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (open) resetForm(); }}>
-            {hasPermission('crear_reparaciones') && (
-              <DialogTrigger asChild>
-                <Button className="cursor-pointer">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nueva Reparación
-                </Button>
-              </DialogTrigger>
-            )}
-            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Nueva Reparación</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="cliente">Cliente</Label>
-                    <div className="relative">
-                      <Input
-                        value={customerSearch}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          setCustomerSearch(v)
-                          setShowCustomerOptions(!!v && v.length >= 1)
-                          if (!v) {
-                            setForm(p => ({ ...p, customer_id: null }))
-                          }
-                        }}
-                        onFocus={() => setShowCustomerOptions(customerSearch.length >= 1)}
-                        onBlur={() => setTimeout(() => setShowCustomerOptions(false), 120)}
-                        onKeyDown={(e) => { if (e.key === 'Escape') setShowCustomerOptions(false) }}
-                        placeholder="Buscar cliente por nombre..."
-                      />
-                      {customerOptions.length > 0 && showCustomerOptions && (
-                        <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                          {customerOptions.map((c) => (
-                            <div
-                              key={c.id}
-                              className="p-2 cursor-pointer hover:bg-gray-100"
-                              role="button"
-                              tabIndex={0}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                setForm(p => ({ ...p, customer_id: c.id }))
-                                setCustomerSearch(c.name)
-                                setCustomerOptions([])
-                                setShowCustomerOptions(false)
-                                const el = document.activeElement as HTMLElement | null
-                                if (el && typeof el.blur === 'function') el.blur()
-                              }}
-                            >
-                              {c.name}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xl font-bold tracking-tight">Reparaciones</h2>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" className="cursor-pointer" onClick={handleRefresh} disabled={loading} title="Recargar">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Recargar
+            </Button>
+            <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (open) resetForm(); }}>
+              {hasPermission('crear_reparaciones') && (
+                <DialogTrigger asChild>
+                  <Button className="cursor-pointer">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nueva Reparación
+                  </Button>
+                </DialogTrigger>
+              )}
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Nueva Reparación</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="cliente">Cliente</Label>
+                      <div className="relative">
+                        <Input
+                          value={customerSearch}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setCustomerSearch(v)
+                            setShowCustomerOptions(!!v && v.length >= 1)
+                            if (!v) {
+                              setForm(p => ({ ...p, customer_id: null }))
+                            }
+                          }}
+                          onFocus={() => setShowCustomerOptions(customerSearch.length >= 1)}
+                          onBlur={() => setTimeout(() => setShowCustomerOptions(false), 120)}
+                          onKeyDown={(e) => { if (e.key === 'Escape') setShowCustomerOptions(false) }}
+                          placeholder="Buscar cliente por nombre..."
+                        />
+                        {customerOptions.length > 0 && showCustomerOptions && (
+                          <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                            {customerOptions.map((c) => (
+                              <div
+                                key={c.id}
+                                className="p-2 cursor-pointer hover:bg-gray-100"
+                                role="button"
+                                tabIndex={0}
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  setForm(p => ({ ...p, customer_id: c.id }))
+                                  setCustomerSearch(c.name)
+                                  setCustomerOptions([])
+                                  setShowCustomerOptions(false)
+                                  const el = document.activeElement as HTMLElement | null
+                                  if (el && typeof el.blur === 'function') el.blur()
+                                }}
+                              >
+                                {c.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="tecnico">Técnico Asignado</Label>
+                      <div className="relative">
+                        <Input
+                          value={technicianSearch}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setTechnicianSearch(v)
+                            setShowTechnicianOptions(!!v && v.length >= 1)
+                            if (!v) {
+                              setForm(p => ({ ...p, technician_id: null }))
+                            }
+                          }}
+                          onFocus={() => setShowTechnicianOptions(technicianSearch.length >= 1)}
+                          onBlur={() => setTimeout(() => setShowTechnicianOptions(false), 120)}
+                          onKeyDown={(e) => { if (e.key === 'Escape') setShowTechnicianOptions(false) }}
+                          placeholder="Buscar técnico por nombre..."
+                        />
+                        {technicianOptions.length > 0 && showTechnicianOptions && (
+                          <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                            {technicianOptions.map((t) => (
+                              <div
+                                key={t.id}
+                                className="p-2 cursor-pointer hover:bg-gray-100"
+                                role="button"
+                                tabIndex={0}
+                                onMouseDown={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  setForm(p => ({ ...p, technician_id: t.id }))
+                                  setTechnicianSearch(t.name)
+                                  setTechnicianOptions([])
+                                  setShowTechnicianOptions(false)
+                                  const el = document.activeElement as HTMLElement | null
+                                  if (el && typeof el.blur === 'function') el.blur()
+                                }}
+                              >
+                                {t.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="equipo">Equipo</Label>
+                      <Input id="equipo" placeholder="Tipo y modelo del equipo" value={form.device} onChange={(e) => setForm((p) => ({ ...p, device: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="serie">Número de Serie</Label>
+                      <Input id="serie" placeholder="Número de serie" value={form.serial_number} onChange={(e) => setForm((p) => ({ ...p, serial_number: e.target.value }))} />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="tecnico">Técnico Asignado</Label>
-                    <div className="relative">
-                      <Input
-                        value={technicianSearch}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          setTechnicianSearch(v)
-                          setShowTechnicianOptions(!!v && v.length >= 1)
-                          if (!v) {
-                            setForm(p => ({ ...p, technician_id: null }))
-                          }
-                        }}
-                        onFocus={() => setShowTechnicianOptions(technicianSearch.length >= 1)}
-                        onBlur={() => setTimeout(() => setShowTechnicianOptions(false), 120)}
-                        onKeyDown={(e) => { if (e.key === 'Escape') setShowTechnicianOptions(false) }}
-                        placeholder="Buscar técnico por nombre..."
-                      />
-                      {technicianOptions.length > 0 && showTechnicianOptions && (
-                        <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                          {technicianOptions.map((t) => (
-                            <div
-                              key={t.id}
-                              className="p-2 cursor-pointer hover:bg-gray-100"
-                              role="button"
-                              tabIndex={0}
-                              onMouseDown={(e) => {
-                                e.preventDefault()
-                                e.stopPropagation()
-                                setForm(p => ({ ...p, technician_id: t.id }))
-                                setTechnicianSearch(t.name)
-                                setTechnicianOptions([])
-                                setShowTechnicianOptions(false)
-                                const el = document.activeElement as HTMLElement | null
-                                if (el && typeof el.blur === 'function') el.blur()
-                              }}
-                            >
-                              {t.name}
-                            </div>
+                    <Label htmlFor="problema">Descripción del Problema</Label>
+                    <Textarea id="problema" placeholder="Describe el problema reportado..." value={form.issue_description} onChange={(e) => setForm((p) => ({ ...p, issue_description: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="estado">Estado</Label>
+                      <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v as RepairStatus }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar estado" />
+                        </SelectTrigger>
+                        <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
+                          {options.statuses.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
                           ))}
-                        </div>
-                      )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="prioridad">Prioridad</Label>
+                      <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v as RepairPriority }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar prioridad" />
+                        </SelectTrigger>
+                        <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
+                          {options.priorities.map((p) => (
+                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="equipo">Equipo</Label>
-                    <Input id="equipo" placeholder="Tipo y modelo del equipo" value={form.device} onChange={(e) => setForm((p) => ({ ...p, device: e.target.value }))} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="serie">Número de Serie</Label>
-                    <Input id="serie" placeholder="Número de serie" value={form.serial_number} onChange={(e) => setForm((p) => ({ ...p, serial_number: e.target.value }))} />
+                    <Label htmlFor="observaciones">Observaciones Iniciales</Label>
+                    <Textarea id="observaciones" placeholder="Observaciones del técnico..." value={form.initial_notes} onChange={(e) => setForm((p) => ({ ...p, initial_notes: e.target.value }))} />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="problema">Descripción del Problema</Label>
-                  <Textarea id="problema" placeholder="Describe el problema reportado..." value={form.issue_description} onChange={(e) => setForm((p) => ({ ...p, issue_description: e.target.value }))} />
+                <div className="flex justify-end space-x-2">
+                  <Button variant="outline" className="cursor-pointer" onClick={() => setCreateOpen(false)} disabled={creating}>Cancelar</Button>
+                  {hasPermission('crear_reparaciones') && (
+                    <Button className="cursor-pointer" onClick={handleCreateRepair} disabled={creating}>{creating ? 'Creando...' : 'Crear Reparación'}</Button>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="estado">Estado</Label>
-                    <Select value={form.status} onValueChange={(v) => setForm((p) => ({ ...p, status: v as RepairStatus }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar estado" />
-                      </SelectTrigger>
-                      <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                        {options.statuses.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="prioridad">Prioridad</Label>
-                    <Select value={form.priority} onValueChange={(v) => setForm((p) => ({ ...p, priority: v as RepairPriority }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar prioridad" />
-                      </SelectTrigger>
-                      <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                        {options.priorities.map((p) => (
-                          <SelectItem key={p} value={p}>{p}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="observaciones">Observaciones Iniciales</Label>
-                  <Textarea id="observaciones" placeholder="Observaciones del técnico..." value={form.initial_notes} onChange={(e) => setForm((p) => ({ ...p, initial_notes: e.target.value }))} />
-                </div>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <Button variant="outline" className="cursor-pointer" onClick={() => setCreateOpen(false)} disabled={creating}>Cancelar</Button>
-                {hasPermission('crear_reparaciones') && (
-                  <Button className="cursor-pointer" onClick={handleCreateRepair} disabled={creating}>{creating ? 'Creando...' : 'Crear Reparación'}</Button>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
-      </div>
 
-      {/* Dialogo vincular venta */}
-      <Dialog open={linkOpenId !== null} onOpenChange={(open) => { if (!open) { setLinkOpenId(null); setLinkSaleId(""); } }}>
-        <DialogContent className="sm:max-w-[640px]">
-          <DialogHeader>
-            <DialogTitle>Vincular venta</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1">
-              <Label className="text-sm">Buscar</Label>
-              <div className="relative">
-                <Input
-                  placeholder="Buscar por cliente, proveedor o producto..."
-                  value={salesSearchTerm}
-                  onChange={(e) => setSalesSearchTerm(e.target.value)}
-                />
-                <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        {/* Dialogo vincular venta */}
+        <Dialog open={linkOpenId !== null} onOpenChange={(open) => { if (!open) { setLinkOpenId(null); setLinkSaleId(""); } }}>
+          <DialogContent className="sm:max-w-[640px]">
+            <DialogHeader>
+              <DialogTitle>Vincular venta</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="space-y-1">
+                <Label className="text-sm">Buscar</Label>
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar por cliente, proveedor o producto..."
+                    value={salesSearchTerm}
+                    onChange={(e) => setSalesSearchTerm(e.target.value)}
+                  />
+                  <Search className="absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                </div>
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm">Últimas ventas</Label>
-              <div className="border rounded-md max-h-64 overflow-auto">
-                {salesLoading ? (
-                  <div className="p-3 text-sm text-muted-foreground">Cargando ventas...</div>
-                ) : salesResults.length === 0 ? (
-                  <div className="p-3 text-sm text-muted-foreground">No hay ventas para mostrar</div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[120px]">Nº</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead className="hidden sm:table-cell">Fecha</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-center">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {salesResults.map((s) => (
-                        <TableRow key={s.id} className={Number(linkSaleId) === s.id ? 'bg-purple-50/60' : ''}>
-                          <TableCell className="font-medium">
-                            {(s.receipt_number && String(s.receipt_number)) || String(s.id).padStart(8, '0')}
-                          </TableCell>
-                          <TableCell>{niceCustomerName(s)}</TableCell>
-                          <TableCell className="hidden sm:table-cell">{formatSaleDate(s.date || null)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(s.total || 0)}</TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Elegir"
-                                onClick={() => setLinkSaleId(String(s.id))}
-                              >
-                                <Check className="h-4 w-4 text-purple-600" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                title="Ver detalle de la venta"
-                                onClick={() => handleViewSaleDetail(s.id)}
-                              >
-                                <Eye className="h-4 w-4 text-purple-600" />
-                              </Button>
-                            </div>
-                          </TableCell>
+              <div className="space-y-1">
+                <Label className="text-sm">Últimas ventas</Label>
+                <div className="border rounded-md max-h-64 overflow-auto">
+                  {salesLoading ? (
+                    <div className="p-3 text-sm text-muted-foreground">Cargando ventas...</div>
+                  ) : salesResults.length === 0 ? (
+                    <div className="p-3 text-sm text-muted-foreground">No hay ventas para mostrar</div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-[120px]">Nº</TableHead>
+                          <TableHead>Cliente</TableHead>
+                          <TableHead className="hidden sm:table-cell">Fecha</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-center">Acciones</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-              {/* Controles de paginación */}
-              <div className="flex items-center justify-between pt-2">
-                <div className="text-xs text-muted-foreground">Página {salesPage}</div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={salesPage <= 1 || salesLoading} onClick={() => setSalesPage(p => Math.max(1, p - 1))}>
-                    Anterior
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={salesLoading || salesResults.length < salesLimit} onClick={() => setSalesPage(p => p + 1)}>
-                    Siguiente
-                  </Button>
+                      </TableHeader>
+                      <TableBody>
+                        {salesResults.map((s) => (
+                          <TableRow key={s.id} className={Number(linkSaleId) === s.id ? 'bg-purple-50/60' : ''}>
+                            <TableCell className="font-medium">
+                              {(s.receipt_number && String(s.receipt_number)) || String(s.id).padStart(8, '0')}
+                            </TableCell>
+                            <TableCell>{niceCustomerName(s)}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{formatSaleDate(s.date || null)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(s.total || 0)}</TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Elegir"
+                                  onClick={() => setLinkSaleId(String(s.id))}
+                                >
+                                  <Check className="h-4 w-4 text-purple-600" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Ver detalle de la venta"
+                                  onClick={() => handleViewSaleDetail(s.id)}
+                                >
+                                  <Eye className="h-4 w-4 text-purple-600" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+                {/* Controles de paginación */}
+                <div className="flex items-center justify-between pt-2">
+                  <div className="text-xs text-muted-foreground">Página {salesPage}</div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" disabled={salesPage <= 1 || salesLoading} onClick={() => setSalesPage(p => Math.max(1, p - 1))}>
+                      Anterior
+                    </Button>
+                    <Button variant="outline" size="sm" disabled={salesLoading || salesResults.length < salesLimit} onClick={() => setSalesPage(p => p + 1)}>
+                      Siguiente
+                    </Button>
+                  </div>
                 </div>
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="sale_id">ID de Venta (manual)</Label>
+                <Input id="sale_id" placeholder="Ej: 123" value={linkSaleId} onChange={(e) => setLinkSaleId(e.target.value)} />
+              </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="sale_id">ID de Venta (manual)</Label>
-              <Input id="sale_id" placeholder="Ej: 123" value={linkSaleId} onChange={(e) => setLinkSaleId(e.target.value)} />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setLinkOpenId(null); setLinkSaleId("") }} disabled={linking}>Cancelar</Button>
+              {hasPermission('vincular_venta_reparaciones') && (
+                <Button onClick={handleLinkSale} disabled={linking || !linkSaleId}>{linking ? 'Vinculando...' : 'Vincular'}</Button>
+              )}
             </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => { setLinkOpenId(null); setLinkSaleId("") }} disabled={linking}>Cancelar</Button>
-            {hasPermission('vincular_venta_reparaciones') && (
-              <Button onClick={handleLinkSale} disabled={linking || !linkSaleId}>{linking ? 'Vinculando...' : 'Vincular'}</Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
 
-      {/* Modal Ver/Editar reparación */}
-      {hasPermission('ver_reparaciones') && (
-        <RepairDetailDialog
-          open={detailOpen}
-          onOpenChange={(open) => { setDetailOpen(open); if (!open) { setSelectedRepair(null); setEditMode(false) } }}
-          loading={detailLoading}
-          editMode={editMode}
-          options={options}
-          selectedRepair={selectedRepair ? {
-            id: selectedRepair.id,
-            code: selectedRepair.code,
-            customer: selectedRepair.customer ? { id: selectedRepair.customer.id, name: selectedRepair.customer.name } : undefined,
-            branch: selectedRepair.branch ? { id: selectedRepair.branch.id, description: selectedRepair.branch.description } : undefined,
-            technician: selectedRepair.technician ? { id: selectedRepair.technician.id, name: selectedRepair.technician.name } : undefined,
-            device: selectedRepair.device,
-            serial_number: selectedRepair.serial_number ?? null,
-            issue_description: selectedRepair.issue_description,
-            status: selectedRepair.status,
-            priority: selectedRepair.priority,
-            cost: (selectedRepair as any).cost ?? null,
-            sale_price: (selectedRepair as any).sale_price ?? null,
-          } : null}
-          editForm={editForm as any}
-          setEditForm={setEditForm as any}
-          onCancelEdit={() => setEditMode(false)}
-          onSave={saveRepair}
-          // search props
-          editCustomerSearch={editCustomerSearch}
-          setEditCustomerSearch={setEditCustomerSearch}
-          editCustomerOptions={editCustomerOptions}
-          showEditCustomerOptions={showEditCustomerOptions}
-          setShowEditCustomerOptions={setShowEditCustomerOptions}
-          editTechnicianSearch={editTechnicianSearch}
-          setEditTechnicianSearch={setEditTechnicianSearch}
-          editTechnicianOptions={editTechnicianOptions}
-          showEditTechnicianOptions={showEditTechnicianOptions}
-          setShowEditTechnicianOptions={setShowEditTechnicianOptions}
-          editBranchSearch={editBranchSearch}
-          setEditBranchSearch={setEditBranchSearch}
-          editBranchOptions={editBranchOptions}
-          showEditBranchOptions={showEditBranchOptions}
-          setShowEditBranchOptions={setShowEditBranchOptions}
-          getEstadoBadge={getEstadoBadge}
-          getPrioridadBadge={getPrioridadBadge}
-          onEnterEdit={() => setEditMode(true)}
-        />
-      )}
+        {/* Modal Ver/Editar reparación */}
+        {hasPermission('ver_reparaciones') && (
+          <RepairDetailDialog
+            open={detailOpen}
+            onOpenChange={(open) => { setDetailOpen(open); if (!open) { setSelectedRepair(null); setEditMode(false) } }}
+            loading={detailLoading}
+            editMode={editMode}
+            options={options}
+            selectedRepair={selectedRepair ? {
+              id: selectedRepair.id,
+              code: selectedRepair.code,
+              customer: selectedRepair.customer ? { id: selectedRepair.customer.id, name: selectedRepair.customer.name } : undefined,
+              branch: selectedRepair.branch ? { id: selectedRepair.branch.id, description: selectedRepair.branch.description } : undefined,
+              technician: selectedRepair.technician ? { id: selectedRepair.technician.id, name: selectedRepair.technician.name } : undefined,
+              device: selectedRepair.device,
+              serial_number: selectedRepair.serial_number ?? null,
+              issue_description: selectedRepair.issue_description,
+              status: selectedRepair.status,
+              priority: selectedRepair.priority,
+              cost: (selectedRepair as any).cost ?? null,
+              sale_price: (selectedRepair as any).sale_price ?? null,
+            } : null}
+            editForm={editForm as any}
+            setEditForm={setEditForm as any}
+            onCancelEdit={() => setEditMode(false)}
+            onSave={saveRepair}
+            // search props
+            editCustomerSearch={editCustomerSearch}
+            setEditCustomerSearch={setEditCustomerSearch}
+            editCustomerOptions={editCustomerOptions}
+            showEditCustomerOptions={showEditCustomerOptions}
+            setShowEditCustomerOptions={setShowEditCustomerOptions}
+            editTechnicianSearch={editTechnicianSearch}
+            setEditTechnicianSearch={setEditTechnicianSearch}
+            editTechnicianOptions={editTechnicianOptions}
+            showEditTechnicianOptions={showEditTechnicianOptions}
+            setShowEditTechnicianOptions={setShowEditTechnicianOptions}
+            editBranchSearch={editBranchSearch}
+            setEditBranchSearch={setEditBranchSearch}
+            editBranchOptions={editBranchOptions}
+            showEditBranchOptions={showEditBranchOptions}
+            setShowEditBranchOptions={setShowEditBranchOptions}
+            getEstadoBadge={getEstadoBadge}
+            getPrioridadBadge={getPrioridadBadge}
+            onEnterEdit={() => setEditMode(true)}
+          />
+        )}
 
-      {/* Dialogo de detalle de venta dentro de Vincular venta */}
-      {selectedSaleForView && (
-        <ViewSaleDialog
-          open={viewSaleOpen}
-          onOpenChange={setViewSaleOpen}
-          sale={selectedSaleForView}
-          getCustomerName={getSaleCustomerName as any}
-          formatDate={formatSaleDate}
-          getReceiptType={getSaleReceiptType as any}
-          onDownloadPdf={async (sale) => {
-            if (!sale || !sale.id) {
-              alert("No se puede descargar el PDF: ID de venta faltante.");
-              return;
-            }
-            try {
-              const response = await request({ 
-                method: 'GET', 
-                url: `/pos/sales/${sale.id}/pdf`,
-                responseType: 'blob'
-              });
-              if (!response || !(response instanceof Blob)) {
-                throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+        {/* Dialogo de detalle de venta dentro de Vincular venta */}
+        {selectedSaleForView && (
+          <ViewSaleDialog
+            open={viewSaleOpen}
+            onOpenChange={setViewSaleOpen}
+            sale={selectedSaleForView}
+            getCustomerName={getSaleCustomerName as any}
+            formatDate={formatSaleDate}
+            getReceiptType={getSaleReceiptType as any}
+            onDownloadPdf={async (sale) => {
+              if (!sale || !sale.id) {
+                alert("No se puede descargar el PDF: ID de venta faltante.");
+                return;
               }
-              const blob = new Blob([response], { type: 'application/pdf' });
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-              const receiptNumber = sale.receipt_number || sale.id;
-              const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-              a.download = fileName;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              window.URL.revokeObjectURL(url);
-            } catch (error) {
-              console.error("Error downloading PDF:", error);
-              alert("Error al descargar PDF");
-            }
-          }}
-        />
-      )}
+              try {
+                const response = await request({
+                  method: 'GET',
+                  url: `/pos/sales/${sale.id}/pdf`,
+                  responseType: 'blob'
+                });
+                if (!response || !(response instanceof Blob)) {
+                  throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+                }
+                const blob = new Blob([response], { type: 'application/pdf' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+                const receiptNumber = sale.receipt_number || sale.id;
+                const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error("Error downloading PDF:", error);
+                alert("Error al descargar PDF");
+              }
+            }}
+            onSaleUpdated={(updatedSale) => {
+              if (selectedSaleForView && selectedSaleForView.id === updatedSale.id) {
+                setSelectedSaleForView(updatedSale);
+              }
+            }}
+          />
+        )}
 
-      {/* Estadísticas */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <RepairsStatusCard
-          title="Total Reparaciones"
-          icon={<Wrench className="h-4 w-4 text-muted-foreground" />}
-          count={totalReparaciones}
-          loading={loading}
-          footer={<p className="text-xs text-muted-foreground">Este mes</p>}
-        />
-        <RepairsStatusCard
-          title="En Proceso"
-          icon={<Clock className="h-4 w-4 text-muted-foreground" />}
-          count={enProceso}
-          loading={loading}
-          footer={<p className="text-xs text-muted-foreground">Actualmente</p>}
-        />
-        <RepairsStatusCard
-          title="Terminadas"
-          icon={<CalendarDays className="h-4 w-4 text-muted-foreground" />}
-          count={terminadas}
-          loading={loading}
-          footer={<p className="text-xs text-muted-foreground">Pendientes de entrega</p>}
-        />
-        <RepairsStatusCard
-          title="Entregadas"
-          icon={(
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              className="h-4 w-4 text-muted-foreground"
-            >
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <path d="m9 11 3 3L22 4" />
-            </svg>
-          )}
-          count={entregadas}
-          loading={loading}
-          footer={<p className="text-xs text-muted-foreground">Este mes</p>}
-        />
-      </div>
-
-      {/* Filtros */}
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div className="flex flex-1 items-center gap-2">
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar reparaciones..."
-              className="w-full pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <Select value={selectedEstado} onValueChange={(v) => setSelectedEstado(v as "all" | RepairStatus)}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value={RepairStatus.Recibido}>{RepairStatus.Recibido}</SelectItem>
-              <SelectItem value={RepairStatus["En diagnóstico"]}>{RepairStatus["En diagnóstico"]}</SelectItem>
-              <SelectItem value={RepairStatus["En reparación"]}>{RepairStatus["En reparación"]}</SelectItem>
-              <SelectItem value={RepairStatus["Esperando repuestos"]}>{RepairStatus["Esperando repuestos"]}</SelectItem>
-              <SelectItem value={RepairStatus.Terminado}>{RepairStatus.Terminado}</SelectItem>
-              <SelectItem value={RepairStatus.Entregado}>{RepairStatus.Entregado}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-end gap-2">
-          <div>
-            <Label className="text-xs">Desde</Label>
-            <Input
-              placeholder="dd/mm/aaaa"
-              value={fromDate}
-              onChange={(e) => setFromDate(formatDDMMYYYYInput(e.target.value))}
-            />
-          </div>
-          <div>
-            <Label className="text-xs">Hasta</Label>
-            <Input
-              placeholder="dd/mm/aaaa"
-              value={toDate}
-              onChange={(e) => setToDate(formatDDMMYYYYInput(e.target.value))}
-            />
-          </div>
-          <Button variant="secondary" className="cursor-pointer" onClick={handleRefresh}>
-            Aplicar filtros
-          </Button>
-        </div>
-      </div>
-      {dateError && (
-        <p className="text-sm text-red-600">{dateError}</p>
-      )}
-
-      {/* Tabla */}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[120px]">Código</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Equipo</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('estado')}>
-                Estado <span className="ml-1 text-xs">{sortIndicator('estado')}</span>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('prioridad')}>
-                Prioridad <span className="ml-1 text-xs">{sortIndicator('prioridad')}</span>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('costo')}>
-                Costo <span className="ml-1 text-xs">{sortIndicator('costo')}</span>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => toggleSort('venta')}>
-                Venta <span className="ml-1 text-xs">{sortIndicator('venta')}</span>
-              </TableHead>
-              <TableHead className="w-[220px] text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedReparaciones.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">Sin resultados</TableCell>
-              </TableRow>
-            ) : (
-              sortedReparaciones.map((rep) => (
-                <TableRow key={rep.id}>
-                  <TableCell className="font-medium">{rep.code || rep.id}</TableCell>
-                  <TableCell>{rep.customer?.name || '-'}</TableCell>
-                  <TableCell>{rep.device}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getEstadoBadge(rep.status)}>{rep.status}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={getPrioridadBadge(rep.priority)}>{rep.priority}</Badge>
-                  </TableCell>
-                  <TableCell>{typeof rep.cost === 'number' ? `$${rep.cost.toFixed(2)}` : '-'}</TableCell>
-                  <TableCell>{rep.sale?.receipt_number || rep.sale_id || '-'}</TableCell>
-                  <TableCell className="text-right space-x-1">
-                    {hasPermission('ver_reparaciones') && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 cursor-pointer"
-                        onClick={() => handleView(rep.id)}
-                        title="Ver"
-                        type="button"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {hasPermission('editar_reparaciones') && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-orange-700 hover:bg-orange-100 hover:text-orange-800 cursor-pointer"
-                        onClick={() => handleEdit(rep.id)}
-                        title="Editar"
-                        type="button"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {hasPermission('vincular_venta_reparaciones') && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-purple-700 hover:bg-purple-100 hover:text-purple-800 cursor-pointer"
-                        onClick={() => { setLinkOpenId(rep.id); setLinkSaleId(rep.sale?.id ? String(rep.sale.id) : rep.sale_id ? String(rep.sale_id) : '') }}
-                        title="Vincular venta"
-                        type="button"
-                      >
-                        <Link2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
+        {/* Estadísticas */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <RepairsStatusCard
+            title="Total Reparaciones"
+            icon={<Wrench className="h-4 w-4 text-muted-foreground" />}
+            count={totalReparaciones}
+            loading={loading}
+            footer={<p className="text-xs text-muted-foreground">Este mes</p>}
+          />
+          <RepairsStatusCard
+            title="En Proceso"
+            icon={<Clock className="h-4 w-4 text-muted-foreground" />}
+            count={enProceso}
+            loading={loading}
+            footer={<p className="text-xs text-muted-foreground">Actualmente</p>}
+          />
+          <RepairsStatusCard
+            title="Terminadas"
+            icon={<CalendarDays className="h-4 w-4 text-muted-foreground" />}
+            count={terminadas}
+            loading={loading}
+            footer={<p className="text-xs text-muted-foreground">Pendientes de entrega</p>}
+          />
+          <RepairsStatusCard
+            title="Entregadas"
+            icon={(
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                className="h-4 w-4 text-muted-foreground"
+              >
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
             )}
-          </TableBody>
-        </Table>
+            count={entregadas}
+            loading={loading}
+            footer={<p className="text-xs text-muted-foreground">Este mes</p>}
+          />
+        </div>
+
+        {/* Filtros */}
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-1 items-center gap-2">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar reparaciones..."
+                className="w-full pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Select value={selectedEstado} onValueChange={(v) => setSelectedEstado(v as "all" | RepairStatus)}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                <SelectItem value={RepairStatus.Recibido}>{RepairStatus.Recibido}</SelectItem>
+                <SelectItem value={RepairStatus["En diagnóstico"]}>{RepairStatus["En diagnóstico"]}</SelectItem>
+                <SelectItem value={RepairStatus["En reparación"]}>{RepairStatus["En reparación"]}</SelectItem>
+                <SelectItem value={RepairStatus["Esperando repuestos"]}>{RepairStatus["Esperando repuestos"]}</SelectItem>
+                <SelectItem value={RepairStatus.Terminado}>{RepairStatus.Terminado}</SelectItem>
+                <SelectItem value={RepairStatus.Entregado}>{RepairStatus.Entregado}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-end gap-2">
+            <div>
+              <Label className="text-xs">Desde</Label>
+              <Input
+                placeholder="dd/mm/aaaa"
+                value={fromDate}
+                onChange={(e) => setFromDate(formatDDMMYYYYInput(e.target.value))}
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Hasta</Label>
+              <Input
+                placeholder="dd/mm/aaaa"
+                value={toDate}
+                onChange={(e) => setToDate(formatDDMMYYYYInput(e.target.value))}
+              />
+            </div>
+            <Button variant="secondary" className="cursor-pointer" onClick={handleRefresh}>
+              Aplicar filtros
+            </Button>
+          </div>
+        </div>
+        {dateError && (
+          <p className="text-sm text-red-600">{dateError}</p>
+        )}
+
+        {/* Tabla */}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[120px]">Código</TableHead>
+                <TableHead>Cliente</TableHead>
+                <TableHead>Equipo</TableHead>
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('estado')}>
+                  Estado <span className="ml-1 text-xs">{sortIndicator('estado')}</span>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('prioridad')}>
+                  Prioridad <span className="ml-1 text-xs">{sortIndicator('prioridad')}</span>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('costo')}>
+                  Costo <span className="ml-1 text-xs">{sortIndicator('costo')}</span>
+                </TableHead>
+                <TableHead className="cursor-pointer" onClick={() => toggleSort('venta')}>
+                  Venta <span className="ml-1 text-xs">{sortIndicator('venta')}</span>
+                </TableHead>
+                <TableHead className="w-[220px] text-right">Acciones</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedReparaciones.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">Sin resultados</TableCell>
+                </TableRow>
+              ) : (
+                sortedReparaciones.map((rep) => (
+                  <TableRow key={rep.id}>
+                    <TableCell className="font-medium">{rep.code || rep.id}</TableCell>
+                    <TableCell>{rep.customer?.name || '-'}</TableCell>
+                    <TableCell>{rep.device}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getEstadoBadge(rep.status)}>{rep.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={getPrioridadBadge(rep.priority)}>{rep.priority}</Badge>
+                    </TableCell>
+                    <TableCell>{typeof rep.cost === 'number' ? `$${rep.cost.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}</TableCell>
+                    <TableCell>{rep.sale?.receipt_number || rep.sale_id || '-'}</TableCell>
+                    <TableCell className="text-right space-x-1">
+                      {hasPermission('ver_reparaciones') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 cursor-pointer"
+                          onClick={() => handleView(rep.id)}
+                          title="Ver"
+                          type="button"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {hasPermission('editar_reparaciones') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-orange-700 hover:bg-orange-100 hover:text-orange-800 cursor-pointer"
+                          onClick={() => handleEdit(rep.id)}
+                          title="Editar"
+                          type="button"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {hasPermission('vincular_venta_reparaciones') && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-purple-700 hover:bg-purple-100 hover:text-purple-800 cursor-pointer"
+                          onClick={() => { setLinkOpenId(rep.id); setLinkSaleId(rep.sale?.id ? String(rep.sale.id) : rep.sale_id ? String(rep.sale_id) : '') }}
+                          title="Vincular venta"
+                          type="button"
+                        >
+                          <Link2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </BranchRequiredWrapper>

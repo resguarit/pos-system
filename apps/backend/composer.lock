@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "00ea0778480055b545566b6ff86f4a73",
+    "content-hash": "9cb42c544c671898bc593bf5a33df609",
     "packages": [
         {
             "name": "barryvdh/laravel-dompdf",
@@ -4268,6 +4268,82 @@
                 "source": "https://github.com/ramsey/uuid/tree/4.9.1"
             },
             "time": "2025-09-04T20:59:21+00:00"
+        },
+        {
+            "name": "resguar/afip-sdk",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/resguarit/Afip-sdk.git",
+                "reference": "3b14c26a0b6fb844163931b67808a7a08a822072"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/resguarit/Afip-sdk/zipball/3b14c26a0b6fb844163931b67808a7a08a822072",
+                "reference": "3b14c26a0b6fb844163931b67808a7a08a822072",
+                "shasum": ""
+            },
+            "require": {
+                "ext-openssl": "*",
+                "ext-soap": "*",
+                "guzzlehttp/guzzle": "^7.0",
+                "illuminate/database": "^11.0",
+                "illuminate/http": "^11.0",
+                "illuminate/support": "^11.0",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "orchestra/testbench": "^9.0",
+                "phpunit/phpunit": "^10.0"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Resguar\\AfipSdk\\AfipServiceProvider"
+                    ],
+                    "aliases": {
+                        "Afip": "Resguar\\AfipSdk\\Facades\\Afip"
+                    }
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Resguar\\AfipSdk\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Resguar\\AfipSdk\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ],
+                "test-coverage": [
+                    "phpunit --coverage-html coverage"
+                ]
+            },
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Resguar IT",
+                    "email": "info@resguar.com"
+                }
+            ],
+            "description": "SDK independiente y reutilizable para integración con AFIP (Administración Federal de Ingresos Públicos de Argentina) - Facturación Electrónica",
+            "keywords": [
+                "afip",
+                "argentina",
+                "facturacion-electronica",
+                "laravel",
+                "sdk"
+            ],
+            "time": "2025-11-27T16:04:39+00:00"
         },
         {
             "name": "sabberworm/php-css-parser",
@@ -10647,7 +10723,9 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "resguar/afip-sdk": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

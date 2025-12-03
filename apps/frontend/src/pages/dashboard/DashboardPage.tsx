@@ -9,6 +9,7 @@ import { useSales } from "@/hooks/useSales"
 import { useDashboard } from "@/hooks/useDashboard"
 import { useBranch } from "@/context/BranchContext"
 import ViewSaleDialog from "@/components/view-sale-dialog"
+import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge"
 import useApi from "@/hooks/useApi"
 import { useState } from "react"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -55,6 +56,20 @@ export default function DashboardPage() {
     } finally {
       setLoadingSaleDetail(false);
     }
+  };
+
+  /**
+   * Maneja la actualización de una venta después de autorización AFIP
+   */
+  const handleSaleUpdated = async (updatedSale: any) => {
+    // Actualizar la venta seleccionada
+    if (selectedSale && selectedSale.id === updatedSale.id) {
+      setSelectedSale(updatedSale);
+    }
+    
+    // El hook useSales se actualizará automáticamente en la próxima carga
+    // pero podemos forzar una recarga si es necesario
+    // Por ahora, solo actualizamos la venta seleccionada
   };
 
   // Helper para mostrar nombre de sucursales seleccionadas
@@ -370,6 +385,7 @@ export default function DashboardPage() {
                   alert("Error al descargar PDF");
                 }
               }}
+              onSaleUpdated={handleSaleUpdated}
             />
           )
         )

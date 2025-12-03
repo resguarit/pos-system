@@ -253,7 +253,7 @@ export default function AnalisisVentasPage() {
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell className="hidden md:table-cell">{product.quantity}</TableCell>
-                    <TableCell className="text-right">${product.revenue.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">${product.revenue.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-right">
                       <Badge variant="outline" className={`${product.growth >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"} hover:bg-opacity-100`}>
                         {product.growth >= 0 ? "+" : ""}{product.growth}%
@@ -286,7 +286,7 @@ export default function AnalisisVentasPage() {
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">{customer.name}</TableCell>
                     <TableCell className="hidden md:table-cell">{customer.purchases}</TableCell>
-                    <TableCell className="text-right">${customer.total.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">${customer.total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                     <TableCell className="hidden md:table-cell">{customer.lastPurchase}</TableCell>
                   </TableRow>
                 ))}

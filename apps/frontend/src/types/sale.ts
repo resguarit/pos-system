@@ -3,7 +3,12 @@ import type { CartItem } from './combo'
 export interface PaymentMethod {
   id: number
   name: string
+  description?: string
+  is_active?: boolean
+  affects_cash?: boolean
+  discount_percentage?: number
 }
+
 
 export interface ReceiptType {
   id: number
@@ -73,5 +78,75 @@ export interface CompletedSale {
     iva_rate: number
     base_amount: number
     tax_amount: number
+  }>
+}
+
+export interface SaleHeader {
+  id: number
+  date: string
+  receipt_number?: string
+  receipt_type?: {
+    id: number
+    name: string
+    description?: string
+    afip_code?: string | number
+  }
+  customer?: {
+    id: number
+    person?: {
+      first_name?: string
+      last_name?: string
+      cuit?: string
+    }
+    business_name?: string
+  }
+  branch?: {
+    id: number
+    description?: string
+    cuit?: string
+    point_of_sale?: number
+  }
+  items?: Array<{
+    id: number
+    product?: {
+      id: number
+      name?: string
+      description?: string
+      sale_price?: number
+    }
+    quantity: number
+    unit_price: number
+    item_subtotal?: number
+    item_iva?: number
+    item_total?: number
+    discount_amount?: number
+  }>
+  subtotal?: number
+  total_iva_amount?: number
+  total: number
+  discount_amount?: number
+  status?: string
+  seller?: string
+  seller_name?: string
+  cae?: string | null
+  cae_expiration_date?: string | null
+  sale_fiscal_condition?: {
+    id: number
+    name?: string
+    afip_code?: number
+  }
+  sale_document_number?: string
+  sale_document_type?: {
+    id: number
+    name?: string
+    afip_code?: number
+  }
+  payments?: Array<{
+    id: number
+    amount: number
+    payment_method?: {
+      id: number
+      name?: string
+    }
   }>
 }

@@ -569,6 +569,11 @@ export default function CustomerPurchasesPage() {
               alert("Error al descargar PDF");
             }
           }}
+          onSaleUpdated={(updatedSale) => {
+            if (selectedSale && selectedSale.id === updatedSale.id) {
+              setSelectedSale(updatedSale);
+            }
+          }}
         />
       )}
       

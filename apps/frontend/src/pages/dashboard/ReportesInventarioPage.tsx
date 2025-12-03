@@ -393,9 +393,8 @@ export default function ReportesInventarioPage() {
                     >
                       <Badge
                         variant="outline"
-                        className={`${
-                          product.status === "crítico" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
-                        } hover:bg-opacity-100 truncate`}
+                        className={`${product.status === "crítico" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+                          } hover:bg-opacity-100 truncate`}
                       >
                         {product.status}
                       </Badge>
@@ -484,8 +483,8 @@ export default function ReportesInventarioPage() {
                       getColumnCellProps={getTopValueColumnCellProps}
                       className="text-right"
                     >
-                      <span className="truncate" title={`$${product.value.toFixed(2)}`}>
-                        ${product.value.toFixed(2)}
+                      <span className="truncate" title={`$${product.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}>
+                        ${product.value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </ResizableTableCell>
                     <ResizableTableCell

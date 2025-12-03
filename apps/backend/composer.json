@@ -4,6 +4,13 @@
     "description": "POS Backend Application",
     "keywords": ["framework", "laravel"],
     "license": "MIT",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/resguarit/Afip-sdk.git",
+            "no-api": true
+        }
+    ],
     "require": {
         "php": "^8.1",
         "barryvdh/laravel-dompdf": "^3.0",
@@ -13,6 +20,7 @@
         "laravel/framework": "^11.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.8",
+        "resguar/afip-sdk": "dev-main",
         "spatie/laravel-activitylog": "^4.10"
     },
     "require-dev": {

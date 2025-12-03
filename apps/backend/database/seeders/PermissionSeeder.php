@@ -143,6 +143,13 @@ class PermissionSeeder extends Seeder
             // Cuentas Corrientes - Permiso unificado
             ['name' => 'gestionar_cuentas_corrientes', 'description' => 'Gestionar cuentas corrientes (Ver, crear, editar, procesar pagos, etc.)', 'module' => 'cuentas_corrientes'],
             
+            // Transferencias de Stock
+            ['name' => 'ver_transferencias', 'description' => 'Ver transferencias de stock', 'module' => 'transferencias'],
+            ['name' => 'crear_transferencias', 'description' => 'Crear transferencia de stock', 'module' => 'transferencias'],
+            ['name' => 'editar_transferencias', 'description' => 'Editar transferencia de stock', 'module' => 'transferencias'],
+            ['name' => 'completar_transferencias', 'description' => 'Completar transferencia de stock', 'module' => 'transferencias'],
+            ['name' => 'cancelar_transferencias', 'description' => 'Cancelar transferencia de stock', 'module' => 'transferencias'],
+            
             // Permisos adicionales identificados en la aplicación
             ['name' => 'exportar_lista_precios', 'description' => 'Exportar lista de precios', 'module' => 'productos'],
             ['name' => 'actualizar_precios_masivo', 'description' => 'Actualizar precios masivamente', 'module' => 'productos'],

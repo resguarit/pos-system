@@ -9,12 +9,15 @@ import { useEntityContext } from "@/context/EntityContext";
 import { type Branch } from '@/types/branch';
 import { type SaleHeader } from '@/types/sale';
 import ViewSaleDialog from '@/components/view-sale-dialog';
+import { AfipStatusBadge } from '@/components/sales/AfipStatusBadge';
 import { useState, useCallback } from 'react';
 import useApi from '@/hooks/useApi';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import Pagination from '@/components/ui/pagination';
+import { useMemo } from 'react';
 
 export default function SalesHistoryPage() {
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
@@ -23,6 +26,10 @@ export default function SalesHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage] = useState(15);
   const { state } = useEntityContext();
   const { request } = useApi();
   const { hasPermission } = useAuth();
@@ -38,6 +45,7 @@ export default function SalesHistoryPage() {
     const branchId = parseInt(value, 10);
     setSelectedBranchId(branchId);
     setShowChart(false); // Hide chart when branch changes
+    setCurrentPage(1); // Reset to first page
     if (branchId) {
       loadSales(branchId);
     }
@@ -56,7 +64,7 @@ export default function SalesHistoryPage() {
       const salesResponse = await request({
         method: 'GET',
         url: `/sales`,
-        params: { branch_id: branchId }
+        params: { branch_id: branchId, per_page: 1000 } // Obtener todas para paginación client-side
       });
       
       if (salesResponse && salesResponse.success) {
@@ -137,6 +145,41 @@ export default function SalesHistoryPage() {
     }
   };
 
+  /**
+   * Maneja la actualización de una venta después de autorización AFIP
+   */
+  const handleSaleUpdated = async (updatedSale: SaleHeader) => {
+    // Actualizar en la lista local
+    setSales(prevSales => 
+      prevSales.map(sale => 
+        sale.id === updatedSale.id ? updatedSale : sale
+      )
+    );
+    
+    // Actualizar la venta seleccionada
+    if (selectedSale && selectedSale.id === updatedSale.id) {
+      setSelectedSale(updatedSale);
+    }
+
+    // Recargar ventas si hay una sucursal seleccionada
+    if (selectedBranchId) {
+      loadSales(selectedBranchId);
+    }
+  };
+
+  // Paginación client-side
+  const paginatedSales = useMemo(() => {
+    const startIndex = (currentPage - 1) * perPage;
+    const endIndex = startIndex + perPage;
+    return sales.slice(startIndex, endIndex);
+  }, [sales, currentPage, perPage]);
+
+  const totalPages = Math.ceil(sales.length / perPage);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6 text-center">Historial de Ventas por Sucursal</h1>
@@ -211,7 +254,7 @@ export default function SalesHistoryPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    sales.map((sale) => {
+                    paginatedSales.map((sale) => {
                       const receiptTypeInfo = getReceiptType(sale);
                       return (
                         <TableRow key={sale.id}>
@@ -220,9 +263,12 @@ export default function SalesHistoryPage() {
                           </TableCell>
                           <TableCell>{getCustomerName(sale)}</TableCell>
                           <TableCell>
-                            <Badge variant="outline">
-                              {receiptTypeInfo.displayName}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">
+                                {receiptTypeInfo.displayName}
+                              </Badge>
+                              <AfipStatusBadge sale={sale} />
+                            </div>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             {formatDate(sale.date)}
@@ -261,6 +307,17 @@ export default function SalesHistoryPage() {
                 </TableBody>
               </Table>
             </div>
+            {/* Paginación */}
+            {!loading && sales.length > 0 && totalPages > 1 && (
+              <Pagination
+                currentPage={currentPage}
+                lastPage={totalPages}
+                total={sales.length}
+                itemName="ventas"
+                onPageChange={handlePageChange}
+                disabled={loading}
+              />
+            )}
           </CardContent>
         </Card>
       )}
@@ -275,6 +332,7 @@ export default function SalesHistoryPage() {
           formatDate={formatDate}
           getReceiptType={getReceiptType}
           onDownloadPdf={handleDownloadPdf}
+          onSaleUpdated={handleSaleUpdated}
         />
       )}
     </div>
