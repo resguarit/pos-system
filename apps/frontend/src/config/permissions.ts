@@ -7,7 +7,7 @@ export const PERMISSIONS_CONFIG = {
     feature: 'dashboard',
     permissions: ['ver_dashboard']
   },
-  
+
   // Inventario/Productos
   inventario: {
     feature: 'inventario',
@@ -21,7 +21,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_movimientos_stock'
     ]
   },
-  
+
   // Combos
   combos: {
     feature: 'combos',
@@ -32,7 +32,7 @@ export const PERMISSIONS_CONFIG = {
       'eliminar_combos'
     ]
   },
-  
+
   // Categorías
   categorias: {
     feature: 'categorias',
@@ -43,7 +43,7 @@ export const PERMISSIONS_CONFIG = {
       'eliminar_categorias'
     ]
   },
-  
+
   // Ventas
   ventas: {
     feature: 'ventas',
@@ -56,7 +56,7 @@ export const PERMISSIONS_CONFIG = {
       'aplicar_descuentos'
     ]
   },
-  
+
   // POS (Punto de Venta)
   pos: {
     feature: 'pos',
@@ -69,7 +69,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_tipos_comprobante'
     ]
   },
-  
+
   // Historial de Ventas
   historialVentas: {
     feature: 'historialVentas',
@@ -79,7 +79,7 @@ export const PERMISSIONS_CONFIG = {
       'exportar_reportes'
     ]
   },
-  
+
   // Caja
   caja: {
     feature: 'caja',
@@ -91,7 +91,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_historico_caja'
     ]
   },
-  
+
   // Clientes
   clientes: {
     feature: 'clientes',
@@ -104,7 +104,7 @@ export const PERMISSIONS_CONFIG = {
       'gestionar_cuentas_corrientes'
     ]
   },
-  
+
   // Cuentas Corrientes
   cuentasCorrientes: {
     feature: 'cuentasCorrientes',
@@ -112,7 +112,7 @@ export const PERMISSIONS_CONFIG = {
       'gestionar_cuentas_corrientes'
     ]
   },
-  
+
   // Proveedores
   proveedores: {
     feature: 'proveedores',
@@ -123,7 +123,7 @@ export const PERMISSIONS_CONFIG = {
       'eliminar_proveedores'
     ]
   },
-  
+
   // Órdenes de Compra
   purchaseOrders: {
     feature: 'purchaseOrders',
@@ -135,7 +135,7 @@ export const PERMISSIONS_CONFIG = {
       'completar_ordenes_compra'
     ]
   },
-  
+
   // Sucursales
   sucursales: {
     feature: 'sucursales',
@@ -147,7 +147,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_ventas_sucursal'
     ]
   },
-  
+
   // Usuarios
   usuarios: {
     feature: 'usuarios',
@@ -160,7 +160,7 @@ export const PERMISSIONS_CONFIG = {
       'activar_desactivar_usuario'
     ]
   },
-  
+
   // Roles
   roles: {
     feature: 'roles',
@@ -172,7 +172,7 @@ export const PERMISSIONS_CONFIG = {
       'asignar_permisos'
     ]
   },
-  
+
   // Configuración del Sistema
   configuracionSistema: {
     feature: 'configuracionSistema',
@@ -190,7 +190,7 @@ export const PERMISSIONS_CONFIG = {
       'editar_configuracion_sistema'
     ]
   },
-  
+
   // Auditorías
   auditorias: {
     feature: 'auditorias',
@@ -198,7 +198,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_auditorias'
     ]
   },
-  
+
   // Reparaciones (feature deshabilitada)
   repairs: {
     feature: 'repairs',
@@ -210,7 +210,7 @@ export const PERMISSIONS_CONFIG = {
       'vincular_venta_reparaciones'
     ]
   },
-  
+
   // Turnos (feature deshabilitada)
   turnos: {
     feature: 'turnos',
@@ -221,7 +221,7 @@ export const PERMISSIONS_CONFIG = {
       'eliminar_turnos'
     ]
   },
-  
+
   // Análisis de Ventas (feature deshabilitada)
   analisisVentas: {
     feature: 'analisisVentas',
@@ -232,7 +232,7 @@ export const PERMISSIONS_CONFIG = {
       'exportar_estadisticas'
     ]
   },
-  
+
   // Reportes de Inventario (feature deshabilitada)
   reportesInventario: {
     feature: 'reportesInventario',
@@ -243,7 +243,7 @@ export const PERMISSIONS_CONFIG = {
       'exportar_reportes_inventario'
     ]
   },
-  
+
   // Reportes Financieros
   reportesFinancieros: {
     feature: 'reportesFinancieros',
@@ -252,7 +252,7 @@ export const PERMISSIONS_CONFIG = {
       'exportar_reportes'
     ]
   },
-  
+
   // Facturación (feature deshabilitada)
   facturacion: {
     feature: 'facturacion',
@@ -265,7 +265,7 @@ export const PERMISSIONS_CONFIG = {
       'imprimir_comprobantes'
     ]
   },
-  
+
   // Zonas de Entrega (feature deshabilitada)
   zonasEntrega: {
     feature: 'zonasEntrega',
@@ -276,7 +276,7 @@ export const PERMISSIONS_CONFIG = {
       'eliminar_zonas_entrega'
     ]
   },
-  
+
   // Solicitudes (feature deshabilitada)
   solicitudes: {
     feature: 'solicitudes',
@@ -288,7 +288,7 @@ export const PERMISSIONS_CONFIG = {
       'rechazar_solicitudes'
     ]
   },
-  
+
   // Perfil (feature deshabilitada)
   perfil: {
     feature: 'perfil',
@@ -296,7 +296,7 @@ export const PERMISSIONS_CONFIG = {
       'cambiar_password'
     ]
   },
-  
+
   // Configuración Usuario (feature deshabilitada)
   configuracionUsuario: {
     feature: 'configuracionUsuario',
@@ -305,7 +305,7 @@ export const PERMISSIONS_CONFIG = {
       'editar_configuracion_usuario'
     ]
   },
-  
+
   // Movimientos de Stock (nueva feature)
   movimientosStock: {
     feature: 'movimientosStock',
@@ -317,7 +317,7 @@ export const PERMISSIONS_CONFIG = {
       'ajustar_inventario'
     ]
   },
-  
+
   // Auditoría (nueva feature)
   auditoria: {
     feature: 'auditoria',
@@ -328,7 +328,7 @@ export const PERMISSIONS_CONFIG = {
       'ver_cambios_usuario'
     ]
   },
-  
+
   // Backup (feature deshabilitada)
   backup: {
     feature: 'backup',
@@ -339,7 +339,7 @@ export const PERMISSIONS_CONFIG = {
       'eliminar_backups'
     ]
   },
-  
+
   // Notificaciones (feature deshabilitada)
   notificaciones: {
     feature: 'notificaciones',
@@ -351,7 +351,7 @@ export const PERMISSIONS_CONFIG = {
       'enviar_notificaciones'
     ]
   },
-  
+
   // Integración AFIP (feature deshabilitada)
   integracionAfip: {
     feature: 'integracionAfip',
@@ -362,7 +362,7 @@ export const PERMISSIONS_CONFIG = {
       'consultar_estado_afip'
     ]
   },
-  
+
   // Reportes Avanzados (feature deshabilitada)
   reportesAvanzados: {
     feature: 'reportesAvanzados',
@@ -374,7 +374,7 @@ export const PERMISSIONS_CONFIG = {
       'programar_reportes'
     ]
   },
-  
+
   // Envíos
   envios: {
     feature: 'envios',
@@ -386,20 +386,43 @@ export const PERMISSIONS_CONFIG = {
       'registrar_pago_envio', // Registar pago de envío
       'imprimir_etiqueta_envio' // Imprimir etiquetas
     ]
+  },
+
+  // Transferencias
+  transferencias: {
+    feature: 'transferencias',
+    permissions: [
+      'ver_transferencias',
+      'crear_transferencias',
+      'editar_transferencias',
+      'completar_transferencias',
+      'cancelar_transferencias'
+    ]
+  },
+
+  // Métodos de Pago
+  metodosPago: {
+    feature: 'metodosPago',
+    permissions: [
+      'ver_metodos_pago',
+      'crear_metodos_pago',
+      'editar_metodos_pago',
+      'eliminar_metodos_pago'
+    ]
   }
 };
 
 // Función para obtener permisos activos basados en features habilitadas
 export function getActivePermissions() {
   const activePermissions: string[] = [];
-  
+
   Object.entries(PERMISSIONS_CONFIG).forEach(([_, config]) => {
     // @ts-ignore - FEATURES puede no estar completamente tipado
     if (FEATURES[config.feature as keyof typeof FEATURES]) {
       activePermissions.push(...config.permissions);
     }
   });
-  
+
   return activePermissions;
 }
 

@@ -120,12 +120,15 @@ function getFeatureForModule(moduleName: string): boolean {
     'auditoria': 'auditorias',
     'auditoría': 'auditorias',
     'auditorias': 'auditorias',
-    'metodos_pago': 'configuracionSistema',
-    'métodos de pago': 'configuracionSistema',
-    'metodos de pago': 'configuracionSistema',
+    'metodos_pago': 'metodosPago',
+    'métodos de pago': 'metodosPago',
+    'metodos de pago': 'metodosPago',
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();
+
+  // Debug log to check why modules might be filtered out
+  console.log(`Checking feature for module: "${moduleName}" (normalized: "${normalizedModuleName}")`);
 
   // Buscar coincidencia exacta primero
   if (moduleToFeature[normalizedModuleName]) {
