@@ -246,10 +246,6 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                         <p className="text-base">{shipment.shipping_address}</p>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Ciudad</p>
-                        <p className="text-base">{shipment.shipping_city || 'N/A'}</p>
-                      </div>
-                      <div>
                         <p className="text-sm font-medium text-muted-foreground">Provincia/Estado</p>
                         <p className="text-base">{shipment.shipping_state || 'N/A'}</p>
                       </div>

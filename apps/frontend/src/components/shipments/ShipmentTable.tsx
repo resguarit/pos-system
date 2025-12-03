@@ -25,7 +25,6 @@ interface ColumnWidths {
   status: number;
   paymentStatus: number;
   address: number;
-  city: number;
   customer: number;
   transporter: number;
   sales: number;
@@ -54,7 +53,6 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
     status: 150,
     paymentStatus: 120,
     address: 180,
-    city: 140,
     customer: 150,
     transporter: 140,
     sales: 100,
@@ -284,18 +282,6 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 />
               </th>
 
-              {/* Ciudad */}
-              <th 
-                style={{ width: columnWidths.city }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Ciudad
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('city', e)}
-                />
-              </th>
-
               {/* Cliente */}
               <th 
                 style={{ width: columnWidths.customer }}
@@ -450,13 +436,6 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" title={shipment.shipping_address}>
                   <div className="text-sm text-gray-900 max-w-[200px] truncate">
                     {shipment.shipping_address || '-'}
-                  </div>
-                </td>
-
-                {/* Ciudad */}
-                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" title={shipment.shipping_city}>
-                  <div className="text-sm text-gray-900 max-w-[150px] truncate">
-                    {shipment.shipping_city || '-'}
                   </div>
                 </td>
 

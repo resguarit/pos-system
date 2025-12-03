@@ -91,12 +91,6 @@
         <tr>
             <td class="bold">Referencia:</td>
             <td>{{ $shipment->reference ?? 'N/A' }}</td>
-            <td class="bold">Estado:</td>
-            <td>{{ $shipment->currentStage->name ?? 'N/A' }}</td>
-        </tr>
-        <tr>
-            <td class="bold">Fecha de Creación:</td>
-            <td>{{ $shipment->created_at ? \Carbon\Carbon::parse($shipment->created_at)->format('d/m/Y H:i') : 'N/A' }}</td>
             <td class="bold">Prioridad:</td>
             <td>
                 @php
@@ -116,30 +110,6 @@
                 <span class="priority {{ $priorityClass }}">{{ $priorityLabel }}</span>
             </td>
         </tr>
-        @if($shipment->estimated_delivery_date)
-        <tr>
-            <td class="bold">Fecha Estimada de Entrega:</td>
-            <td>{{ \Carbon\Carbon::parse($shipment->estimated_delivery_date)->format('d/m/Y') }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        @endif
-        @if($shipment->branch)
-        <tr>
-            <td class="bold">Sucursal:</td>
-            <td>{{ $shipment->branch->description ?? 'N/A' }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        @endif
-        @if($shipment->creator)
-        <tr>
-            <td class="bold">Creado por:</td>
-            <td>{{ $shipment->creator->person ? trim($shipment->creator->person->first_name . ' ' . $shipment->creator->person->last_name) : $shipment->creator->username ?? 'N/A' }}</td>
-            <td></td>
-            <td></td>
-        </tr>
-        @endif
     </table>
 
     @if($shipment->transporter)
@@ -166,12 +136,6 @@
             <td>{{ $shipment->shipping_address }}</td>
         </tr>
         @endif
-        @if($shipment->shipping_city)
-        <tr>
-            <td>Ciudad:</td>
-            <td>{{ $shipment->shipping_city }}</td>
-        </tr>
-        @endif
         @if($shipment->shipping_state)
         <tr>
             <td>Provincia/Estado:</td>
@@ -182,12 +146,6 @@
         <tr>
             <td>Código Postal:</td>
             <td>{{ $shipment->shipping_postal_code }}</td>
-        </tr>
-        @endif
-        @if($shipment->shipping_country)
-        <tr>
-            <td>País:</td>
-            <td>{{ $shipment->shipping_country }}</td>
         </tr>
         @endif
     </table>

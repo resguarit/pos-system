@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import SelectBranchPlaceholder from '@/components/ui/select-branch-placeholder';
+import Pagination from '@/components/ui/pagination';
 
 /**
  * Clasificación de Estados de Envío basada en el campo 'order' del stage:
@@ -45,6 +46,12 @@ export default function ShipmentsPage() {
   const [editingShipmentId, setEditingShipmentId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [perPage, setPerPage] = useState(10);
+  
   // Estados para búsqueda de clientes y transportistas
   const [customerSearch, setCustomerSearch] = useState('');
   const [transporterSearch, setTransporterSearch] = useState('');
@@ -59,7 +66,6 @@ export default function ShipmentsPage() {
     created_from: '',
     created_to: '',
     priority: '',
-    city: '',
     customer: '',
     transporter: '',
     branch: '',
@@ -90,7 +96,7 @@ export default function ShipmentsPage() {
   // Estado para estadísticas del backend
   const [backendStats, setBackendStats] = useState<any>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (page: number = 1) => {
     try {
       setLoading(true);
       setError(null);
@@ -106,15 +112,24 @@ export default function ShipmentsPage() {
       
       if (hasMultipleBranches) {
         // Cargar envíos de múltiples sucursales
-        await loadMultipleBranchesShipments({ ...filters, per_page: 10 });
+        // @ts-ignore - page is not in ShipmentFilters type but backend accepts it
+        await loadMultipleBranchesShipments({ ...filters, per_page: perPage, page });
         // Las estadísticas vienen del hook useMultipleBranchesShipments
       } else {
         // Cargar envíos de una sola sucursal
-        const shipmentsResponse = await shipmentService.getShipments({ ...filters, per_page: 10 });
+        // @ts-ignore - page is not in ShipmentFilters type but backend accepts it
+        const shipmentsResponse = await shipmentService.getShipments({ ...filters, per_page: perPage, page });
         const shipmentsData = Array.isArray(shipmentsResponse.data) 
           ? shipmentsResponse.data 
           : [];
         setShipments(shipmentsData);
+        
+        // Guardar información de paginación
+        if (shipmentsResponse.meta) {
+          setCurrentPage(shipmentsResponse.meta.current_page || 1);
+          setTotalPages(shipmentsResponse.meta.last_page || 1);
+          setTotalItems(shipmentsResponse.meta.total || 0);
+        }
         
         // Guardar estadísticas del backend
         if (shipmentsResponse && 'stats' in shipmentsResponse && shipmentsResponse.stats) {
@@ -129,7 +144,7 @@ export default function ShipmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBranchIds, filters, loadMultipleBranchesShipments]);
+  }, [selectedBranchIds, filters, loadMultipleBranchesShipments, perPage]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -197,21 +212,13 @@ export default function ShipmentsPage() {
     if (searchTerm) {
       filtered = filtered.filter(s => 
         s.tracking_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.shipping_city?.toLowerCase().includes(searchTerm.toLowerCase())
+        s.reference?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
     // Filtrar por prioridad
     if (filters.priority) {
       filtered = filtered.filter(s => s.priority === filters.priority);
-    }
-    
-    // Filtrar por ciudad
-    if (filters.city) {
-      filtered = filtered.filter(s => 
-        s.shipping_city?.toLowerCase().includes(filters.city.toLowerCase())
-      );
     }
     
     // Filtrar por cliente
@@ -292,7 +299,8 @@ export default function ShipmentsPage() {
   };
 
   const handleApplyFilters = () => {
-    fetchData();
+    setCurrentPage(1);
+    fetchData(1);
     setShowFilters(false);
   };
 
@@ -303,14 +311,14 @@ export default function ShipmentsPage() {
       created_from: '',
       created_to: '',
       priority: '',
-      city: '',
       customer: '',
       transporter: '',
       branch: '',
     });
     setCustomerSearch('');
     setTransporterSearch('');
-    setTimeout(() => fetchData(), 100);
+    setCurrentPage(1);
+    setTimeout(() => fetchData(1), 100);
   };
 
   const handleApplyDatePreset = (preset: string) => {
@@ -439,13 +447,19 @@ export default function ShipmentsPage() {
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      await fetchData();
+      await fetchData(currentPage);
       toast.success('Datos actualizados');
     } catch (error) {
       toast.error('Error al actualizar datos');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Función de paginación
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    fetchData(newPage);
   };
 
   return (
@@ -663,15 +677,6 @@ export default function ShipmentsPage() {
                 </Select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium mb-2 block">Ciudad</label>
-                <Input
-                  placeholder="Ciudad..."
-                  value={filters.city}
-                  onChange={(e) => handleFilterChange('city', e.target.value)}
-                />
-              </div>
-
               <div className="relative">
                 <label className="text-sm font-medium mb-2 block">Cliente</label>
                 <Input
@@ -841,13 +846,6 @@ export default function ShipmentsPage() {
         </div>
       )}
 
-      {/* Summary */}
-      {!loading && filteredShipments.length > 0 && (
-        <div className="text-sm text-muted-foreground flex items-center gap-2">
-          <Package className="h-4 w-4 text-blue-500" />
-          Mostrando {filteredShipments.length} de {selectedBranchIdsArray.length > 1 ? allShipments.length : shipments.length} envío{(selectedBranchIdsArray.length > 1 ? allShipments.length : shipments.length) !== 1 ? 's' : ''}
-        </div>
-      )}
 
       {/* Shipments Table */}
       <ShipmentTable
@@ -860,6 +858,18 @@ export default function ShipmentsPage() {
         showBranchColumn={selectedBranchIdsArray.length > 1}
         getBranchInfo={getBranchInfo}
       />
+
+      {/* Paginación */}
+      {!loading && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          lastPage={totalPages}
+          total={totalItems}
+          itemName="envíos"
+          onPageChange={handlePageChange}
+          disabled={loading}
+        />
+      )}
 
       {/* Shipment Detail Modal */}
       <ShipmentDetail

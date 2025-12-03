@@ -16,6 +16,7 @@ interface ShipmentFilters {
   customer?: string
   transporter?: string
   per_page?: number
+  page?: number
 }
 
 export const useMultipleBranchesShipments = ({ selectedBranchIdsArray }: UseMultipleBranchesShipmentsProps) => {
@@ -37,7 +38,8 @@ export const useMultipleBranchesShipments = ({ selectedBranchIdsArray }: UseMult
       
       const requestParams: any = {
         branch_ids: selectedBranchIdsArray,
-        per_page: filters?.per_page || 15
+        per_page: filters?.per_page || 15,
+        page: filters?.page || 1
       }
       
       // Agregar filtros si existen
