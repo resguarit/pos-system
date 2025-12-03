@@ -17,14 +17,31 @@ class Branch extends Model
     protected $table = 'branches';
 
     protected $fillable = [
-        'description', 'address', 'phone', 'email', 'manager_id', 'status', 'point_of_sale', 'color'
+        'description',
+        'address',
+        'phone',
+        'email',
+        'manager_id',
+        'status',
+        'point_of_sale',
+        'color',
+        'cuit',
+        'razon_social',
+        'iibb',
+        'start_date',
+        'enabled_receipt_types',
+    ];
+
+    protected $casts = [
+        'enabled_receipt_types' => 'array',
+        'status' => 'boolean',
     ];
 
     public function manager()
     {
         return $this->belongsTo(User::class, 'manager_id');
     }
-    
+
     /**
      * Get the users (employees) associated with the branch.
      */

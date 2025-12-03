@@ -108,9 +108,13 @@ class BranchController extends Controller
             'point_of_sale' => 'nullable|string|max:255',
             'manager_id' => 'nullable|exists:users,id',
             'status' => 'boolean',
-            'color' => 'string|max:7|regex:/^#[0-9A-F]{6}$/i'
+            'color' => 'string|max:7|regex:/^#[0-9A-F]{6}$/i',
+            'cuit' => 'nullable|string|regex:/^[0-9]{11}$/',
+            'razon_social' => 'nullable|string|max:255',
+            'enabled_receipt_types' => 'nullable|array',
+            'enabled_receipt_types.*' => 'integer|exists:receipt_type,id',
         ]);
-        
+
         $validatedData['status'] = $request->input('status', true);
 
         $branch = $this->branchService->createBranch($validatedData);
@@ -165,7 +169,11 @@ class BranchController extends Controller
             'point_of_sale' => 'nullable|string|max:255',
             'manager_id' => 'nullable|exists:users,id',
             'status' => 'boolean',
-            'color' => 'string|max:7|regex:/^#[0-9A-F]{6}$/i'
+            'color' => 'string|max:7|regex:/^#[0-9A-F]{6}$/i',
+            'cuit' => 'nullable|string|regex:/^[0-9]{11}$/',
+            'razon_social' => 'nullable|string|max:255',
+            'enabled_receipt_types' => 'nullable|array',
+            'enabled_receipt_types.*' => 'integer|exists:receipt_type,id',
         ]);
 
         $branch = $this->branchService->updateBranch($id, $validatedData);
@@ -257,7 +265,7 @@ class BranchController extends Controller
     {
         try {
             $exists = $this->branchService->checkNameExists($name);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);

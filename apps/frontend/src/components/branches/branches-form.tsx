@@ -12,11 +12,12 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import { Loader2, Save, ArrowLeft } from "lucide-react"
+import { Loader2, Save, ArrowLeft, RefreshCw, Check } from "lucide-react"
 
 // Hooks y Contexto
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
+import { useAfip, type AfipPointOfSale, type AfipReceiptType } from "@/hooks/useAfip"
 
 // Interfaces
 interface User {
@@ -42,6 +43,9 @@ interface Branch {
   status: number
   point_of_sale?: string
   color?: string
+  cuit?: string
+  razon_social?: string
+  enabled_receipt_types?: number[]
 }
 
 interface BranchFormProps {
@@ -58,6 +62,9 @@ const initialBranch: Branch = {
   status: 1,
   point_of_sale: "",
   color: "#0ea5e9",
+  cuit: "",
+  razon_social: "",
+  enabled_receipt_types: [],
 }
 
 function initializeFormState(currentBranch?: Branch): Branch {
@@ -82,6 +89,9 @@ function initializeFormState(currentBranch?: Branch): Branch {
         currentBranch.color.length === 7
           ? currentBranch.color
           : initialBranch.color,
+      cuit: currentBranch.cuit || "",
+      razon_social: currentBranch.razon_social || "",
+      enabled_receipt_types: (currentBranch as any).enabled_receipt_types || [],
     }
   }
   return initialBranch
@@ -95,10 +105,22 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const { request } = useApi()
   const { dispatch } = useEntityContext()
+  const { getPointsOfSale, getReceiptTypes, checkCuitCertificate, validCertificates } = useAfip()
 
   // Estados para validación de duplicados
   const [nameError, setNameError] = useState<string>("")
   const [isCheckingName, setIsCheckingName] = useState<boolean>(false)
+  
+  // Estado para la pestaña activa
+  const [activeTab, setActiveTab] = useState("general")
+
+  // Estados para puntos de venta AFIP
+  const [afipPointsOfSale, setAfipPointsOfSale] = useState<AfipPointOfSale[]>([])
+  const [loadingAfipPoints, setLoadingAfipPoints] = useState(false)
+  
+  // Estados para tipos de comprobantes AFIP
+  const [afipReceiptTypes, setAfipReceiptTypes] = useState<AfipReceiptType[]>([])
+  const [loadingReceiptTypes, setLoadingReceiptTypes] = useState(false)
 
   const isEditing = !!branch?.id
 
@@ -190,6 +212,121 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     }
   };
 
+  // Cargar puntos de venta desde AFIP cuando se ingresa un CUIT
+  // Solo carga si el CUIT tiene certificado válido registrado (multi-CUIT)
+  const loadAfipPointsOfSale = async (cuit: string, silent = false) => {
+    const cleanCuit = cuit.replace(/[^0-9]/g, '')
+    if (cleanCuit.length !== 11) {
+      setAfipPointsOfSale([])
+      return
+    }
+
+    // Verificar si el CUIT tiene certificado válido
+    const certCheck = await checkCuitCertificate(cleanCuit)
+    if (!certCheck.has_certificate || !certCheck.is_valid) {
+      setAfipPointsOfSale([])
+      if (!silent) {
+        toast.warning('Este CUIT no tiene certificado configurado', {
+          description: 'Registre el certificado AFIP para este CUIT en Configuración.'
+        })
+      }
+      return
+    }
+
+    setLoadingAfipPoints(true)
+    try {
+      const points = await getPointsOfSale(cleanCuit, { suppressError: silent })
+      
+      if (points === null) {
+        // Error ocurred (handled by hook)
+        setAfipPointsOfSale([])
+        return
+      }
+
+      if (points && points.length > 0) {
+        setAfipPointsOfSale(points)
+        if (!silent) {
+          toast.success(`Se encontraron ${points.length} punto(s) de venta habilitado(s) en AFIP`)
+        }
+      } else {
+        setAfipPointsOfSale([])
+        if (!silent) {
+          toast.info('No se encontraron puntos de venta habilitados para este CUIT en AFIP')
+        }
+      }
+    } catch (error) {
+      setAfipPointsOfSale([])
+    } finally {
+      setLoadingAfipPoints(false)
+    }
+  }
+
+  // Cargar tipos de comprobantes desde AFIP
+  // Solo carga si el CUIT tiene certificado válido registrado
+  const loadAfipReceiptTypes = async (cuit: string, silent = false) => {
+    const cleanCuit = cuit.replace(/[^0-9]/g, '')
+    if (cleanCuit.length !== 11) {
+      setAfipReceiptTypes([])
+      return
+    }
+
+    // Verificar si el CUIT tiene certificado válido
+    const certCheck = await checkCuitCertificate(cleanCuit)
+    if (!certCheck.has_certificate || !certCheck.is_valid) {
+      setAfipReceiptTypes([])
+      if (!silent) {
+        toast.warning('Este CUIT no tiene certificado configurado', {
+          description: 'Solo puede emitir comprobantes AFIP para CUITs con certificado válido registrado en el sistema.'
+        })
+      }
+      return
+    }
+
+    setLoadingReceiptTypes(true)
+    try {
+      const types = await getReceiptTypes(cleanCuit)
+      
+      if (types === null) {
+        setAfipReceiptTypes([])
+        return
+      }
+
+      if (types && types.length > 0) {
+        setAfipReceiptTypes(types)
+        
+        if (!silent) {
+          toast.success(`Se encontraron ${types.length} tipo(s) de comprobante disponible(s)`)
+        }
+      } else {
+        setAfipReceiptTypes([])
+        if (!silent) {
+          toast.info('No se encontraron tipos de comprobantes para este CUIT')
+        }
+      }
+    } catch (error) {
+      setAfipReceiptTypes([])
+    } finally {
+      setLoadingReceiptTypes(false)
+    }
+  }
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value)
+    if (value === "fiscal" && formData.cuit) {
+      const cleanCuit = formData.cuit.replace(/[^0-9]/g, "")
+      if (cleanCuit.length === 11) {
+        // Cargar puntos de venta si no hay cargados
+        if (afipPointsOfSale.length === 0) {
+          loadAfipPointsOfSale(cleanCuit, true)
+        }
+        // Cargar tipos de comprobantes si no hay cargados
+        if (afipReceiptTypes.length === 0) {
+          loadAfipReceiptTypes(cleanCuit, true)
+        }
+      }
+    }
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -200,6 +337,16 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         checkNameExists(value);
       }, 500);
       return () => clearTimeout(timeoutId);
+    }
+    
+    // Cargar puntos de venta cuando se ingresa un CUIT
+    if (name === 'cuit') {
+      const cleanCuit = value.replace(/[^0-9]/g, '')
+      if (cleanCuit.length === 11) {
+        setTimeout(() => loadAfipPointsOfSale(cleanCuit), 500)
+      } else {
+        setAfipPointsOfSale([])
+      }
     }
   }
 
@@ -244,6 +391,9 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         status: formData.status === 1,
         point_of_sale: formData.point_of_sale,
         color: formData.color,
+        cuit: formData.cuit || null,
+        razon_social: formData.razon_social || null,
+        enabled_receipt_types: formData.enabled_receipt_types || [],
       }
 
       let response;
@@ -311,9 +461,10 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
-          <Tabs defaultValue="general" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
             <TabsList>
               <TabsTrigger value="general">Información General</TabsTrigger>
+              <TabsTrigger value="fiscal">Facturación Electrónica</TabsTrigger>
             </TabsList>
             <TabsContent value="general" className="space-y-4">
               <Card>
@@ -375,10 +526,6 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                       <Input id="email" name="email" type="email" value={formData.email || ""} onChange={handleChange} disabled={isReadOnly || loading}/>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="point_of_sale">Punto de venta</Label>
-                      <Input id="point_of_sale" name="point_of_sale" value={formData.point_of_sale || ""} onChange={handleChange} disabled={isReadOnly || loading}/>
-                    </div>
-                    <div className="space-y-2">
                       <Label htmlFor="color">Color</Label>
                       <Input id="color" name="color" type="color" value={formData.color || "#0ea5e9"} onChange={handleChange} disabled={isReadOnly || loading} className="h-10 w-full p-1 border-none bg-transparent"/>
                     </div>
@@ -416,6 +563,230 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                     </div>
                     {/* --- FIN DE MODIFICACIÓN --- */}
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="fiscal" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Facturación Electrónica AFIP</CardTitle>
+                  <CardDescription>
+                    Configure el CUIT y razón social para habilitar la facturación electrónica en esta sucursal.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="cuit">
+                        CUIT <span className="text-red-500">*</span>
+                      </Label>
+                      <Select
+                        value={formData.cuit || ""}
+                        onValueChange={(value) => {
+                          // Actualizar CUIT y razón social automáticamente
+                          const selectedCert = validCertificates.find(c => c.cuit === value);
+                          setFormData(prev => ({
+                            ...prev,
+                            cuit: value,
+                            razon_social: selectedCert?.razon_social || prev.razon_social
+                          }));
+                          
+                          // Cargar datos AFIP para el CUIT seleccionado
+                          if (value) {
+                            loadAfipPointsOfSale(value);
+                            loadAfipReceiptTypes(value);
+                          }
+                        }}
+                        disabled={isReadOnly || loading}
+                      >
+                        <SelectTrigger id="cuit">
+                          <SelectValue placeholder="Seleccione un CUIT con certificado válido">
+                            {formData.cuit || "Seleccione un CUIT"}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {validCertificates.length === 0 ? (
+                            <div className="p-2 text-sm text-muted-foreground text-center">
+                              No hay certificados AFIP configurados
+                            </div>
+                          ) : (
+                            validCertificates.map((cert) => (
+                              <SelectItem key={cert.cuit} value={cert.cuit}>
+                                {cert.cuit} - {cert.razon_social}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Solo se muestran CUITs con certificado AFIP válido registrado.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="razon_social">
+                        Razón Social <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="razon_social"
+                        name="razon_social"
+                        value={formData.razon_social || ""}
+                        disabled={true}
+                        placeholder="Se completa automáticamente al seleccionar CUIT"
+                        className="bg-muted"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Se obtiene automáticamente del certificado AFIP registrado.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {formData.cuit && formData.cuit.replace(/[^0-9]/g, '').length === 11 && (
+                    <div className="mt-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label>Puntos de Venta Disponibles en AFIP</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadAfipPointsOfSale(formData.cuit || '')}
+                          disabled={loadingAfipPoints || isReadOnly}
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${loadingAfipPoints ? 'animate-spin' : ''}`} />
+                          Actualizar
+                        </Button>
+                      </div>
+                      
+                      {loadingAfipPoints ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          <span className="ml-2 text-sm text-muted-foreground">Consultando AFIP...</span>
+                        </div>
+                      ) : afipPointsOfSale.length > 0 ? (
+                        <div className="border rounded-md">
+                          <table className="w-full">
+                            <thead className="bg-muted">
+                              <tr>
+                                <th className="px-4 py-2 text-left text-sm font-medium w-[100px]">Selección</th>
+                                <th className="px-4 py-2 text-left text-sm font-medium">Punto de Venta</th>
+                                <th className="px-4 py-2 text-left text-sm font-medium">Tipo</th>
+                                <th className="px-4 py-2 text-left text-sm font-medium">Estado</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {afipPointsOfSale.map((pos) => {
+                                const isSelected = String(pos.number) === String(formData.point_of_sale);
+                                return (
+                                  <tr 
+                                    key={pos.number} 
+                                    className={`border-t transition-colors ${isSelected ? 'bg-blue-50/50' : 'hover:bg-muted/50'}`}
+                                    onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, point_of_sale: String(pos.number) }))}
+                                    style={{ cursor: isReadOnly ? 'default' : 'pointer' }}
+                                  >
+                                    <td className="px-4 py-2 text-sm">
+                                      <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input'}`}>
+                                        {isSelected && <Check className="h-3 w-3" />}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2 text-sm font-medium">{pos.number}</td>
+                                    <td className="px-4 py-2 text-sm text-muted-foreground">{pos.type}</td>
+                                    <td className="px-4 py-2 text-sm">
+                                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                        pos.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {pos.enabled ? 'Habilitado' : 'Deshabilitado'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <p className="text-sm">No se encontraron puntos de venta para este CUIT</p>
+                          <p className="text-xs mt-1">Verifique que el CUIT esté habilitado en AFIP</p>
+                        </div>
+                      )}
+                      
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Seleccione el punto de venta que desea utilizar para esta sucursal haciendo clic en la fila correspondiente.
+                      </p>
+                      
+                      {/* Tipos de Comprobantes Disponibles (informativo) */}
+                      <div className="mt-8 pt-6 border-t">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <Label className="text-base font-semibold">Tipos de Comprobantes Disponibles</Label>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Comprobantes que se pueden emitir según la condición fiscal del CUIT.
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => loadAfipReceiptTypes(formData.cuit || '')}
+                            disabled={loadingReceiptTypes}
+                          >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${loadingReceiptTypes ? 'animate-spin' : ''}`} />
+                            Consultar AFIP
+                          </Button>
+                        </div>
+                        
+                        {loadingReceiptTypes ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <span className="ml-2 text-sm text-muted-foreground">Consultando tipos de comprobantes...</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {/* Tipos Internos (siempre disponibles) */}
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Tipos Internos</p>
+                              <div className="flex flex-wrap gap-2">
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                                  ✓ Presupuesto
+                                </span>
+                                <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                                  ✓ Factura X
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* Tipos AFIP (según condición fiscal) */}
+                            {afipReceiptTypes.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Facturas AFIP habilitadas</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {afipReceiptTypes
+                                    .filter((type) => type.description?.toLowerCase().includes('factura'))
+                                    .map((type) => (
+                                      <span 
+                                        key={type.id}
+                                        className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200"
+                                      >
+                                        ✓ {type.description}
+                                      </span>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {afipReceiptTypes.length === 0 && (
+                              <div className="text-center py-4 text-muted-foreground border rounded-lg bg-muted/20">
+                                <p className="text-sm">Haga clic en "Consultar AFIP" para ver los tipos disponibles</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <p className="text-xs text-muted-foreground mt-3">
+                          Los tipos internos siempre están disponibles. Las facturas AFIP (A, B o C) dependen de la condición fiscal del CUIT.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

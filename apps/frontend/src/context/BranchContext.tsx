@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "./AuthContext";
+import useApi from "@/hooks/useApi";
+import type { BranchLike } from "@/types/branch.types";
 
-// Tipo ligero compatible con lo que trae AuthContext
-export type BranchLike = { id: string | number; description: string; [key: string]: any };
+export type { BranchLike };
 
 interface BranchContextType {
   branches: BranchLike[];
@@ -26,6 +27,7 @@ interface BranchProviderProps {
 
 export function BranchProvider({ children }: BranchProviderProps) {
   const { isLoading: isAuthLoading, user } = useAuth();
+  const { request } = useApi();
 
   const [branches, setBranches] = useState<BranchLike[]>([]);
   const [isBranchesLoading, setIsBranchesLoading] = useState<boolean>(false);
@@ -50,12 +52,42 @@ export function BranchProvider({ children }: BranchProviderProps) {
 
   // Cargar sucursales del usuario autenticado
   useEffect(() => {
-    if (isAuthLoading) return;
+    if (isAuthLoading || !user) return;
 
-    const loadUserBranches = () => {
+    const loadUserBranches = async () => {
       setIsBranchesLoading(true);
       try {
-        // Usar las sucursales del usuario autenticado
+        // Obtener IDs de sucursales del usuario (normalizar a string)
+        const userBranchIds = (user?.branches || []).map((b: any) => String(b.id));
+        
+        if (userBranchIds.length === 0) {
+          setBranches([]);
+          return;
+        }
+        
+        // Obtener datos completos de sucursales desde la API
+        const response = await request({ method: 'GET', url: '/branches' });
+        const allBranches = response?.data || response || [];
+        
+        // Filtrar solo las sucursales del usuario y que estén activas
+        const list = allBranches
+          .filter((b: any) => {
+            const match = userBranchIds.includes(String(b.id));  // Normalizar a string
+            const active = isActiveBranch(b);
+            return match && active;
+          })
+          .map((b: any) => ({
+            id: b.id,
+            description: b.description || b.name || `Sucursal ${b.id}`,
+            cuit: b.cuit,
+            enabled_receipt_types: b.enabled_receipt_types,
+            ...b,
+          }));
+        
+        setBranches(list);
+      } catch (error) {
+        console.error('Error loading branches:', error);
+        // Fallback: usar las sucursales del usuario sin datos completos
         const userBranches = user?.branches || [];
         const list = userBranches
           .filter((b: any) => isActiveBranch(b))
@@ -65,15 +97,13 @@ export function BranchProvider({ children }: BranchProviderProps) {
             ...b,
           }));
         setBranches(list);
-      } catch {
-        setBranches([]);
       } finally {
         setIsBranchesLoading(false);
       }
     };
 
     loadUserBranches();
-  }, [isAuthLoading, user?.branches]);
+  }, [isAuthLoading, user, request]);
 
   // Derivar selectedBranch para compatibilidad
   const selectedBranch = useMemo(

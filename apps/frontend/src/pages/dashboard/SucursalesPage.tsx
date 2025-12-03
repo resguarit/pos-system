@@ -5,7 +5,8 @@ import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { Badge } from "@/components/ui/badge"
 import { Search, Plus, RotateCw as RefreshIcon, Eye, Pencil, BarChart2, Trash2, Users } from "lucide-react"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import Pagination from "@/components/ui/pagination"
 import { useAuth } from "@/context/AuthContext"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
@@ -29,7 +30,7 @@ interface Branch {
   description: string;
   address: string;
   phone: string;
-  status: number;
+  status: boolean;
   color: string;
   manager_id: number | null;
   manager?: { person: { first_name: string; last_name: string } } | null;
@@ -65,6 +66,10 @@ export default function SucursalesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [branchToDelete, setBranchToDelete] = useState<string | null>(null);
+  
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [perPage] = useState(10);
   
   const [personnelModal, setPersonnelModal] = useState<{ isOpen: boolean; branchId: string | null; branchName: string | null }>({
     isOpen: false,
@@ -139,12 +144,32 @@ export default function SucursalesPage() {
     }
   };
 
-  const filteredBranchesToDisplay = branches.filter(
+  const filteredBranches = branches.filter(
     (branch) =>
       branch.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       branch.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       String(branch.id).toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  // Paginación client-side
+  const paginatedBranches = useMemo(() => {
+    const startIndex = (currentPage - 1) * perPage;
+    const endIndex = startIndex + perPage;
+    return filteredBranches.slice(startIndex, endIndex);
+  }, [filteredBranches, currentPage, perPage]);
+
+  const totalPages = Math.ceil(filteredBranches.length / perPage);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const filteredBranchesToDisplay = paginatedBranches;
 
   const handleViewBranch = (id: string) => navigate(`/dashboard/sucursales/${id}/ver`);
   const handleEditBranch = (id: string) => navigate(`/dashboard/sucursales/${id}/editar`);
@@ -191,7 +216,7 @@ export default function SucursalesPage() {
           <RefreshIcon className="h-8 w-8 animate-spin text-muted-foreground" />
           <p className="ml-3 text-muted-foreground">Cargando sucursales...</p>
         </div>
-      ) : filteredBranchesToDisplay.length === 0 ? (
+      ) : filteredBranches.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
           {searchTerm ? "No se encontraron sucursales." : "No hay sucursales para mostrar."}
         </div>
@@ -211,8 +236,8 @@ export default function SucursalesPage() {
             </TableHeader>
             <TableBody>
             {filteredBranchesToDisplay.map((branchItem) => {
-              const getStatusBadge = (status: number) => {
-                if (status === 1) return <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">Activa</Badge>;
+              const getStatusBadge = (status: boolean) => {
+                if (status) return <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">Activa</Badge>;
                 return <Badge variant="destructive" className="bg-red-200 text-red-700 border-red-300">Inactiva</Badge>;
               };
 
@@ -280,6 +305,18 @@ export default function SucursalesPage() {
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {/* Paginación */}
+      {!branchesLoading && filteredBranches.length > 0 && totalPages > 1 && (
+        <Pagination
+          currentPage={currentPage}
+          lastPage={totalPages}
+          total={filteredBranches.length}
+          itemName="sucursales"
+          onPageChange={handlePageChange}
+          disabled={branchesLoading}
+        />
       )}
 
       <BranchPersonnelModal
