@@ -48,12 +48,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const logout = () => {
     setUser(null);
-    
+
     // ¡ACCIÓN DE LIMPIEZA!
     // Esto borra absolutamente todo el localStorage para tu dominio (ej: localhost:5173).
     // Es la forma más efectiva de asegurar un estado limpio.
     localStorage.clear();
-    
+
     // Si prefirieras borrar solo el token, usarías la siguiente línea en su lugar:
     // removeAuthToken();
 
@@ -73,18 +73,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     try {
       const response = await api.get<{ user: User; permissions: string[] }>('/profile');
-      
+
       // Combinar la información del usuario con sus permisos
       const userWithPermissions: User = {
         ...response.data.user,
         permissions: response.data.permissions || []
       };
-      
+
       // Establecer el usuario directamente
       setUser(userWithPermissions);
     } catch (error: any) {
       console.error("No se pudo cargar el perfil:", error);
-      
+
       // Si es un error 401 o 403, cerrar sesión
       if (error?.response?.status === 401 || error?.response?.status === 403) {
         // Llamar logout directamente sin dependencia
@@ -120,12 +120,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (!user || !user.permissions) {
       return false;
     }
-    
+
     // Los administradores tienen todos los permisos
-    if (user.role?.name === 'Admin' || user.role?.name === 'admin') {
+    if (user.role?.name === 'Admin' || user.role?.name === 'admin' || user.role?.name === 'Administrador') {
       return true;
     }
-    
+
     return user.permissions.includes(permission);
   };
 
@@ -134,12 +134,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const hasAnyPermission = (permissions: string[]): boolean => {
     if (!user || !user.permissions || permissions.length === 0) return false;
-    
+
     // Los administradores tienen todos los permisos
-    if (user.role?.name === 'Admin' || user.role?.name === 'admin') {
+    if (user.role?.name === 'Admin' || user.role?.name === 'admin' || user.role?.name === 'Administrador') {
       return true;
     }
-    
+
     return permissions.some(permission => user.permissions.includes(permission));
   };
 
@@ -164,13 +164,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const rolesUpdated = localStorage.getItem('roles_updated');
       if (rolesUpdated) {
         // Mostrar mensaje y recargar página completa para actualizar sidebar y layout
-        toast.success('Permisos actualizados', { 
-          description: 'Recargando la página para aplicar los cambios...' 
+        toast.success('Permisos actualizados', {
+          description: 'Recargando la página para aplicar los cambios...'
         });
-        
+
         // Limpiar la marca
         localStorage.removeItem('roles_updated');
-        
+
         // Recargar página completa después de un breve delay
         setTimeout(() => {
           window.location.reload();
@@ -180,7 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Verificar cada 2 segundos si hay cambios en roles
     const interval = setInterval(checkRolesUpdate, 2000);
-    
+
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
