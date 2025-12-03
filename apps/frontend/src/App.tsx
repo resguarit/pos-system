@@ -53,7 +53,10 @@ import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
 import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
 import DebugInfoPage from '@/pages/DebugInfoPage'
 import AuditoriasPage from '@/pages/dashboard/AuditoriasPage'
+import PaymentMethodsPage from '@/pages/dashboard/PaymentMethodsPage'
+import StockTransfersPage from '@/pages/dashboard/StockTransfersPage'
 import features from '@/config/features'
+
 
 
 function App() {
@@ -62,10 +65,10 @@ function App() {
       {/* Simplemente renderiza las rutas, los providers están en main.tsx */}
       <Routes>
         <Route path="/auth/login" element={<LoginPage />} />
-        
+
         {/* Ruta de debug escondida - No aparece en el menú */}
         <Route path="/debug-info" element={<DebugInfoPage />} />
-        
+
         {/* Rutas anidadas del Dashboard */}
         <Route path="/dashboard" element={<LayoutDashboard />}>
           <Route index element={<DashboardPage />} />
@@ -94,6 +97,7 @@ function App() {
           {features.pos && <Route path="pos/completar-venta" element={<ProtectedRoute permissions={['crear_ventas']}><CompleteSalePage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
           {features.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
+          <Route path="stock-transfers" element={<ProtectedRoute permissions={['ver_transferencias']}><StockTransfersPage /></ProtectedRoute>} />
           {features.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}
           {features.reportesFinancieros && <Route path="reportes-financieros" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesFinancierosPage /></ProtectedRoute>} />}
           {features.roles && <Route path="roles" element={<ProtectedRoute permissions={['ver_roles']}><RolesPage /></ProtectedRoute>} />}
@@ -118,6 +122,7 @@ function App() {
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
           {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
           {features.auditorias && <Route path="auditorias" element={<ProtectedRoute permissions={['ver_auditorias']}><AuditoriasPage /></ProtectedRoute>} />}
+          <Route path="metodos-pago" element={<ProtectedRoute permissions={['ver_metodos_pago']}><PaymentMethodsPage /></ProtectedRoute>} />
         </Route>
 
         {/* Redirección por defecto */}

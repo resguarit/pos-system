@@ -19,18 +19,22 @@ class PaymentMethod extends Model
         'description',
         'is_active',
         'affects_cash',
+        'discount_percentage',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'affects_cash' => 'boolean',
+        'discount_percentage' => 'decimal:2',
     ];
+
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'description', 'is_active', 'affects_cash'])
+            ->logOnly(['name', 'description', 'is_active', 'affects_cash', 'discount_percentage'])
             ->useLogName('payment_method')
             ->logOnlyDirty();
     }
+
 }
