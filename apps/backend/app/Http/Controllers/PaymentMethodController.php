@@ -13,9 +13,15 @@ class PaymentMethodController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $paymentMethods = PaymentMethod::where('is_active', true)->get();
+        $query = PaymentMethod::query();
+
+        if (!$request->has('all')) {
+            $query->where('is_active', true);
+        }
+
+        $paymentMethods = $query->get();
         return response()->json(['data' => $paymentMethods], 200);
     }
 
@@ -28,6 +34,8 @@ class PaymentMethodController extends Controller
             'name' => 'required|string|max:255|unique:payment_methods,name',
             'description' => 'nullable|string',
             'is_active' => 'sometimes|boolean',
+            'affects_cash' => 'sometimes|boolean',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -37,6 +45,7 @@ class PaymentMethodController extends Controller
         $paymentMethod = PaymentMethod::create($validator->validated());
         return response()->json(['data' => $paymentMethod, 'message' => 'Método de pago creado exitosamente.'], 201);
     }
+
 
     /**
      * Display the specified resource.
@@ -64,6 +73,8 @@ class PaymentMethodController extends Controller
             'name' => 'sometimes|required|string|max:255|unique:payment_methods,name,' . $id,
             'description' => 'nullable|string',
             'is_active' => 'sometimes|boolean',
+            'affects_cash' => 'sometimes|boolean',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
         ]);
 
         if ($validator->fails()) {
@@ -83,7 +94,7 @@ class PaymentMethodController extends Controller
         if (!$paymentMethod) {
             return response()->json(['message' => 'Método de pago no encontrado.'], 404);
         }
-        
+
         $paymentMethod->delete();
         return response()->json(['message' => 'Método de pago eliminado exitosamente.'], 200);
     }

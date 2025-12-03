@@ -106,19 +106,11 @@ class MovementTypeSeeder extends Seeder
                 'is_current_account_movement' => false,
                 'active' => true,
             ],
-            [
-                'name' => 'Uso de crédito a favor',
-                'description' => 'Uso de crédito a favor del cliente en una venta',
-                'operation_type' => 'entrada',
-                'is_cash_movement' => false,
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
         ];
 
         foreach ($movementTypes as $type) {
             MovementType::updateOrCreate(
-                ['name' => $type['name']], 
+                ['name' => $type['name']],
                 $type
             );
         }

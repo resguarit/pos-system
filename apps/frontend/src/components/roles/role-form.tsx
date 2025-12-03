@@ -120,6 +120,9 @@ function getFeatureForModule(moduleName: string): boolean {
     'auditoria': 'auditorias',
     'auditoría': 'auditorias',
     'auditorias': 'auditorias',
+    'metodos_pago': 'configuracionSistema',
+    'métodos de pago': 'configuracionSistema',
+    'metodos de pago': 'configuracionSistema',
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();

@@ -38,12 +38,8 @@ export function getOutstandingBalanceDescription(
       ? 'Incluye todos los movimientos (ventas, pagos, ajustes)'
       : 'Monto que el cliente debe';
   }
-  
-  if (balance < 0) {
-    return 'Cliente tiene crédito a favor';
-  }
-  
-  return 'Cuenta saldada';
+
+  return 'El cliente no tiene deuda';
 }
 
 /**

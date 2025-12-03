@@ -21,6 +21,32 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class SaleService implements SaleServiceInterface
 {
     /**
+     * Tipos de comprobante habilitados por AFIP (FEParamGetTiposCbte).
+     * Clave = código AFIP, Valor = descripción de referencia.
+     *
+     * @var array<int, string>
+     */
+    private const SUPPORTED_AFIP_RECEIPT_TYPES = [
+        1 => 'FACTURA A',
+        2 => 'NOTA DE DEBITO A',
+        3 => 'NOTA DE CREDITO A',
+        4 => 'RECIBO A',
+        5 => 'NOTA DE VENTA AL CONTADO A',
+        6 => 'FACTURA B',
+        7 => 'NOTA DE DEBITO B',
+        8 => 'NOTA DE CREDITO B',
+        9 => 'RECIBO B',
+        10 => 'NOTA DE VENTA AL CONTADO B',
+        11 => 'FACTURA C',
+        12 => 'NOTA DE DEBITO C',
+        13 => 'NOTA DE CREDITO C',
+        15 => 'RECIBO C',
+        49 => 'FACTURA M',
+        50 => 'NOTA DE DEBITO M',
+        51 => 'NOTA DE CREDITO M',
+        52 => 'RECIBO M',
+    ];
+    /**
      * Prepara los items de venta calculando precios unitarios, descuentos, base e IVA.
      * Descuentos: por ítem antes de IVA. Montos con hasta 2 decimales.
      */
@@ -59,7 +85,9 @@ class SaleService implements SaleServiceInterface
 
             // Base neta antes de IVA
             $netBase = round($itemSubtotalBase - $itemDiscountAmount, 2);
-            if ($netBase < 0) { $netBase = 0.0; }
+            if ($netBase < 0) {
+                $netBase = 0.0;
+            }
 
             // IVA sobre base neta
             $itemIva = round($netBase * ($ivaRate / 100.0), 2);
@@ -99,13 +127,15 @@ class SaleService implements SaleServiceInterface
 
             // 2.1) Subtotal neto antes de descuento global (suma de bases netas por ítem)
             $subtotalNetBeforeGlobal = 0.0;
-            foreach ($preparedItems as $pi) { $subtotalNetBeforeGlobal = round($subtotalNetBeforeGlobal + (float) ($pi['_net_base'] ?? ($pi['item_subtotal'] ?? 0.0)), 2); }
+            foreach ($preparedItems as $pi) {
+                $subtotalNetBeforeGlobal = round($subtotalNetBeforeGlobal + (float) ($pi['_net_base'] ?? ($pi['item_subtotal'] ?? 0.0)), 2);
+            }
 
             // 2.2) Calcular IVA SIN descuento global primero
             foreach ($preparedItems as &$item) {
                 $netBase = round((float) ($item['_net_base'] ?? ($item['item_subtotal'] ?? 0.0)), 2);
                 $item['item_subtotal'] = $netBase;
-                $item['item_iva'] = round($netBase * (((float)($item['iva_rate'] ?? 0.0)) / 100.0), 2);
+                $item['item_iva'] = round($netBase * (((float) ($item['iva_rate'] ?? 0.0)) / 100.0), 2);
                 $item['item_total'] = round($item['item_subtotal'] + $item['item_iva'], 2);
                 $item['_net_base'] = $netBase;
             }
@@ -122,14 +152,14 @@ class SaleService implements SaleServiceInterface
                     $rateKey = (string) ($item['iva_rate'] ?? 0);
                     if (!isset($ivaTotals[$rateKey])) {
                         $ivaTotals[$rateKey] = [
-                            'iva_id'      => $item['iva_id'],
-                            'iva_rate'    => $item['iva_rate'],
+                            'iva_id' => $item['iva_id'],
+                            'iva_rate' => $item['iva_rate'],
                             'base_amount' => 0.0,
-                            'iva_amount'  => 0.0,
+                            'iva_amount' => 0.0,
                         ];
                     }
                     $ivaTotals[$rateKey]['base_amount'] = round($ivaTotals[$rateKey]['base_amount'] + (float) $item['item_subtotal'], 2);
-                    $ivaTotals[$rateKey]['iva_amount']  = round($ivaTotals[$rateKey]['iva_amount'] + (float) $item['item_iva'], 2);
+                    $ivaTotals[$rateKey]['iva_amount'] = round($ivaTotals[$rateKey]['iva_amount'] + (float) $item['item_iva'], 2);
                 }
             }
 
@@ -153,10 +183,10 @@ class SaleService implements SaleServiceInterface
             $globalDiscountType = $data['discount_type'] ?? null; // 'percent'|'amount'|null
             $globalDiscountValue = isset($data['discount_value']) ? (float) $data['discount_value'] : null; // number
             $globalDiscountAmount = 0.0;
-            
+
             // Calcular subtotal + IVA antes del descuento global
             $subtotalConIva = round($subtotalGrossBeforeDiscounts + $totalIvaAmount, 2);
-            
+
             if ($globalDiscountType && $globalDiscountValue !== null && $subtotalConIva > 0) {
                 if ($globalDiscountType === 'percent') {
                     $globalDiscountAmount = round($subtotalConIva * ($globalDiscountValue / 100.0), 2);
@@ -204,17 +234,17 @@ class SaleService implements SaleServiceInterface
                 ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
                 ->lockForUpdate() // Bloqueo de fila para evitar condiciones de carrera
                 ->first();
-            
-            $nextReceiptNumber = $lastSale ? ((int)$lastSale->receipt_number) + 1 : 1;
+
+            $nextReceiptNumber = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
             $data['receipt_number'] = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
-            
+
             // Verificar que el número no exista ya (protección adicional contra duplicados)
             $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
                 ->where('receipt_type_id', $data['receipt_type_id'])
                 ->where('receipt_number', $data['receipt_number'])
                 ->lockForUpdate()
                 ->first();
-            
+
             if ($existingSale) {
                 // Si existe, buscar el siguiente número disponible (máximo 10 intentos)
                 $attempts = 0;
@@ -228,7 +258,7 @@ class SaleService implements SaleServiceInterface
                         ->first();
                     $attempts++;
                 }
-                
+
                 if ($existingSale) {
                     throw new \Exception("No se pudo generar un número de comprobante único después de varios intentos. Contacte al administrador.");
                 }
@@ -280,16 +310,18 @@ class SaleService implements SaleServiceInterface
      */
     public function registerSaleMovementFromPayments(SaleHeader $sale, ?int $cashRegisterId = null): void
     {
-        // IMPORTANTE: Recargar la venta para obtener los metadatos actualizados (incluyendo crédito a favor)
+        // IMPORTANTE: Recargar la venta para obtener los metadatos actualizados
         $sale->refresh();
-        
+
         // Cargar los pagos de la venta
         $sale->load('salePayments.paymentMethod', 'receiptType');
 
         // Si el comprobante es 'Presupuesto', no registrar movimiento de caja ni cuenta corriente
-        if ($sale->receiptType && (
-            ($sale->receiptType->description ?? $sale->receiptType->name ?? null) === 'Presupuesto'
-        )) {
+        if (
+            $sale->receiptType && (
+                ($sale->receiptType->description ?? $sale->receiptType->name ?? null) === 'Presupuesto'
+            )
+        ) {
             return;
         }
 
@@ -312,7 +344,7 @@ class SaleService implements SaleServiceInterface
             // Solo incluir métodos de pago que realmente afectan la caja
             return $paymentMethod->affects_cash === true;
         });
-        
+
         if ($hasNonCreditPayments) {
             if (!$cashRegisterId) {
                 throw new \Exception('No se encontró una caja abierta para registrar la venta.');
@@ -354,17 +386,17 @@ class SaleService implements SaleServiceInterface
             if ($sale->relationLoaded('salePayments') && $sale->salePayments && $sale->salePayments->count() > 0) {
                 foreach ($sale->salePayments as $payment) {
                     $paymentMethod = $payment->paymentMethod; // puede ser null si no está vinculado
-                    
+
                     // IMPORTANTE: NO registrar en caja si es pago a cuenta corriente
                     if ($paymentMethod && $paymentMethod->name === 'Cuenta Corriente') {
                         continue;
                     }
-                    
+
                     // Solo registrar si el método de pago afecta la caja
                     if (!$paymentMethod || $paymentMethod->affects_cash !== true) {
                         continue;
                     }
-                    
+
                     $movementType = $this->resolveMovementTypeForPaymentMethod($paymentMethod);
 
                     // Fallback final si no se encontró tipo específico: crear/obtener "Venta en efectivo"
@@ -387,11 +419,11 @@ class SaleService implements SaleServiceInterface
                         'cash_register_id' => $cashRegisterId,
                         'movement_type_id' => $movementType ? $movementType->id : null,
                         'payment_method_id' => $paymentMethod ? $paymentMethod->id : null, // Agregar payment_method_id
-                        'reference_type'   => 'sale',
-                        'reference_id'     => $sale->id,
-                        'amount'           => $payment->amount ?? $sale->total, // usar monto del pago
-                        'description'      => $description,
-                        'user_id'          => $sale->user_id,
+                        'reference_type' => 'sale',
+                        'reference_id' => $sale->id,
+                        'amount' => $payment->amount ?? $sale->total, // usar monto del pago
+                        'description' => $description,
+                        'user_id' => $sale->user_id,
                     ]);
                 }
             } else {
@@ -400,7 +432,7 @@ class SaleService implements SaleServiceInterface
                 $defaultPaymentMethod = \App\Models\PaymentMethod::where('name', 'Efectivo')
                     ->where('is_active', true)
                     ->first();
-                
+
                 $movementType = \App\Models\MovementType::firstOrCreate(
                     ['name' => 'Venta en efectivo', 'operation_type' => 'entrada'],
                     [
@@ -415,11 +447,11 @@ class SaleService implements SaleServiceInterface
                     'cash_register_id' => $cashRegisterId,
                     'movement_type_id' => $movementType->id,
                     'payment_method_id' => $defaultPaymentMethod ? $defaultPaymentMethod->id : null, // Agregar payment_method_id por defecto
-                    'reference_type'   => 'sale',
-                    'reference_id'     => $sale->id,
-                    'amount'           => $sale->total,
-                    'description'      => $baseDescription,
-                    'user_id'          => $sale->user_id,
+                    'reference_type' => 'sale',
+                    'reference_id' => $sale->id,
+                    'amount' => $sale->total,
+                    'description' => $baseDescription,
+                    'user_id' => $sale->user_id,
                 ]);
             }
         } catch (\Exception $e) {
@@ -441,7 +473,7 @@ class SaleService implements SaleServiceInterface
 
         try {
             $currentAccountService = app(CurrentAccountService::class);
-            
+
             // Buscar o crear cuenta corriente del cliente
             $currentAccount = \App\Models\CurrentAccount::firstOrCreate(
                 ['customer_id' => $sale->customer_id],
@@ -474,7 +506,7 @@ class SaleService implements SaleServiceInterface
             if (!$existingSaleMovement) {
                 // Guardar el balance ANTES de registrar la venta para calcular crédito disponible
                 $balanceBeforeSale = (float) $currentAccount->current_balance;
-                
+
                 $currentAccountService->createMovement([
                     'current_account_id' => $currentAccount->id,
                     'movement_type_id' => $saleMovementType->id,
@@ -497,13 +529,13 @@ class SaleService implements SaleServiceInterface
             // 2. Registrar CRÉDITOS: Pagos (reducen la deuda inmediatamente)
             $currentAccount->refresh();
             $balanceAfterCredit = (float) $currentAccount->current_balance;
-            
+
             foreach ($sale->salePayments as $payment) {
-                
+
                 $paymentMethod = $payment->paymentMethod;
-                
+
                 // Determinar el tipo de movimiento según el método de pago
-                $paymentTypeName = match($paymentMethod->name ?? 'Efectivo') {
+                $paymentTypeName = match ($paymentMethod->name ?? 'Efectivo') {
                     'Efectivo' => 'Pago en efectivo',
                     'Tarjeta de crédito', 'Tarjeta de débito' => 'Pago con tarjeta',
                     'Transferencia' => 'Pago con transferencia',
@@ -524,7 +556,7 @@ class SaleService implements SaleServiceInterface
 
                 if ($paymentMovementType) {
                     $paymentAmount = (float) $payment->amount;
-                    
+
                     // Verificar si ya existe un movimiento de pago para este pago específico
                     // Usamos el payment_id del metadata para distinguir entre pagos múltiples del mismo método y monto
                     $existingPaymentMovement = \App\Models\CurrentAccountMovement::where('sale_id', $sale->id)
@@ -558,8 +590,8 @@ class SaleService implements SaleServiceInterface
             throw new \Exception('Error al registrar movimientos en cuenta corriente: ' . $e->getMessage());
         }
     }
-    
-    
+
+
     public function getAllSales(Request $request): SupportCollection
     {
         $query = SaleHeader::with([
@@ -572,7 +604,7 @@ class SaleService implements SaleServiceInterface
             'items.product',
             'saleIvas',
         ]);
-        
+
         // Manejar filtro por sucursales (array o valor único)
         if ($request->has('branch_id')) {
             $branchIds = $request->input('branch_id');
@@ -585,7 +617,7 @@ class SaleService implements SaleServiceInterface
                 $query->where('branch_id', $branchIds);
             }
         }
-        
+
         $from = $request->input('from_date') ?? $request->input('from');
         $to = $request->input('to_date') ?? $request->input('to');
         if ($from) {
@@ -604,7 +636,7 @@ class SaleService implements SaleServiceInterface
             } else {
                 $customerName = 'N/A';
             }
-            
+
             // Preparar información del vendedor
             $sellerName = '';
             if ($sale->user && $sale->user->person) {
@@ -614,7 +646,7 @@ class SaleService implements SaleServiceInterface
             } else {
                 $sellerName = 'N/A';
             }
-            
+
             $receiptTypeName = $sale->receiptType ? $sale->receiptType->description : 'N/A';
             $receiptTypeCode = $sale->receiptType ? $sale->receiptType->afip_code ?? '' : '';
             $receiptNumber = $sale->receipt_number ?? '';
@@ -674,7 +706,8 @@ class SaleService implements SaleServiceInterface
         ])->find($id);
     }
 
-    public function calculateTotalsForSaleHeader($saleHeader) {
+    public function calculateTotalsForSaleHeader($saleHeader)
+    {
         $subtotal = 0;
         $totalIva = 0;
         $items = $saleHeader->items()->with('product.iva')->get();
@@ -692,32 +725,42 @@ class SaleService implements SaleServiceInterface
         $saleHeader->total = $subtotal + $totalIva;
         $saleHeader->save();
     }
-    
+
     public function updateSale(int $id, array $data): ?SaleHeader
     {
         $sale = SaleHeader::find($id);
-        if (!$sale) { return null; }
+        if (!$sale) {
+            return null;
+        }
 
         $itemsData = $data['items'] ?? null;
         unset($data['items']);
 
-        if (isset($data['date'])) { $data['date'] = Carbon::parse($data['date']); }
+        if (isset($data['date'])) {
+            $data['date'] = Carbon::parse($data['date']);
+        }
 
         $sale->update($data);
 
         if ($itemsData !== null) {
             $sale->items()->delete();
             $sale->saleIvas()->delete();
-            
+
             $this->calculateTotalsForSaleHeader($sale->fresh('items'));
         }
 
         return $sale->fresh([
-            'receiptType', 'branch', 'customer.person', 'user',
-            'saleFiscalCondition', 'saleDocumentType', 'items.product.iva', 'saleIvas.iva'
+            'receiptType',
+            'branch',
+            'customer.person',
+            'user',
+            'saleFiscalCondition',
+            'saleDocumentType',
+            'items.product.iva',
+            'saleIvas.iva'
         ]);
     }
-    
+
     public function deleteSale(int $id): bool
     {
         $sale = SaleHeader::find($id);
@@ -734,7 +777,7 @@ class SaleService implements SaleServiceInterface
             ->whereDate('date', '>=', Carbon::parse($from)->startOfDay())
             ->whereDate('date', '<=', Carbon::parse($to)->endOfDay())
             ->get();
-            
+
         return (float) $sales->filter(function ($sale) {
             return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         })->sum('total');
@@ -804,7 +847,7 @@ class SaleService implements SaleServiceInterface
             'client_count' => $client_count,
         ];
     }
-    
+
     public function downloadPdf(int $id)
     {
         $sale = SaleHeader::with([
@@ -812,12 +855,12 @@ class SaleService implements SaleServiceInterface
             'branch',
             'customer.person',
             'receiptType',
-            'saleIvas.iva', 
+            'saleIvas.iva',
             'saleFiscalCondition',
         ])->findOrFail($id);
 
         $data = ['sale' => $sale];
-        $pdf = Pdf::loadView('pdf.sale', $data); 
+        $pdf = Pdf::loadView('pdf.sale', $data);
         return $pdf->download('comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf');
     }
 
@@ -829,7 +872,7 @@ class SaleService implements SaleServiceInterface
         $groupBy = $request->input('group_by', 'day');
 
         $query = SaleHeader::with('receiptType')->where('branch_id', $branchId);
-        
+
         if ($fromInput && $toInput) {
             $from = Carbon::parse($fromInput)->startOfDay();
             $to = Carbon::parse($toInput)->endOfDay();
@@ -855,20 +898,20 @@ class SaleService implements SaleServiceInterface
             }
             $query->whereBetween('date', [$from, $to]);
         }
-        
+
         $sales = $query->get();
-        
+
         // Filtrar presupuestos y ventas anuladas
         $financialSales = $sales->filter(function ($sale) {
             return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         });
-        
+
         if ($groupBy === 'month') {
             $dateFormat = "DATE_FORMAT(date, '%Y-%m')";
         } else {
             $dateFormat = "DATE(date)";
         }
-       
+
         $salesData = $financialSales->groupBy(function ($sale) use ($dateFormat, $groupBy) {
             return $sale->date->format($groupBy === 'month' ? 'Y-m' : 'Y-m-d');
         })->map(function ($group) use ($groupBy) {
@@ -877,15 +920,15 @@ class SaleService implements SaleServiceInterface
                 'total_sales' => $group->sum('total')
             ];
         })->values();
-        
+
         $allDates = [];
         $labels = [];
         $data = [];
-        
+
         if ($groupBy === 'month') {
             $current = Carbon::parse($from)->startOfMonth();
             $end = Carbon::parse($to)->endOfMonth();
-            
+
             while ($current <= $end) {
                 $dateKey = $current->format('Y-m');
                 $allDates[$dateKey] = 0;
@@ -894,7 +937,7 @@ class SaleService implements SaleServiceInterface
         } else {
             $current = Carbon::parse($from)->startOfDay();
             $end = Carbon::parse($to)->endOfDay();
-            
+
             while ($current <= $end) {
                 $dateKey = $current->format('Y-m-d');
                 $allDates[$dateKey] = 0;
@@ -940,14 +983,15 @@ class SaleService implements SaleServiceInterface
         if ($toInput) {
             $baseQuery->whereDate('date', '<=', Carbon::parse($toInput)->endOfDay());
         }
-        
+
         $allSalesInPeriod = $baseQuery->with(['branch', 'receiptType'])->get();
-        
+
         $summaries = [];
         $salesByBranch = $allSalesInPeriod->groupBy('branch_id');
 
         foreach ($salesByBranch as $branchId => $salesInBranch) {
-            if (is_null($branchId)) continue;
+            if (is_null($branchId))
+                continue;
 
             $branch = $salesInBranch->first()->branch;
 
@@ -959,7 +1003,7 @@ class SaleService implements SaleServiceInterface
             $grand_total_amount = $financialSales->sum('total');
             $grand_total_iva = $financialSales->sum('total_iva_amount');
             $average_sale_amount = $sales_count > 0 ? $grand_total_amount / $sales_count : 0;
-            
+
             $budget_count = $salesInBranch->filter(function ($sale) {
                 return $this->isBudgetSale($sale);
             })->count();
@@ -1009,7 +1053,7 @@ class SaleService implements SaleServiceInterface
                 $query->whereDate('date', '<=', Carbon::parse($request->input('to_date'))->endOfDay());
             }
         }
-        
+
         if ($request->has('branch_id') && $request->input('branch_id')) {
             $branchIds = $request->input('branch_id');
             if (is_array($branchIds)) {
@@ -1024,25 +1068,25 @@ class SaleService implements SaleServiceInterface
 
         if ($request->has('search') && $request->input('search')) {
             $searchTerm = $request->input('search');
-            $query->where(function($q) use ($searchTerm) {
+            $query->where(function ($q) use ($searchTerm) {
                 $q->where('receipt_number', 'like', "%{$searchTerm}%")
-                  ->orWhereHas('customer.person', function($qr) use ($searchTerm){
-                      $qr->where('first_name', 'like', "%{$searchTerm}%")
-                         ->orWhere('last_name', 'like', "%{$searchTerm}%");
-                  })
-                  ->orWhereHas('branch', function($qr) use ($searchTerm){
-                      $qr->where('description', 'like', "%{$searchTerm}%");
-                  });
+                    ->orWhereHas('customer.person', function ($qr) use ($searchTerm) {
+                        $qr->where('first_name', 'like', "%{$searchTerm}%")
+                            ->orWhere('last_name', 'like', "%{$searchTerm}%");
+                    })
+                    ->orWhereHas('branch', function ($qr) use ($searchTerm) {
+                        $qr->where('description', 'like', "%{$searchTerm}%");
+                    });
             });
         }
-        
+
         $salesPaginator = null;
         if ($request->input('paginate', 'true') === 'false') {
-             $salesCollection = $query->orderByDesc('date')->get();
+            $salesCollection = $query->orderByDesc('date')->get();
         } else {
-             $perPage = $request->input('per_page', 15);
-             $salesPaginator = $query->orderByDesc('date')->paginate($perPage);
-             $salesCollection = $salesPaginator->getCollection();
+            $perPage = $request->input('per_page', 15);
+            $salesPaginator = $query->orderByDesc('date')->paginate($perPage);
+            $salesCollection = $salesPaginator->getCollection();
         }
 
         $mappedSales = $salesCollection->map(function ($sale) {
@@ -1054,7 +1098,7 @@ class SaleService implements SaleServiceInterface
             } else {
                 $customerName = 'Consumidor Final';
             }
-            
+
             // Preparar información del vendedor
             $sellerName = '';
             if ($sale->user && $sale->user->person) {
@@ -1064,15 +1108,15 @@ class SaleService implements SaleServiceInterface
             } else {
                 $sellerName = 'N/A';
             }
-            
+
             $receiptTypeName = $sale->receiptType ? $sale->receiptType->description : 'N/A';
             $receiptTypeCode = $sale->receiptType ? $sale->receiptType->afip_code ?? '' : '';
-            
+
             $itemsCount = $sale->items->count();
 
             $dateIso = $sale->date ? Carbon::parse($sale->date)->format('Y-m-d H:i:s') : '';
             $dateDisplay = $sale->date ? Carbon::parse($sale->date)->format('d/m/Y H:i') : '';
-            
+
             return [
                 'id' => $sale->id,
                 'date' => $dateIso,
@@ -1085,7 +1129,7 @@ class SaleService implements SaleServiceInterface
                 'customer_id' => $sale->customer_id,
                 'seller' => $sellerName,
                 'seller_id' => $sale->user_id,
-                'items_count' => $itemsCount, 
+                'items_count' => $itemsCount,
                 'cae' => $sale->cae,
                 'cae_expiration_date' => $sale->cae_expiration_date ? Carbon::parse($sale->cae_expiration_date)->format('Y-m-d') : '',
                 'subtotal' => (float) $sale->subtotal,
@@ -1108,7 +1152,7 @@ class SaleService implements SaleServiceInterface
                 ['path' => $request->url(), 'query' => $request->query()]
             );
         }
-        return $mappedSales; 
+        return $mappedSales;
     }
 
     public function getSalesSummaryGlobal(Request $request): array
@@ -1132,7 +1176,7 @@ class SaleService implements SaleServiceInterface
                 $query->where('branch_id', $branchIds);
             }
         }
-        
+
         $allSalesInPeriod = $query->with('receiptType')->get();
 
         $financialSales = $allSalesInPeriod->filter(function ($sale) {
@@ -1142,8 +1186,8 @@ class SaleService implements SaleServiceInterface
         $sales_count = $financialSales->count();
         $grand_total_amount = $financialSales->sum('total');
         $grand_total_iva = $financialSales->sum('total_iva_amount');
-        $average_sale_amount = $sales_count > 0 ? (float)($grand_total_amount / $sales_count) : 0;
-        
+        $average_sale_amount = $sales_count > 0 ? (float) ($grand_total_amount / $sales_count) : 0;
+
         $budget_count = $allSalesInPeriod->filter(function ($sale) {
             return $this->isBudgetSale($sale);
         })->count();
@@ -1163,7 +1207,7 @@ class SaleService implements SaleServiceInterface
     {
         $period = $request->input('period', 'month');
         $endDate = Carbon::now()->endOfDay();
-        $startDate = Carbon::now()->startOfDay(); 
+        $startDate = Carbon::now()->startOfDay();
 
         if ($period === 'month') {
             $startDate = Carbon::now()->subMonthNoOverflow()->startOfDay();
@@ -1178,7 +1222,7 @@ class SaleService implements SaleServiceInterface
         if ($request->has('to_date') && $request->input('to_date')) {
             $endDate = Carbon::parse($request->input('to_date'))->endOfDay();
         }
-        
+
         $salesQuery = SaleHeader::with('receiptType')
             ->whereBetween('date', [$startDate, $endDate]);
 
@@ -1195,12 +1239,12 @@ class SaleService implements SaleServiceInterface
         }
 
         $sales = $salesQuery->get();
-        
+
         // Filtrar presupuestos y ventas anuladas
         $financialSales = $sales->filter(function ($sale) {
             return !$this->isBudgetSale($sale) && $sale->status !== 'annulled';
         });
-        
+
         $salesData = $financialSales->groupBy(function ($sale) {
             return $sale->date->format('Y-m-d');
         })->map(function ($group) {
@@ -1213,7 +1257,7 @@ class SaleService implements SaleServiceInterface
         $labels = $salesData->pluck('sale_date')->map(function ($date) {
             return Carbon::parse($date)->format('d/m');
         });
-        
+
         $data = $salesData->pluck('total_sales');
 
         return [
@@ -1228,16 +1272,20 @@ class SaleService implements SaleServiceInterface
             ],
         ];
     }
-    
+
     /**
      * Resolver MovementType por método de pago (efectivo, transferencia, tarjetas, MP, etc.)
      */
     private function resolveMovementTypeForPaymentMethod(?\App\Models\PaymentMethod $paymentMethod): ?\App\Models\MovementType
     {
         try {
-            if (!$paymentMethod) { return null; }
+            if (!$paymentMethod) {
+                return null;
+            }
             $name = strtolower(trim($paymentMethod->name ?? ''));
-            if ($name === '') { return null; }
+            if ($name === '') {
+                return null;
+            }
 
             // Determinar nombre/desc canónicos por método de pago
             $canonicalName = null;
@@ -1253,7 +1301,7 @@ class SaleService implements SaleServiceInterface
                 $canonicalName = 'Venta con tarjeta de débito';
                 $canonicalDesc = 'Ingreso por venta pagada con tarjeta de débito';
             } elseif (str_contains($name, 'credito') || str_contains($name, 'crédito')) {
-                // Solo para tarjetas de crédito, NO para "Crédito a favor" (ya excluido arriba)
+                // Solo para tarjetas de crédito
                 $canonicalName = 'Venta con tarjeta de crédito';
                 $canonicalDesc = 'Ingreso por venta pagada con tarjeta de crédito';
             } elseif (str_contains($name, 'tarjeta')) {
@@ -1283,5 +1331,363 @@ class SaleService implements SaleServiceInterface
             // ignorar y permitir fallback
         }
         return null;
+    }
+
+    /**
+     * Autoriza una venta con AFIP
+     * 
+     * @param SaleHeader $sale La venta a autorizar
+     * @return array Datos de la autorización (cae, cae_expiration_date, invoice_number, etc.)
+     * @throws \Exception Si hay errores en la autorización
+     */
+    public function authorizeWithAfip(SaleHeader $sale): array
+    {
+        try {
+            // Cargar relaciones necesarias
+            $sale->load([
+                'receiptType',
+                'customer.person',
+                'items.product.iva',
+                'saleIvas.iva',
+                'branch',
+            ]);
+
+            // Validar que no sea presupuesto
+            if ($sale->receiptType && $sale->receiptType->afip_code === '016') {
+                throw new \Exception('Los presupuestos no se pueden autorizar con AFIP');
+            }
+
+            // Validar que tenga cliente
+            if (!$sale->customer || !$sale->customer->person) {
+                throw new \Exception('La venta debe tener un cliente asociado');
+            }
+
+            // Obtener CUIT del contribuyente (sucursal o global)
+            $taxpayerCuit = null;
+            if ($sale->branch && !empty($sale->branch->cuit)) {
+                $taxpayerCuit = preg_replace('/[^0-9]/', '', $sale->branch->cuit);
+                if (strlen($taxpayerCuit) !== 11) {
+                    Log::warning('CUIT de sucursal inválido, usando configuración global', [
+                        'branch_id' => $sale->branch->id,
+                        'cuit' => $sale->branch->cuit,
+                    ]);
+                    $taxpayerCuit = null;
+                }
+            }
+
+            // Preparar datos de la factura para AFIP
+            $invoiceData = $this->prepareInvoiceDataForAfip($sale);
+
+            // Autorizar con AFIP
+            $result = $taxpayerCuit
+                ? \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData, $taxpayerCuit)
+                : \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData);
+
+            // Normalizar respuesta
+            $resultArray = is_array($result)
+                ? $result
+                : (method_exists($result, 'toArray')
+                    ? $result->toArray()
+                    : [
+                        'cae' => $result->cae ?? null,
+                        'caeExpirationDate' => $result->caeExpirationDate ?? null,
+                        'invoiceNumber' => $result->invoiceNumber ?? null,
+                        'pointOfSale' => $result->pointOfSale ?? null,
+                        'invoiceType' => $result->invoiceType ?? null,
+                    ]);
+
+            // Guardar en base de datos
+            DB::transaction(function () use ($sale, $resultArray) {
+                $sale->update([
+                    'cae' => $resultArray['cae'] ?? null,
+                    'cae_expiration_date' => isset($resultArray['caeExpirationDate'])
+                        ? Carbon::createFromFormat('Ymd', $resultArray['caeExpirationDate'])
+                        : null,
+                    'receipt_number' => isset($resultArray['invoiceNumber'])
+                        ? str_pad((string) $resultArray['invoiceNumber'], 8, '0', STR_PAD_LEFT)
+                        : $sale->receipt_number,
+                ]);
+            });
+
+            Log::info('Venta autorizada con AFIP exitosamente', [
+                'sale_id' => $sale->id,
+                'receipt_number' => $sale->receipt_number,
+                'cae' => $resultArray['cae'] ?? null,
+                'invoice_number' => $resultArray['invoiceNumber'] ?? null,
+            ]);
+
+            return [
+                'cae' => $resultArray['cae'] ?? null,
+                'cae_expiration_date' => isset($resultArray['caeExpirationDate'])
+                    ? Carbon::createFromFormat('Ymd', $resultArray['caeExpirationDate'])->format('Y-m-d')
+                    : null,
+                'invoice_number' => $resultArray['invoiceNumber'] ?? null,
+                'point_of_sale' => $resultArray['pointOfSale'] ?? null,
+                'invoice_type' => $resultArray['invoiceType'] ?? null,
+            ];
+
+        } catch (\Resguar\AfipSdk\Exceptions\AfipException $e) {
+            Log::error('Error de AFIP al autorizar venta', [
+                'sale_id' => $sale->id,
+                'error' => $e->getMessage(),
+                'afip_code' => method_exists($e, 'getAfipCode') ? $e->getAfipCode() : null,
+            ]);
+            throw new \Exception("Error al autorizar con AFIP: {$e->getMessage()}", 0, $e);
+        } catch (\Exception $e) {
+            Log::error('Error inesperado al autorizar venta con AFIP', [
+                'sale_id' => $sale->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * Prepara los datos de la venta para enviar a AFIP
+     * 
+     * @param SaleHeader $sale La venta a preparar
+     * @return array Datos formateados para AFIP
+     */
+    private function prepareInvoiceDataForAfip(SaleHeader $sale): array
+    {
+        // Obtener punto de venta
+        $pointOfSale = 1;
+        if ($sale->branch && !empty($sale->branch->point_of_sale)) {
+            $pos = (int) $sale->branch->point_of_sale;
+            if ($pos >= 1) {
+                $pointOfSale = $pos;
+            }
+        } else {
+            $pointOfSale = (int) config('afip.default_point_of_sale', 1);
+            if ($pointOfSale < 1) {
+                $pointOfSale = 1;
+            }
+        }
+
+        // Obtener tipo de comprobante AFIP
+        $invoiceType = $this->mapReceiptTypeToAfipType($sale->receiptType);
+
+        // Obtener número de comprobante (si ya tiene, usar ese; si no, el SDK lo ajustará)
+        $invoiceNumber = null;
+        if (!empty($sale->receipt_number)) {
+            $invoiceNumber = (int) preg_replace('/[^0-9]/', '', $sale->receipt_number);
+            if ($invoiceNumber < 1) {
+                $invoiceNumber = null; // El SDK lo ajustará
+            }
+        }
+
+        // Obtener CUIT del cliente
+        $customerCuit = '00000000000'; // Consumidor Final por defecto
+        $customerDocumentType = 99; // Sin identificar
+        $customerDocumentNumber = '00000000000';
+
+        if ($sale->customer && $sale->customer->person) {
+            $cuit = $sale->customer->person->cuit ?? '';
+            $cuit = preg_replace('/[^0-9]/', '', $cuit);
+            if (strlen($cuit) === 11) {
+                $customerCuit = $cuit;
+                $customerDocumentType = 80; // CUIT
+                $customerDocumentNumber = $cuit;
+            } elseif (!empty($sale->sale_document_number)) {
+                $docNumber = preg_replace('/[^0-9]/', '', $sale->sale_document_number);
+                if (strlen($docNumber) > 0) {
+                    $customerDocumentNumber = $docNumber;
+                    $customerDocumentType = $this->mapDocumentTypeToAfipType($sale->saleDocumentType);
+                }
+            }
+        }
+
+        // Obtener condición IVA del receptor
+        $receiverConditionIVA = 5; // Consumidor Final por defecto
+        if ($sale->saleFiscalCondition) {
+            $receiverConditionIVA = (int) ($sale->saleFiscalCondition->afip_code ?? 5);
+        }
+
+        // Preparar items
+        $items = [];
+        $netAmount = 0.0;
+        $ivaItems = [];
+
+        foreach ($sale->items as $item) {
+            $product = $item->product;
+            $ivaRate = $item->iva_rate ?? ($product && $product->iva ? (float) $product->iva->rate : 0.0);
+
+            $description = $product ? ($product->description ?? $product->name ?? 'Producto sin descripción') : 'Producto sin descripción';
+            $description = mb_substr($description, 0, 250); // AFIP limita a 250 caracteres
+
+            $quantity = (float) $item->quantity;
+            $unitPrice = (float) $item->unit_price;
+            $itemSubtotal = (float) $item->item_subtotal ?? ($unitPrice * $quantity);
+
+            $items[] = [
+                'description' => $description,
+                'quantity' => $quantity,
+                'unitPrice' => $unitPrice,
+                'taxRate' => $ivaRate,
+            ];
+
+            $netAmount += $itemSubtotal;
+        }
+
+        // Preparar IVA items
+        foreach ($sale->saleIvas as $saleIva) {
+            $iva = $saleIva->iva;
+            if ($iva) {
+                $ivaId = $this->mapIvaRateToAfipId((float) $iva->rate);
+                if ($ivaId) {
+                    $baseAmount = (float) ($saleIva->base_amount ?? 0);
+                    $taxAmount = (float) ($saleIva->tax_amount ?? 0);
+
+                    // Buscar si ya existe este IVA en el array
+                    $existingIndex = null;
+                    foreach ($ivaItems as $index => $ivaItem) {
+                        if ($ivaItem['id'] === $ivaId) {
+                            $existingIndex = $index;
+                            break;
+                        }
+                    }
+
+                    if ($existingIndex !== null) {
+                        // Sumar a existente
+                        $ivaItems[$existingIndex]['baseAmount'] += $baseAmount;
+                        $ivaItems[$existingIndex]['amount'] += $taxAmount;
+                    } else {
+                        // Agregar nuevo
+                        $ivaItems[] = [
+                            'id' => $ivaId,
+                            'baseAmount' => $baseAmount,
+                            'amount' => $taxAmount,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Calcular total IVA si no hay items de IVA
+        $ivaTotal = (float) $sale->total_iva_amount ?? 0.0;
+        if (empty($ivaItems) && $ivaTotal > 0) {
+            // Intentar crear un item de IVA genérico
+            $ivaItems[] = [
+                'id' => 5, // 21% por defecto
+                'baseAmount' => $netAmount,
+                'amount' => $ivaTotal,
+            ];
+        }
+
+        // Validaciones finales
+        if (empty($items)) {
+            throw new \Exception('La venta debe tener al menos un ítem');
+        }
+
+        if ($sale->total <= 0) {
+            throw new \Exception('El total de la venta debe ser mayor a cero');
+        }
+
+        return [
+            'pointOfSale' => $pointOfSale,
+            'invoiceType' => $invoiceType,
+            'invoiceNumber' => $invoiceNumber,
+            'date' => Carbon::parse($sale->date)->format('Ymd'),
+            'customerCuit' => $customerCuit,
+            'customerDocumentType' => $customerDocumentType,
+            'customerDocumentNumber' => $customerDocumentNumber,
+            'receiverConditionIVA' => $receiverConditionIVA,
+            'concept' => $this->determineConcept($sale),
+            'items' => $items,
+            'netAmount' => round($netAmount, 2),
+            'ivaTotal' => round($ivaTotal, 2),
+            'total' => round((float) $sale->total, 2),
+            'ivaItems' => $ivaItems,
+        ];
+    }
+
+    /**
+     * Mapea el tipo de comprobante a código AFIP
+     */
+    private function mapReceiptTypeToAfipType(?ReceiptType $receiptType): int
+    {
+        if (!$receiptType) {
+            return 1; // Factura A por defecto
+        }
+
+        $numericCode = null;
+        $afipCode = $receiptType->afip_code ?? null;
+        if ($afipCode) {
+            $numericCode = (int) preg_replace('/[^0-9]/', '', (string) $afipCode);
+        }
+
+        if ($numericCode) {
+            if (!array_key_exists($numericCode, self::SUPPORTED_AFIP_RECEIPT_TYPES)) {
+                throw new \Exception(sprintf(
+                    'El comprobante "%s" (código %s) no es válido para AFIP. Configura la venta con un comprobante habilitado (ej: Factura A/B/C).',
+                    $receiptType->description ?? $receiptType->name ?? 'desconocido',
+                    $receiptType->afip_code ?? 'N/A'
+                ));
+            }
+
+            return $numericCode;
+        }
+
+        // Fallback por nombre
+        $name = strtoupper($receiptType->name ?? $receiptType->description ?? '');
+        foreach (self::SUPPORTED_AFIP_RECEIPT_TYPES as $code => $label) {
+            if (str_contains($name, $label)) {
+                return $code;
+            }
+        }
+
+        throw new \Exception(sprintf(
+            'No se pudo determinar un tipo de comprobante AFIP válido para "%s". Configura el comprobante con un código permitido.',
+            $receiptType->description ?? $receiptType->name ?? 'desconocido'
+        ));
+    }
+
+    /**
+     * Mapea el tipo de documento a código AFIP
+     */
+    private function mapDocumentTypeToAfipType($documentType): int
+    {
+        if (!$documentType) {
+            return 99; // Sin identificar
+        }
+
+        $afipCode = $documentType->afip_code ?? null;
+        if ($afipCode) {
+            return (int) $afipCode;
+        }
+
+        return 99; // Sin identificar por defecto
+    }
+
+    /**
+     * Mapea la tasa de IVA a ID de AFIP
+     */
+    private function mapIvaRateToAfipId(float $rate): ?int
+    {
+        $roundedRate = round($rate, 1);
+
+        // Mapeo de tasas comunes de IVA a IDs de AFIP
+        if ($roundedRate == 0) {
+            return 3; // 0%
+        } elseif ($roundedRate == 10.5) {
+            return 4; // 10.5%
+        } elseif ($roundedRate == 21) {
+            return 5; // 21%
+        } elseif ($roundedRate == 27) {
+            return 6; // 27%
+        }
+
+        // Si no coincide, retornar null (el SDK puede manejarlo)
+        return null;
+    }
+
+    /**
+     * Determina el concepto de la factura (1=Productos, 2=Servicios, 3=Productos y Servicios)
+     */
+    private function determineConcept(SaleHeader $sale): int
+    {
+        // Por ahora, asumimos que todas son productos
+        // En el futuro, se puede determinar basándose en los items
+        return 1; // Productos
     }
 }

@@ -25,7 +25,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
 {
     private SearchService $searchService;
 
-    public function __construct(SearchService $searchService)   
+    public function __construct(SearchService $searchService)
     {
         $this->searchService = $searchService;
     }
@@ -35,17 +35,17 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function createAccount(array $data): CurrentAccount
     {
         $validatedData = $this->validateAccountData($data);
-        
+
         return DB::transaction(function () use ($validatedData) {
             // Verificar que el cliente existe
             $customer = Customer::findOrFail($validatedData['customer_id']);
-            
+
             // Verificar que no existe ya una cuenta corriente para este cliente
             $existingAccount = CurrentAccount::where('customer_id', $validatedData['customer_id'])->first();
             if ($existingAccount) {
                 throw new Exception('Ya existe una cuenta corriente para este cliente');
             }
-            
+
             $accountData = [
                 'customer_id' => $validatedData['customer_id'],
                 'credit_limit' => $validatedData['credit_limit'] ?? null, // NULL = límite infinito
@@ -54,7 +54,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 'notes' => $validatedData['notes'] ?? null,
                 'opened_at' => now(),
             ];
-            
+
             return CurrentAccount::create($accountData);
         });
     }
@@ -85,10 +85,10 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getAllAccounts(array $filters = []): Collection
     {
         $query = CurrentAccount::with(['customer.person']);
-        
+
         // Aplicar filtros usando el SearchService
         $this->applyFilters($query, $filters);
-        
+
         return $query->orderBy('created_at', 'desc')->get();
     }
 
@@ -100,43 +100,43 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     {
         // Filtros de estado
         $this->searchService->applyStatusFilters($query, $filters, ['status']);
-        
+
         // Filtros de rango numérico
         $this->searchService->applyRangeFilters($query, $filters, [
             'current_balance',
             'credit_limit'
         ]);
-        
+
         // Filtros específicos de balance
         if (isset($filters['balance_filter'])) {
             switch ($filters['balance_filter']) {
                 case 'negative':
                     // Con deuda: tiene ventas pendientes de pago
-                    $query->whereHas('sales', function($salesQuery) {
+                    $query->whereHas('sales', function ($salesQuery) {
                         $salesQuery->where('status', '!=', 'annulled')
-                            ->where(function($paymentQuery) {
+                            ->where(function ($paymentQuery) {
                                 $paymentQuery->whereNull('payment_status')
-                                      ->orWhereIn('payment_status', ['pending', 'partial']);
+                                    ->orWhereIn('payment_status', ['pending', 'partial']);
                             })
                             ->whereRaw('(total - COALESCE(paid_amount, 0)) > 0');
                     });
                     break;
             }
         }
-        
+
         // Si se especifica min_current_balance directamente, usar solo balance
         if (isset($filters['min_current_balance']) && !isset($filters['balance_filter'])) {
-            $minBalance = (float)$filters['min_current_balance'];
+            $minBalance = (float) $filters['min_current_balance'];
             if ($minBalance > 0) {
                 $query->where('current_balance', '>=', $minBalance);
             }
         }
-        
+
         // Filtros específicos
         if (isset($filters['customer_id'])) {
             $query->where('customer_id', $filters['customer_id']);
         }
-        
+
         // Búsqueda de texto
         if (isset($filters['search']) && !empty($filters['search'])) {
             $this->searchService->applyTextSearch(
@@ -155,13 +155,13 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getAccountsPaginated(Request $request): LengthAwarePaginator
     {
         $query = CurrentAccount::with(['customer.person']);
-        
+
         // Convertir Request a array para usar el método applyFilters
         $filters = $request->all();
         $this->applyFilters($query, $filters);
-        
+
         $perPage = $request->input('per_page', 15);
-        
+
         return $query->orderBy('created_at', 'desc')->paginate($perPage);
     }
 
@@ -171,26 +171,26 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function updateAccount(int $id, array $data): CurrentAccount
     {
         $validatedData = $this->validateAccountData($data, $id);
-        
+
         return DB::transaction(function () use ($id, $validatedData) {
             $account = CurrentAccount::findOrFail($id);
-            
+
             // Preparar datos de actualización
             $updateData = [];
-            
+
             // credit_limit puede ser null (límite infinito), usar array_key_exists
             if (array_key_exists('credit_limit', $validatedData)) {
                 $updateData['credit_limit'] = $validatedData['credit_limit'];
             }
-            
+
             if (array_key_exists('notes', $validatedData)) {
                 $updateData['notes'] = $validatedData['notes'];
             }
-            
+
             if (!empty($updateData)) {
                 $account->update($updateData);
             }
-            
+
             return $account->fresh(['customer.person']);
         });
     }
@@ -201,11 +201,11 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function deleteAccount(int $id): bool
     {
         $account = CurrentAccount::findOrFail($id);
-        
+
         if ($account->current_balance != 0) {
             throw new Exception('No se puede eliminar una cuenta corriente con balance diferente a cero');
         }
-        
+
         return $account->delete();
     }
 
@@ -240,14 +240,13 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     {
         return DB::transaction(function () use ($id, $reason) {
             $account = CurrentAccount::findOrFail($id);
-            
-            if ($account->current_balance != 0) {
+
+            if ($account->current_balance > 0) {
                 $balance = (float) $account->current_balance;
-                $balanceFormatted = number_format(abs($balance), 2, ',', '.');
-                $debtOrCredit = $balance < 0 ? 'deuda' : 'saldo a favor';
-                throw new Exception("No se puede cerrar. Hay {$debtOrCredit} de \${$balanceFormatted}. Debe estar en \$0.");
+                $balanceFormatted = number_format($balance, 2, ',', '.');
+                throw new Exception("No se puede cerrar. Hay deuda de \${$balanceFormatted}. Debe estar en \$0.");
             }
-            
+
             $account->close($reason);
             return $account->fresh(['customer.person']);
         });
@@ -263,19 +262,19 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function createMovement(array $data): CurrentAccountMovement
     {
         $validatedData = $this->validateMovementData($data);
-        
+
         return DB::transaction(function () use ($validatedData) {
             $account = CurrentAccount::findOrFail($validatedData['current_account_id']);
             $movementType = MovementType::findOrFail($validatedData['movement_type_id']);
-            
+
             // Validar operación usando clase especializada
             $validator = new \App\Services\CurrentAccount\AccountOperationValidator();
             $validator->validateOperation(
-                $account, 
-                (float) $validatedData['amount'], 
+                $account,
+                (float) $validatedData['amount'],
                 $movementType->operation_type
             );
-            
+
             // Calcular balance usando clase especializada
             $balanceCalculator = new \App\Services\CurrentAccount\BalanceCalculator();
             $balanceBefore = (float) $account->current_balance;
@@ -284,15 +283,15 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 (float) $validatedData['amount'],
                 $movementType
             );
-            
+
             // Solo hay saldo adeudado (deuda pendiente), no hay crédito a favor
             // El balance nunca debe ser negativo, así que lo ajustamos a 0 si es negativo
             if ($balanceAfter < 0) {
                 $balanceAfter = 0;
             }
-            
+
             $balanceChange = $balanceAfter - $balanceBefore;
-            
+
             $movementData = [
                 'current_account_id' => $validatedData['current_account_id'],
                 'movement_type_id' => $validatedData['movement_type_id'],
@@ -306,16 +305,16 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 'user_id' => auth()->id(),
                 'movement_date' => $validatedData['movement_date'] ?? now(),
             ];
-            
+
             $movement = CurrentAccountMovement::create($movementData);
-            
+
             // Los movimientos manuales (Ajuste en contra, Interés aplicado) actualizan el balance
             $account->updateBalance($balanceChange);
-            
+
             return $movement->load(['movementType', 'user.person']);
         });
     }
-    
+
     /**
      * Crear movimiento de caja para depósito a cuenta
      */
@@ -323,39 +322,39 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     {
         $cashRegisterId = $data['cash_register_id'] ?? null;
         $paymentMethodId = $data['payment_method_id'] ?? null;
-        
+
         // Si no hay cash_register_id o payment_method_id, no crear movimiento de caja
         // (pero el movimiento de cuenta corriente ya se creó)
         if (!$cashRegisterId || !$paymentMethodId) {
             return;
         }
-        
+
         // Verificar que la caja existe y está abierta
         $cashRegister = \App\Models\CashRegister::find($cashRegisterId);
         if (!$cashRegister || $cashRegister->status !== 'open') {
             return;
         }
-        
+
         // Buscar tipo de movimiento de caja para "Pago de cuenta corriente"
         $cashMovementType = MovementType::where('name', 'Pago de cuenta corriente')
             ->where('operation_type', 'entrada')
             ->where('is_cash_movement', true)
             ->first();
-        
+
         // Si no existe, usar el primero disponible de entrada
         if (!$cashMovementType) {
             $cashMovementType = MovementType::where('operation_type', 'entrada')
                 ->where('is_cash_movement', true)
                 ->first();
         }
-        
+
         if (!$cashMovementType) {
             Log::error('No se encontró tipo de movimiento de caja para depósito', [
                 'movement_id' => $movement->id
             ]);
             return;
         }
-        
+
         // Crear movimiento de caja
         \App\Models\CashMovement::create([
             'cash_register_id' => $cashRegisterId,
@@ -380,36 +379,36 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'sale'
         ])
             ->where('current_account_id', $accountId);
-        
+
         // Aplicar filtros
         if ($request->has('from_date')) {
             $query->whereDate('movement_date', '>=', $request->input('from_date'));
         }
-        
+
         if ($request->has('to_date')) {
             $query->whereDate('movement_date', '<=', $request->input('to_date'));
         }
-        
+
         if ($request->has('movement_type_id')) {
             $query->where('movement_type_id', $request->input('movement_type_id'));
         }
-        
+
         if ($request->has('operation_type')) {
-            $query->whereHas('movementType', function($q) use ($request) {
+            $query->whereHas('movementType', function ($q) use ($request) {
                 $q->where('operation_type', $request->input('operation_type'));
             });
         }
-        
+
         if ($request->has('search')) {
             $search = $request->input('search');
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('description', 'like', "%{$search}%")
-                  ->orWhere('reference', 'like', "%{$search}%");
+                    ->orWhere('reference', 'like', "%{$search}%");
             });
         }
-        
+
         $perPage = $request->input('per_page', 15);
-        
+
         return $query->orderBy('movement_date', 'desc')->paginate($perPage);
     }
 
@@ -429,23 +428,23 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     {
         return DB::transaction(function () use ($accountId, $paymentData) {
             $account = CurrentAccount::with('customer')->findOrFail($accountId);
-            
+
             if (!$account->isActive()) {
                 $statusText = $account->status === 'suspended' ? 'suspendida' : 'cerrada';
                 throw new Exception("Cuenta corriente {$statusText}. No se puede operar.");
             }
-            
+
             $salePayments = $paymentData['sale_payments'] ?? [];
             $paymentMethodId = $paymentData['payment_method_id'] ?? null;
             $selectedBranchId = $paymentData['branch_id'] ?? null; // Sucursal seleccionada por el usuario
-            
+
             $totalAmount = 0;
             $processedSales = [];
-            
+
             if (!$paymentMethodId) {
                 throw new Exception('Debe especificar un método de pago');
             }
-            
+
             // Validar que se haya seleccionado una sucursal si hay múltiples sucursales disponibles
             if (!$selectedBranchId) {
                 // Si no se especificó sucursal, intentar usar la del usuario o buscar una caja abierta
@@ -461,39 +460,39 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 } else {
                     $selectedBranchId = $userBranchId;
                 }
-                
+
                 if (!$selectedBranchId) {
                     throw new Exception('Debe especificar una sucursal para procesar el pago');
                 }
             }
-            
+
             // Obtener tipo de movimiento para cuenta corriente (una sola vez)
             $movementType = MovementType::where('operation_type', 'entrada')
                 ->where('is_current_account_movement', true)
                 ->first();
-            
+
             if (!$movementType) {
                 throw new Exception('No se encontró un tipo de movimiento válido para pagos');
             }
-            
+
             // Procesar cada venta
             $salesList = [];
             foreach ($salePayments as $salePayment) {
                 $sale = \App\Models\SaleHeader::with('branch')->findOrFail($salePayment['sale_id']);
-                $paymentAmount = (float)$salePayment['amount'];
-                
+                $paymentAmount = (float) $salePayment['amount'];
+
                 // Validar que no exceda el monto pendiente
                 if ($paymentAmount > $sale->pending_amount) {
                     throw new Exception("El pago de \${$paymentAmount} excede el monto pendiente de \${$sale->pending_amount} para la venta #{$sale->receipt_number}");
                 }
-                
+
                 if ($paymentAmount <= 0) {
                     throw new Exception("El monto debe ser mayor a 0 para la venta #{$sale->receipt_number}");
                 }
-                
+
                 // Registrar pago en la venta
                 $sale->recordPayment($paymentAmount);
-                
+
                 // Crear movimiento en cuenta corriente
                 $this->createMovement([
                     'current_account_id' => $accountId,
@@ -504,7 +503,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                     'sale_id' => $sale->id,
                     'user_id' => auth()->id(),
                 ]);
-                
+
                 $totalAmount += $paymentAmount;
                 $salesList[] = $sale->receipt_number;
                 $processedSales[] = [
@@ -515,48 +514,48 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                     'branch_id' => $selectedBranchId // Usar la sucursal seleccionada
                 ];
             }
-            
+
             // Registrar en caja en la sucursal seleccionada si hay método de pago
             if ($paymentMethodId && $totalAmount > 0) {
                 // Obtener el método de pago para usar su nombre
                 $paymentMethod = \App\Models\PaymentMethod::find($paymentMethodId);
                 $paymentMethodName = $paymentMethod ? $paymentMethod->name : 'Desconocido';
-                
+
                 // Buscar tipo de movimiento genérico de entrada para caja (no el de "efectivo")
                 $cashMovementType = MovementType::where('operation_type', 'entrada')
                     ->where('is_cash_movement', true)
                     ->where('name', 'Pago de cuenta corriente')
                     ->first();
-                
+
                 // Si no existe, usar el primero disponible
                 if (!$cashMovementType) {
                     $cashMovementType = MovementType::where('operation_type', 'entrada')
                         ->where('is_cash_movement', true)
                         ->first();
                 }
-                
+
                 if (!$cashMovementType) {
                     Log::error('No se encontró tipo de movimiento de caja');
                     throw new Exception('No se encontró un tipo de movimiento válido para registrar en caja');
                 }
-                
+
                 // Cargar sucursal para mensajes de error
                 $branch = \App\Models\Branch::find($selectedBranchId);
                 $branchName = $branch ? $branch->description : "ID {$selectedBranchId}";
-                
+
                 // Buscar caja abierta en la sucursal seleccionada
                 $cashRegister = \App\Models\CashRegister::where('status', 'open')
                     ->where('branch_id', $selectedBranchId)
                     ->where('user_id', auth()->id())
                     ->first();
-                
+
                 // Si no hay caja del usuario, buscar cualquier caja abierta de la sucursal
                 if (!$cashRegister) {
                     $cashRegister = \App\Models\CashRegister::where('status', 'open')
                         ->where('branch_id', $selectedBranchId)
                         ->first();
                 }
-                
+
                 if (!$cashRegister) {
                     Log::error('No hay caja abierta en la sucursal', [
                         'branch_id' => $selectedBranchId,
@@ -564,11 +563,11 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                     ]);
                     throw new Exception("No hay ninguna caja abierta en la sucursal '{$branchName}' para procesar el pago. Debe abrir una caja primero.");
                 }
-                
+
                 // Construir descripción del movimiento de caja
                 $salesListStr = implode(', ', $salesList);
                 $description = "Ingreso por pago de cuenta corriente en {$paymentMethodName} - Ventas: {$salesListStr}";
-                
+
                 $cashMovement = \App\Models\CashMovement::create([
                     'cash_register_id' => $cashRegister->id,
                     'movement_type_id' => $cashMovementType->id,
@@ -578,10 +577,10 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                     'user_id' => auth()->id(),
                 ]);
             }
-            
+
             // Refrescar la cuenta para obtener el balance actualizado
             $account->refresh();
-            
+
             return [
                 'total_amount' => $totalAmount,
                 'sales_processed' => $processedSales,
@@ -603,28 +602,28 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'reference' => 'nullable|string|max:100',
             'metadata' => 'nullable|array',
         ])->validate();
-        
+
         // Verificar crédito disponible
         if (!$this->checkAvailableCredit($accountId, (float) $validatedData['amount'])) {
             throw new Exception('No hay crédito disponible para realizar esta compra');
         }
-        
+
         // Buscar tipo de movimiento de compra si no se especifica
         if (!isset($validatedData['movement_type_id'])) {
             $purchaseType = MovementType::where('name', 'like', '%compra%')
                 ->where('operation_type', 'salida')
                 ->where('is_current_account_movement', true)
                 ->first();
-            
+
             if (!$purchaseType) {
                 throw new Exception('No se encontró un tipo de movimiento para compras');
             }
-            
+
             $validatedData['movement_type_id'] = $purchaseType->id;
         }
-        
+
         $validatedData['current_account_id'] = $accountId;
-        
+
         return $this->createMovement($validatedData);
     }
 
@@ -644,13 +643,13 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getAccountStatistics(int $accountId): array
     {
         $account = CurrentAccount::findOrFail($accountId);
-        
+
         $from = now()->subDays(30);
         $to = now();
-        
+
         $totalInflows = $account->getTotalInflows($from, $to);
         $totalOutflows = $account->getTotalOutflows($from, $to);
-        
+
         return [
             'account_id' => $accountId,
             'current_balance' => $account->current_balance,
@@ -668,8 +667,8 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     }
 
     /**
-      * Obtener estadísticas generales de cuentas corrientes
-      */
+     * Obtener estadísticas generales de cuentas corrientes
+     */
     public function getGeneralStatistics(): array
     {
         $totalAccounts = CurrentAccount::count();
@@ -677,13 +676,13 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $suspendedAccounts = CurrentAccount::suspended()->count();
         $closedAccounts = CurrentAccount::closed()->count();
         $atLimitAccounts = 0; // Lo calcularemos más adelante basado en ventas reales
-        
+
         // Calcular límites de crédito (NULL = infinito)
         $accountsWithLimit = CurrentAccount::whereNotNull('credit_limit')->get();
         $accountsWithInfiniteLimit = CurrentAccount::whereNull('credit_limit')->count();
 
         $totalCreditLimit = $accountsWithLimit->sum('credit_limit');
-        
+
         // Calcular total pendiente basado en current_balance (incluye TODOS los movimientos)
         // Esto es necesario porque puede haber movimientos manuales (ajustes, notas de crédito/débito)
         // que no son ventas pendientes pero sí afectan el balance
@@ -692,18 +691,17 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $customersWithDebt = 0;
         $clientWithHighestDebt = null;
         $highestDebtAmount = 0;
-        
+
         foreach ($allCustomersWithAccounts as $account) {
             // Usar el balance real de la cuenta corriente (incluye todos los movimientos)
             // IMPORTANTE: En este sistema, balance POSITIVO = el cliente debe dinero (deuda)
-            // Balance negativo = el cliente tiene saldo a favor
-            $currentBalance = (float)($account->current_balance ?? 0);
-            
+            $currentBalance = (float) ($account->current_balance ?? 0);
+
             // Solo contar si hay deuda real (balance positivo = deuda)
             if ($currentBalance > 0) {
                 $customersWithDebt++;
                 $totalPendingDebt += $currentBalance;
-                
+
                 // Verificar si es el cliente con mayor deuda
                 if ($currentBalance > $highestDebtAmount) {
                     $highestDebtAmount = $currentBalance;
@@ -727,9 +725,9 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 ->get()
                 ->sum(function ($account) {
                     // Usar current_balance real (positivo = deuda, negativo = saldo a favor)
-                    $currentBalance = (float)($account->current_balance ?? 0);
+                    $currentBalance = (float) ($account->current_balance ?? 0);
                     $debt = $currentBalance > 0 ? $currentBalance : 0; // Solo deuda si es positivo
-                    
+    
                     return max(0, $account->credit_limit - $debt);
                 });
         }
@@ -804,11 +802,11 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getMovementsSummary(int $accountId, Carbon $from, Carbon $to): array
     {
         $account = CurrentAccount::findOrFail($accountId);
-        
+
         $totalInflows = $account->getTotalInflows($from, $to);
         $totalOutflows = $account->getTotalOutflows($from, $to);
         $movementsCount = $account->movementsByDateRange($from, $to)->count();
-        
+
         return [
             'account_id' => $accountId,
             'period_from' => $from->format('Y-m-d'),
@@ -831,9 +829,9 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             Carbon::parse($request->input('from_date', now()->subDays(30))),
             Carbon::parse($request->input('to_date', now()))
         );
-        
+
         $csv = "Fecha,Movimiento,Tipo,Monto,Balance Antes,Balance Después,Descripción,Referencia,Usuario\n";
-        
+
         foreach ($movements as $movement) {
             $csv .= sprintf(
                 "%s,%s,%s,%.2f,%.2f,%.2f,%s,%s,%s\n",
@@ -848,7 +846,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 $movement->user_name
             );
         }
-        
+
         return $csv;
     }
 
@@ -869,17 +867,17 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     {
         return DB::transaction(function () use ($accountId, $newLimit, $reason) {
             $account = CurrentAccount::findOrFail($accountId);
-            
+
             $oldLimit = $account->credit_limit;
             $account->credit_limit = $newLimit;
-            
+
             if ($reason) {
-                $account->notes = ($account->notes ? $account->notes . "\n" : '') . 
+                $account->notes = ($account->notes ? $account->notes . "\n" : '') .
                     "Límite cambiado de {$oldLimit} a {$newLimit}: " . $reason;
             }
-            
+
             $account->save();
-            
+
             return $account->fresh(['customer.person']);
         });
     }
@@ -905,11 +903,11 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'credit_limit' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
         ];
-        
+
         if ($id) {
             $rules['customer_id'] = 'sometimes|integer|exists:customers,id';
         }
-        
+
         return Validator::make($data, $rules)->validate();
     }
 
@@ -930,7 +928,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'cash_register_id' => 'nullable|integer|exists:cash_registers,id',
             'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
         ];
-        
+
         return Validator::make($data, $rules)->validate();
     }
 
@@ -940,7 +938,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getAccountsNearCreditLimit(float $percentage = 80): Collection
     {
         $threshold = $percentage / 100;
-        
+
         return CurrentAccount::with(['customer.person'])
             ->whereRaw("(current_balance / credit_limit) >= ?", [$threshold])
             ->where('status', 'active')
@@ -954,12 +952,12 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getInactiveAccounts(int $days = 90): Collection
     {
         $cutoffDate = now()->subDays($days);
-        
+
         return CurrentAccount::with(['customer.person'])
             ->where('status', 'active')
-            ->where(function($query) use ($cutoffDate) {
+            ->where(function ($query) use ($cutoffDate) {
                 $query->whereNull('last_movement_at')
-                      ->orWhere('last_movement_at', '<', $cutoffDate);
+                    ->orWhere('last_movement_at', '<', $cutoffDate);
             })
             ->orderBy('last_movement_at', 'asc')
             ->get();
@@ -971,27 +969,27 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function generateAccountsReport(array $filters = []): array
     {
         $query = CurrentAccount::with(['customer.person']);
-        
+
         if (isset($filters['status'])) {
             $query->where('status', $filters['status']);
         }
-        
+
         if (isset($filters['from_date'])) {
             $query->where('created_at', '>=', $filters['from_date']);
         }
-        
+
         if (isset($filters['to_date'])) {
             $query->where('created_at', '<=', $filters['to_date']);
         }
-        
+
         $accounts = $query->get();
-        
+
         return [
             'total_accounts' => $accounts->count(),
             'total_credit_limit' => $accounts->sum('credit_limit'),
             'total_current_balance' => $accounts->sum('current_balance'),
             'accounts_by_status' => $accounts->groupBy('status')->map->count(),
-            'accounts_data' => $accounts->map(function($account) {
+            'accounts_data' => $accounts->map(function ($account) {
                 return [
                     'id' => $account->id,
                     'customer_name' => $account->customer->full_name,

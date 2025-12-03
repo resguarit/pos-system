@@ -18,20 +18,8 @@ class CurrentAccountMovementTypeSeeder extends Seeder
             // ============================================
             // TIPOS DE MOVIMIENTOS MANUALES DE CRÉDITO (ENTRADA)
             // ============================================
-            
-            // 1. AJUSTE A FAVOR: Bonificación/descuento del negocio
-            //    - NO genera movimiento en caja (no es dinero real)
-            //    - Acumula crédito utilizable (se consume al usarlo)
-            //    - Ejemplo: "Te damos $5,000 de descuento"
-            [
-                'name' => 'Ajuste a favor',
-                'description' => 'Bonificación o descuento que acumula crédito utilizable',
-                'operation_type' => 'entrada',
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
-            
-            // 2. DEPÓSITO A CUENTA: Dinero real que el cliente paga
+
+            // 1. DEPÓSITO A CUENTA: Dinero real que el cliente paga
             //    - SÍ genera movimiento en caja (dinero real)
             //    - Acumula crédito utilizable
             //    - Ejemplo: Cliente paga $10,000 por adelantado
@@ -42,11 +30,11 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'is_current_account_movement' => true,
                 'active' => true,
             ],
-            
+
             // ============================================
             // TIPOS DE MOVIMIENTOS MANUALES DE DÉBITO (SALIDA)
             // ============================================
-            
+
             // 3. AJUSTE EN CONTRA: Corrección contable que aumenta la deuda
             //    - NO genera movimiento en caja
             //    - Aumenta el balance (deuda del cliente)
@@ -58,7 +46,7 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'is_current_account_movement' => true,
                 'active' => true,
             ],
-            
+
             // 4. INTERÉS APLICADO: Interés por mora o financiación
             //    - NO genera movimiento en caja
             //    - Aumenta el balance (deuda del cliente)
@@ -70,11 +58,11 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'is_current_account_movement' => true,
                 'active' => true,
             ],
-            
+
             // ============================================
             // TIPOS DE MOVIMIENTOS AUTOMÁTICOS (NO EDITABLES POR USUARIO)
             // ============================================
-            
+
             // Movimientos generados por el sistema
             [
                 'name' => 'Venta',
@@ -90,13 +78,6 @@ class CurrentAccountMovementTypeSeeder extends Seeder
                 'is_current_account_movement' => true,
                 'active' => true,
             ],
-            [
-                'name' => 'Uso de crédito a favor',
-                'description' => 'Uso de crédito acumulado para pagar una venta',
-                'operation_type' => 'entrada',
-                'is_current_account_movement' => true,
-                'active' => true,
-            ],
         ];
 
         foreach ($movementTypes as $type) {
@@ -107,7 +88,7 @@ class CurrentAccountMovementTypeSeeder extends Seeder
         }
 
         if ($this->command) {
-        $this->command->info('Tipos de movimiento de cuenta corriente creados/actualizados exitosamente.');
+            $this->command->info('Tipos de movimiento de cuenta corriente creados/actualizados exitosamente.');
         }
     }
 }

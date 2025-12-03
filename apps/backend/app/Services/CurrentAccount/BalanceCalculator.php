@@ -17,7 +17,6 @@ class BalanceCalculator
      * Calcula el cambio en el balance según el tipo de operación
      * 
      * Balance positivo = cliente debe dinero (deuda)
-     * Balance negativo = cliente tiene crédito a favor
      * 
      * @param float $amount Monto del movimiento
      * @param string $operationType Tipo de operación ('entrada' o 'salida')
@@ -29,7 +28,7 @@ class BalanceCalculator
             // Salida (venta, compra): aumenta la deuda → balance aumenta (positivo)
             return $amount;
         }
-        
+
         // Entrada (pago): reduce la deuda → balance disminuye (negativo)
         return -$amount;
     }
@@ -57,8 +56,8 @@ class BalanceCalculator
      * @return float Nuevo balance
      */
     public function calculateNewBalanceFromMovementType(
-        float $currentBalance, 
-        float $amount, 
+        float $currentBalance,
+        float $amount,
         MovementType $movementType
     ): float {
         return $this->calculateNewBalance($currentBalance, $amount, $movementType->operation_type);
