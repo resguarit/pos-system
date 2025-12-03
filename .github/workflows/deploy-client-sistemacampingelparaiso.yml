@@ -1,0 +1,199 @@
+name: 🚀 Deploy - Sistema Camping El Paraiso
+
+on:
+  push:
+    branches: [ master ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+  workflow_dispatch:
+    inputs:
+      deploy_frontend:
+        description: 'Deploy Frontend'
+        required: false
+        default: true
+        type: boolean
+      deploy_backend:
+        description: 'Deploy Backend'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  deploy_backend:
+    name: Deploy Backend - Sistema Camping El Paraiso
+    runs-on: ubuntu-latest
+    environment: sistemacampingelparaiso
+    if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
+    
+    steps:
+    - name: Deploy Backend to VPS
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        script: |
+          cd ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
+          echo "🚀 Deploying backend to Sistema Camping El Paraiso..."
+          git fetch origin
+          git reset --hard origin/master
+          cd apps/backend
+          
+          # Detectar usuario del servidor web
+          WEB_USER="www-data"
+          if id nginx >/dev/null 2>&1; then
+            WEB_USER="nginx"
+          elif id apache >/dev/null 2>&1; then
+            WEB_USER="apache"
+          fi
+          
+          # Asegurar permisos de storage y cache antes de cualquier operación
+          mkdir -p storage/framework/views
+          mkdir -p storage/framework/cache/data
+          mkdir -p storage/framework/sessions
+          mkdir -p storage/logs
+          mkdir -p bootstrap/cache
+          
+          # Configurar permisos
+          chmod -R 775 storage bootstrap/cache 2>/dev/null || sudo chmod -R 775 storage bootstrap/cache || true
+          chmod -R 777 storage/framework/views 2>/dev/null || sudo chmod -R 777 storage/framework/views || true
+          chmod -R 777 storage/framework/cache/data 2>/dev/null || sudo chmod -R 777 storage/framework/cache/data || true
+          chown -R $WEB_USER:$WEB_USER storage bootstrap/cache 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || true
+          
+          composer install --no-dev --optimize-autoloader
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+          php artisan migrate --force
+          echo "✅ Backend deployment completed"
+          
+    - name: Notify backend deployment
+      if: always()
+      run: |
+        echo "✅ Backend deployment completed for Sistema Camping El Paraiso"
+
+  deploy_frontend:
+    name: Deploy Frontend - Sistema Camping El Paraiso
+    runs-on: ubuntu-latest
+    environment: sistemacampingelparaiso
+    if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: |
+        cd apps/frontend
+        rm -rf node_modules package-lock.json
+        npm install --force
+        npm install @rollup/rollup-linux-x64-gnu --save-optional || true
+        npm install @swc/core-linux-x64-gnu --save-optional || true
+        npm install lightningcss-linux-x64-gnu --save-optional || true
+        npm install @tailwindcss/oxide-linux-x64-gnu --save-optional || true
+        
+    - name: Build frontend
+      run: |
+        cd apps/frontend
+        npm run build
+      env:
+        VITE_API_URL: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_API_URL || secrets.VITE_API_URL }}
+        
+    - name: Deploy Frontend to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        source: "apps/frontend/dist/*"
+        target: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
+        strip_components: 2
+        rm: true
+        
+    - name: Verify and fix frontend deployment
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_PORT || secrets.VPS_PORT }}
+        username: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_USERNAME || secrets.VPS_USERNAME }}
+        key: ${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        script: |
+          DEPLOY_PATH="${{ secrets.CLIENT_SISTEMACAMPINGELPARAISO_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
+          echo "🔍 Verificando deployment en: $DEPLOY_PATH"
+          
+          # Si los archivos están en dist/, moverlos a la raíz
+          if [ -d "$DEPLOY_PATH/dist" ] && [ -f "$DEPLOY_PATH/dist/index.html" ]; then
+            echo "⚠️  Archivos encontrados en subdirectorio dist/, moviendo a raíz..."
+            # Mover archivos y directorios desde dist/ a la raíz
+            shopt -s dotglob
+            mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" 2>/dev/null || sudo mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" || true
+            shopt -u dotglob
+            # Eliminar directorio dist/ vacío
+            rmdir "$DEPLOY_PATH/dist" 2>/dev/null || sudo rmdir "$DEPLOY_PATH/dist" || true
+            echo "✅ Archivos movidos a la raíz"
+          fi
+          
+          # Verificar que index.html existe
+          if [ ! -f "$DEPLOY_PATH/index.html" ]; then
+            echo "❌ ERROR: index.html no encontrado!"
+            echo "📋 Contenido del directorio:"
+            ls -la "$DEPLOY_PATH" || true
+            exit 1
+          fi
+          
+          # Asegurar permisos correctos
+          WEB_USER="www-data"
+          if id nginx >/dev/null 2>&1; then
+            WEB_USER="nginx"
+          elif id apache >/dev/null 2>&1; then
+            WEB_USER="apache"
+          fi
+          
+          # Detectar usuario de CyberPanel si existe
+          if [ -d "/home" ]; then
+            SITE_DIR=$(dirname "$DEPLOY_PATH" 2>/dev/null || echo "")
+            if [ -n "$SITE_DIR" ]; then
+              SITE_USER=$(stat -c '%U' "$SITE_DIR" 2>/dev/null || echo "")
+              if [ -n "$SITE_USER" ] && [ "$SITE_USER" != "root" ]; then
+                WEB_USER="$SITE_USER"
+                echo "✅ Usuario detectado: $WEB_USER"
+              fi
+            fi
+          fi
+          
+          chmod -R 755 "$DEPLOY_PATH" 2>/dev/null || sudo chmod -R 755 "$DEPLOY_PATH" || true
+          find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; 2>/dev/null || sudo find "$DEPLOY_PATH" -type f -exec chmod 644 {} \; || true
+          chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER "$DEPLOY_PATH" || true
+          
+          echo "✅ Verificación completada. Archivos en:"
+          ls -lah "$DEPLOY_PATH" | head -10
+          echo "✅ index.html existe: $([ -f "$DEPLOY_PATH/index.html" ] && echo 'SÍ' || echo 'NO')"
+        
+    - name: Notify frontend deployment
+      if: always()
+      run: |
+        echo "✅ Frontend deployment completed for Sistema Camping El Paraiso"
+
+  notify:
+    name: Deployment Summary - Sistema Camping El Paraiso
+    needs: [deploy_frontend, deploy_backend]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Deployment Summary
+      run: |
+        echo "=========================================="
+        echo "🚀 Sistema Camping El Paraiso - Deployment Summary"
+        echo "=========================================="
+        echo "Frontend: ${{ needs.deploy_frontend.result }}"
+        echo "Backend:  ${{ needs.deploy_backend.result }}"
+        echo "=========================================="
