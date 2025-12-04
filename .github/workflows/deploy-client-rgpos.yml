@@ -27,15 +27,24 @@ jobs:
     if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
+    - name: Setup Environment
+      id: env-setup
+      run: |
+        # Sanitize variables to remove trailing newlines
+        echo "backend_path=$(echo "${{ secrets.CLIENT_RGPOS_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}" | xargs)" >> $GITHUB_OUTPUT
+        echo "vps_host=$(echo "${{ secrets.CLIENT_RGPOS_VPS_HOST || secrets.VPS_HOST }}" | xargs)" >> $GITHUB_OUTPUT
+        echo "vps_port=$(echo "${{ secrets.CLIENT_RGPOS_VPS_PORT || secrets.VPS_PORT }}" | xargs)" >> $GITHUB_OUTPUT
+        echo "vps_user=$(echo "${{ secrets.CLIENT_RGPOS_VPS_USERNAME || secrets.VPS_USERNAME }}" | xargs)" >> $GITHUB_OUTPUT
+
     - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.CLIENT_RGPOS_VPS_HOST || secrets.VPS_HOST }}
-        port: ${{ secrets.CLIENT_RGPOS_VPS_PORT || secrets.VPS_PORT }}
-        username: ${{ secrets.CLIENT_RGPOS_VPS_USERNAME || secrets.VPS_USERNAME }}
+        host: ${{ steps.env-setup.outputs.vps_host }}
+        port: ${{ steps.env-setup.outputs.vps_port }}
+        username: ${{ steps.env-setup.outputs.vps_user }}
         key: ${{ secrets.CLIENT_RGPOS_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         script: |
-          cd ${{ secrets.CLIENT_RGPOS_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
+          cd ${{ steps.env-setup.outputs.backend_path }}
           echo "🚀 Deploying backend to RG POS..."
           git fetch origin
           git reset --hard origin/master
@@ -81,6 +90,16 @@ jobs:
     if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     
     steps:
+    - name: Setup Environment
+      id: env-setup
+      run: |
+        # Sanitize variables to remove trailing newlines
+        echo "frontend_path=$(echo "${{ secrets.CLIENT_RGPOS_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}" | xargs)" >> $GITHUB_OUTPUT
+        echo "vps_host=$(echo "${{ secrets.CLIENT_RGPOS_VPS_HOST || secrets.VPS_HOST }}" | xargs)" >> $GITHUB_OUTPUT
+        echo "vps_port=$(echo "${{ secrets.CLIENT_RGPOS_VPS_PORT || secrets.VPS_PORT }}" | xargs)" >> $GITHUB_OUTPUT
+        echo "vps_user=$(echo "${{ secrets.CLIENT_RGPOS_VPS_USERNAME || secrets.VPS_USERNAME }}" | xargs)" >> $GITHUB_OUTPUT
+        echo "api_url=$(echo "${{ secrets.CLIENT_RGPOS_API_URL || secrets.VITE_API_URL }}" | xargs)" >> $GITHUB_OUTPUT
+
     - name: Checkout code
       uses: actions/checkout@v4
       
@@ -104,29 +123,29 @@ jobs:
         cd apps/frontend
         npm run build
       env:
-        VITE_API_URL: ${{ secrets.CLIENT_RGPOS_API_URL || secrets.VITE_API_URL }}
+        VITE_API_URL: ${{ steps.env-setup.outputs.api_url }}
         
     - name: Deploy Frontend to VPS
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.CLIENT_RGPOS_VPS_HOST || secrets.VPS_HOST }}
-        port: ${{ secrets.CLIENT_RGPOS_VPS_PORT || secrets.VPS_PORT }}
-        username: ${{ secrets.CLIENT_RGPOS_VPS_USERNAME || secrets.VPS_USERNAME }}
+        host: ${{ steps.env-setup.outputs.vps_host }}
+        port: ${{ steps.env-setup.outputs.vps_port }}
+        username: ${{ steps.env-setup.outputs.vps_user }}
         key: ${{ secrets.CLIENT_RGPOS_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
-        target: ${{ secrets.CLIENT_RGPOS_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
+        target: ${{ steps.env-setup.outputs.frontend_path }}
         strip_components: 2
         rm: false
         
     - name: Verify and fix frontend deployment
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.CLIENT_RGPOS_VPS_HOST || secrets.VPS_HOST }}
-        port: ${{ secrets.CLIENT_RGPOS_VPS_PORT || secrets.VPS_PORT }}
-        username: ${{ secrets.CLIENT_RGPOS_VPS_USERNAME || secrets.VPS_USERNAME }}
+        host: ${{ steps.env-setup.outputs.vps_host }}
+        port: ${{ steps.env-setup.outputs.vps_port }}
+        username: ${{ steps.env-setup.outputs.vps_user }}
         key: ${{ secrets.CLIENT_RGPOS_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         script: |
-          DEPLOY_PATH="${{ secrets.CLIENT_RGPOS_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
+          DEPLOY_PATH="${{ steps.env-setup.outputs.frontend_path }}"
           echo "🔍 Verificando deployment en: $DEPLOY_PATH"
           
           # Si los archivos están en dist/, moverlos a la raíz
