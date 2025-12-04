@@ -116,7 +116,7 @@ jobs:
         source: "apps/frontend/dist/*"
         target: ${{ secrets.CLIENT_KIOSCOEL11_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
         strip_components: 2
-        rm: true
+        rm: false
         
     - name: Verify and fix frontend deployment
       uses: appleboy/ssh-action@v1.0.3
