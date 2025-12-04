@@ -27,18 +27,18 @@ class UserService implements UserServiceInterface // Implement the interface
     {
         // Eager load person, role y branches, y obtener el último acceso desde personal_access_tokens
         $users = User::with(['person', 'role', 'branches'])
-            ->get()
-            ->map(function ($user) {
-                // Buscar el último last_used_at de los tokens del usuario
-                $lastToken = DB::table('personal_access_tokens')
-                    ->where('tokenable_id', $user->id)
-                    ->where('tokenable_type', User::class)
-                    ->orderByDesc('last_used_at')
-                    ->orderByDesc('created_at')
-                    ->first();
-                $user->last_login_at = $lastToken?->last_used_at ?? $lastToken?->created_at;
-                return $user;
-            });
+            ->get();
+        // ->map(function ($user) {
+        //     // Buscar el último last_used_at de los tokens del usuario
+        //     $lastToken = DB::table('personal_access_tokens')
+        //         ->where('tokenable_id', $user->id)
+        //         ->where('tokenable_type', User::class)
+        //         ->orderByDesc('last_used_at')
+        //         ->orderByDesc('created_at')
+        //         ->first();
+        //     $user->last_login_at = $lastToken?->last_used_at ?? $lastToken?->created_at;
+        //     return $user;
+        // });
         return $users;
     }
 
@@ -162,10 +162,14 @@ class UserService implements UserServiceInterface // Implement the interface
 
             // 2. Update User specific data
             $userUpdateData = [];
-            if (isset($data['email'])) $userUpdateData['email'] = $data['email'];
-            if (isset($data['username'])) $userUpdateData['username'] = $data['username'];
-            if (isset($data['role_id'])) $userUpdateData['role_id'] = $data['role_id'];
-            if (isset($data['active'])) $userUpdateData['active'] = $data['active']; // Handle boolean
+            if (isset($data['email']))
+                $userUpdateData['email'] = $data['email'];
+            if (isset($data['username']))
+                $userUpdateData['username'] = $data['username'];
+            if (isset($data['role_id']))
+                $userUpdateData['role_id'] = $data['role_id'];
+            if (isset($data['active']))
+                $userUpdateData['active'] = $data['active']; // Handle boolean
 
             // Handle password update separately
             if (!empty($data['password'])) {
@@ -192,8 +196,8 @@ class UserService implements UserServiceInterface // Implement the interface
      */
     public function deleteUser(int $id): bool
     {
-         DB::beginTransaction();
-         try {
+        DB::beginTransaction();
+        try {
             $user = $this->getUserById($id);
             if (!$user) {
                 // Or throw Exception("User not found to delete");
@@ -214,11 +218,11 @@ class UserService implements UserServiceInterface // Implement the interface
 
             DB::commit();
             return $deleted;
-         } catch (Exception $e) {
-             DB::rollBack();
-             Log::error("Error deleting user ID {$id}: " . $e->getMessage());
-             throw new Exception("Failed to delete user. " . $e->getMessage());
-         }
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error("Error deleting user ID {$id}: " . $e->getMessage());
+            throw new Exception("Failed to delete user. " . $e->getMessage());
+        }
     }
 
     /**
@@ -257,7 +261,7 @@ class UserService implements UserServiceInterface // Implement the interface
     {
         return User::whereHas('person', function ($query) use ($firstName, $lastName) {
             $query->where('first_name', $firstName)
-                  ->where('last_name', $lastName);
+                ->where('last_name', $lastName);
         })->exists();
     }
 }

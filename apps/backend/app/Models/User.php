@@ -30,6 +30,7 @@ class User extends Authenticatable
         'active',
         'role_id',
         'hidden',
+        'last_login_at',
     ];
 
     /**
@@ -53,6 +54,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'active' => 'boolean',
+            'last_login_at' => 'datetime',
         ];
     }
 
@@ -125,8 +127,16 @@ class User extends Authenticatable
     {
         // Extract person data
         $personData = [];
-        foreach (['first_name', 'last_name', 'address', 'phone', 'cuit', 
-                 'fiscal_condition_id', 'person_type_id', 'credit_limit'] as $field) {
+        foreach ([
+            'first_name',
+            'last_name',
+            'address',
+            'phone',
+            'cuit',
+            'fiscal_condition_id',
+            'person_type_id',
+            'credit_limit'
+        ] as $field) {
             if (isset($data[$field])) {
                 $personData[$field] = $data[$field];
             }

@@ -38,6 +38,10 @@ class AuthController extends Controller
             }
 
             $user->load(['branches', 'role.permissions', 'person']);
+
+            // Actualizar last_login_at
+            $user->update(['last_login_at' => now()]);
+
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
