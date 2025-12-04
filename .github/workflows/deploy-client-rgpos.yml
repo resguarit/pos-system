@@ -23,7 +23,7 @@ jobs:
   deploy_backend:
     name: Deploy Backend - RG POS
     runs-on: ubuntu-latest
-    environment: rgpos
+    environment: rgposdemo
     if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
@@ -77,7 +77,7 @@ jobs:
   deploy_frontend:
     name: Deploy Frontend - RG POS
     runs-on: ubuntu-latest
-    environment: rgpos
+    environment: rgposdemo
     if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     
     steps:
