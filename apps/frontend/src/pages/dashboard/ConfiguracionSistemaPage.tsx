@@ -89,6 +89,8 @@ export default function ConfiguracionSistemaPage() {
     formData.append('file', file)
     formData.append('type', 'logo')
 
+    const uploadToast = toast.loading("Subiendo logo...")
+
     try {
       const response = await api.post('/settings/upload-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -99,9 +101,12 @@ export default function ConfiguracionSistemaPage() {
       // Refresh system config to apply logo immediately
       await refreshConfig()
 
-      toast.success("Logo actualizado correctamente")
+      toast.success("Logo actualizado correctamente", { id: uploadToast })
+
+      // Reload configuration to show the new logo
+      await loadConfiguration()
     } catch (error) {
-      toast.error("Error al subir el logo")
+      toast.error("Error al subir el logo", { id: uploadToast })
       console.error(error)
     }
   }
