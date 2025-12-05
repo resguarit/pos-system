@@ -90,6 +90,10 @@ jobs:
           mkdir -p storage/framework/sessions
           mkdir -p storage/logs
           mkdir -p bootstrap/cache
+          mkdir -p storage/app/public/system/logos
+          mkdir -p storage/app/public/system/favicons
+          mkdir -p public/images
+
           
           # CRÍTICO: Configurar ownership PRIMERO (antes de permisos)
           # Esto es necesario porque git reset puede haber cambiado el ownership

@@ -49,18 +49,31 @@ jobs:
             WEB_USER="apache"
           fi
           
+          # Detectar usuario del sitio (para CyberPanel/cPanel)
+          SITE_DIR=$(dirname "${{ secrets.CLIENT_HELADITOS_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}")
+          SITE_USER=$(stat -c '%U' "$SITE_DIR" 2>/dev/null || echo "")
+          if [ -n "$SITE_USER" ] && [ "$SITE_USER" != "root" ]; then
+            WEB_USER="$SITE_USER"
+            echo "✅ Usuario del sitio detectado: $WEB_USER"
+          fi
+          
           # Asegurar permisos de storage y cache antes de cualquier operación
           mkdir -p storage/framework/views
           mkdir -p storage/framework/cache/data
           mkdir -p storage/framework/sessions
           mkdir -p storage/logs
           mkdir -p bootstrap/cache
+          mkdir -p storage/app/public/system/logos
+          mkdir -p storage/app/public/system/favicons
+          mkdir -p public/images
           
           # Configurar permisos
           chmod -R 775 storage bootstrap/cache 2>/dev/null || sudo chmod -R 775 storage bootstrap/cache || true
           chmod -R 777 storage/framework/views 2>/dev/null || sudo chmod -R 777 storage/framework/views || true
           chmod -R 777 storage/framework/cache/data 2>/dev/null || sudo chmod -R 777 storage/framework/cache/data || true
-          chown -R $WEB_USER:$WEB_USER storage bootstrap/cache 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache || true
+          chmod -R 775 storage/app/public 2>/dev/null || sudo chmod -R 775 storage/app/public || true
+          chmod -R 755 public/images 2>/dev/null || sudo chmod -R 755 public/images || true
+          chown -R $WEB_USER:$WEB_USER storage bootstrap/cache public/images 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache public/images || true
           
           composer install --no-dev --optimize-autoloader
           php artisan config:cache
@@ -68,6 +81,7 @@ jobs:
           php artisan view:cache
           php artisan migrate --force
           echo "✅ Backend deployment completed"
+
           
     - name: Notify backend deployment
       if: always()
