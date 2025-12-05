@@ -124,6 +124,7 @@ jobs:
         npm run build
       env:
         VITE_API_URL: ${{ steps.env-setup.outputs.api_url }}
+        VITE_FEATURES: ${{ secrets.CLIENT_RGPOS_FEATURES_JSON }}
         
     - name: Deploy Frontend to VPS
       uses: appleboy/scp-action@v0.1.7

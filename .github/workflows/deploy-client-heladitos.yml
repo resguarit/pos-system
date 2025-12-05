@@ -105,6 +105,7 @@ jobs:
         npm run build
       env:
         VITE_API_URL: ${{ secrets.CLIENT_HELADITOS_API_URL || secrets.VITE_API_URL }}
+        VITE_FEATURES: ${{ secrets.CLIENT_HELADITOS_FEATURES_JSON }}
         
     - name: Deploy Frontend to VPS
       uses: appleboy/scp-action@v0.1.7

@@ -225,6 +225,7 @@ jobs:
         npm run build
       env:
         VITE_API_URL: ${{ secrets.CLIENT_HEROE_API_URL || secrets.VITE_API_URL }}
+        VITE_FEATURES: ${{ secrets.CLIENT_HEROE_FEATURES_JSON }}
         
     - name: Clean frontend deployment directory
       uses: appleboy/ssh-action@v1.0.3
