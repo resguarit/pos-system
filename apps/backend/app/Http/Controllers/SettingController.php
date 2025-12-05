@@ -407,7 +407,9 @@ class SettingController extends Controller
             try {
                 Log::error('Error uploading image', [
                     'error' => $e->getMessage(),
-                    'trace' => $e->getTraceAsString()
+                    'trace' => $e->getTraceAsString(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
                 ]);
             } catch (\Exception $logException) {
                 // Silently fail if logging is not available
@@ -416,7 +418,12 @@ class SettingController extends Controller
             // Build error response
             $response = response()->json([
                 'message' => 'Error al subir la imagen',
-                'error' => config('app.debug') ? $e->getMessage() : 'Error interno del servidor'
+                'error' => config('app.debug') ? $e->getMessage() : 'Error interno del servidor',
+                'details' => config('app.debug') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => explode("\n", $e->getTraceAsString())
+                ] : null
             ], 500);
 
             // Add CORS headers manually
