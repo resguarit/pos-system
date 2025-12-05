@@ -30,7 +30,7 @@ export default function PurchaseOrderPage() {
   const { selectedBranchIds, branches } = useBranch();
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("")
-  
+
   // Estados para filtros de sucursales desde Caja
   const [filteredBranchIds, setFilteredBranchIds] = useState<number[]>([])
   const [preselectedBranchId, setPreselectedBranchId] = useState<number | undefined>(undefined)
@@ -90,19 +90,19 @@ export default function PurchaseOrderPage() {
     const branchIds = searchParams.get('branch_ids')
     const preselectedBranch = searchParams.get('preselected_branch_id')
     const disableSelection = searchParams.get('disable_branch_selection')
-    
+
     if (branchIds) {
       const ids = branchIds.split(',').map(id => parseInt(id)).filter(id => !isNaN(id))
       setFilteredBranchIds(ids)
     }
-    
+
     if (preselectedBranch) {
       const branchId = parseInt(preselectedBranch)
       if (!isNaN(branchId)) {
         setPreselectedBranchId(branchId)
       }
     }
-    
+
     if (disableSelection === 'true') {
       setDisableBranchSelection(true)
     }
@@ -152,7 +152,7 @@ export default function PurchaseOrderPage() {
       const params: any = {};
       if (from) params.from = from;
       if (to) params.to = to;
-      
+
       // Si hay sucursales filtradas, aplicar el filtro
       if (filteredBranchIds.length > 0) {
         // Si solo hay una sucursal, filtrar por esa específica
@@ -165,17 +165,17 @@ export default function PurchaseOrderPage() {
           params.branch_id = filteredBranchIds[0];
         }
       }
-      
+
       const orders = await getPurchaseOrders(params);
-      
+
       // Si hay múltiples sucursales filtradas, filtrar en el frontend
       let filteredOrders = orders;
       if (filteredBranchIds.length > 1) {
-        filteredOrders = orders.filter(order => 
+        filteredOrders = orders.filter(order =>
           order.branch_id && filteredBranchIds.includes(order.branch_id)
         );
       }
-      
+
       const startIndex = (page - 1) * PO_PAGE_SIZE;
       const endIndex = startIndex + PO_PAGE_SIZE;
       const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
@@ -211,7 +211,7 @@ export default function PurchaseOrderPage() {
     }
   };
 
-const handlePurchaseOrderSaved = async () => {
+  const handlePurchaseOrderSaved = async () => {
     setOpenNewPurchaseOrder(false)
     setEditPurchaseOrderDialogOpen(false)
     // Mantener el filtro de fechas al recargar
@@ -318,9 +318,9 @@ const handlePurchaseOrderSaved = async () => {
 
   const filteredPurchaseOrders = purchaseOrders.filter(order => {
     const matchesSearch = (order.supplier?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (order.id?.toString() || '').includes(searchTerm)
+      (order.id?.toString() || '').includes(searchTerm)
     const matchesStatus = statusFilter === 'all' || (order.status || '').toLowerCase() === statusFilter
-    const matchesBranch = branchFilter === 'all' ? true : 
+    const matchesBranch = branchFilter === 'all' ? true :
       (order.branch_id ? order.branch_id.toString() === branchFilter : false)
     return matchesSearch && matchesStatus && matchesBranch
   })
@@ -346,8 +346,8 @@ const handlePurchaseOrderSaved = async () => {
   };
 
   return (
-    <BranchRequiredWrapper 
-      title="Selecciona una sucursal" 
+    <BranchRequiredWrapper
+      title="Selecciona una sucursal"
       description="Las órdenes de compra necesitan una sucursal seleccionada para funcionar correctamente."
       requireSingleBranch={true}
     >
@@ -369,7 +369,7 @@ const handlePurchaseOrderSaved = async () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total de Compras</CardTitle>
-              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
+              <ShoppingBag className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -386,7 +386,7 @@ const handlePurchaseOrderSaved = async () => {
               <p className="text-xs text-muted-foreground">Total de {purchaseOrders.length} órdenes</p>
             </CardContent>
           </Card>
-          
+
           {/* Card: Compras Pendientes */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -399,7 +399,7 @@ const handlePurchaseOrderSaved = async () => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth="2"
-                className="h-4 w-4 text-muted-foreground"
+                className="h-4 w-4 text-amber-600"
               >
                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
@@ -411,7 +411,7 @@ const handlePurchaseOrderSaved = async () => {
               <p className="text-xs text-muted-foreground">Órdenes pendientes de recepción</p>
             </CardContent>
           </Card>
-          
+
           {/* Card: Total de Órdenes */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -424,7 +424,7 @@ const handlePurchaseOrderSaved = async () => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth="2"
-                className="h-4 w-4 text-muted-foreground"
+                className="h-4 w-4 text-emerald-600"
               >
                 <rect width="20" height="14" x="2" y="5" rx="2" />
                 <path d="M2 10h20" />
@@ -453,10 +453,10 @@ const handlePurchaseOrderSaved = async () => {
           <div className="flex flex-1 items-center space-x-2">
             <div className="relative w-full md:w-80">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input 
-                type="search" 
-                placeholder="Buscar órdenes..." 
-                className="w-full pl-8" 
+              <Input
+                type="search"
+                placeholder="Buscar órdenes..."
+                className="w-full pl-8"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -472,7 +472,7 @@ const handlePurchaseOrderSaved = async () => {
                 <SelectItem value="cancelled">Canceladas</SelectItem>
               </SelectContent>
             </Select>
-            
+
             {/* Branch Filter - Only show when multiple branches are selected */}
             {selectedBranchIds.length > 1 && (
               <Select value={branchFilter} onValueChange={setBranchFilter}>
@@ -485,7 +485,7 @@ const handlePurchaseOrderSaved = async () => {
                     <SelectItem key={branch.id} value={branch.id.toString()}>
                       <div className="flex items-center gap-2">
                         {branch.color && (
-                          <div 
+                          <div
                             className="w-3 h-3 rounded-full border"
                             style={{ backgroundColor: branch.color }}
                           />
@@ -527,18 +527,18 @@ const handlePurchaseOrderSaved = async () => {
                     <ResizableTableCell columnId="supplier" getColumnCellProps={getOrderColumnCellProps}>
                       <span className="truncate" title={order.supplier?.name || "-"}>{order.supplier?.name || "-"}</span>
                     </ResizableTableCell>
-                    <ResizableTableCell 
-                      columnId="branch" 
+                    <ResizableTableCell
+                      columnId="branch"
                       getColumnCellProps={getOrderColumnCellProps}
                       className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
                     >
                       {(() => {
                         const branchColor = getBranchColor(order);
                         const branchName = getBranchName(order);
-                        
+
                         return (
-                          <Badge 
-                            variant="outline" 
+                          <Badge
+                            variant="outline"
                             className="text-xs border-2 font-medium"
                             style={{
                               borderColor: branchColor,
@@ -632,17 +632,17 @@ const handlePurchaseOrderSaved = async () => {
         />
       </div>
 
-      <NewPurchaseOrderDialog 
-        open={openNewPurchaseOrder} 
-        onOpenChange={setOpenNewPurchaseOrder} 
+      <NewPurchaseOrderDialog
+        open={openNewPurchaseOrder}
+        onOpenChange={setOpenNewPurchaseOrder}
         onSaved={handlePurchaseOrderSaved}
         preselectedBranchId={preselectedBranchId}
         disableBranchSelection={disableBranchSelection}
       />
-      <ViewPurchaseOrderDialog 
-        open={viewPurchaseOrderDialogOpen} 
-        onOpenChange={setViewPurchaseOrderDialogOpen} 
-        purchaseOrderId={selectedPurchaseOrderId} 
+      <ViewPurchaseOrderDialog
+        open={viewPurchaseOrderDialogOpen}
+        onOpenChange={setViewPurchaseOrderDialogOpen}
+        purchaseOrderId={selectedPurchaseOrderId}
       />
       {selectedPurchaseOrderId && (
         <EditPurchaseOrderDialog
