@@ -15,36 +15,49 @@ export const resolveSystemImageUrl = (imageUrl: string | null | undefined, defau
     const apiBaseUrl = import.meta.env.VITE_API_URL ||
         (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
 
-    // Remove /api suffix to get the root URL
-    const baseUrl = apiBaseUrl.replace(/\/api$/, '') ||
+    // Remove /api suffix to get the root URL of the API server
+    const apiRootUrl = apiBaseUrl.replace(/\/api$/, '') ||
         (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
+
+    // Check if we're in development mode (using vite dev server)
+    const isDev = import.meta.env.DEV;
 
     let finalUrl = imageUrl;
 
-    // 1. Handle empty or null values
+    // 1. Handle empty or null values - use default from API
     if (!finalUrl || finalUrl.trim() === '') {
-        finalUrl = `${baseUrl}${defaultPath}`;
+        if (isDev) {
+            // In dev, use relative path to leverage Vite proxy
+            finalUrl = defaultPath;
+        } else {
+            // In production, use full API URL
+            finalUrl = `${apiRootUrl}${defaultPath}`;
+        }
     } else {
-        // 2. Handle specific backend paths that should be proxied
-        // If the URL points to /images/ or /storage/, force it to be relative
-        // to use the frontend proxy (avoids CORS/port issues in dev)
+        // 2. Handle URLs that contain /images/ or /storage/
         if (finalUrl.includes('/images/') || finalUrl.includes('/storage/')) {
             // Extract the path starting from /images or /storage
             const match = finalUrl.match(/(\/(images|storage)\/.*)/);
             if (match) {
-                finalUrl = match[1];
+                const path = match[1];
+                if (isDev) {
+                    // In dev, use relative path to leverage Vite proxy
+                    finalUrl = path;
+                } else {
+                    // In production, use full API URL
+                    finalUrl = `${apiRootUrl}${path}`;
+                }
             }
         }
         // 3. Handle relative paths (that are not the default path)
         else if (!finalUrl.startsWith('http')) {
             // Ensure it has the correct base URL
-            // Avoid double slashes
-            finalUrl = `${baseUrl.replace(/\/$/, '')}/${finalUrl.replace(/^\//, '')}`;
+            finalUrl = `${apiRootUrl.replace(/\/$/, '')}/${finalUrl.replace(/^\//, '')}`;
         }
+        // 4. If it's already a full URL, use it as-is
     }
 
-    // 4. Add cache busting for default images or if it looks like a static file
-    // This ensures that if the user overwrites 'logo.jpg', the browser fetches the new version
+    // 5. Add cache busting for logo/favicon to ensure fresh images
     if (finalUrl.includes('logo.jpg') || finalUrl.includes('favicon.ico')) {
         const separator = finalUrl.includes('?') ? '&' : '?';
         finalUrl = `${finalUrl}${separator}t=${new Date().getTime()}`;
