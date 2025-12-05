@@ -199,16 +199,7 @@ export function AppSidebar({ className }: { className?: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {features.turnos && hasPermission('ver_turnos') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/turnos"} tooltip="Turnos">
-                    <Link to="/dashboard/turnos">
-                      <CalendarClock className="h-4 w-4" />
-                      <span>Turnos</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+
               {features.repairs && hasPermission('ver_reparaciones') && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/reparaciones"} tooltip="Reparaciones">
@@ -323,16 +314,7 @@ export function AppSidebar({ className }: { className?: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {features.zonasEntrega && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/zonas-entrega"} tooltip="Delivery">
-                    <Link to="/dashboard/zonas-entrega">
-                      <Map className="h-4 w-4" />
-                      <span>Delivery</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+
               {features.shipments && hasPermission('ver_envios') && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/envios"} tooltip="Envíos">
@@ -374,16 +356,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 </SidebarMenuItem>
               )}
 
-              {features.solicitudes && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/solicitudes"} tooltip="Solicitudes">
-                    <Link to="/dashboard/solicitudes">
-                      <FileText className="h-4 w-4" />
-                      <span>Solicitudes</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -432,60 +405,27 @@ export function AppSidebar({ className }: { className?: string }) {
               </SidebarGroup>
             </>
           )}
-        {(features.perfil ||
-          features.configuracionUsuario ||
-          (features.configuracionSistema && hasPermission('ver_configuracion_sistema'))) && (
-            <>
-              <SidebarSeparator />
-              <SidebarGroup>
-                <SidebarGroupLabel>Cuenta</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {features.perfil && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === "/dashboard/perfil"} tooltip="Mi Perfil">
-                          <Link to="/dashboard/perfil">
-                            <User className="h-4 w-4" />
-                            <span>Mi Perfil</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                    {features.configuracionUsuario && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion-usuario"} tooltip="Configuración Usuario">
-                          <Link to="/dashboard/configuracion-usuario">
-                            <Settings className="h-4 w-4" />
-                            <span>Configuración Usuario</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                    {features.facturacion && hasPermission('ver_ventas') && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === "/dashboard/facturacion"} tooltip="Facturación">
-                          <Link to="/dashboard/facturacion">
-                            <CreditCard className="h-4 w-4" />
-                            <span>Facturación</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                    {features.configuracionSistema && hasPermission('ver_configuracion_sistema') && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion-sistema"} tooltip="Configuración">
-                          <Link to="/dashboard/configuracion-sistema">
-                            <Settings className="w-4 h-4" />
-                            <span>Configuración</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </>
-          )}
+
+        {features.configuracionSistema && hasPermission('ver_configuracion_sistema') && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>Configuración</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion-sistema"} tooltip="Configuración">
+                      <Link to="/dashboard/configuracion-sistema">
+                        <Settings className="w-4 h-4" />
+                        <span>Configuración</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>

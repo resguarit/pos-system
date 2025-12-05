@@ -211,16 +211,7 @@ export const PERMISSIONS_CONFIG = {
     ]
   },
 
-  // Turnos (feature deshabilitada)
-  turnos: {
-    feature: 'turnos',
-    permissions: [
-      'ver_turnos',
-      'crear_turnos',
-      'editar_turnos',
-      'eliminar_turnos'
-    ]
-  },
+
 
   // Análisis de Ventas (feature deshabilitada)
   analisisVentas: {
@@ -266,45 +257,13 @@ export const PERMISSIONS_CONFIG = {
     ]
   },
 
-  // Zonas de Entrega (feature deshabilitada)
-  zonasEntrega: {
-    feature: 'zonasEntrega',
-    permissions: [
-      'ver_zonas_entrega',
-      'crear_zonas_entrega',
-      'editar_zonas_entrega',
-      'eliminar_zonas_entrega'
-    ]
-  },
 
-  // Solicitudes (feature deshabilitada)
-  solicitudes: {
-    feature: 'solicitudes',
-    permissions: [
-      'ver_solicitudes',
-      'crear_solicitudes',
-      'editar_solicitudes',
-      'aprobar_solicitudes',
-      'rechazar_solicitudes'
-    ]
-  },
 
-  // Perfil (feature deshabilitada)
-  perfil: {
-    feature: 'perfil',
-    permissions: [
-      'cambiar_password'
-    ]
-  },
 
-  // Configuración Usuario (feature deshabilitada)
-  configuracionUsuario: {
-    feature: 'configuracionUsuario',
-    permissions: [
-      'ver_configuracion_usuario',
-      'editar_configuracion_usuario'
-    ]
-  },
+
+
+
+
 
   // Movimientos de Stock (nueva feature)
   movimientosStock: {

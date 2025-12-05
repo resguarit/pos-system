@@ -2,11 +2,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import features from '@/config/features';
-import { 
+import {
   User,
-  Shield, 
-  Building2, 
-  CheckCircle, 
+  Shield,
+  Building2,
+  CheckCircle,
   Eye,
   Settings
 } from 'lucide-react';
@@ -26,17 +26,17 @@ interface UserPermissionsDisplayProps {
   className?: string;
 }
 
-export function UserPermissionsDisplay({ 
-  showFullInfo = false, 
-  className = '' 
+export function UserPermissionsDisplay({
+  showFullInfo = false,
+  className = ''
 }: UserPermissionsDisplayProps) {
-  const { 
-    user, 
-    permissions, 
-    branches, 
-    currentBranch, 
-    isAdmin, 
-    getUserDisplayName 
+  const {
+    user,
+    permissions,
+    branches,
+    currentBranch,
+    isAdmin,
+    getUserDisplayName
   } = useAuth();
 
   if (!user) {
@@ -54,13 +54,13 @@ export function UserPermissionsDisplay({
       'configurar_envios',
       'configurar_flujo_envio',
     ];
-    
+
     permissions.forEach(permission => {
       // Filtrar permisos del flujo de envíos
       if (flowPermissions.includes(permission)) {
         return; // Saltar este permiso
       }
-      
+
       // Extraer el módulo del nombre del permiso (por ejemplo: "ver_productos" -> "productos")
       const parts = permission.split('_');
       if (parts.length >= 2) {
@@ -83,7 +83,7 @@ export function UserPermissionsDisplay({
 
   // Filtrar módulos según features habilitadas
   const filterModulesByFeatures = (groupedPermissions: Record<string, string[]>) => {
-    const moduleFeatureMap: Record<string, keyof typeof FEATURES> = {
+    const moduleFeatureMap: Record<string, keyof typeof features> = {
       'dashboard': 'dashboard',
       'ventas': 'ventas',
       'productos': 'inventario',
@@ -96,24 +96,21 @@ export function UserPermissionsDisplay({
       'compras': 'purchaseOrders',
       'proveedores': 'proveedores',
       'caja': 'caja',
-      'reportes': 'analisisVentas', // Se mostrará si cualquier reporte está habilitado
+      'reportes': 'analisisventas', // Se mostrará si cualquier reporte está habilitado
       'fiscal': 'configuracionSistema',
       'configuracion': 'configuracionSistema',
       'auditoria': 'configuracionSistema',
       'repairs': 'repairs',
-      'turnos': 'turnos',
-      'zonas_entrega': 'zonasEntrega',
-      'solicitudes': 'solicitudes',
-      'facturacion': 'facturacion',
+
       'envios': 'shipments',
       'shipments': 'shipments'
     };
 
     const filtered: Record<string, string[]> = {};
-    
+
     Object.entries(groupedPermissions).forEach(([module, perms]) => {
       const featureKey = moduleFeatureMap[module];
-      
+
       // Si el módulo es 'general' o no tiene feature asociada, siempre lo mostramos
       if (module === 'general' || !featureKey) {
         filtered[module] = perms;
@@ -129,7 +126,7 @@ export function UserPermissionsDisplay({
       }
 
       // Para otros módulos, verificamos si la feature está habilitada
-      if (FEATURES[featureKey]) {
+      if (features[featureKey]) {
         filtered[module] = perms;
       }
     });
@@ -194,7 +191,7 @@ export function UserPermissionsDisplay({
         <User className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium">{getUserDisplayName()}</span>
       </div>
-      
+
       <div className="flex items-center gap-2">
         <Shield className="h-4 w-4 text-muted-foreground" />
         {getRoleBadge()}
@@ -261,7 +258,7 @@ export function UserPermissionsDisplay({
                           </div>
                         </div>
                       </div>
-                      
+
                       <div>
                         <h4 className="font-medium mb-2">Rol y Permisos</h4>
                         <div className="space-y-2 text-sm">
@@ -297,17 +294,16 @@ export function UserPermissionsDisplay({
                       <h4 className="font-medium mb-3">Sucursales Asignadas ({branches.length})</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {branches.map(branch => (
-                          <div 
-                            key={branch.id} 
-                            className={`p-3 border rounded-lg ${
-                              currentBranch?.id === branch.id 
-                                ? 'bg-blue-50 border-blue-300' 
-                                : 'bg-gray-50'
-                            }`}
+                          <div
+                            key={branch.id}
+                            className={`p-3 border rounded-lg ${currentBranch?.id === branch.id
+                              ? 'bg-blue-50 border-blue-300'
+                              : 'bg-gray-50'
+                              }`}
                           >
                             <div className="flex items-center gap-2 mb-1">
                               {branch.color && (
-                                <div 
+                                <div
                                   className="w-3 h-3 rounded-full border"
                                   style={{ backgroundColor: branch.color }}
                                 />
@@ -348,7 +344,7 @@ export function UserPermissionsDisplay({
                                 </h5>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                   {modulePermissions.map(permission => (
-                                    <div 
+                                    <div
                                       key={permission}
                                       className="flex items-center gap-2 text-sm p-2 bg-green-50 rounded border-green-200"
                                     >
@@ -359,7 +355,7 @@ export function UserPermissionsDisplay({
                                 </div>
                               </div>
                             ))}
-                            
+
                             {Object.values(filteredPermissions).flat().length < permissions.length && (
                               <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                                 <div className="flex items-start gap-2">
@@ -367,7 +363,7 @@ export function UserPermissionsDisplay({
                                   <div className="text-sm">
                                     <p className="font-medium text-amber-800 mb-1">Permisos ocultos</p>
                                     <p className="text-amber-700">
-                                      {permissions.length - Object.values(filteredPermissions).flat().length} permisos están ocultos 
+                                      {permissions.length - Object.values(filteredPermissions).flat().length} permisos están ocultos
                                       porque corresponden a funcionalidades deshabilitadas en el sistema.
                                     </p>
                                   </div>

@@ -1,5 +1,5 @@
-const features = {
-  // Core features
+const defaultFeatures = {
+
   dashboard: true,
   roles: true,
 
@@ -10,30 +10,42 @@ const features = {
   analisisventas: false,
   caja: true,
   clientes: true,
-  configuracionUsuario: false,
+
   configuracionSistema: true,
   cuentasCorrientes: true,
-  facturacion: false,
+
   historialVentas: true,
   inventario: true,
-  perfil: false,
+
   pos: true,
   proveedores: true,
   purchaseOrders: true,
   transferencias: true,
   reportesInventario: false,
   reportesFinancieros: true,
-  solicitudes: false,
+
   sucursales: true,
-  turnos: false,
+
   usuarios: true,
-  empleados: false,
+
   ventas: true,
-  zonasEntrega: false,
+
   shipments: true,
   auditorias: true,
   metodosPago: true,
 } as const;
+
+let envFeatures = {};
+try {
+  const envFeaturesStr = import.meta.env.VITE_FEATURES;
+  if (envFeaturesStr) {
+    envFeatures = JSON.parse(envFeaturesStr);
+  }
+} catch (e) {
+  console.warn('Failed to parse VITE_FEATURES', e);
+}
+
+const features = { ...defaultFeatures, ...envFeatures };
 
 export default features;
 export type FeatureFlags = typeof features;

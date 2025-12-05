@@ -72,7 +72,7 @@ function getFeatureForModule(moduleName: string): boolean {
     'pos': 'pos',
     'punto de venta': 'pos',
     'caja': 'caja',
-    'turnos': 'turnos',
+
     'reparaciones': 'repairs',
     'repairs': 'repairs',
     'clientes': 'clientes',
@@ -82,10 +82,8 @@ function getFeatureForModule(moduleName: string): boolean {
     'categorías': 'categorias',
     'categorias': 'categorias',
     'sucursales': 'sucursales',
-    'zonas de entrega': 'zonasEntrega',
-    'delivery': 'zonasEntrega',
-    'zonasEntrega': 'zonasEntrega',
-    'solicitudes': 'solicitudes',
+
+
     'usuarios': 'usuarios',
     'roles': 'roles',
     'análisis de ventas': 'analisisventas',
@@ -96,10 +94,7 @@ function getFeatureForModule(moduleName: string): boolean {
     'reportes': 'reportesFinancieros', // Módulo del backend
     'reportes financieros': 'reportesFinancieros',
     'reportesFinancieros': 'reportesFinancieros',
-    'perfil': 'perfil',
-    'mi perfil': 'perfil',
-    'configuración usuario': 'configuracionUsuario',
-    'configuracionUsuario': 'configuracionUsuario',
+
     'facturación': 'facturacion',
     'facturacion': 'facturacion',
     'configuración': 'configuracionSistema',

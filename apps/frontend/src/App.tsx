@@ -7,7 +7,6 @@ import CajaPage from '@/pages/dashboard/CajaPage'
 import CategoriesPage from '@/pages/dashboard/CategoriesPage'
 import ClientesPage from '@/pages/dashboard/ClientesPage'
 import ComprasClientePage from '@/pages/dashboard/ComprasClientePage'
-import ConfiguracionUsuarioPage from '@/pages/dashboard/ConfiguracionUsuarioPage'
 import CurrentAccountsPage from '@/pages/dashboard/CurrentAccountsPage'
 import CuentaCorrienteClientePage from '@/pages/dashboard/CuentaCorrienteClientePage'
 import ConfiguracionPage from '@/pages/dashboard/ConfiguracionPage'
@@ -18,7 +17,7 @@ import EditarRolPage from '@/pages/dashboard/EditarRolPage'
 import EditarSucursalPage from '@/pages/dashboard/EditarSucursalPage'
 import EditarUsuarioPage from '@/pages/dashboard/EditarUsuarioPage'
 import EditCategoryPage from '@/pages/dashboard/categories/EditCategoryPage'
-import FacturacionPage from '@/pages/dashboard/FacturacionPage'
+
 import HistorialVentasPage from '@/pages/dashboard/HistorialVentasPage'
 import InventarioPage from '@/pages/dashboard/InventarioPage'
 import NewCategoryPage from '@/pages/dashboard/categories/NewCategoryPage'
@@ -26,7 +25,7 @@ import NuevaSucursalPage from '@/pages/dashboard/NuevaSucursalPage'
 import NuevoClientePage from '@/pages/dashboard/NuevoClientePage'
 import NuevoRolPage from '@/pages/dashboard/NuevoRolPage'
 import NuevoUsuarioPage from '@/pages/dashboard/NuevoUsuarioPage'
-import PerfilPage from '@/pages/dashboard/PerfilPage'
+
 import PosPage from '@/pages/dashboard/PosPage'
 import CompleteSalePage from '@/pages/dashboard/CompleteSalePage'
 import ProveedoresPage from '@/pages/dashboard/ProveedoresPage'
@@ -34,9 +33,7 @@ import PurchaseOrderPage from '@/pages/dashboard/PurchaseOrderPage'
 import ReportesInventarioPage from '@/pages/dashboard/ReportesInventarioPage'
 import ReportesFinancierosPage from '@/pages/dashboard/ReportesFinancierosPage'
 import RolesPage from '@/pages/dashboard/RolesPage'
-import SolicitudesPage from '@/pages/dashboard/SolicitudesPage'
 import SucursalesPage from '@/pages/dashboard/SucursalesPage'
-import TurnosPage from '@/pages/dashboard/TurnosPage'
 import UsuarioPage from '@/pages/dashboard/UsuarioPage'
 import UserPerformancePage from '@/pages/dashboard/UserPerformancePage'
 import VentasPage from '@/pages/dashboard/VentasPage'
@@ -46,7 +43,7 @@ import VerRolPage from '@/pages/dashboard/VerRolPage'
 import VerSucursalPage from '@/pages/dashboard/VerSucursalPage'
 import VerUsuarioPage from '@/pages/dashboard/VerUsuarioPage'
 import ViewCategoryPage from '@/pages/dashboard/categories/ViewCategoryPage'
-import ZonasEntregaPage from '@/pages/dashboard/ZonasEntregaPage'
+
 import ReparacionesPage from '@/pages/dashboard/ReparacionesPage'
 import CombosPage from '@/pages/dashboard/CombosPage'
 import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
@@ -85,14 +82,14 @@ function App() {
           {features.clientes && <Route path="clientes/:id/editar" element={<ProtectedRoute permissions={['editar_clientes']}><EditarClientePage /></ProtectedRoute>} />}
           {features.clientes && <Route path="clientes/:id/ver" element={<ProtectedRoute permissions={['ver_clientes']}><VerClientePage /></ProtectedRoute>} />}
           {features.clientes && <Route path="clientes/nuevo" element={<ProtectedRoute permissions={['crear_clientes']}><NuevoClientePage /></ProtectedRoute>} />}
-          {features.configuracionUsuario && <Route path="configuracion-usuario" element={<ConfiguracionUsuarioPage />} />}
+
           {features.configuracionSistema && <Route path="configuracion" element={<ProtectedRoute permissions={['ver_configuracion_sistema']}><ConfiguracionPage /></ProtectedRoute>} />}
           {features.configuracionSistema && <Route path="configuracion-sistema" element={<ProtectedRoute permissions={['ver_configuracion_sistema']}><ConfiguracionSistemaPage /></ProtectedRoute>} />}
           {features.cuentasCorrientes && <Route path="cuentas-corrientes" element={<ProtectedRoute permissions={['gestionar_cuentas_corrientes']}><CurrentAccountsPage /></ProtectedRoute>} />}
-          {features.facturacion && <Route path="facturacion" element={<ProtectedRoute permissions={['ver_ventas']}><FacturacionPage /></ProtectedRoute>} />}
+
           {features.historialVentas && <Route path="historial-ventas" element={<ProtectedRoute permissions={['ver_ventas']}><HistorialVentasPage /></ProtectedRoute>} />}
           {features.inventario && <Route path="inventario" element={<ProtectedRoute permissions={['ver_productos']}><InventarioPage /></ProtectedRoute>} />}
-          {features.perfil && <Route path="perfil" element={<PerfilPage />} />}
+
           {features.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
           {features.pos && <Route path="pos/completar-venta" element={<ProtectedRoute permissions={['crear_ventas']}><CompleteSalePage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
@@ -105,20 +102,20 @@ function App() {
           {features.roles && <Route path="roles/:id/ver" element={<ProtectedRoute permissions={['ver_roles']}><VerRolPage /></ProtectedRoute>} />}
           {features.roles && <Route path="roles/nuevo" element={<ProtectedRoute permissions={['crear_roles']}><NuevoRolPage /></ProtectedRoute>} />}
           {features.repairs && <Route path="reparaciones" element={<ProtectedRoute permissions={['ver_reparaciones']}><ReparacionesPage /></ProtectedRoute>} />}
-          {features.solicitudes && <Route path="solicitudes" element={<SolicitudesPage />} />}
+
           {features.sucursales && <Route path="sucursales" element={<ProtectedRoute permissions={['ver_sucursales']}><SucursalesPage /></ProtectedRoute>} />}
           {features.sucursales && <Route path="sucursales/:id/editar" element={<ProtectedRoute permissions={['editar_sucursales']}><EditarSucursalPage /></ProtectedRoute>} />}
           {features.sucursales && <Route path="sucursales/:id/ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasSucursalPage /></ProtectedRoute>} />}
           {features.sucursales && <Route path="sucursales/:id/ver" element={<ProtectedRoute permissions={['ver_sucursales']}><VerSucursalPage /></ProtectedRoute>} />}
           {features.sucursales && <Route path="sucursales/nuevo" element={<ProtectedRoute permissions={['crear_sucursales']}><NuevaSucursalPage /></ProtectedRoute>} />}
-          {features.turnos && <Route path="turnos" element={<ProtectedRoute permissions={['ver_turnos']}><TurnosPage /></ProtectedRoute>} />}
+
           {features.usuarios && <Route path="usuarios" element={<ProtectedRoute permissions={['ver_usuarios']}><UsuarioPage /></ProtectedRoute>} />}
           {features.usuarios && <Route path="usuarios/:id" element={<ProtectedRoute permissions={['editar_usuarios']}><EditarUsuarioPage /></ProtectedRoute>} />}
           {features.usuarios && <Route path="usuarios/:id/ver" element={<ProtectedRoute permissions={['ver_usuarios']}><VerUsuarioPage /></ProtectedRoute>} />}
           {features.usuarios && <Route path="usuarios/:id/desempeno" element={<ProtectedRoute permissions={['ver_estadisticas_usuario']}><UserPerformancePage /></ProtectedRoute>} />}
           {features.usuarios && <Route path="usuarios/nuevo" element={<ProtectedRoute permissions={['crear_usuarios']}><NuevoUsuarioPage /></ProtectedRoute>} />}
           {features.ventas && <Route path="ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasPage /></ProtectedRoute>} />}
-          {features.zonasEntrega && <Route path="zonas-entrega" element={<ZonasEntregaPage />} />}
+
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
           {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
           {features.auditorias && <Route path="auditorias" element={<ProtectedRoute permissions={['ver_auditorias']}><AuditoriasPage /></ProtectedRoute>} />}
