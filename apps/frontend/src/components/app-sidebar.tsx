@@ -1,7 +1,9 @@
 import {
   ArrowRightLeft,
   BarChart3,
+  Briefcase,
   Building2,
+  ChevronRight,
   CircleDollarSign,
   ClipboardList,
   CreditCard,
@@ -17,12 +19,18 @@ import {
   Users,
   Wallet,
   Shield,
-  Wrench
+  Wrench,
+  Receipt
 } from "lucide-react"
 import { Link } from "react-router-dom"
 import { useLocation } from "react-router-dom"
 import { useEffect } from "react"
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import {
   Sidebar,
   SidebarContent,
@@ -34,14 +42,16 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
-  SidebarSeparator,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 import features from "@/config/features"
 import { useAuth } from "@/hooks/useAuth"
 import { useSystemConfigContext } from "@/context/SystemConfigContext"
-import { cn } from "@/lib/utils"
+import { resolveSystemImageUrl } from "@/lib/imageUtils"
 
 export function AppSidebar({ className }: { className?: string }) {
   const location = useLocation()
@@ -49,6 +59,7 @@ export function AppSidebar({ className }: { className?: string }) {
   const { hasPermission } = useAuth()
   const { config } = useSystemConfigContext()
   const { isMobile, setOpenMobile } = useSidebar()
+  const { open } = useSidebar()
 
   // Cerrar sidebar en móviles cuando cambia la ruta
   useEffect(() => {
@@ -59,12 +70,204 @@ export function AppSidebar({ className }: { className?: string }) {
 
   const systemTitle = config?.system_title || 'RG Gestión'
 
+  const navMain = [
+    {
+      title: "Ventas",
+      url: "#",
+      icon: CircleDollarSign,
+      isActive: pathname.startsWith("/dashboard/ventas") || pathname.startsWith("/dashboard/pos") || pathname.startsWith("/dashboard/clientes") || pathname.startsWith("/dashboard/cuentas-corrientes") || pathname.startsWith("/dashboard/analisis-ventas") || pathname.startsWith("/dashboard/envios"),
+      items: [
+        {
+          title: "Punto de Venta",
+          url: "/dashboard/pos",
+          icon: ShoppingCart,
+          visible: features.pos && hasPermission('crear_ventas'),
+        },
+        {
+          title: "Historial de Ventas",
+          url: "/dashboard/ventas",
+          icon: CircleDollarSign,
+          visible: features.ventas && hasPermission('ver_ventas'),
+        },
+        {
+          title: "Envíos",
+          url: "/dashboard/envios",
+          icon: Package,
+          visible: features.shipments && hasPermission('ver_envios'),
+        },
+        {
+          title: "Análisis de Ventas",
+          url: "/dashboard/analisis-ventas",
+          icon: BarChart3,
+          visible: features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas'),
+        },
+        {
+          title: "Clientes",
+          url: "/dashboard/clientes",
+          icon: Users,
+          visible: features.clientes && hasPermission('ver_clientes'),
+        },
+        {
+          title: "Cuentas Corrientes",
+          url: "/dashboard/cuentas-corrientes",
+          icon: Wallet,
+          visible: features.cuentasCorrientes && hasPermission('gestionar_cuentas_corrientes'),
+        },
+      ],
+    },
+    {
+      title: "Inventario",
+      url: "#",
+      icon: Package,
+      isActive: pathname.startsWith("/dashboard/inventario") || pathname.startsWith("/dashboard/categorias") || pathname.startsWith("/dashboard/combos") || pathname.startsWith("/dashboard/reportes-inventario"),
+      items: [
+        {
+          title: "Productos",
+          url: "/dashboard/inventario",
+          icon: Package,
+          visible: features.inventario && hasPermission('ver_productos'),
+        },
+        {
+          title: "Categorías",
+          url: "/dashboard/categorias",
+          icon: FolderOpen,
+          visible: features.categorias && hasPermission('ver_categorias'),
+        },
+        {
+          title: "Combos",
+          url: "/dashboard/combos",
+          icon: Package,
+          visible: features.combos && hasPermission('gestionar_combos'),
+        },
+        {
+          title: "Reportes de Inventario",
+          url: "/dashboard/reportes-inventario",
+          icon: ClipboardList,
+          visible: features.reportesInventario && hasPermission('generar_reportes'),
+        },
+      ],
+    },
+    {
+      title: "Compras",
+      url: "#",
+      icon: Truck,
+      isActive: pathname.startsWith("/dashboard/proveedores") || pathname.startsWith("/dashboard/purchase-orders") || pathname.startsWith("/dashboard/stock-transfers"),
+      items: [
+        {
+          title: "Proveedores",
+          url: "/dashboard/proveedores",
+          icon: Truck,
+          visible: features.proveedores && hasPermission('ver_proveedores'),
+        },
+        {
+          title: "Órdenes de Compra",
+          url: "/dashboard/purchase-orders",
+          icon: ClipboardList,
+          visible: features.purchaseOrders && hasPermission('ver_ordenes_compra'),
+        },
+        {
+          title: "Transferencias",
+          url: "/dashboard/stock-transfers",
+          icon: ArrowRightLeft,
+          visible: features.transferencias && hasPermission('ver_transferencias'),
+        },
+      ],
+    },
+    {
+      title: "Finanzas",
+      url: "#",
+      icon: Wallet,
+      isActive: pathname.startsWith("/dashboard/caja") || pathname.startsWith("/dashboard/metodos-pago") || pathname.startsWith("/dashboard/reportes-financieros") || pathname.startsWith("/dashboard/gastos"),
+      items: [
+        {
+          title: "Caja",
+          url: "/dashboard/caja",
+          icon: Wallet,
+          visible: features.caja && (hasPermission('abrir_cerrar_caja') || hasPermission('ver_movimientos_caja') || hasPermission('crear_movimientos_caja') || hasPermission('ver_historico_caja')),
+        },
+        {
+          title: "Métodos de Pago",
+          url: "/dashboard/metodos-pago",
+          icon: CreditCard,
+          visible: features.metodosPago && hasPermission('ver_metodos_pago'),
+        },
+        {
+          title: "Reportes Financieros",
+          url: "/dashboard/reportes-financieros",
+          icon: FileBarChart,
+          visible: features.reportesFinancieros && hasPermission('generar_reportes'),
+        },
+
+      ],
+    },
+    {
+      title: "Gastos",
+      url: "#",
+      icon: Receipt,
+      isActive: pathname.startsWith("/dashboard/gastos"),
+      items: [
+        {
+          title: "Listado de Gastos",
+          url: "/dashboard/gastos",
+          icon: ClipboardList,
+          visible: features.gastos && hasPermission('ver_gastos'),
+        },
+        {
+          title: "Empleados",
+          url: "/dashboard/gastos/empleados",
+          icon: Users,
+          visible: features.gastos && hasPermission('ver_empleados'),
+        },
+        {
+          title: "Categorías",
+          url: "/dashboard/gastos/categorias",
+          icon: FolderOpen,
+          visible: features.gastos && hasPermission('ver_categorias_gastos'),
+        },
+      ],
+    },
+    {
+      title: "Gestión",
+      url: "#",
+      icon: Briefcase,
+      isActive: pathname.startsWith("/dashboard/sucursales") || pathname.startsWith("/dashboard/usuarios") || pathname.startsWith("/dashboard/roles") || pathname.startsWith("/dashboard/auditorias") || pathname.startsWith("/dashboard/reparaciones"),
+      items: [
+        {
+          title: "Sucursales",
+          url: "/dashboard/sucursales",
+          icon: Building2,
+          visible: features.sucursales && hasPermission('ver_sucursales'),
+        },
+        {
+          title: "Usuarios",
+          url: "/dashboard/usuarios",
+          icon: Users,
+          visible: features.usuarios && hasPermission('ver_usuarios'),
+        },
+        {
+          title: "Roles",
+          url: "/dashboard/roles",
+          icon: Shield,
+          visible: features.roles && hasPermission('ver_roles'),
+        },
+        {
+          title: "Auditorías",
+          url: "/dashboard/auditorias",
+          icon: FileText,
+          visible: features.auditorias && hasPermission('ver_auditorias'),
+        },
+        {
+          title: "Reparaciones",
+          url: "/dashboard/reparaciones",
+          icon: Wrench,
+          visible: features.repairs && hasPermission('ver_reparaciones'),
+        },
+      ],
+    },
+  ]
+
   return (
-    <Sidebar className={cn(
-      "w-64 border-r transition-all duration-300 ease-in-out bg-white",
-      isMobile && "w-72", // Más ancho en móviles para mejor legibilidad
-      className
-    )} collapsible="icon">
+    <Sidebar className={className} collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -87,20 +290,15 @@ export function AppSidebar({ className }: { className?: string }) {
               }}
             >
               {(() => {
-                // Usar directamente /images/logo.jpg del backend (igual que PDFs)
-                // Usa window.location.origin si no hay VITE_API_URL configurado (para producción)
-                const apiBaseUrl = import.meta.env.VITE_API_URL ||
-                  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
-                const baseUrl = apiBaseUrl.replace('/api', '') ||
-                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-                const logoUrl = config?.logo_url || `${baseUrl}/images/logo.jpg`;
+                const logoUrl = resolveSystemImageUrl(config?.logo_url);
+
                 return (
                   <img
                     src={logoUrl}
                     alt={systemTitle}
                     className="w-8 h-8 rounded-lg object-contain bg-white p-1"
                     onError={(e) => {
-                      // Si falla, mostrar inicial sin loguear error
+                      console.error('Logo load failed:', logoUrl);
                       const target = e.target as HTMLImageElement;
                       target.style.display = 'none';
                       const parent = target.parentElement;
@@ -146,297 +344,69 @@ export function AppSidebar({ className }: { className?: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {features.inventario && hasPermission('ver_productos') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/inventario"} tooltip="Inventario">
-                    <Link to="/dashboard/inventario">
-                      <Package className="h-4 w-4" />
-                      <span>Inventario</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.combos && hasPermission('gestionar_combos') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/combos"} tooltip="Combos">
-                    <Link to="/dashboard/combos">
-                      <Package className="h-4 w-4" />
-                      <span>Combos</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.ventas && hasPermission('ver_ventas') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/ventas"} tooltip="Ventas">
-                    <Link to="/dashboard/ventas">
-                      <CircleDollarSign className="h-4 w-4" />
-                      <span>Ventas</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.pos && hasPermission('crear_ventas') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/pos"} tooltip="Punto de Venta">
-                    <Link to="/dashboard/pos">
-                      <ShoppingCart className="h-4 w-4" />
-                      <span>Punto de Venta</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.caja && (hasPermission('abrir_cerrar_caja') || hasPermission('ver_movimientos_caja') || hasPermission('crear_movimientos_caja') || hasPermission('ver_historico_caja')) && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/caja"} tooltip="Caja">
-                    <Link to="/dashboard/caja">
-                      <Wallet className="h-4 w-4" />
-                      <span>Caja</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
 
-              {features.repairs && hasPermission('ver_reparaciones') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/reparaciones"} tooltip="Reparaciones">
-                    <Link to="/dashboard/reparaciones">
-                      <Wrench className="h-4 w-4" />
-                      <span>Reparaciones</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarSeparator />
-        <SidebarGroup>
-          <SidebarGroupLabel>Clientes</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {features.clientes && hasPermission('ver_clientes') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/clientes"} tooltip="Clientes">
-                    <Link to="/dashboard/clientes">
-                      <Users className="h-4 w-4" />
-                      <span>Clientes</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.cuentasCorrientes && hasPermission('gestionar_cuentas_corrientes') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/cuentas-corrientes"} tooltip="Cuentas Corrientes">
-                    <Link to="/dashboard/cuentas-corrientes">
-                      <Wallet className="h-4 w-4" />
-                      <span>Cuentas Corrientes</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarSeparator />
-        <SidebarGroup>
-          <SidebarGroupLabel>Compras</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {features.proveedores && hasPermission('ver_proveedores') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/proveedores")} tooltip="Proveedores">
-                    <Link to="/dashboard/proveedores">
-                      <Truck className="h-4 w-4" />
-                      <span>Proveedores</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.purchaseOrders && hasPermission('ver_ordenes_compra') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/purchase-orders"} tooltip="Órdenes de Compra">
-                    <Link to="/dashboard/purchase-orders">
-                      <ClipboardList className="h-4 w-4" />
-                      <span>Órdenes de Compra</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.transferencias && hasPermission('ver_transferencias') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/stock-transfers"} tooltip="Transferencias de Stock">
-                    <Link to="/dashboard/stock-transfers">
-                      <ArrowRightLeft className="h-4 w-4" />
-                      <span>Transferencias</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarSeparator />
-        <SidebarGroup>
-          <SidebarGroupLabel>Gestión</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {features.categorias && hasPermission('ver_categorias') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/categorias"} tooltip="Categorías">
-                    <Link to="/dashboard/categorias">
-                      <FolderOpen className="h-4 w-4" />
-                      <span>Categorías</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.metodosPago && hasPermission('ver_metodos_pago') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/metodos-pago"} tooltip="Métodos de Pago">
-                    <Link to="/dashboard/metodos-pago">
-                      <CreditCard className="h-4 w-4" />
-                      <span>Métodos de Pago</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.sucursales && hasPermission('ver_sucursales') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/sucursales"} tooltip="Sucursales">
-                    <Link to="/dashboard/sucursales">
-                      <Building2 className="h-4 w-4" />
-                      <span>Sucursales</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+              {navMain.map((group) => {
+                // Filter items based on visibility
+                const visibleItems = group.items.filter(item => item.visible !== false)
 
-              {features.shipments && hasPermission('ver_envios') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/envios"} tooltip="Envíos">
-                    <Link to="/dashboard/envios">
-                      <Package className="h-4 w-4" />
-                      <span>Envíos</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.usuarios && hasPermission('ver_usuarios') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/usuarios"} tooltip="Usuarios">
-                    <Link to="/dashboard/usuarios">
-                      <Users className="h-4 w-4" />
-                      <span>Usuarios</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.roles && hasPermission('ver_roles') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/roles")} tooltip="Roles">
-                    <Link to="/dashboard/roles">
-                      <Shield className="h-4 w-4" />
-                      <span>Roles</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {features.auditorias && hasPermission('ver_auditorias') && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/auditorias"} tooltip="Auditorías">
-                    <Link to="/dashboard/auditorias">
-                      <FileText className="h-4 w-4" />
-                      <span>Auditorías</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+                if (visibleItems.length === 0) return null
 
-
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        {((features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas')) ||
-          (features.reportesInventario && hasPermission('generar_reportes')) ||
-          (features.reportesFinancieros && hasPermission('generar_reportes'))) && (
-            <>
-              <SidebarSeparator />
-              <SidebarGroup>
-                <SidebarGroupLabel>Reportes</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-
-                    {features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas') && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === "/dashboard/analisis-ventas"} tooltip="Análisis de Ventas">
-                          <Link to="/dashboard/analisis-ventas">
-                            <BarChart3 className="h-4 w-4" />
-                            <span>Análisis de Ventas</span>
-                          </Link>
+                return (
+                  <Collapsible
+                    key={group.title}
+                    asChild
+                    defaultOpen={group.isActive}
+                    className="group/collapsible"
+                    disabled={!open}
+                  >
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild disabled={!open}>
+                        <SidebarMenuButton tooltip={group.title} isActive={group.isActive}>
+                          {group.icon && <group.icon className="h-4 w-4" />}
+                          <span>{group.title}</span>
+                          <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                         </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                    {features.reportesInventario && hasPermission('generar_reportes') && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === "/dashboard/reportes-inventario"} tooltip="Reportes de Inventario">
-                          <Link to="/dashboard/reportes-inventario">
-                            <ClipboardList className="h-4 w-4" />
-                            <span>Reportes de Inventario</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                    {features.reportesFinancieros && hasPermission('generar_reportes') && (
-                      <SidebarMenuItem>
-                        <SidebarMenuButton asChild isActive={pathname === "/dashboard/reportes-financieros"} tooltip="Reportes Financieros">
-                          <Link to="/dashboard/reportes-financieros">
-                            <FileBarChart className="h-4 w-4" />
-                            <span>Reportes Financieros</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </>
-          )}
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <SidebarMenuSub>
+                          {visibleItems.map((item) => (
+                            <SidebarMenuSubItem key={item.title}>
+                              <SidebarMenuSubButton asChild isActive={pathname === item.url}>
+                                <Link to={item.url}>
+                                  {item.icon && <item.icon className="h-4 w-4" />}
+                                  <span>{item.title}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </Collapsible>
+                )
+              })}
 
-        {features.configuracionSistema && hasPermission('ver_configuracion_sistema') && (
-          <>
-            <SidebarSeparator />
-            <SidebarGroup>
-              <SidebarGroupLabel>Configuración</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion-sistema"} tooltip="Configuración">
-                      <Link to="/dashboard/configuracion-sistema">
-                        <Settings className="w-4 h-4" />
-                        <span>Configuración</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        )}
+              {features.configuracionSistema && hasPermission('ver_configuracion_sistema') && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/configuracion-sistema"} tooltip="Configuración">
+                    <Link to="/dashboard/configuracion-sistema">
+                      <Settings className="w-4 h-4" />
+                      <span>Configuración</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Volver al Dashboard">
-              <Link to="/dashboard">
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Volver al Dashboard</span>
-              </Link>
-            </SidebarMenuButton>
+            <SidebarTrigger />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   )
 }

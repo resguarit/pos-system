@@ -29,12 +29,12 @@ export function useSystemConfig(): UseSystemConfigReturn {
       const response = await api.get('/settings/system')
       if (response.data) {
         setConfig(response.data)
-        
+
         // Update document title
         if (response.data.system_title) {
           document.title = response.data.system_title
         }
-        
+
         // Update primary color
         if (response.data.primary_color) {
           document.documentElement.style.setProperty('--primary-color-custom', response.data.primary_color)

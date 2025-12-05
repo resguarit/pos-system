@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useSystemConfigContext } from "@/context/SystemConfigContext"
 import { toast } from "sonner"
 import api from "@/lib/api"
+import { resolveSystemImageUrl } from "@/lib/imageUtils"
 
 interface SystemConfig {
   logo_url?: string | null
@@ -26,7 +27,7 @@ export default function ConfiguracionSistemaPage() {
   const navigate = useNavigate()
   const { hasPermission } = useAuth()
   const { refreshConfig } = useSystemConfigContext()
-  
+
   const [config, setConfig] = useState<SystemConfig>({
     logo_url: null,
     favicon_url: null,
@@ -37,7 +38,7 @@ export default function ConfiguracionSistemaPage() {
     company_email: "",
     company_phone: ""
   })
-  
+
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -69,7 +70,7 @@ export default function ConfiguracionSistemaPage() {
           }
           return acc
         }, {} as SystemConfig)
-        
+
         setConfig(cleanedData)
       }
     } catch (error) {
@@ -92,40 +93,15 @@ export default function ConfiguracionSistemaPage() {
       const response = await api.post('/settings/upload-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      
+
       setConfig(prev => ({ ...prev, logo_url: response.data.url }))
-      
+
       // Refresh system config to apply logo immediately
       await refreshConfig()
-      
+
       toast.success("Logo actualizado correctamente")
     } catch (error) {
       toast.error("Error al subir el logo")
-      console.error(error)
-    }
-  }
-
-  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('type', 'favicon')
-
-    try {
-      const response = await api.post('/settings/upload-image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      
-      setConfig(prev => ({ ...prev, favicon_url: response.data.url }))
-      
-      // Refresh system config to apply favicon immediately
-      await refreshConfig()
-      
-      toast.success("Favicon actualizado correctamente")
-    } catch (error) {
-      toast.error("Error al subir el favicon")
       console.error(error)
     }
   }
@@ -139,10 +115,10 @@ export default function ConfiguracionSistemaPage() {
     try {
       setSaving(true)
       await api.put('/settings/system', config)
-      
+
       // Refresh system config to apply favicon and other changes immediately
       await refreshConfig()
-      
+
       toast.success("Configuración guardada correctamente")
     } catch (error) {
       toast.error("Error al guardar la configuración")
@@ -186,7 +162,7 @@ export default function ConfiguracionSistemaPage() {
       </div>
 
       <div className="space-y-6 max-w-5xl">
-        {/* Logo Actual */}
+        {/* Personalización de Marca */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -194,63 +170,60 @@ export default function ConfiguracionSistemaPage() {
                 <ImageIcon className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <CardTitle>Logo Actual</CardTitle>
-                <CardDescription>Logo actualmente configurado en el sistema</CardDescription>
+                <CardTitle>Personalización de Marca</CardTitle>
+                <CardDescription>Gestiona el logo y favicon de tu sistema</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center justify-center p-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              {(() => {
-                const apiBaseUrl = import.meta.env.VITE_API_URL || 
-                  (typeof window !== 'undefined' ? `${window.location.origin}/api` : 'http://localhost:8000/api');
-                const baseUrl = apiBaseUrl.replace('/api', '') || 
-                  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8000');
-                
-                let logoUrl = config?.logo_url;
-                if (!logoUrl || logoUrl.trim() === '') {
-                  logoUrl = `${baseUrl}/images/logo.jpg`;
-                }
-                
-                return (
-                  <img 
-                    src={logoUrl} 
-                    alt="Logo del sistema"
-                    className="max-w-full max-h-32 object-contain rounded"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                    }}
-                  />
-                );
-              })()}
-            </div>
-          </CardContent>
-        </Card>
+            <div className="flex justify-center">
+              {/* Logo Section */}
+              <div className="flex flex-col w-full max-w-xl space-y-4">
+                <Label className="text-base font-semibold text-foreground">Logo del Sistema</Label>
+                <div className="flex flex-col justify-between gap-6 p-6 border rounded-xl bg-card shadow-sm">
+                  {/* Logo Preview */}
+                  <div className="relative flex items-center justify-center w-full min-h-[200px] bg-white/50 dark:bg-black/20 rounded-lg border border-dashed p-4">
+                    {(() => {
+                      const logoUrl = resolveSystemImageUrl(config?.logo_url);
+                      return (
+                        <img
+                          src={logoUrl}
+                          alt="Logo del sistema"
+                          className="max-w-full max-h-40 object-contain"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
 
-        {/* Cambiar Logo - Próximamente */}
-        <Card className="opacity-60">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-600/10 rounded-lg flex items-center justify-center">
-                <ImageIcon className="w-5 h-5 text-orange-600" />
+                  {/* Upload Button */}
+                  <div className="w-full">
+                    <Label
+                      htmlFor="logo-upload"
+                      className={`flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary/5 border border-primary/20 rounded-lg cursor-pointer hover:bg-primary/10 transition-all ${!hasPermission('editar_configuracion_sistema') ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <ImageIcon className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium text-primary">
+                        Seleccionar Nuevo Logo
+                      </span>
+                      <Input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                        disabled={!hasPermission('editar_configuracion_sistema')}
+                      />
+                    </Label>
+                    <p className="text-xs text-center text-muted-foreground mt-3">
+                      Recomendado: PNG o SVG transparente (max 2MB)
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Cambiar Logo
-                  <span className="text-xs bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded-full font-normal">Próximamente</span>
-                </CardTitle>
-                <CardDescription>Sube y actualiza el logo de tu sistema</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-center p-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <p className="text-gray-500 dark:text-gray-400 text-center">
-                Esta funcionalidad estará disponible próximamente.
-                <br />
-                <span className="text-sm">Por ahora el logo se maneja directamente desde el servidor.</span>
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -306,8 +279,8 @@ export default function ConfiguracionSistemaPage() {
             <div className="mt-6 p-4 border rounded-lg bg-gray-50 dark:bg-gray-900">
               <p className="text-xs text-gray-500 mb-3">Vista previa del color:</p>
               <div className="flex gap-3">
-                <Button 
-                  style={{ backgroundColor: config.primary_color || '#3B82F6' }} 
+                <Button
+                  style={{ backgroundColor: config.primary_color || '#3B82F6' }}
                   className="text-white"
                   disabled
                 >
@@ -399,13 +372,13 @@ export default function ConfiguracionSistemaPage() {
         {/* Save Button */}
         {hasPermission('editar_configuracion_sistema') && (
           <div className="flex justify-end gap-3">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => navigate("/dashboard")}
             >
               Cancelar
             </Button>
-            <Button 
+            <Button
               onClick={handleSave}
               disabled={saving}
               className="bg-blue-600 hover:bg-blue-700 text-white"
