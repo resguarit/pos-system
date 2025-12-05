@@ -131,14 +131,29 @@ jobs:
           echo "🔍 Verificando deployment en: $DEPLOY_PATH"
           
           # Si los archivos están en dist/, moverlos a la raíz
-          if [ -d "$DEPLOY_PATH/dist" ] && [ -f "$DEPLOY_PATH/dist/index.html" ]; then
+          if [ -d "$DEPLOY_PATH/dist" ]; then
             echo "⚠️  Archivos encontrados en subdirectorio dist/, moviendo a raíz..."
-            # Mover archivos y directorios desde dist/ a la raíz
-            shopt -s dotglob
-            mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" 2>/dev/null || sudo mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" || true
-            shopt -u dotglob
-            # Eliminar directorio dist/ vacío
-            rmdir "$DEPLOY_PATH/dist" 2>/dev/null || sudo rmdir "$DEPLOY_PATH/dist" || true
+            
+            # Mover index.html
+            if [ -f "$DEPLOY_PATH/dist/index.html" ]; then
+              mv "$DEPLOY_PATH/dist/index.html" "$DEPLOY_PATH/"
+            fi
+            
+            # Mover assets (eliminando el anterior para evitar anidamiento)
+            if [ -d "$DEPLOY_PATH/dist/assets" ]; then
+              rm -rf "$DEPLOY_PATH/assets"
+              mv "$DEPLOY_PATH/dist/assets" "$DEPLOY_PATH/"
+            fi
+            
+            # Mover cualquier otro archivo/directorio restante
+            if [ -d "$DEPLOY_PATH/dist" ]; then
+              shopt -s dotglob
+              mv "$DEPLOY_PATH/dist"/* "$DEPLOY_PATH/" 2>/dev/null || true
+              shopt -u dotglob
+            fi
+            
+            # Eliminar directorio dist/ vacío o remanente
+            rm -rf "$DEPLOY_PATH/dist"
             echo "✅ Archivos movidos a la raíz"
           fi
           
