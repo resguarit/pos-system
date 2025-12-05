@@ -70,6 +70,18 @@ jobs:
           php artisan route:cache
           php artisan view:cache
           php artisan migrate --force
+          
+          # Crear symlink para /images/ (LiteSpeed compatibility)
+          cd ../../..
+          if [ ! -L "images" ] && [ ! -d "images" ]; then
+            ln -s apps/backend/public/images images
+            echo "✅ Symlink /images/ creado"
+          elif [ -L "images" ]; then
+            echo "✅ Symlink /images/ ya existe"
+          else
+            echo "⚠️  Directorio /images/ existe (no es symlink), omitiendo"
+          fi
+          
           echo "✅ Backend deployment completed"
 
           
