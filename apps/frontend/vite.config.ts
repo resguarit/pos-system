@@ -6,11 +6,16 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+import packageJson from './package.json'
+
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
   ],
+  define: {
+    '__APP_VERSION__': JSON.stringify(packageJson.version),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

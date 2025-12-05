@@ -2,7 +2,6 @@ import {
   ArrowRightLeft,
   BarChart3,
   Building2,
-  CalendarClock,
   CircleDollarSign,
   ClipboardList,
   CreditCard,
@@ -10,13 +9,11 @@ import {
   FileText,
   FolderOpen,
   LayoutDashboard,
-  Map,
   Package,
   Settings,
   ShoppingCart,
   Store,
   Truck,
-  User,
   Users,
   Wallet,
   Shield,
@@ -127,7 +124,7 @@ export function AppSidebar({ className }: { className?: string }) {
                   {systemTitle}
                 </span>
                 <span className="text-xs text-gray-600">
-                  v1.0.0
+                  v{__APP_VERSION__}
                 </span>
               </div>
             </SidebarMenuButton>
