@@ -45,6 +45,10 @@ try {
   console.warn('Failed to parse VITE_FEATURES', e);
 }
 
+console.log('VITE_FEATURES raw:', import.meta.env.VITE_FEATURES);
+console.log('Parsed features:', envFeatures);
+console.log('Final features:', { ...defaultFeatures, ...envFeatures });
+
 const features = { ...defaultFeatures, ...envFeatures };
 
 export default features;
