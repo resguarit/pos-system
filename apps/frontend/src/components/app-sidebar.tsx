@@ -159,7 +159,7 @@ export function AppSidebar({ className }: { className?: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {hasPermission('gestionar_combos') && (
+              {features.combos && hasPermission('gestionar_combos') && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/combos"} tooltip="Combos">
                     <Link to="/dashboard/combos">
@@ -266,7 +266,7 @@ export function AppSidebar({ className }: { className?: string }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
-              {hasPermission('ver_transferencias') && (
+              {features.transferencias && hasPermission('ver_transferencias') && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/stock-transfers"} tooltip="Transferencias de Stock">
                     <Link to="/dashboard/stock-transfers">
@@ -284,7 +284,7 @@ export function AppSidebar({ className }: { className?: string }) {
           <SidebarGroupLabel>Gestión</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {hasPermission('ver_categorias') && (
+              {features.categorias && hasPermission('ver_categorias') && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard/categorias"} tooltip="Categorías">
                     <Link to="/dashboard/categorias">
