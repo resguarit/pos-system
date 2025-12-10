@@ -34,7 +34,11 @@ import {
   Loader2,
   AlertCircle,
   FileCheck,
-  Trash2
+  Trash2,
+  RefreshCw,
+  TrendingUp,
+  Wallet,
+  Users
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
