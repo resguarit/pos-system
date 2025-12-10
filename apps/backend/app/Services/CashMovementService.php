@@ -18,7 +18,7 @@ class CashMovementService implements CashMovementServiceInterface
             $data['amount'] = abs($data['amount']);
 
             $movement = CashMovement::create($data);
-            
+
             // Actualizar campos calculados del registro de caja
             if (isset($data['cash_register_id'])) {
                 $cashRegister = \App\Models\CashRegister::find($data['cash_register_id']);
@@ -26,17 +26,17 @@ class CashMovementService implements CashMovementServiceInterface
                     $cashRegister->updateCalculatedFields();
                 }
             }
-            
+
             // Cargar relaciones para que el frontend tenga toda la información
             $movement->load(['movementType', 'paymentMethod', 'user']);
-            
+
             return $movement;
         });
     }
 
     public function getMovementsByRegister(int $cashRegisterId, Request $request)
     {
-        $query = CashMovement::with(['movementType', 'user', 'paymentMethod']) // Cargar relación
+        $query = CashMovement::with(['movementType', 'user', 'paymentMethod', 'reference']) // Cargar relación
             ->where('cash_register_id', $cashRegisterId);
 
         if ($request->has('movement_type_id')) {
@@ -51,26 +51,26 @@ class CashMovementService implements CashMovementServiceInterface
         if ($q !== '') {
             $query->where(function ($w) use ($q) {
                 $w->where('description', 'like', "%{$q}%")
-                  ->orWhereHas('movementType', function ($mt) use ($q) {
-                      $mt->where('description', 'like', "%{$q}%");
-                  })
-                  // --- ESTA ES LA SECCIÓN A CORREGIR ---
-                  ->orWhereHas('user', function ($u) use ($q) {
-                      // Laravel buscará en la tabla 'persons' a través del modelo User
-                      // si la relación está bien definida (User -> belongsTo -> Person)
-                      $u->where('username', 'like', "%{$q}%")
-                        ->orWhere('email', 'like', "%{$q}%")
-                        ->orWhereHas('person', function ($p) use ($q) {
+                    ->orWhereHas('movementType', function ($mt) use ($q) {
+                        $mt->where('description', 'like', "%{$q}%");
+                    })
+                    // --- ESTA ES LA SECCIÓN A CORREGIR ---
+                    ->orWhereHas('user', function ($u) use ($q) {
+                        // Laravel buscará en la tabla 'persons' a través del modelo User
+                        // si la relación está bien definida (User -> belongsTo -> Person)
+                        $u->where('username', 'like', "%{$q}%")
+                            ->orWhere('email', 'like', "%{$q}%")
+                            ->orWhereHas('person', function ($p) use ($q) {
                             // Asumimos que la relación 'person' existe en tu modelo User
                             // y que la tabla 'persons' tiene las columnas 'first_name' y 'last_name'.
                             $p->where('first_name', 'like', "%{$q}%")
-                              ->orWhere('last_name', 'like', "%{$q}%");
+                                ->orWhere('last_name', 'like', "%{$q}%");
                         });
-                  })
-                  // --- FIN DE LA CORRECCIÓN ---
-                  ->orWhereHas('paymentMethod', function ($pm) use ($q) {
-                      $pm->where('name', 'like', "%{$q}%");
-                  });
+                    })
+                    // --- FIN DE LA CORRECCIÓN ---
+                    ->orWhereHas('paymentMethod', function ($pm) use ($q) {
+                        $pm->where('name', 'like', "%{$q}%");
+                    });
             });
         }
         $perPage = (int) $request->input('per_page', 10);
@@ -88,20 +88,20 @@ class CashMovementService implements CashMovementServiceInterface
     {
         return DB::transaction(function () use ($id) {
             $movement = CashMovement::findOrFail($id);
-            
+
             if (!$movement->cashRegister->isOpen()) {
                 throw new \Exception('No se puede eliminar un movimiento de una caja cerrada');
             }
 
             $cashRegisterId = $movement->cash_register_id;
             $result = $movement->delete();
-            
+
             // Actualizar campos calculados del registro de caja después de eliminar
             $cashRegister = \App\Models\CashRegister::find($cashRegisterId);
             if ($cashRegister) {
                 $cashRegister->updateCalculatedFields();
             }
-            
+
             return $result;
         });
     }

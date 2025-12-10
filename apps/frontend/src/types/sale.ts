@@ -1,4 +1,4 @@
-import type { CartItem } from './combo'
+
 
 export interface PaymentMethod {
   id: number
@@ -85,7 +85,7 @@ export interface SaleHeader {
   id: number
   date: string
   receipt_number?: string
-  receipt_type?: {
+  receipt_type?: string | {
     id: number
     name: string
     description?: string
@@ -100,7 +100,7 @@ export interface SaleHeader {
     }
     business_name?: string
   }
-  branch?: {
+  branch?: string | {
     id: number
     description?: string
     cuit?: string
@@ -149,4 +149,5 @@ export interface SaleHeader {
       name?: string
     }
   }>
+  items_count?: number
 }

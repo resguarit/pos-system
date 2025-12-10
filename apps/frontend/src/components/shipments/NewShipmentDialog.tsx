@@ -68,11 +68,11 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   const [users, setUsers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Estados para búsqueda de transportista
   const [transporterSearch, setTransporterSearch] = useState('');
   const [showTransporterOptions, setShowTransporterOptions] = useState(false);
-  
+
   // Estados para búsqueda de cliente  
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
@@ -83,7 +83,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       refetchSales();
       fetchUsers();
       fetchCustomers();
-      
+
       // Establecer el estado inicial por defecto
       const initialStage = stages.find(s => s.order === 1);
       if (initialStage) {
@@ -102,9 +102,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   const fetchUsers = async () => {
     try {
       const response = await request({ method: 'GET', url: '/users?include=person' });
-      
+
       console.log('Users response:', response);
-      
+
       if (response?.data) {
         const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
         console.log('Users data:', usersData);
@@ -118,9 +118,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   const fetchCustomers = async () => {
     try {
       const response = await request({ method: 'GET', url: '/customers' });
-      
+
       console.log('Customers response:', response);
-      
+
       if (response?.data) {
         const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
         console.log('Customers data:', customersData);
@@ -130,42 +130,42 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       console.error('Error fetching customers:', error);
     }
   };
-  
+
   // Filtrar transportistas según búsqueda
   useEffect(() => {
     if (!transporterSearch.trim()) {
       return;
     }
-    
+
     const searchLower = transporterSearch.toLowerCase();
     const filtered = users.filter(user => {
       const firstName = user.person?.first_name || '';
       const lastName = user.person?.last_name || '';
       const email = user.email || '';
       const fullName = `${firstName} ${lastName}`.toLowerCase();
-      
+
       return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
     });
-    
+
     setShowTransporterOptions(filtered.length > 0);
   }, [transporterSearch, users]);
-  
+
   // Filtrar clientes según búsqueda
   useEffect(() => {
     if (!customerSearch.trim()) {
       return;
     }
-    
+
     const searchLower = customerSearch.toLowerCase();
     const filtered = customers.filter(customer => {
       const firstName = customer.person?.first_name || '';
       const lastName = customer.person?.last_name || '';
       const email = customer.email || '';
       const fullName = `${firstName} ${lastName}`.toLowerCase();
-      
+
       return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
     });
-    
+
     setShowCustomerOptions(filtered.length > 0);
   }, [customerSearch, customers]);
 
@@ -186,7 +186,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
     try {
       setLoading(true);
-      
+
       // Preparar metadata con datos opcionales
       const metadata: any = {
         shipping_state: newShipmentForm.shipping_state || null,
@@ -212,7 +212,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       }
 
       // Si solo hay una sucursal seleccionada, usar su ID
-      const branchId = selectedBranchIds.length === 1 
+      const branchId = selectedBranchIds.length === 1
         ? parseInt(selectedBranchIds[0], 10)
         : newShipmentForm.branch_id;
 
@@ -235,7 +235,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
       toast.success('Envío creado exitosamente');
       onOpenChange(false);
-      
+
       // Limpiar formulario
       setNewShipmentForm({
         sale_ids: [],
@@ -252,7 +252,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
         cliente_id: undefined,
         stage_id: undefined,
       });
-      
+
       // Limpiar búsquedas
       setSearchSaleTerm('');
       setTransporterSearch('');
@@ -274,12 +274,12 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
     const searchLower = searchSaleTerm.toLowerCase();
     const receiptNumber = sale.receipt_number?.toString().toLowerCase() || '';
     const totalStr = sale.total?.toFixed(2) || '0.00';
-    const customerName = sale.customer?.person 
+    const customerName = sale.customer?.person
       ? `${sale.customer.person.first_name} ${sale.customer.person.last_name}`.toLowerCase()
       : '';
-    return receiptNumber.includes(searchLower) || 
-           customerName.includes(searchLower) ||
-           totalStr.includes(searchLower);
+    return receiptNumber.includes(searchLower) ||
+      customerName.includes(searchLower) ||
+      totalStr.includes(searchLower);
   });
 
 
@@ -299,7 +299,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
             Selecciona las ventas y completa la información de envío
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="py-4 space-y-6">
           {/* Sección: Seleccionar Ventas */}
           <div className="space-y-4">
@@ -340,11 +340,10 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                   <div
                     key={sale.id}
                     onClick={() => handleSaleToggle(sale.id)}
-                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                      newShipmentForm.sale_ids.includes(sale.id)
+                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${newShipmentForm.sale_ids.includes(sale.id)
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:bg-muted/50'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -379,11 +378,11 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
           {/* Sección: Información de Envío */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Información de Envío</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Estado */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Estado *</label>
+                <label className="text-sm font-medium">Estado <span className="text-red-500">*</span></label>
                 <Select
                   value={newShipmentForm.stage_id?.toString() || ''}
                   onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, stage_id: parseInt(value) }))}
@@ -410,7 +409,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
               {/* Sucursal - Solo mostrar si hay múltiples sucursales */}
               {selectedBranchIds.length > 1 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Sucursal *</label>
+                  <label className="text-sm font-medium">Sucursal <span className="text-red-500">*</span></label>
                   <Select
                     value={newShipmentForm.branch_id?.toString() || ''}
                     onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, branch_id: parseInt(value) }))}
@@ -462,40 +461,40 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                     const fullName = `${firstName} ${lastName}`.toLowerCase();
                     return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
                   }).length > 0 && (
-                    <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                      {users.filter(user => {
-                        const searchLower = transporterSearch.toLowerCase();
-                        const firstName = user.person?.first_name || '';
-                        const lastName = user.person?.last_name || '';
-                        const email = user.email || '';
-                        const fullName = `${firstName} ${lastName}`.toLowerCase();
-                        return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                      }).map((user) => {
-                        const firstName = user.person?.first_name || '';
-                        const lastName = user.person?.last_name || '';
-                        const email = user.email || '';
-                        const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Usuario sin nombre';
-                        
-                        return (
-                          <div
-                            key={user.id}
-                            className="p-2 cursor-pointer hover:bg-gray-100"
-                            role="button"
-                            tabIndex={0}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setNewShipmentForm(prev => ({ ...prev, transportista_id: user.id }));
-                              setTransporterSearch(`${name} (${email})`);
-                              setShowTransporterOptions(false);
-                            }}
-                          >
-                            {name} ({email})
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                      <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                        {users.filter(user => {
+                          const searchLower = transporterSearch.toLowerCase();
+                          const firstName = user.person?.first_name || '';
+                          const lastName = user.person?.last_name || '';
+                          const email = user.email || '';
+                          const fullName = `${firstName} ${lastName}`.toLowerCase();
+                          return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
+                        }).map((user) => {
+                          const firstName = user.person?.first_name || '';
+                          const lastName = user.person?.last_name || '';
+                          const email = user.email || '';
+                          const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Usuario sin nombre';
+
+                          return (
+                            <div
+                              key={user.id}
+                              className="p-2 cursor-pointer hover:bg-gray-100"
+                              role="button"
+                              tabIndex={0}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setNewShipmentForm(prev => ({ ...prev, transportista_id: user.id }));
+                                setTransporterSearch(`${name} (${email})`);
+                                setShowTransporterOptions(false);
+                              }}
+                            >
+                              {name} ({email})
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                 </div>
               </div>
 
@@ -525,55 +524,55 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                     const fullName = `${firstName} ${lastName}`.toLowerCase();
                     return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
                   }).length > 0 && (
-                    <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                      {customers.filter(customer => {
-                        const searchLower = customerSearch.toLowerCase();
-                        const firstName = customer.person?.first_name || '';
-                        const lastName = customer.person?.last_name || '';
-                        const email = customer.email || '';
-                        const fullName = `${firstName} ${lastName}`.toLowerCase();
-                        return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                      }).map((customer) => {
-                        const firstName = customer.person?.first_name || '';
-                        const lastName = customer.person?.last_name || '';
-                        const email = customer.email || '';
-                        const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Cliente sin nombre';
-                        
-                        return (
-                          <div
-                            key={customer.id}
-                            className="p-2 cursor-pointer hover:bg-gray-100"
-                            role="button"
-                            tabIndex={0}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              
-                              // Rellenar los campos del formulario con los datos del cliente
-                              setNewShipmentForm(prev => ({
-                                ...prev,
-                                cliente_id: customer.id,
-                                shipping_address: customer.person?.address || prev.shipping_address,
-                                shipping_city: customer.person?.city || prev.shipping_city,
-                                shipping_state: customer.person?.state || prev.shipping_state,
-                                shipping_postal_code: customer.person?.postal_code || prev.shipping_postal_code,
-                              }));
-                              
-                              setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
-                              setShowCustomerOptions(false);
-                            }}
-                          >
-                            {name}{email ? ` (${email})` : ''}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                      <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                        {customers.filter(customer => {
+                          const searchLower = customerSearch.toLowerCase();
+                          const firstName = customer.person?.first_name || '';
+                          const lastName = customer.person?.last_name || '';
+                          const email = customer.email || '';
+                          const fullName = `${firstName} ${lastName}`.toLowerCase();
+                          return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
+                        }).map((customer) => {
+                          const firstName = customer.person?.first_name || '';
+                          const lastName = customer.person?.last_name || '';
+                          const email = customer.email || '';
+                          const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Cliente sin nombre';
+
+                          return (
+                            <div
+                              key={customer.id}
+                              className="p-2 cursor-pointer hover:bg-gray-100"
+                              role="button"
+                              tabIndex={0}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                // Rellenar los campos del formulario con los datos del cliente
+                                setNewShipmentForm(prev => ({
+                                  ...prev,
+                                  cliente_id: customer.id,
+                                  shipping_address: customer.person?.address || prev.shipping_address,
+                                  shipping_city: customer.person?.city || prev.shipping_city,
+                                  shipping_state: customer.person?.state || prev.shipping_state,
+                                  shipping_postal_code: customer.person?.postal_code || prev.shipping_postal_code,
+                                }));
+
+                                setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
+                                setShowCustomerOptions(false);
+                              }}
+                            >
+                              {name}{email ? ` (${email})` : ''}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Dirección *</label>
+                <label className="text-sm font-medium">Dirección <span className="text-red-500">*</span></label>
                 <Input
                   value={newShipmentForm.shipping_address}
                   onChange={(e) => setNewShipmentForm(prev => ({ ...prev, shipping_address: e.target.value }))}

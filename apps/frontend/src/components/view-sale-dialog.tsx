@@ -91,18 +91,18 @@ const ViewSaleDialog = ({
   const saleToDisplay = currentSale || sale;
   const formatCurrencyARS = (amount: number | null | undefined) => {
     if (amount == null) return '$0.00 ARS';
-    return new Intl.NumberFormat('es-AR', { 
-      style: 'currency', 
-      currency: 'ARS' 
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS'
     }).format(amount);
   };
 
   const formatUnitPrice = (item: any) => {
     if (!item || !item.product) return '$0.00';
-    
+
     // sale_price es el precio de venta con IVA del producto
     const salePrice = Number(item.product.sale_price || 0);
-    
+
     // Todos los precios de venta son en ARS
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -122,7 +122,7 @@ const ViewSaleDialog = ({
   // 2. Definir textos dinámicos basados en si es un presupuesto o una venta.
   const dialogTitle = isBudget ? "Detalle del Presupuesto" : "Detalle de Venta";
   const dialogDescription = isBudget ? "Información detallada del presupuesto." : "Información detallada de la venta.";
-  
+
   // Usar el nombre directo del tipo de comprobante para mayor precisión.
   const receiptName = (typeof saleToDisplay.receipt_type === 'string' ? saleToDisplay.receipt_type : saleToDisplay.receipt_type?.description) || getReceiptType(saleToDisplay).displayName;
 
@@ -175,24 +175,39 @@ const ViewSaleDialog = ({
               </DialogDescription>
             </div>
             {/* Badge de estado AFIP */}
-            {!isBudget && (
+            {isBudget ? (
               <div className="flex items-center gap-2">
-                {isAuthorized ? (
-                  <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                    <CheckCircle2 className="mr-1 h-3 w-3" />
-                    Autorizada AFIP
-                  </Badge>
-                ) : canAuthorizeThis ? (
-                  <Badge variant="outline" className="border-amber-500 text-amber-700">
-                    <AlertCircle className="mr-1 h-3 w-3" />
-                    Pendiente AFIP
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="border-gray-400 text-gray-600">
-                    No autorizable
-                  </Badge>
-                )}
+                <Badge variant="outline" className={`${saleToDisplay.status === 'approved' ? 'border-green-500 text-green-700 bg-green-50' :
+                    saleToDisplay.status === 'pending' ? 'border-yellow-500 text-yellow-700 bg-yellow-50' :
+                      saleToDisplay.status === 'annulled' ? 'border-red-500 text-red-700 bg-red-50' :
+                        'border-gray-500 text-gray-700 bg-gray-50'
+                  }`}>
+                  {saleToDisplay.status === 'approved' ? 'Aprobado' :
+                    saleToDisplay.status === 'pending' ? 'Pendiente' :
+                      saleToDisplay.status === 'annulled' ? 'Anulado' :
+                        'Borrador'}
+                </Badge>
               </div>
+            ) : (
+              !isBudget && (
+                <div className="flex items-center gap-2">
+                  {isAuthorized ? (
+                    <Badge variant="default" className="bg-green-600 hover:bg-green-700">
+                      <CheckCircle2 className="mr-1 h-3 w-3" />
+                      Autorizada AFIP
+                    </Badge>
+                  ) : canAuthorizeThis ? (
+                    <Badge variant="outline" className="border-amber-500 text-amber-700">
+                      <AlertCircle className="mr-1 h-3 w-3" />
+                      Pendiente AFIP
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-gray-400 text-gray-600">
+                      No autorizable
+                    </Badge>
+                  )}
+                </div>
+              )
             )}
           </div>
         </DialogHeader>
@@ -265,10 +280,10 @@ const ViewSaleDialog = ({
                 const salePrice = Number((item as any).product?.sale_price || 0);
                 const quantity = Number((item as any).quantity || 0);
                 const discountAmount = Number((item as any).discount_amount || 0);
-                
+
                 // Calcular el total del item: (precio de venta * cantidad) - descuento
                 const itemTotal = (salePrice * quantity) - discountAmount;
-                
+
                 return (
                   <TableRow key={item.id}>
                     <TableCell>{(item as any).description || (item as any).product?.description || 'Sin descripción'}</TableCell>
@@ -281,7 +296,7 @@ const ViewSaleDialog = ({
               })}
             </TableBody>
           </Table>
-          
+
           {/* Resumen de totales */}
           <div className="mt-4 border-t pt-4">
             <div className="flex justify-end">

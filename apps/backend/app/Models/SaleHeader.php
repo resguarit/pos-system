@@ -39,6 +39,9 @@ class SaleHeader extends Model
         'service_due_date',
         'user_id',
         'status',
+        'approved_by',
+        'approved_at',
+        'rejection_reason',
         'annulled_at',
         'annulled_by',
         'annulment_reason',
@@ -61,6 +64,7 @@ class SaleHeader extends Model
         'service_from_date' => 'date',
         'service_to_date' => 'date',
         'service_due_date' => 'date',
+        'approved_at' => 'datetime',
         'annulled_at' => 'datetime',
         'metadata' => 'array',
     ];
@@ -90,6 +94,11 @@ class SaleHeader extends Model
     public function annulledByUser()
     {
         return $this->belongsTo(User::class, 'annulled_by');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function saleFiscalCondition()
@@ -143,8 +152,8 @@ class SaleHeader extends Model
      */
     public function getPendingAmountAttribute(): float
     {
-        $total = (float)($this->total ?? 0);
-        $paid = (float)($this->paid_amount ?? 0);
+        $total = (float) ($this->total ?? 0);
+        $paid = (float) ($this->paid_amount ?? 0);
         return max(0, $total - $paid);
     }
 
@@ -153,15 +162,15 @@ class SaleHeader extends Model
      */
     public function recordPayment(float $amount): void
     {
-        $this->paid_amount = (float)$this->paid_amount + $amount;
-        
+        $this->paid_amount = (float) $this->paid_amount + $amount;
+
         if ($this->paid_amount >= $this->total) {
             $this->payment_status = 'paid';
             $this->paid_amount = $this->total;
         } elseif ($this->paid_amount > 0) {
             $this->payment_status = 'partial';
         }
-        
+
         $this->save();
     }
 
@@ -173,16 +182,64 @@ class SaleHeader extends Model
         return $this->belongsToMany(Shipment::class, 'shipment_sale');
     }
 
+    /**
+     * Scope para filtrar ventas pendientes de aprobación
+     */
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    /**
+     * Scope para filtrar ventas aprobadas
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('status', 'approved');
+    }
+
+    /**
+     * Scope para filtrar ventas rechazadas
+     */
+    public function scopeRejected($query)
+    {
+        return $query->where('status', 'rejected');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->logOnly([
-                'date', 'receipt_type_id', 'branch_id', 'receipt_number', 'customer_id',
-                'sale_fiscal_condition_id', 'sale_document_type_id', 'sale_document_number',
-                'subtotal', 'total_iva_amount', 'iibb', 'internal_tax', 'discount_type',
-                'discount_value', 'discount_amount', 'total', 'cae', 'cae_expiration_date',
-                'service_from_date', 'service_to_date', 'service_due_date', 'user_id',
-                'status', 'annulled_at', 'annulled_by', 'annulment_reason', 'paid_amount',
+                'date',
+                'receipt_type_id',
+                'branch_id',
+                'receipt_number',
+                'customer_id',
+                'sale_fiscal_condition_id',
+                'sale_document_type_id',
+                'sale_document_number',
+                'subtotal',
+                'total_iva_amount',
+                'iibb',
+                'internal_tax',
+                'discount_type',
+                'discount_value',
+                'discount_amount',
+                'total',
+                'cae',
+                'cae_expiration_date',
+                'service_from_date',
+                'service_to_date',
+                'service_due_date',
+                'user_id',
+                'status',
+                'approved_by',
+                'approved_at',
+                'rejection_reason',
+                'annulled_at',
+                'annulled_by',
+                'annulment_reason',
+                'paid_amount',
                 'payment_status'
             ])
             ->useLogName('sale')

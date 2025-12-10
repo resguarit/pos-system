@@ -1,3 +1,9 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -10,29 +16,30 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import {
-  Download,
-  Eye,
+  MoreHorizontal,
+  Pencil,
   FileText,
-  TrendingUp,
-  Users,
-  Wallet,
-  // Receipt, // Comentado por ocultar vista previa
-  Loader2,
-  RefreshCw,
-  X,
+  Download,
   Printer,
-  ShieldCheck,
-} from "lucide-react";
+  Check,
+  X,
+  Search,
+  Calendar as CalendarIcon,
+  Filter,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Loader2,
+  AlertCircle,
+  FileCheck,
+  Trash2
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
+
+
+DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -47,7 +54,7 @@ import type { DateRange } from "@/components/ui/date-range-picker";
 import Pagination from "@/components/ui/pagination";
 import { format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import useApi from "@/hooks/useApi";
 import { type SaleHeader } from "@/types/sale";
 import { toast } from "sonner";
@@ -64,13 +71,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import PresupuestosPage from "./PresupuestosPage";
+import { useBudgets } from "@/hooks/useBudgets";
 
-// Definimos el tamaño de página para cargar más ventas
-const PAGE_SIZE = 5; // Temporalmente reducido para probar paginación
+// Configuración de paginación
+const PAGE_SIZE = 20; // Tamaño óptimo para producción
 
 export default function VentasPage() {
   const { request } = useApi();
-  const { hasPermission, isAdmin, user } = useAuth();
+  const { hasPermission } = useAuth();
 
   const { selectionChangeToken, selectedBranch, selectedBranchIds, branches } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
@@ -102,6 +111,46 @@ export default function VentasPage() {
   const location = useLocation();
   // Track handled navigation to avoid repeated detail fetches
   const handledOpenSaleIdRef = useRef<number | null>(null);
+
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'annulled' | 'budgets'>('all');
+  const [branchFilter, setBranchFilter] = useState<string>('all');
+
+  // Presupuestos State & Hook
+  const [budgetStatus, setBudgetStatus] = useState<'active' | 'converted' | 'annulled' | 'all'>('active');
+  const [currentBudgetPage, setCurrentBudgetPage] = useState(1);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search for budgets
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Calculate effective branch IDs for budgets
+  const budgetBranchIds = useMemo(() => {
+    return branchFilter === 'all'
+      ? selectedBranchIds.map(Number)
+      : [Number(branchFilter)];
+  }, [branchFilter, selectedBranchIds]);
+
+  const {
+    budgets,
+    loading: loadingBudgets,
+    actionLoading: actionLoadingBudgets,
+    fetchBudgets,
+    convertToSale,
+    approveBudget,
+    deleteBudget,
+    pagination: budgetPagination
+  } = useBudgets({
+    branchIds: budgetBranchIds,
+    status: budgetStatus,
+    fromDate: dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
+    toDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
+    search: debouncedSearch,
+    page: currentBudgetPage,
+    limit: 5
+  });
 
   // Cash register validation - usando la sucursal seleccionada
   const currentBranchId = selectedBranch?.id ? Number(selectedBranch.id) : 1;
@@ -443,8 +492,7 @@ export default function VentasPage() {
     return <Badge className={cssClasses}>{textToShow}</Badge>;
   };
 
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'annulled'>('all');
-  const [branchFilter, setBranchFilter] = useState<string>('all');
+
   const [annulledSales, setAnnulledSales] = useState<SaleHeader[]>([]);
   const [loadingAnnulled, setLoadingAnnulled] = useState(false);
 
@@ -518,6 +566,7 @@ export default function VentasPage() {
 
   // Determinar qué ventas mostrar según el filtro
   const filteredSales = (() => {
+    if (statusFilter === 'budgets') return [];
     if (statusFilter === 'annulled') {
       // Para anuladas, usar todas las anuladas cargadas
       const sourceSales = annulledSales.length > 0 ? annulledSales : sales.filter((s: SaleHeader) => s.status === 'annulled');
@@ -676,6 +725,10 @@ export default function VentasPage() {
     }
   };
 
+  const handleEditBudget = (budget: SaleHeader) => {
+    navigate('/dashboard/pos', { state: { budgetToEdit: budget } });
+  };
+
   /**
    * Maneja la actualización de una venta después de autorización AFIP
    * Actualiza la venta en la lista local y recarga si es necesario
@@ -713,7 +766,7 @@ export default function VentasPage() {
         url: `/sales/${sale.id}`,
       });
       const fullSaleData: SaleHeader = response.data?.data || response.data;
-      setSelectedSale(fullSaleData); 
+      setSelectedSale(fullSaleData);
       setIsReceiptOpen(true);
     } catch (error) {
       toast.error("Error", {
@@ -855,7 +908,7 @@ export default function VentasPage() {
     ]);
   };
 
-  const goToPage = (pageNumber: number) => {
+  const handlePageChange = (pageNumber: number) => {
     if (pageNumber >= 1 && pageNumber <= totalPages && pageNumber !== currentPage && !pageLoading) {
       setCurrentPage(pageNumber);
 
@@ -876,6 +929,12 @@ export default function VentasPage() {
   // Botón de recarga: recarga ventas y stats manteniendo página y rango actual
   const reloadData = () => {
     if (pageLoading) return;
+
+    if (statusFilter === 'budgets') {
+      fetchBudgets();
+      return;
+    }
+
     setPageLoading(true);
     setAllSales([]); // Limpiar caché para forzar nueva carga
     Promise.all([
@@ -913,25 +972,10 @@ export default function VentasPage() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold">Ventas Globales</h1>
-              {isAdmin() && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1">
-                        <ShieldCheck className="h-3 w-3" />
-                        Admin
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Como administrador, tienes acceso a todas las funciones independientemente de los permisos configurados</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              )}
             </div>
 
-            <div className="flex flex-wrap gap-2 items-center">
-              {/* Botón de recarga (igual al de Inventario) */}
+            <div className="flex gap-2 items-center justify-end">
+              {/* Botón de recarga */}
               <Button
                 variant="outline"
                 size="icon"
@@ -948,11 +992,13 @@ export default function VentasPage() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant="outline"
-                      className="cursor-pointer"
+                      size="icon"
+                      className="cursor-pointer lg:w-auto lg:px-3"
                       disabled={pageLoading}
+                      title="Exportar"
                     >
-                      <Download className="mr-2 h-4 w-4" />
-                      Exportar
+                      <Download className="h-4 w-4 lg:mr-2" />
+                      <span className="hidden lg:inline">Exportar</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -969,11 +1015,13 @@ export default function VentasPage() {
               )}
               <Button
                 variant="outline"
-                className="cursor-pointer"
+                size="icon"
+                className="cursor-pointer lg:w-auto lg:px-3"
                 onClick={() => setShowChart(!showChart)}
+                title={showChart ? "Ocultar Gráfico" : "Mostrar Gráfico"}
               >
-                <TrendingUp className="mr-2 h-4 w-4" />
-                {showChart ? "Ocultar Gráfico" : "Mostrar Gráfico"}
+                <TrendingUp className="h-4 w-4 lg:mr-2" />
+                <span className="hidden lg:inline">{showChart ? "Ocultar Gráfico" : "Mostrar Gráfico"}</span>
               </Button>
             </div>
           </div>
@@ -1048,9 +1096,8 @@ export default function VentasPage() {
             </Card>
           </div>
 
-          {/* Status Filter Tabs and Search/Date */}
-          <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'annulled')} className="w-fit">
+          <Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as any)} className="w-full space-y-4">
+            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
               <TabsList>
                 <TabsTrigger value="all">
                   <FileText className="w-4 h-4 mr-2" />
@@ -1064,325 +1111,421 @@ export default function VentasPage() {
                   <X className="w-4 h-4 mr-2" />
                   Anuladas
                 </TabsTrigger>
+                <TabsTrigger value="budgets">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Presupuestos
+                </TabsTrigger>
               </TabsList>
-            </Tabs>
 
-            {/* Search and Date Picker */}
-            <div className="flex flex-wrap gap-2 items-center">
-              <div className="relative w-full md:w-auto">
-                <input
-                  type="text"
-                  placeholder="Buscar ventas..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background w-full"
+              <div className="flex flex-wrap gap-2 items-center">
+                <div className="relative w-full md:w-auto">
+                  <input
+                    type="text"
+                    placeholder={statusFilter === 'budgets' ? "Buscar por cliente..." : "Buscar ventas..."}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background w-full"
+                  />
+                </div>
+                <DatePickerWithRange
+                  selected={dateRange}
+                  onSelect={handleDateRangeChange}
+                  className="md:w-auto"
                 />
               </div>
-              <DatePickerWithRange
-                selected={dateRange}
-                onSelect={handleDateRangeChange}
-                className="md:w-auto"
-              />
             </div>
-          </div>
 
-          {/* Branch Filter - Only show when multiple branches are selected */}
-          {selectedBranchIds.length > 1 && (
-            <div className="flex items-center gap-2">
-              <Label className="text-sm font-medium">Filtrar por sucursal:</Label>
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Todas las sucursales" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las sucursales</SelectItem>
-                  {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
-                    <SelectItem key={branch.id} value={branch.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        {branch.color && (
-                          <div
-                            className="w-3 h-3 rounded-full border"
-                            style={{ backgroundColor: branch.color }}
-                          />
-                        )}
-                        <span>{branch.description}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+            {statusFilter === 'budgets' ? (
+              <div className="space-y-4">
+                {/* Budget Status Filter */}
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-medium">Estado:</Label>
+                  <Select
+                    value={budgetStatus}
+                    onValueChange={(value: any) => setBudgetStatus(value)}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Activos</SelectItem>
+                      <SelectItem value="converted">Convertidos</SelectItem>
+                      <SelectItem value="annulled">Anulados</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-          {/* Chart Section */}
-          {showChart && (
-            <SalesHistoryChart dateRange={dateRange} />
-          )}
+                  {/* Branch Filter for Budgets */}
+                  {selectedBranchIds.length > 1 && (
+                    <>
+                      <Label className="text-sm font-medium ml-4">Sucursal:</Label>
+                      <Select value={branchFilter} onValueChange={setBranchFilter}>
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Todas las sucursales" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Todas las sucursales</SelectItem>
+                          {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
+                            <SelectItem key={branch.id} value={branch.id.toString()}>
+                              <div className="flex items-center gap-2">
+                                {branch.color && (
+                                  <div
+                                    className="w-3 h-3 rounded-full border"
+                                    style={{ backgroundColor: branch.color }}
+                                  />
+                                )}
+                                <span>{branch.description}</span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+                </div>
 
-          {/* Table Section */}
-          <div className="rounded-md border">
-            <Table ref={tableRef}>
-              <TableHeader>
-                <TableRow>
-                  <ResizableTableHeader
-                    columnId="receipt_number"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                  >
-                    Nº Venta
-                  </ResizableTableHeader>
-                  <ResizableTableHeader
-                    columnId="customer"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                  >
-                    Cliente
-                  </ResizableTableHeader>
-                  <ResizableTableHeader
-                    columnId="receipt_type"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                  >
-                    Comprobante
-                  </ResizableTableHeader>
-                  <ResizableTableHeader
-                    columnId="branch"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                    className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
-                  >
-                    Sucursal
-                  </ResizableTableHeader>
-                  <ResizableTableHeader
-                    columnId="items"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                    className="hidden md:table-cell text-center"
-                  >
-                    Items
-                  </ResizableTableHeader>
-                  <ResizableTableHeader
-                    columnId="date"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                    className="hidden sm:table-cell"
-                  >
-                    Fecha
-                  </ResizableTableHeader>
-                  <ResizableTableHeader
-                    columnId="total"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                    className="text-right"
-                  >
-                    Total
-                  </ResizableTableHeader>
-                  <ResizableTableHeader
-                    columnId="actions"
-                    getResizeHandleProps={getResizeHandleProps}
-                    getColumnHeaderProps={getColumnHeaderProps}
-                    className="text-center"
-                  >
-                    Acciones
-                  </ResizableTableHeader>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(pageLoading || (statusFilter === 'annulled' && loadingAnnulled)) && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <Loader2 className="animate-spin h-6 w-6 text-primary mb-2" />
-                        <span className="text-sm text-muted-foreground">
-                          {statusFilter === 'annulled' ? 'Cargando ventas anuladas...' : 'Cargando ventas...'}
-                        </span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                <PresupuestosPage
+                  budgets={budgets}
+                  loading={loadingBudgets}
+                  actionLoading={actionLoadingBudgets}
+                  onConvert={convertToSale}
+                  onDelete={deleteBudget}
+                  onApprove={approveBudget}
+                  onViewDetail={(budget) => handleViewDetail(budget as any)}
+                  onEdit={(budget) => handleEditBudget(budget as any)}
+                />
+
+                {/* Pagination for Budgets */}
+                <div className="mt-4">
+                  <Pagination
+                    currentPage={budgetPagination.current_page}
+                    lastPage={budgetPagination.last_page}
+                    onPageChange={setCurrentBudgetPage}
+                    total={budgetPagination.total}
+                    itemName="presupuestos"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+
+                {/* Branch Filter - Only show when multiple branches are selected */}
+                {selectedBranchIds.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-medium">Filtrar por sucursal:</Label>
+                    <Select value={branchFilter} onValueChange={setBranchFilter}>
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="Todas las sucursales" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas las sucursales</SelectItem>
+                        {branches?.filter(branch => selectedBranchIds.includes(branch.id.toString())).map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id.toString()}>
+                            <div className="flex items-center gap-2">
+                              {branch.color && (
+                                <div
+                                  className="w-3 h-3 rounded-full border"
+                                  style={{ backgroundColor: branch.color }}
+                                />
+                              )}
+                              <span>{branch.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
-                {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) && filteredSales.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <FileText className="h-8 w-8 text-muted-foreground mb-2 opacity-40" />
-                        <span className="text-muted-foreground">No se encontraron ventas para el período seleccionado.</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+
+                {/* Chart Section */}
+                {showChart && (
+                  <SalesHistoryChart dateRange={dateRange} />
                 )}
-                {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) &&
-                  filteredSales.map((sale: SaleHeader) => (
-                    <TableRow
-                      key={sale.id}
-                      className={sale.status === 'annulled' ? 'group bg-red-50 hover:bg-red-100 transition-colors' : ''}
-                    >
-                      <ResizableTableCell
-                        columnId="receipt_number"
-                        getColumnCellProps={getColumnCellProps}
-                        className={`font-medium ${sale.status === 'annulled' ? 'text-red-700' : ''}`}
-                      >
-                        {sale.receipt_number || sale.id}
-                      </ResizableTableCell>
-                      <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
-                        <div
-                          className={`truncate ${sale.status === 'annulled' ? 'text-red-600' : ''}`}
-                          title={getCustomerName(sale)}
+
+                {/* Table Section */}
+                <div className="rounded-md border">
+                  <Table ref={tableRef}>
+                    <TableHeader>
+                      <TableRow>
+                        <ResizableTableHeader
+                          columnId="receipt_number"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
                         >
-                          {getCustomerName(sale)}
-                        </div>
-                      </ResizableTableCell>
-                      <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
-                        <div className="flex items-center gap-2">
-                          {getReceiptTypeBadge(getReceiptType(sale))}
-                          <AfipStatusBadge sale={sale} />
-
-                        </div>
-                      </ResizableTableCell>
-                      <ResizableTableCell
-                        columnId="branch"
-                        getColumnCellProps={getColumnCellProps}
-                        className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
-                      >
-                        {(() => {
-                          const branchColor = getBranchColor(sale);
-                          const branchName = getBranchName(sale);
-
-                          return (
-                            <Badge
-                              variant="outline"
-                              className={`text-xs border-2 font-medium ${sale.status === 'annulled' ? 'opacity-60' : ''}`}
-                              style={{
-                                borderColor: branchColor,
-                                color: branchColor,
-                                backgroundColor: `${branchColor}10`
-                              }}
-                            >
-                              {branchName}
-                            </Badge>
-                          );
-                        })()}
-                      </ResizableTableCell>
-                      <ResizableTableCell
-                        columnId="items"
-                        getColumnCellProps={getColumnCellProps}
-                        className="hidden md:table-cell text-center"
-                      >
-                        <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{getItemsCount(sale)}</span>
-                      </ResizableTableCell>
-                      <ResizableTableCell
-                        columnId="date"
-                        getColumnCellProps={getColumnCellProps}
-                        className="hidden sm:table-cell"
-                      >
-                        <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{formatShortDate(sale.date)}</span>
-                      </ResizableTableCell>
-                      <ResizableTableCell
-                        columnId="total"
-                        getColumnCellProps={getColumnCellProps}
-                        className="text-right"
-                      >
-                        <span
-                          className={`${sale.status === 'annulled' ? 'line-through text-red-500 font-medium' : ''}`}
-                          title={sale.status === 'annulled' ? 'Venta anulada' : ''}
+                          Nº Venta
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="customer"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
                         >
-                          {formatCurrency(sale.total)}
-                        </span>
-                      </ResizableTableCell>
-                      <ResizableTableCell
-                        columnId="actions"
-                        getColumnCellProps={getColumnCellProps}
-                        className="text-center"
-                      >
-                        <div className="flex justify-center items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
-                            onClick={() => handleViewDetail(sale)}
-                            title="Ver Detalle"
-                            type="button"
-                            disabled={loadingActions[`view-${sale.id}`]}
+                          Cliente
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="receipt_type"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                        >
+                          Comprobante
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="branch"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
+                        >
+                          Sucursal
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="items"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="hidden md:table-cell text-center"
+                        >
+                          Items
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="date"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="hidden sm:table-cell"
+                        >
+                          Fecha
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="total"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="text-right"
+                        >
+                          Total
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="actions"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="text-center"
+                        >
+                          Acciones
+                        </ResizableTableHeader>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(pageLoading || (statusFilter === 'annulled' && loadingAnnulled)) && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="h-24 text-center">
+                            <div className="flex flex-col items-center justify-center">
+                              <Loader2 className="animate-spin h-6 w-6 text-primary mb-2" />
+                              <span className="text-sm text-muted-foreground">
+                                {statusFilter === 'annulled' ? 'Cargando ventas anuladas...' : 'Cargando ventas...'}
+                              </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) && filteredSales.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="h-24 text-center">
+                            <div className="flex flex-col items-center justify-center">
+                              <FileText className="h-8 w-8 text-muted-foreground mb-2 opacity-40" />
+                              <span className="text-muted-foreground">No se encontraron ventas para el período seleccionado.</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) &&
+                        filteredSales.map((sale: SaleHeader) => (
+                          <TableRow
+                            key={sale.id}
+                            className={sale.status === 'annulled' ? 'group bg-red-50 hover:bg-red-100 transition-colors' : ''}
                           >
-                            {loadingActions[`view-${sale.id}`] ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className={`text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
-                            size="icon"
-                            onClick={
-                              hasPermission('reimprimir_comprobantes')
-                                ? () => handleDownloadPdf(sale)
-                                : undefined
-                            }
-                            title={
-                              hasPermission('reimprimir_comprobantes') ? 'Descargar PDF' : ''
-                            }
-                            type="button"
-                            disabled={loadingActions[`download-${sale.id}`]}
-                          >
-                            {loadingActions[`download-${sale.id}`] ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            className={`text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
-                            size="icon"
-                            onClick={
-                              hasPermission('reimprimir_comprobantes')
-                                ? () => handlePrintPdf(sale)
-                                : undefined
-                            }
-                            title={
-                              hasPermission('reimprimir_comprobantes') ? 'Imprimir comprobante' : ''
-                            }
-                            type="button"
-                            disabled={loadingActions[`print-${sale.id}`]}
-                          >
-                            {loadingActions[`print-${sale.id}`] ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Printer className="h-4 w-4" />
-                            )}
-                          </Button>
-                          {hasPermission('anular_ventas') && (sale.status === 'active' || sale.status === 'completed') && (
-                            <Button
-                              variant="ghost"
-                              className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
-                              size="icon"
-                              onClick={() => handleAnnulSale(sale)}
-                              title="Anular Venta"
-                              type="button"
+                            <ResizableTableCell
+                              columnId="receipt_number"
+                              getColumnCellProps={getColumnCellProps}
+                              className={`font-medium ${sale.status === 'annulled' ? 'text-red-700' : ''}`}
                             >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </ResizableTableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </div>
+                              {sale.receipt_number || sale.id}
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
+                              <div
+                                className={`truncate ${sale.status === 'annulled' ? 'text-red-600' : ''}`}
+                                title={getCustomerName(sale)}
+                              >
+                                {getCustomerName(sale)}
+                              </div>
+                            </ResizableTableCell>
+                            <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
+                              <div className="flex items-center gap-2">
+                                {getReceiptTypeBadge(getReceiptType(sale))}
+                                <AfipStatusBadge sale={sale} />
 
-          {/* Paginación para ventas - Solo mostrar si no estamos en el filtro de anuladas */}
-          {statusFilter !== 'annulled' && (
-            <Pagination
-              currentPage={currentPage}
-              lastPage={totalPages}
-              total={totalItems}
-              itemName="ventas"
-              onPageChange={(page) => goToPage(page)}
-              disabled={pageLoading}
-              className="mt-4 mb-6"
-            />
-          )}
+                              </div>
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="branch"
+                              getColumnCellProps={getColumnCellProps}
+                              className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
+                            >
+                              {(() => {
+                                const branchColor = getBranchColor(sale);
+                                const branchName = getBranchName(sale);
+
+                                return (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs border-2 font-medium ${sale.status === 'annulled' ? 'opacity-60' : ''}`}
+                                    style={{
+                                      borderColor: branchColor,
+                                      color: branchColor,
+                                      backgroundColor: `${branchColor}10`
+                                    }}
+                                  >
+                                    {branchName}
+                                  </Badge>
+                                );
+                              })()}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="items"
+                              getColumnCellProps={getColumnCellProps}
+                              className="hidden md:table-cell text-center"
+                            >
+                              <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{getItemsCount(sale)}</span>
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="date"
+                              getColumnCellProps={getColumnCellProps}
+                              className="hidden sm:table-cell"
+                            >
+                              <span className={sale.status === 'annulled' ? 'text-red-600' : ''}>{formatShortDate(sale.date)}</span>
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="total"
+                              getColumnCellProps={getColumnCellProps}
+                              className="text-right"
+                            >
+                              <span
+                                className={`${sale.status === 'annulled' ? 'line-through text-red-500 font-medium' : ''}`}
+                                title={sale.status === 'annulled' ? 'Venta anulada' : ''}
+                              >
+                                {formatCurrency(sale.total)}
+                              </span>
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="actions"
+                              getColumnCellProps={getColumnCellProps}
+                              className="text-center"
+                            >
+                              <div className="flex justify-center items-center gap-1">
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
+                                      title="Acciones"
+                                      type="button"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem
+                                      onClick={() => handleViewDetail(sale)}
+                                      className="cursor-pointer"
+                                    >
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      Ver Detalle
+                                    </DropdownMenuItem>
+
+                                    {(sale.receipt_type as any)?.name?.toLowerCase().includes('presupuesto') && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleEditBudget(sale)}
+                                        className="cursor-pointer"
+                                      >
+                                        <Pencil className="mr-2 h-4 w-4" />
+                                        Editar Presupuesto
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                                <Button
+                                  variant="ghost"
+                                  className={`text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
+                                  size="icon"
+                                  onClick={
+                                    hasPermission('reimprimir_comprobantes')
+                                      ? () => handleDownloadPdf(sale)
+                                      : undefined
+                                  }
+                                  title={
+                                    hasPermission('reimprimir_comprobantes') ? 'Descargar PDF' : ''
+                                  }
+                                  type="button"
+                                  disabled={loadingActions[`download-${sale.id}`]}
+                                >
+                                  {loadingActions[`download-${sale.id}`] ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  className={`text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
+                                  size="icon"
+                                  onClick={
+                                    hasPermission('reimprimir_comprobantes')
+                                      ? () => handlePrintPdf(sale)
+                                      : undefined
+                                  }
+                                  title={
+                                    hasPermission('reimprimir_comprobantes') ? 'Imprimir comprobante' : ''
+                                  }
+                                  type="button"
+                                  disabled={loadingActions[`print-${sale.id}`]}
+                                >
+                                  {loadingActions[`print-${sale.id}`] ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Printer className="h-4 w-4" />
+                                  )}
+                                </Button>
+                                {hasPermission('anular_ventas') && (sale.status === 'active' || sale.status === 'completed') && (
+                                  <Button
+                                    variant="ghost"
+                                    className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                                    size="icon"
+                                    onClick={() => handleAnnulSale(sale)}
+                                    title="Anular Venta"
+                                    type="button"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </ResizableTableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Paginación para ventas - Solo mostrar si no estamos en el filtro de anuladas */}
+                {/* Pagination */}
+                <div className="mt-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    lastPage={totalPages}
+                    onPageChange={handlePageChange}
+                    total={totalItems}
+                    itemName="ventas"
+                  />
+                </div>
+              </div>
+            )}
+          </Tabs>
+
           {statusFilter === 'annulled' && !loadingAnnulled && (
             <div className="mt-4 mb-6 text-center text-sm text-muted-foreground">
               Mostrando {filteredSales.length} {filteredSales.length === 1 ? 'venta anulada' : 'ventas anuladas'} en el período seleccionado

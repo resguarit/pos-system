@@ -62,10 +62,10 @@ class SaleController extends Controller
                 'errors' => $validator->errors()
             ], 422);
         }
-        
+
         try {
             $validatedData = $validator->validated();
-            
+
             // --- INICIO DE LA MODIFICACIÓN ---
 
             // 1. Buscamos el tipo de comprobante.
@@ -82,14 +82,14 @@ class SaleController extends Controller
                 // Si es un presupuesto, nos aseguramos de no pasar el ID de la caja.
                 $validatedData['current_cash_register_id'] = null;
             }
-            
+
             // --- FIN DE LA MODIFICACIÓN ---
-            
+
             $sale = $this->saleService->createSale($validatedData);
-            
+
             return response()->json([
                 'success' => true,
-                'data' => $sale, 
+                'data' => $sale,
                 'message' => 'Venta creada exitosamente.'
             ], 201);
         } catch (Exception $e) {
@@ -108,7 +108,7 @@ class SaleController extends Controller
         }
 
         $saleData = $sale->toArray();
-        
+
         if ($sale->user) {
             if ($sale->user->person) {
                 $saleData['seller_name'] = trim($sale->user->person->first_name . ' ' . $sale->user->person->last_name);
@@ -152,7 +152,7 @@ class SaleController extends Controller
             'service_to_date' => 'nullable|date|after_or_equal:service_from_date',
             'service_due_date' => 'nullable|date',
             'user_id' => 'sometimes|required|integer|exists:users,id',
-        
+
         ]);
 
         if ($validator->fails()) {
@@ -205,10 +205,10 @@ class SaleController extends Controller
                 'branch',
                 'customer.person',
                 'receiptType',
-                'saleIvas.iva', 
+                'saleIvas.iva',
                 'saleFiscalCondition',
             ])->findOrFail($id);
-            
+
             return $this->saleService->downloadPdf($id);
         } catch (\Exception $e) {
             return response()->json([
@@ -343,6 +343,138 @@ class SaleController extends Controller
                 'message' => 'Error al autorizar con AFIP: ' . $e->getMessage(),
                 'afip_code' => $afipCode,
             ], 500);
+        }
+    }
+
+    /**
+     * Convertir un presupuesto a venta
+     * 
+     * @param Request $request
+     * @param int $id ID del presupuesto
+     * @return JsonResponse
+     */
+    public function convertBudget(Request $request, int $id): JsonResponse
+    {
+        try {
+            $userId = auth()->id();
+
+            if (!$userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'receipt_type_id' => 'required|integer|exists:receipt_type,id',
+                'cash_register_id' => 'nullable|integer|exists:cash_registers,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $receiptTypeId = $request->input('receipt_type_id');
+            $cashRegisterId = $request->input('cash_register_id');
+
+            $sale = $this->saleService->convertBudgetToSale($id, $receiptTypeId, $userId, $cashRegisterId);
+
+            return response()->json([
+                'success' => true,
+                'data' => $sale,
+                'message' => 'Presupuesto convertido a venta exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Eliminar/Cancelar un presupuesto
+     * 
+     * @param int $id ID del presupuesto
+     * @return JsonResponse
+     */
+    public function deleteBudget(int $id): JsonResponse
+    {
+        try {
+            $userId = auth()->id();
+
+            if (!$userId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Usuario no autenticado'
+                ], 401);
+            }
+
+            $this->saleService->deleteBudget($id, $userId);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Presupuesto eliminado exitosamente'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Listar presupuestos
+     * 
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function budgets(Request $request): JsonResponse
+    {
+        try {
+            $budgets = $this->saleService->getBudgets($request);
+
+            return response()->json([
+                'success' => true,
+                'data' => $budgets
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Aprobar un presupuesto
+     * 
+     * @param int $id
+     * @return JsonResponse
+     */
+    public function approve(int $id): JsonResponse
+    {
+        try {
+            $budget = $this->saleService->approveBudget($id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Presupuesto aprobado exitosamente',
+                'data' => $budget
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
         }
     }
 }

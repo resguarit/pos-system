@@ -227,6 +227,24 @@ class SaleService implements SaleServiceInterface
             $data['total'] = $finalTotal;
             $data['date'] = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::now();
 
+            // 5.1) Determinar estado inicial basado en permisos del usuario
+            $user = \App\Models\User::find($data['user_id']);
+            $hasAutoApprove = false;
+
+            if ($user) {
+                // Verificar si el usuario tiene el permiso sales.auto_approve
+                $hasAutoApprove = $user->hasPermission('sales.auto_approve');
+            }
+
+            // Establecer estado: 'approved' si tiene permiso, 'pending' si no
+            $data['status'] = $hasAutoApprove ? 'approved' : 'pending';
+
+            // Si se auto-aprueba, registrar quién y cuándo
+            if ($hasAutoApprove) {
+                $data['approved_by'] = $data['user_id'];
+                $data['approved_at'] = Carbon::now();
+            }
+
             // 6) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
             // Usar lockForUpdate dentro de la transacción para evitar race conditions
             $lastSale = SaleHeader::where('branch_id', $data['branch_id'])
@@ -281,9 +299,11 @@ class SaleService implements SaleServiceInterface
                 SaleIva::create($total);
             }
 
-            // 10) Reducir stock (solo si no es presupuesto)
+            // 10) Reducir stock SOLO si la venta está aprobada
             $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
-            if (!$receiptType || $receiptType->afip_code !== '016') {
+            $shouldReduceStock = $data['status'] === 'approved' && (!$receiptType || $receiptType->afip_code !== '016');
+
+            if ($shouldReduceStock) {
                 $branchId = $data['branch_id'];
                 $stockService = app(\App\Services\StockService::class);
                 $stockAlreadyReduced = \Illuminate\Support\Facades\Cache::get("stock_reduced_sale_{$saleHeader->id}");
@@ -295,9 +315,9 @@ class SaleService implements SaleServiceInterface
                 }
             }
 
-            // 11) Registrar movimientos
-            if ($registerMovement) {
-                $this->registerSaleMovement($saleHeader, $data);
+            // 11) Registrar movimientos SOLO si la venta está aprobada
+            if ($registerMovement && $data['status'] === 'approved') {
+                $this->registerSaleMovementFromPayments($saleHeader, $data['current_cash_register_id'] ?? null);
             }
 
             // 12) Devolver con relaciones
@@ -1689,5 +1709,338 @@ class SaleService implements SaleServiceInterface
         // Por ahora, asumimos que todas son productos
         // En el futuro, se puede determinar basándose en los items
         return 1; // Productos
+    }
+
+    /**
+     * Convertir un presupuesto a venta
+     * 
+     * @param int $budgetId ID del presupuesto a convertir
+     * @param int $newReceiptTypeId ID del nuevo tipo de comprobante
+     * @param int $userId ID del usuario que convierte
+     * @param int|null $cashRegisterId ID de la caja registradora
+     * @return SaleHeader
+     * @throws \Exception
+     */
+    public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null): SaleHeader
+    {
+        return DB::transaction(function () use ($budgetId, $newReceiptTypeId, $userId, $cashRegisterId) {
+            // Buscar el presupuesto
+            $budget = SaleHeader::with(['items.product', 'receiptType', 'customer', 'salePayments'])
+                ->lockForUpdate()
+                ->find($budgetId);
+
+            if (!$budget) {
+                throw new \Exception('Presupuesto no encontrado.');
+            }
+
+            // Verificar que sea un presupuesto (código AFIP 016)
+            if (!$budget->receiptType || $budget->receiptType->afip_code !== '016') {
+                throw new \Exception('Solo se pueden convertir presupuestos.');
+            }
+
+            // Verificar que no esté anulado
+            if ($budget->status === 'annulled') {
+                throw new \Exception('No se puede convertir un presupuesto anulado.');
+            }
+
+            // Verificar que no haya sido convertido previamente
+            if ($budget->status === 'converted') {
+                throw new \Exception('Este presupuesto ya fue convertido a venta.');
+            }
+
+            // Verificar permisos del usuario
+            $converter = \App\Models\User::find($userId);
+            if (!$converter || !$converter->hasPermission('convertir_presupuestos')) {
+                throw new \Exception('No tiene permisos para convertir presupuestos a ventas.');
+            }
+
+            // Obtener el nuevo tipo de comprobante
+            $newReceiptType = ReceiptType::find($newReceiptTypeId);
+            if (!$newReceiptType) {
+                throw new \Exception('Tipo de comprobante no válido.');
+            }
+
+            // Verificar que no sea otro presupuesto
+            if ($newReceiptType->afip_code === '016') {
+                throw new \Exception('Debe seleccionar un tipo de comprobante diferente a presupuesto.');
+            }
+
+            // Obtener siguiente número de comprobante para el nuevo tipo
+            $lastSale = SaleHeader::where('branch_id', $budget->branch_id)
+                ->where('receipt_type_id', $newReceiptTypeId)
+                ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
+                ->lockForUpdate()
+                ->first();
+
+            $nextReceiptNumber = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
+            $newReceiptNumber = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+
+            // Crear la nueva venta basada en el presupuesto
+            $sale = SaleHeader::create([
+                'branch_id' => $budget->branch_id,
+                'receipt_type_id' => $newReceiptTypeId,
+                'receipt_number' => $newReceiptNumber,
+                'date' => Carbon::now(),
+                'customer_id' => $budget->customer_id,
+                'user_id' => $userId, // El usuario que convierte
+                'subtotal' => $budget->subtotal,
+                'total_iva_amount' => $budget->total_iva_amount,
+                'total' => $budget->total,
+                'discount_type' => $budget->discount_type,
+                'discount_value' => $budget->discount_value,
+                'discount_amount' => $budget->discount_amount,
+                'fiscal_condition_id' => $budget->fiscal_condition_id,
+                'document_type_id' => $budget->document_type_id,
+                'document_number' => $budget->document_number,
+                'notes' => $budget->notes,
+                'status' => 'active',
+                'cash_register_id' => $cashRegisterId,
+                'converted_from_budget_id' => $budget->id,
+            ]);
+
+            // Copiar items del presupuesto a la nueva venta
+            foreach ($budget->items as $item) {
+                $sale->items()->create([
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'item_subtotal' => $item->item_subtotal,
+                    'item_iva' => $item->item_iva,
+                    'item_total' => $item->item_total,
+                    'iva_rate' => $item->iva_rate,
+                    'iva_id' => $item->iva_id,
+                    'discount_type' => $item->discount_type,
+                    'discount_value' => $item->discount_value,
+                    'discount_amount' => $item->discount_amount,
+                ]);
+
+                // Reducir stock
+                $stockService = app(\App\Services\StockService::class);
+                $stockService->reduceStockByProductAndBranch(
+                    $item->product_id,
+                    $sale->branch_id,
+                    $item->quantity
+                );
+            }
+
+            // Copiar IVAs
+            if ($budget->saleIvas) {
+                foreach ($budget->saleIvas as $iva) {
+                    $sale->saleIvas()->create([
+                        'iva_id' => $iva->iva_id,
+                        'iva_rate' => $iva->iva_rate,
+                        'base_amount' => $iva->base_amount,
+                        'iva_amount' => $iva->iva_amount,
+                    ]);
+                }
+            }
+
+            // Copiar métodos de pago si existen
+            if ($budget->salePayments && $budget->salePayments->count() > 0) {
+                foreach ($budget->salePayments as $payment) {
+                    $sale->salePayments()->create([
+                        'payment_method_id' => $payment->payment_method_id,
+                        'amount' => $payment->amount,
+                    ]);
+                }
+            }
+
+            // Registrar movimientos de caja y cuenta corriente
+            if ($cashRegisterId) {
+                $this->registerSaleMovementFromPayments($sale, $cashRegisterId);
+            }
+
+            // Marcar presupuesto como convertido
+            $budget->status = 'converted';
+            $budget->converted_to_sale_id = $sale->id;
+            $budget->converted_at = Carbon::now();
+            $budget->converted_by = $userId;
+            $budget->save();
+
+            return $sale->fresh(['items.product', 'saleIvas', 'receiptType', 'customer', 'branch']);
+        });
+    }
+
+    /**
+     * Eliminar/Cancelar un presupuesto
+     * 
+     * @param int $budgetId ID del presupuesto
+     * @param int $userId ID del usuario
+     * @return bool
+     * @throws \Exception
+     */
+    public function deleteBudget(int $budgetId, int $userId): bool
+    {
+        return DB::transaction(function () use ($budgetId, $userId) {
+            $budget = SaleHeader::with('receiptType')->lockForUpdate()->find($budgetId);
+
+            if (!$budget) {
+                throw new \Exception('Presupuesto no encontrado.');
+            }
+
+            // Verificar que sea un presupuesto
+            if (!$budget->receiptType || $budget->receiptType->afip_code !== '016') {
+                throw new \Exception('Solo se pueden eliminar presupuestos.');
+            }
+
+            // Verificar que no esté convertido
+            if ($budget->status === 'converted') {
+                throw new \Exception('No se puede eliminar un presupuesto que ya fue convertido a venta.');
+            }
+
+            // Marcar como anulado (no eliminamos físicamente para mantener historial)
+            $budget->status = 'annulled';
+            $budget->save();
+
+            return true;
+        });
+    }
+
+    /**
+     * Obtener lista de presupuestos
+     * 
+     * @param Request $request
+     * @return \Illuminate\Support\Collection
+     */
+    public function getBudgets(Request $request): SupportCollection
+    {
+        // Obtener el tipo de presupuesto (código AFIP 016)
+        $budgetReceiptType = ReceiptType::where('afip_code', '016')->first();
+
+        if (!$budgetReceiptType) {
+            return collect([]);
+        }
+
+        $query = SaleHeader::with([
+            'receiptType',
+            'branch',
+            'customer.person',
+            'user.person',
+            'items.product',
+        ])->where('receipt_type_id', $budgetReceiptType->id);
+
+        // Filtrar estados: solo 'active' por defecto (no convertidos ni anulados)
+        $status = $request->input('status', 'active');
+        if ($status !== 'all') {
+            if ($status === 'active') {
+                $query->whereIn('status', ['active', 'approved', 'pending']);
+            } else {
+                $query->where('status', $status);
+            }
+        }
+
+        // Filtro por sucursal
+        if ($request->has('branch_id')) {
+            $branchIds = $request->input('branch_id');
+            if (is_array($branchIds) && count($branchIds) > 0) {
+                $query->whereIn('branch_id', $branchIds);
+            } elseif (!is_array($branchIds)) {
+                $query->where('branch_id', $branchIds);
+            }
+        }
+
+        // Filtro por fecha
+        $from = $request->input('from_date') ?? $request->input('from');
+        $to = $request->input('to_date') ?? $request->input('to');
+        if ($from) {
+            $query->whereDate('date', '>=', Carbon::parse($from)->startOfDay());
+        }
+        if ($to) {
+            $query->whereDate('date', '<=', Carbon::parse($to)->endOfDay());
+        }
+
+        // Búsqueda
+        if ($request->has('search') && $request->input('search')) {
+            $searchTerm = trim($request->input('search'));
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('receipt_number', 'like', "%{$searchTerm}%")
+                    ->orWhereHas('customer.person', function ($subQuery) use ($searchTerm) {
+                        $subQuery->where('first_name', 'like', "%{$searchTerm}%")
+                            ->orWhere('last_name', 'like', "%{$searchTerm}%");
+                    });
+            });
+        }
+
+        $budgets = $query->orderByDesc('date')->get();
+
+        return $budgets->map(function ($budget) {
+            $customerName = '';
+            if ($budget->customer && $budget->customer->person) {
+                $customerName = trim($budget->customer->person->first_name . ' ' . $budget->customer->person->last_name);
+            } elseif ($budget->customer && $budget->customer->business_name) {
+                $customerName = $budget->customer->business_name;
+            } else {
+                $customerName = 'N/A';
+            }
+
+            $creatorName = '';
+            if ($budget->user && $budget->user->person) {
+                $creatorName = trim($budget->user->person->first_name . ' ' . $budget->user->person->last_name);
+            } elseif ($budget->user && $budget->user->username) {
+                $creatorName = $budget->user->username;
+            } else {
+                $creatorName = 'N/A';
+            }
+
+            return [
+                'id' => $budget->id,
+                'date' => $budget->date ? Carbon::parse($budget->date)->format('Y-m-d H:i:s') : '',
+                'date_display' => $budget->date ? Carbon::parse($budget->date)->format('d/m/Y H:i') : '',
+                'receipt_type' => $budget->receiptType ? $budget->receiptType->description : 'Presupuesto',
+                'receipt_number' => $budget->receipt_number ?? '',
+                'customer' => $customerName,
+                'customer_id' => $budget->customer_id,
+                'creator' => $creatorName,
+                'creator_id' => $budget->user_id,
+                'items_count' => $budget->items->count(),
+                'total' => (float) $budget->total,
+                'status' => $budget->status,
+                'branch' => $budget->branch ? $budget->branch->description : '',
+                'branch_color' => $budget->branch ? $budget->branch->color : null,
+                'branch_id' => $budget->branch_id,
+                'items' => $budget->items->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'product_id' => $item->product_id,
+                        'quantity' => (float) $item->quantity,
+                        'unit_price' => (float) $item->unit_price,
+                        'discount_type' => $item->discount_type,
+                        'discount_value' => (float) $item->discount_value,
+                        'product' => $item->product ? [
+                            'id' => $item->product->id,
+                            'code' => $item->product->code,
+                            'description' => $item->product->description,
+                            'sale_price' => (float) $item->product->sale_price,
+                            'iva' => $item->product->iva,
+                        ] : null
+                    ];
+                }),
+            ];
+        });
+    }
+
+    /**
+     * Aprobar un presupuesto pendiente
+     * 
+     * @param int $id
+     * @return SaleHeader
+     * @throws \Exception
+     */
+    public function approveBudget(int $id): SaleHeader
+    {
+        $budget = SaleHeader::find($id);
+
+        if (!$budget) {
+            throw new \Exception('Presupuesto no encontrado.');
+        }
+
+        if ($budget->status !== 'pending') {
+            throw new \Exception('Solo se pueden aprobar presupuestos pendientes.');
+        }
+
+        $budget->status = 'approved';
+        $budget->save();
+
+        return $budget;
     }
 }

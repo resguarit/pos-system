@@ -20,10 +20,29 @@ class ShipmentService implements ShipmentServiceInterface
     public function create(array $data, User $user): Shipment
     {
         return DB::transaction(function () use ($data, $user) {
-            // Generate unique reference
-            do {
-                $reference = $data['reference'] ?? 'SH-' . strtoupper(Str::random(8));
-            } while (Shipment::where('reference', $reference)->exists());
+            // Generate unique sequential reference
+            if (!isset($data['reference'])) {
+                // Find the highest existing reference number
+                $lastShipment = Shipment::where('reference', 'LIKE', 'E-%')
+                    ->orderByRaw('CAST(SUBSTRING(reference, 3) AS UNSIGNED) DESC')
+                    ->first();
+
+                if ($lastShipment && preg_match('/^E-(\d+)$/', $lastShipment->reference, $matches)) {
+                    $nextNumber = intval($matches[1]) + 1;
+                } else {
+                    $nextNumber = 1;
+                }
+
+                $reference = 'E-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+
+                // Ensure uniqueness (in case of race condition)
+                while (Shipment::where('reference', $reference)->exists()) {
+                    $nextNumber++;
+                    $reference = 'E-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+                }
+            } else {
+                $reference = $data['reference'];
+            }
 
             // Get initial stage
             $initialStage = ShipmentStage::where('order', 1)->where('is_active', true)->first();
@@ -66,13 +85,13 @@ class ShipmentService implements ShipmentServiceInterface
     public function getShipments(User $user, array $filters = []): LengthAwarePaginator
     {
         $perPage = $filters['per_page'] ?? 10;
-        
+
         $query = Shipment::with([
-                'currentStage', 
-                'creator.person', 
-                'sales.customer.person',
-                'sales.receiptType'
-            ])
+            'currentStage',
+            'creator.person',
+            'sales.customer.person',
+            'sales.receiptType'
+        ])
             ->where('branch_id', $user->branches()->first()?->id)
             ->withCount('sales');
 
@@ -109,13 +128,13 @@ class ShipmentService implements ShipmentServiceInterface
     public function getShipment(int $id, User $user): ?Shipment
     {
         $shipment = Shipment::with([
-                'currentStage', 
-                'creator.person', 
-                'sales.customer.person',
-                'sales.receiptType',
-                'sales.items.product',
-                'events'
-            ])
+            'currentStage',
+            'creator.person',
+            'sales.customer.person',
+            'sales.receiptType',
+            'sales.items.product',
+            'events'
+        ])
             ->where('branch_id', $user->branches()->first()?->id)
             ->find($id);
 
@@ -221,14 +240,14 @@ class ShipmentService implements ShipmentServiceInterface
 
             // Check permissions - simplificado para permitir con cancelar_envio o editar_envios
             $allowed = $user->hasPermission('cancelar_envio') || $user->hasPermission('editar_envios');
-            
+
             if (!$allowed) {
                 throw new PermissionDeniedException('You do not have permission to delete this shipment');
             }
 
             // Buscar la etapa "Cancelado" o crear una nueva
             $cancelledStage = ShipmentStage::where('name', 'LIKE', '%Cancelado%')->first();
-            
+
             if (!$cancelledStage) {
                 // Crear una etapa "Cancelado" si no existe
                 $cancelledStage = ShipmentStage::create([
@@ -282,7 +301,7 @@ class ShipmentService implements ShipmentServiceInterface
 
             // Get the branch where the shipment was created
             $branch = $shipment->branch;
-            
+
             if (!$branch) {
                 throw new \Exception('Shipment has no associated branch');
             }
@@ -293,14 +312,14 @@ class ShipmentService implements ShipmentServiceInterface
                 ->where('status', 'open')
                 ->where('user_id', $user->id)
                 ->first();
-            
+
             // Si no hay caja del usuario, buscar cualquier caja abierta de la sucursal
             if (!$cashRegister) {
                 $cashRegister = $branch->cashRegisters()
                     ->where('status', 'open')
                     ->first();
             }
-            
+
             if (!$cashRegister) {
                 throw new \Exception('No cash register is open for this branch');
             }
@@ -343,8 +362,8 @@ class ShipmentService implements ShipmentServiceInterface
             if (isset($data['notes']) && !empty($data['notes'])) {
                 $currentNotes = $shipment->notes ?? '';
                 $shipment->update([
-                    'notes' => $currentNotes . ($currentNotes ? "\n\n" : '') . 
-                              "Pago registrado: " . $data['notes'],
+                    'notes' => $currentNotes . ($currentNotes ? "\n\n" : '') .
+                        "Pago registrado: " . $data['notes'],
                 ]);
             }
 
@@ -505,7 +524,7 @@ class ShipmentService implements ShipmentServiceInterface
         // Create a new shipment instance with filtered data
         $filteredShipment = new Shipment($filteredArray);
         $filteredShipment->exists = true;
-        
+
         return $filteredShipment;
     }
 

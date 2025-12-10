@@ -64,12 +64,24 @@ class CashMovement extends Model
         return $this->hasOne(CurrentAccountMovement::class);
     }
 
+    public function expense()
+    {
+        return $this->hasOne(Expense::class);
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
             ->logOnly([
-                'cash_register_id', 'movement_type_id', 'reference_type', 'reference_id',
-                'amount', 'description', 'user_id', 'payment_method_id', 'affects_balance'
+                'cash_register_id',
+                'movement_type_id',
+                'reference_type',
+                'reference_id',
+                'amount',
+                'description',
+                'user_id',
+                'payment_method_id',
+                'affects_balance'
             ])
             ->useLogName('cash_movement')
             ->logOnlyDirty();

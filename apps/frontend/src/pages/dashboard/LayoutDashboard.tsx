@@ -17,7 +17,7 @@ function DashboardHeader() {
     )}>
       <div className="flex items-center gap-2 md:gap-4">
         {/* Botón hamburguesa para mostrar/ocultar sidebar */}
-        <SidebarTrigger className="sm:hidden" />
+        <SidebarTrigger />
 
         {/* BranchSelector responsive */}
         <div className={cn(

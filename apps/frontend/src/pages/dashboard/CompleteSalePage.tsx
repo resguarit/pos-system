@@ -210,6 +210,22 @@ export default function CompleteSalePage() {
         console.log('Sucursal con CUIT pero sin tipos configurados: mostrando todas las facturas', availableTypes.length)
       }
 
+      // RESTRICCIÓN POR PERMISO: Si el usuario TIENE permiso solo_crear_presupuestos,
+      // solo puede emitir Presupuestos (ID=1)
+      const isRestrictedToBudgets = hasPermission('solo_crear_presupuestos')
+      if (isRestrictedToBudgets) {
+        const presupuesto = availableTypes.find((t: ReceiptType) => t.id === 1) // Presupuesto ID = 1
+        if (presupuesto) {
+          availableTypes = [presupuesto]
+          console.log('Usuario con permiso solo_crear_presupuestos: restringido a Presupuestos')
+          // Toast removed as per user request
+        } else {
+          // Si por alguna razón Presupuesto no está disponible, mostrar error
+          availableTypes = []
+          toast.error('Tienes restricción de solo presupuestos pero el tipo Presupuesto no está disponible')
+        }
+      }
+
       setReceiptTypes(availableTypes)
 
       // Seleccionar tipo de comprobante por defecto
@@ -335,7 +351,18 @@ export default function CompleteSalePage() {
       }
 
       const saleResponse = await request({ url: '/pos/sales', method: 'POST', data: saleData })
-      toast.success('¡Venta realizada con éxito!')
+
+      // Check if the sale is pending approval
+      const saleStatus = (saleResponse as any)?.status || (saleResponse as any)?.data?.status
+
+      if (saleStatus === 'pending') {
+        toast.info('Venta registrada - Pendiente de aprobación', {
+          description: 'Tu venta ha sido registrada pero requiere aprobación de un supervisor antes de ser procesada. El stock y la caja no serán afectados hasta que sea aprobada.',
+          duration: 8000,
+        })
+      } else {
+        toast.success('¡Venta realizada con éxito!')
+      }
 
       try {
         const saleId = (saleResponse as any)?.id || (saleResponse as any)?.data?.id
@@ -353,6 +380,7 @@ export default function CompleteSalePage() {
 
       localStorage.removeItem(CART_STORAGE_KEY)
       navigate("/dashboard/pos")
+
 
     } catch (err: any) {
       console.error("Error del backend:", err?.response?.data)

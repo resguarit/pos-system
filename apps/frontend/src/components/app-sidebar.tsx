@@ -3,6 +3,7 @@ import {
   BarChart3,
   Briefcase,
   Building2,
+  CheckCircle,
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
@@ -22,6 +23,7 @@ import {
   Wrench,
   Receipt
 } from "lucide-react"
+
 import { Link } from "react-router-dom"
 import { useLocation } from "react-router-dom"
 import { useEffect } from "react"
@@ -75,7 +77,7 @@ export function AppSidebar({ className }: { className?: string }) {
       title: "Ventas",
       url: "#",
       icon: CircleDollarSign,
-      isActive: pathname.startsWith("/dashboard/ventas") || pathname.startsWith("/dashboard/pos") || pathname.startsWith("/dashboard/clientes") || pathname.startsWith("/dashboard/cuentas-corrientes") || pathname.startsWith("/dashboard/analisis-ventas") || pathname.startsWith("/dashboard/envios"),
+      isActive: pathname.startsWith("/dashboard/ventas") || pathname.startsWith("/dashboard/pos") || pathname.startsWith("/dashboard/clientes") || pathname.startsWith("/dashboard/cuentas-corrientes") || pathname.startsWith("/dashboard/analisis-ventas") || pathname.startsWith("/dashboard/envios") || pathname.startsWith("/dashboard/ventas-pendientes"),
       items: [
         {
           title: "Punto de Venta",
@@ -89,6 +91,7 @@ export function AppSidebar({ className }: { className?: string }) {
           icon: CircleDollarSign,
           visible: features.ventas && hasPermission('ver_ventas'),
         },
+
         {
           title: "Envíos",
           url: "/dashboard/envios",
@@ -114,6 +117,7 @@ export function AppSidebar({ className }: { className?: string }) {
           visible: features.cuentasCorrientes && hasPermission('gestionar_cuentas_corrientes'),
         },
       ],
+
     },
     {
       title: "Inventario",
@@ -177,7 +181,7 @@ export function AppSidebar({ className }: { className?: string }) {
       title: "Finanzas",
       url: "#",
       icon: Wallet,
-      isActive: pathname.startsWith("/dashboard/caja") || pathname.startsWith("/dashboard/metodos-pago") || pathname.startsWith("/dashboard/reportes-financieros") || pathname.startsWith("/dashboard/gastos"),
+      isActive: pathname.startsWith("/dashboard/caja") || pathname.startsWith("/dashboard/metodos-pago") || pathname.startsWith("/dashboard/reportes-financieros"),
       items: [
         {
           title: "Caja",
@@ -402,9 +406,7 @@ export function AppSidebar({ className }: { className?: string }) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarTrigger />
-          </SidebarMenuItem>
+          {/* SidebarTrigger removed as it's now in the header */}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

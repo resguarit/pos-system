@@ -5,11 +5,11 @@ import { Eye, Trash2, FileText } from "lucide-react"
 import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { ResizableTableHeader } from '@/components/ui/resizable-table-header'
 import Pagination from "@/components/ui/pagination"
-import { 
-  formatCurrency, 
-  formatDate, 
-  getPaymentMethod, 
-  cleanMovementDescription, 
+import {
+  formatCurrency,
+  formatDate,
+  getPaymentMethod,
+  cleanMovementDescription,
   isIncomeMovement,
   isSaleReference,
   isPurchaseOrderReference
@@ -86,7 +86,7 @@ export const MovementsTable = ({
             </div>
           </div>
         )}
-        
+
         <Table ref={tableRef}>
           <TableHeader>
             <TableRow>
@@ -174,13 +174,13 @@ export const MovementsTable = ({
                 const isIncome = isIncomeMovement(movement)
                 const userLabel = movement.user?.name || movement.user?.full_name || movement.user?.username || movement.user?.email || 'N/A'
                 const cleanedDescription = cleanMovementDescription(movement.description)
-                const typeLabel = movement.movement_type?.description || 'N/A'
+                const typeLabel = movement.movement_type?.description || movement.movement_type?.name || 'N/A'
                 const affectsBalance = movement.affects_balance !== false
                 const isSaleRef = isSaleReference(movement)
                 const isPurchaseOrderRef = isPurchaseOrderReference(movement)
 
                 return (
-                  <TableRow 
+                  <TableRow
                     key={movement.id}
                     className={!affectsBalance ? 'bg-gray-100 opacity-75' : ''}
                   >
@@ -197,8 +197,8 @@ export const MovementsTable = ({
                           {typeLabel}
                         </Badge>
                         {!affectsBalance && (
-                          <Badge 
-                            variant="outline" 
+                          <Badge
+                            variant="outline"
                             className="bg-gray-100 text-gray-600 text-xs"
                             title="Este movimiento NO afecta el balance de la caja"
                           >
@@ -221,10 +221,10 @@ export const MovementsTable = ({
                           const branchInfo = getBranchInfo?.(movement.branch_id)
                           const branchColor = branchInfo?.color || '#6b7280'
                           const branchName = movement.branch_name || `Sucursal ${movement.branch_id}`
-                          
+
                           return (
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className="text-xs border-2 font-medium"
                               style={{
                                 borderColor: branchColor,

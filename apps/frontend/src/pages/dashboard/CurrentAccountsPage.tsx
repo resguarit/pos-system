@@ -2,13 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { 
+import {
   DollarSign,
   AlertTriangle,
   Search,
@@ -105,9 +105,8 @@ export default function CurrentAccountsPage() {
       // Recargar detalles de la cuenta
       loadAccountDetails();
     }
+    // Recargar estadísticas de las tarjetas
     loadStatistics();
-    // Forzar recarga de la lista de cuentas
-    window.location.reload();
   };
 
 
@@ -132,7 +131,7 @@ export default function CurrentAccountsPage() {
 
   const loadAccountDetails = async () => {
     if (!selectedAccount) return;
-    
+
     try {
       const account = await CurrentAccountService.getById(selectedAccount.id);
       setSelectedAccount(account);
@@ -144,47 +143,47 @@ export default function CurrentAccountsPage() {
   // Funciones de procesamiento de pagos integradas en los diálogos
 
   const renderStatistics = () => {
-   if (loadingStats) {
-     return (
-       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-         {[...Array(4)].map((_, i) => (
-           <Card key={i}>
-             <CardContent className="p-6">
-               <div className="animate-pulse">
-                 <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                 <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-               </div>
-             </CardContent>
-           </Card>
-         ))}
-       </div>
-     );
-   }
+    if (loadingStats) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      );
+    }
 
-   // Solo usar datos reales de la API, sin fallback a datos mock
-   if (!statistics) {
-     return (
-       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-         <Card className="bg-gray-50 border-gray-200">
-           <CardContent className="p-6 text-center">
-             <div className="text-gray-500">
-               <p>No se pudieron cargar las estadísticas</p>
-               <Button
-                 variant="outline"
-                 size="sm"
-                 onClick={loadStatistics}
-                 className="mt-2"
-               >
-                 Reintentar
-               </Button>
-             </div>
-           </CardContent>
-         </Card>
-       </div>
-     );
-   }
+    // Solo usar datos reales de la API, sin fallback a datos mock
+    if (!statistics) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="bg-gray-50 border-gray-200">
+            <CardContent className="p-6 text-center">
+              <div className="text-gray-500">
+                <p>No se pudieron cargar las estadísticas</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadStatistics}
+                  className="mt-2"
+                >
+                  Reintentar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
-   const stats = statistics;
+    const stats = statistics;
 
     return (
       <>
@@ -280,15 +279,16 @@ export default function CurrentAccountsPage() {
             onSuccess={handleFormSuccess}
           />
         );
-      
+
       case 'details':
         return selectedAccount ? (
           <CurrentAccountDetails
             accountId={selectedAccount.id}
             onBack={handleBackToList}
+            onStatsRefresh={loadStatistics}
           />
         ) : null;
-      
+
       case 'list':
       default:
         return (
@@ -332,72 +332,72 @@ export default function CurrentAccountsPage() {
       {/* Barra de búsqueda y filtros - Solo mostrar en modo lista */}
       {viewMode === 'list' && (
         <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-        <div className="flex flex-1 items-center space-x-2">
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Buscar por cliente, email o CUIT..."
-              className="w-full pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="flex flex-1 items-center space-x-2">
+            <div className="relative w-full md:w-80">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar por cliente, email o CUIT..."
+                className="w-full pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          {/* Dropdown para estados de cuenta */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="justify-between min-w-[140px]">
-                {statusFilter === '' ? 'Todos los estados' : 
-                 statusFilter === 'active' ? 'Activas' :
-                 statusFilter === 'suspended' ? 'Suspendidas' : 'Todos los estados'}
-                <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[140px]">
-              <DropdownMenuItem onClick={() => setStatusFilter('')}>
-                <Check className={`mr-2 h-4 w-4 ${statusFilter === '' ? 'opacity-100' : 'opacity-0'}`} />
-                Todos los estados
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter('active')}>
-                <Check className={`mr-2 h-4 w-4 ${statusFilter === 'active' ? 'opacity-100' : 'opacity-0'}`} />
-                Activas
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setStatusFilter('suspended')}>
-                <Check className={`mr-2 h-4 w-4 ${statusFilter === 'suspended' ? 'opacity-100' : 'opacity-0'}`} />
-                Suspendidas
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center space-x-2">
+            {/* Dropdown para estados de cuenta */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="justify-between min-w-[140px]">
+                  {statusFilter === '' ? 'Todos los estados' :
+                    statusFilter === 'active' ? 'Activas' :
+                      statusFilter === 'suspended' ? 'Suspendidas' : 'Todos los estados'}
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[140px]">
+                <DropdownMenuItem onClick={() => setStatusFilter('')}>
+                  <Check className={`mr-2 h-4 w-4 ${statusFilter === '' ? 'opacity-100' : 'opacity-0'}`} />
+                  Todos los estados
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter('active')}>
+                  <Check className={`mr-2 h-4 w-4 ${statusFilter === 'active' ? 'opacity-100' : 'opacity-0'}`} />
+                  Activas
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setStatusFilter('suspended')}>
+                  <Check className={`mr-2 h-4 w-4 ${statusFilter === 'suspended' ? 'opacity-100' : 'opacity-0'}`} />
+                  Suspendidas
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          {/* Dropdown para estados del balance */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="justify-between min-w-[160px]">
-                {balanceFilter === '' ? 'Todos los balances' : 
-                 balanceFilter === 'negative' ? 'Con deuda' : 'Todos los balances'}
-                <ChevronDown className="ml-2 h-4 w-4" />
+            {/* Dropdown para estados del balance */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="justify-between min-w-[160px]">
+                  {balanceFilter === '' ? 'Todos los balances' :
+                    balanceFilter === 'negative' ? 'Con deuda' : 'Todos los balances'}
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[160px]">
+                <DropdownMenuItem onClick={() => setBalanceFilter('')}>
+                  <Check className={`mr-2 h-4 w-4 ${balanceFilter === '' ? 'opacity-100' : 'opacity-0'}`} />
+                  Todos los balances
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setBalanceFilter('negative')}>
+                  <Check className={`mr-2 h-4 w-4 ${balanceFilter === 'negative' ? 'opacity-100' : 'opacity-0'}`} />
+                  Con deuda
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {hasPermission('exportar_movimientos_cuentas_corrientes') && (
+              <Button variant="outline" size="sm" onClick={handleExport}>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[160px]">
-              <DropdownMenuItem onClick={() => setBalanceFilter('')}>
-                <Check className={`mr-2 h-4 w-4 ${balanceFilter === '' ? 'opacity-100' : 'opacity-0'}`} />
-                Todos los balances
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setBalanceFilter('negative')}>
-                <Check className={`mr-2 h-4 w-4 ${balanceFilter === 'negative' ? 'opacity-100' : 'opacity-0'}`} />
-                Con deuda
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {hasPermission('exportar_movimientos_cuentas_corrientes') && (
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="mr-2 h-4 w-4" />
-              Exportar
-            </Button>
-          )}
-        </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -416,7 +416,7 @@ export default function CurrentAccountsPage() {
             currentBalance={selectedAccount.current_balance}
             onSuccess={handlePaymentSuccess}
           />
-          
+
         </>
       )}
     </div>

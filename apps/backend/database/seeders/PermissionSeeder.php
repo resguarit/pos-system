@@ -153,6 +153,27 @@ class PermissionSeeder extends Seeder
             // Permisos adicionales identificados en la aplicación
             ['name' => 'exportar_lista_precios', 'description' => 'Exportar lista de precios', 'module' => 'productos'],
             ['name' => 'actualizar_precios_masivo', 'description' => 'Actualizar precios masivamente', 'module' => 'productos'],
+
+            // Gastos
+            ['name' => 'ver_gastos', 'description' => 'Ver listado de gastos', 'module' => 'gastos'],
+            ['name' => 'crear_gastos', 'description' => 'Registrar nuevo gasto', 'module' => 'gastos'],
+            ['name' => 'editar_gastos', 'description' => 'Editar gasto existente', 'module' => 'gastos'],
+            ['name' => 'eliminar_gastos', 'description' => 'Eliminar gasto', 'module' => 'gastos'],
+
+            // Empleados
+            ['name' => 'ver_empleados', 'description' => 'Ver listado de empleados', 'module' => 'empleados'],
+            ['name' => 'crear_empleados', 'description' => 'Registrar nuevo empleado', 'module' => 'empleados'],
+            ['name' => 'editar_empleados', 'description' => 'Editar empleado existente', 'module' => 'empleados'],
+            ['name' => 'eliminar_empleados', 'description' => 'Eliminar empleado', 'module' => 'empleados'],
+
+            // Categorías de Gastos
+            ['name' => 'ver_categorias_gastos', 'description' => 'Ver categorías de gastos', 'module' => 'categorias_gastos'],
+            ['name' => 'crear_categorias_gastos', 'description' => 'Crear categoría de gasto', 'module' => 'categorias_gastos'],
+            ['name' => 'editar_categorias_gastos', 'description' => 'Editar categoría de gasto', 'module' => 'categorias_gastos'],
+            ['name' => 'eliminar_categorias_gastos', 'description' => 'Eliminar categoría de gasto', 'module' => 'categorias_gastos'],
+
+            // Nómina
+            ['name' => 'generar_nomina', 'description' => 'Generar liquidación de sueldos', 'module' => 'nomina'],
         ];
         foreach ($permissions as $permission) {
             Permission::updateOrCreate(['name' => $permission['name']], $permission);

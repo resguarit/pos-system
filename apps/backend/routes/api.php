@@ -38,6 +38,9 @@ use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AfipController;
 use App\Http\Controllers\AfipCertificateController;
 use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\ExpenseCategoryController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -111,7 +114,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/receipt-types', [AfipController::class, 'getReceiptTypes']);
         Route::get('/points-of-sale', [AfipController::class, 'getPointsOfSale']);
         Route::get('/status', [AfipController::class, 'checkAfipStatus']);
-        
+
         // Certificate management routes (multi-CUIT support)
         Route::prefix('certificates')->group(function () {
             Route::get('/', [AfipCertificateController::class, 'index']);
@@ -319,6 +322,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/global/history', [SaleController::class, 'historyGlobal']);
     });
 
+    // Budget (Presupuesto) Routes
+    Route::prefix('budgets')->group(function () {
+        Route::get('/', [SaleController::class, 'budgets']);
+        Route::post('/{id}/convert', [SaleController::class, 'convertBudget'])->whereNumber('id');
+        Route::patch('/{id}/approve', [SaleController::class, 'approve'])->whereNumber('id');
+        Route::delete('/{id}', [SaleController::class, 'deleteBudget'])->whereNumber('id');
+    });
+
     // Cash Register Routes
     Route::prefix('cash-registers')->group(function () {
         Route::post('/open', [CashRegisterController::class, 'open']);
@@ -477,6 +488,32 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{id}', [AuditController::class, 'show']);
         Route::get('/user/{userId}', [AuditController::class, 'getUserAudits']);
         Route::get('/model/{subjectType}/{subjectId}', [AuditController::class, 'getModelAudits']);
+    });
+
+    // Expenses Module Routes
+    Route::prefix('expenses')->group(function () {
+        Route::get('/', [ExpenseController::class, 'index']);
+        Route::post('/', [ExpenseController::class, 'store']);
+        Route::get('/{expense}', [ExpenseController::class, 'show']);
+        Route::put('/{expense}', [ExpenseController::class, 'update']);
+        Route::delete('/{expense}', [ExpenseController::class, 'destroy']);
+    });
+
+    Route::prefix('employees')->group(function () {
+        Route::get('/', [EmployeeController::class, 'index']);
+        Route::get('/available-users', [EmployeeController::class, 'availableUsers']);
+        Route::post('/', [EmployeeController::class, 'store']);
+        Route::get('/{employee}', [EmployeeController::class, 'show']);
+        Route::put('/{employee}', [EmployeeController::class, 'update']);
+        Route::delete('/{employee}', [EmployeeController::class, 'destroy']);
+    });
+
+    Route::prefix('expense-categories')->group(function () {
+        Route::get('/', [ExpenseCategoryController::class, 'index']);
+        Route::post('/', [ExpenseCategoryController::class, 'store']);
+        Route::get('/{expenseCategory}', [ExpenseCategoryController::class, 'show']);
+        Route::put('/{expenseCategory}', [ExpenseCategoryController::class, 'update']);
+        Route::delete('/{expenseCategory}', [ExpenseCategoryController::class, 'destroy']);
     });
 
 });

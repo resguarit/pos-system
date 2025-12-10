@@ -64,7 +64,7 @@ class AppServiceProvider extends ServiceProvider
     {
         // SDK AFIP ahora maneja SSL automáticamente (v2.x+)
         // Ya no necesitamos CustomWsfeService ni CustomWsPadronService
-        
+
         // Registrar los bindings de las interfaces con sus implementaciones
         $this->app->bind(\App\Interfaces\BranchServiceInterface::class, \App\Services\BranchService::class);
         $this->app->bind(\App\Interfaces\CategoryServiceInterface::class, \App\Services\CategoryService::class);
@@ -83,28 +83,28 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(\App\Interfaces\SaleServiceInterface::class, \App\Services\SaleService::class);
         $this->app->bind(\App\Interfaces\PurchaseOrderServiceInterface::class, \App\Services\PurchaseOrderService::class);
         $this->app->bind(\App\Interfaces\FiscalConditionServiceInterface::class, \App\Services\FiscalConditionService::class);
-        
+
         // Cash System Bindings
         $this->app->bind(\App\Interfaces\CashRegisterServiceInterface::class, \App\Services\CashRegisterService::class);
         $this->app->bind(\App\Interfaces\CashMovementServiceInterface::class, \App\Services\CashMovementService::class);
         $this->app->bind(\App\Interfaces\CurrentAccountServiceInterface::class, \App\Services\CurrentAccountService::class);
-        
+
         // Repairs bindings
         $this->app->bind(RepairServiceInterface::class, RepairService::class);
-        
+
         // Shipment bindings
         $this->app->bind(ShipmentServiceInterface::class, ShipmentService::class);
         $this->app->bind(ShipmentStageServiceInterface::class, ShipmentStageService::class);
-        
+
         // Product Cost History binding
         $this->app->bind(ProductCostHistoryServiceInterface::class, ProductCostHistoryService::class);
-        
+
         // Stock Transfer binding
         $this->app->bind(StockTransferServiceInterface::class, StockTransferService::class);
-        
+
         // Search Service binding
         $this->app->singleton(SearchService::class);
-        
+
         // Audit Service binding
         $this->app->bind(\App\Interfaces\AuditServiceInterface::class, \App\Services\AuditService::class);
     }
@@ -117,12 +117,13 @@ class AppServiceProvider extends ServiceProvider
         // Map polymorphic types so 'sale' resolves to the SaleHeader model
         Relation::morphMap([
             'sale' => \App\Models\SaleHeader::class,
+            'expense' => \App\Models\Expense::class,
         ]);
-        
+
 
         Event::listen(ModelEvent::class, function (ModelEvent $event) {
             $model = $event->model;
-            
+
             // Solo registrar si el modelo usa LogsActivity trait
             // El trait LogsActivity ya maneja el logging automáticamente,
             // pero aquí agregamos información adicional como IP, user agent, etc.
@@ -130,7 +131,7 @@ class AppServiceProvider extends ServiceProvider
                 \Spatie\Activitylog\Traits\LogsActivity::class,
                 class_uses_recursive($model)
             );
-            
+
             // También registrar modelos importantes aunque no usen el trait directamente
             $importantModels = [
                 \App\Models\Branch::class,
@@ -146,9 +147,9 @@ class AppServiceProvider extends ServiceProvider
                 \App\Models\CashRegister::class,
                 \App\Models\CurrentAccountMovement::class,
             ];
-            
+
             $isImportantModel = in_array(get_class($model), $importantModels);
-            
+
             // Solo registrar si el modelo usa LogsActivity o es importante Y hay un usuario autenticado
             if (($usesLogsActivity || $isImportantModel) && auth()->check()) {
                 // El trait LogsActivity ya registra la actividad automáticamente,

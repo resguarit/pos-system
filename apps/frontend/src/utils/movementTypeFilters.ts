@@ -84,6 +84,8 @@ const AUTOMATIC_MOVEMENT_NAMES: readonly string[] = [
   'Venta por cheque',
   'Anulación de Venta realizada al cliente',
   'Salida por anulación de venta a crédito',
+  'Gasto', // Excluir Gasto de la creación manual en caja
+  'Gastos del negocio', // Excluir Gastos del negocio de la creación manual en caja
 ] as const;
 
 /**
@@ -285,7 +287,29 @@ export function filterManualCashMovementTypes(
     return [];
   }
 
-  return movementTypes.filter(type => !isAutomaticMovementType(type));
+  // Lista blanca de tipos permitidos para creación manual
+  // El usuario solicitó explícitamente dejar solo los necesarios como retiro y monto inicial
+  const ALLOWED_MANUAL_TYPES = [
+    'Retiro de efectivo', // Nombre exacto en DB
+    'Ingreso inicial',    // Nombre exacto en DB
+    'Retiro de dinero',   // Variación por si acaso
+    'Monto inicial',      // Variación por si acaso
+    'Ingreso de dinero',  // Genérico
+    'Salida de dinero',   // Genérico
+  ];
+
+  return movementTypes.filter(type => {
+    // Primero, excluir los que definitivamente son automáticos
+    if (isAutomaticMovementType(type)) {
+      return false;
+    }
+
+    // Normalizar nombre para comparación
+    const name = normalizeString(type.name);
+
+    // Verificar si está en la lista blanca (comparación parcial para flexibilidad)
+    return ALLOWED_MANUAL_TYPES.some(allowed => name.includes(normalizeString(allowed)));
+  });
 }
 
 /**

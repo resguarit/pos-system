@@ -118,6 +118,10 @@ function getFeatureForModule(moduleName: string): boolean {
     'metodos_pago': 'metodosPago',
     'métodos de pago': 'metodosPago',
     'metodos de pago': 'metodosPago',
+    'gastos': 'gastos',
+    'empleados': 'gastos',
+    'categorias_gastos': 'gastos',
+    'nomina': 'gastos',
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();

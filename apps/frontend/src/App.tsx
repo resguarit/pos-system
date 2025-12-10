@@ -37,6 +37,7 @@ import SucursalesPage from '@/pages/dashboard/SucursalesPage'
 import UsuarioPage from '@/pages/dashboard/UsuarioPage'
 import UserPerformancePage from '@/pages/dashboard/UserPerformancePage'
 import VentasPage from '@/pages/dashboard/VentasPage'
+
 import VentasSucursalPage from '@/pages/dashboard/VentasSucursalPage'
 import VerClientePage from '@/pages/dashboard/VerClientePage'
 import VerRolPage from '@/pages/dashboard/VerRolPage'
@@ -52,6 +53,9 @@ import DebugInfoPage from '@/pages/DebugInfoPage'
 import AuditoriasPage from '@/pages/dashboard/AuditoriasPage'
 import PaymentMethodsPage from '@/pages/dashboard/PaymentMethodsPage'
 import StockTransfersPage from '@/pages/dashboard/StockTransfersPage'
+import ExpensesListPage from '@/pages/dashboard/expenses/ExpensesListPage'
+import EmployeesPage from '@/pages/dashboard/expenses/EmployeesPage'
+import ExpenseCategoriesPage from '@/pages/dashboard/expenses/ExpenseCategoriesPage'
 import features from '@/config/features'
 
 
@@ -116,10 +120,14 @@ function App() {
           {features.usuarios && <Route path="usuarios/nuevo" element={<ProtectedRoute permissions={['crear_usuarios']}><NuevoUsuarioPage /></ProtectedRoute>} />}
           {features.ventas && <Route path="ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasPage /></ProtectedRoute>} />}
 
+
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
           {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
           {features.auditorias && <Route path="auditorias" element={<ProtectedRoute permissions={['ver_auditorias']}><AuditoriasPage /></ProtectedRoute>} />}
           {features.metodosPago && <Route path="metodos-pago" element={<ProtectedRoute permissions={['ver_metodos_pago']}><PaymentMethodsPage /></ProtectedRoute>} />}
+          {features.gastos && <Route path="gastos" element={<ProtectedRoute permissions={['ver_gastos']}><ExpensesListPage /></ProtectedRoute>} />}
+          {features.gastos && <Route path="gastos/empleados" element={<ProtectedRoute permissions={['ver_empleados']}><EmployeesPage /></ProtectedRoute>} />}
+          {features.gastos && <Route path="gastos/categorias" element={<ProtectedRoute permissions={['ver_categorias_gastos']}><ExpenseCategoriesPage /></ProtectedRoute>} />}
         </Route>
 
         {/* Redirección por defecto */}

@@ -15,7 +15,7 @@ class ProductionSeeder extends Seeder
         if ($this->command) {
             $this->command->info('🌱 Ejecutando seeders de producción...');
         }
-        
+
         // Configuraciones fiscales básicas
         $this->call([
             FiscalConditionSeeder::class,       // Condiciones fiscales (IVA, Exento, etc.)
@@ -25,15 +25,17 @@ class ProductionSeeder extends Seeder
             OtherTaxesSeeder::class,            // Otros impuestos
             IvaSeeder::class,                   // Alícuotas de IVA (0%, 10.5%, 21%, 27%)
         ]);
-        
+
         // Configuraciones de negocio
         $this->call([
             PaymentMethodSeeder::class,         // Métodos de pago (Efectivo, Tarjeta, etc.)
             MovementTypeSeeder::class,          // Tipos de movimiento para caja
             CurrentAccountMovementTypeSeeder::class, // Tipos de movimiento para cuentas corrientes (manuales)
             MeasureSeeder::class,               // Unidades de medida básicas
+            ExpenseCategorySeeder::class,       // Categorías de gastos predefinidas
         ]);
-        
+
+
         // Sistema de permisos y roles
         $this->call([
             RoleSeeder::class,                  // Roles básicos del sistema
@@ -41,18 +43,18 @@ class ProductionSeeder extends Seeder
             ShipmentPermissionSeeder::class,    // Permisos de envíos
             PermissionRoleSeeder::class,        // Asignación de permisos a roles
         ]);
-        
+
         // Usuario administrador básico
         $this->call([
             UserSeeder::class,                  // Usuario administrador básico
             RoleUserSeeder::class,              // Asignación de roles a usuarios
         ]);
-        
+
         // Configuraciones de ventas
         $this->call([
             SaleIvaSeeder::class,              // Configuración de IVA para ventas
         ]);
-        
+
         if ($this->command) {
             $this->command->info('✅ Seeders de producción completados');
         }

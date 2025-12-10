@@ -5,7 +5,7 @@ import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { Search, Eye, Pencil, Trash2, RotateCw, Plus, Calendar } from "lucide-react"
+import { Search, Eye, Pencil, Trash2, RotateCw, Plus, Calendar, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
 import { Link } from "react-router-dom"
@@ -22,6 +22,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { NewExpenseDialog, EditExpenseDialog } from "@/components/expenses"
 
 interface Expense {
     id: number;
@@ -30,10 +31,12 @@ interface Expense {
     date: string;
     due_date: string | null;
     status: 'pending' | 'approved' | 'paid' | 'cancelled';
+    category_id: number;
     category: {
         id: number;
         name: string;
     };
+    employee_id: number | null;
     employee?: {
         id: number;
         person: {
@@ -41,8 +44,10 @@ interface Expense {
             last_name: string;
         }
     };
+    branch_id: number;
     is_recurring: boolean;
     recurrence_interval: string | null;
+    notes: string | null;
 }
 
 export default function ExpensesListPage() {
@@ -51,6 +56,11 @@ export default function ExpensesListPage() {
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [searchTerm, setSearchTerm] = useState("")
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+
+    // Dialog states
+    const [newDialogOpen, setNewDialogOpen] = useState(false)
+    const [editDialogOpen, setEditDialogOpen] = useState(false)
+    const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [expenseToDelete, setExpenseToDelete] = useState<number | null>(null)
 
@@ -104,11 +114,10 @@ export default function ExpensesListPage() {
             });
 
             if (response && response.success) {
-                const data = response.data;
-                setExpenses(data.data || []);
-                setTotalItems(data.total || 0);
-                setCurrentPage(data.current_page || 1);
-                setTotalPages(data.last_page || 1);
+                setExpenses(response.data || []);
+                setTotalItems(response.total || 0);
+                setCurrentPage(response.current_page || 1);
+                setTotalPages(response.last_page || 1);
             }
         } catch (error) {
             console.error("Error fetching expenses:", error);
@@ -119,6 +128,11 @@ export default function ExpensesListPage() {
     useEffect(() => {
         fetchExpenses(currentPage);
     }, [fetchExpenses, currentPage]);
+
+    const handleEditClick = (expense: Expense) => {
+        setSelectedExpense(expense)
+        setEditDialogOpen(true)
+    }
 
     const handleDeleteClick = (id: number) => {
         setExpenseToDelete(id)
@@ -139,7 +153,35 @@ export default function ExpensesListPage() {
         }
     }
 
-    const getStatusBadge = (status: string) => {
+    const handlePayClick = async (expense: Expense) => {
+        try {
+            await request({
+                method: "PUT",
+                url: `/expenses/${expense.id}`,
+                data: { status: 'paid' }
+            });
+            toast.success('Gasto marcado como pagado');
+            fetchExpenses(currentPage);
+        } catch (error: any) {
+            toast.error(error?.message || 'Error al pagar el gasto');
+        }
+    }
+
+    const handleDialogSuccess = () => {
+        fetchExpenses(currentPage);
+    }
+
+    const getStatusBadge = (expense: Expense) => {
+        const isOverdue = expense.status === 'pending' && expense.due_date && new Date(expense.due_date) < new Date();
+
+        if (isOverdue) {
+            return (
+                <Badge variant="outline" className="bg-red-50 text-red-800 border-red-200">
+                    Vencida
+                </Badge>
+            );
+        }
+
         const styles: Record<string, string> = {
             pending: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
             approved: "bg-blue-100 text-blue-800 hover:bg-blue-100",
@@ -153,8 +195,8 @@ export default function ExpensesListPage() {
             cancelled: "Cancelado",
         };
         return (
-            <Badge variant="outline" className={styles[status] || ""}>
-                {labels[status] || status}
+            <Badge variant="outline" className={styles[expense.status] || ""}>
+                {labels[expense.status] || expense.status}
             </Badge>
         );
     };
@@ -180,7 +222,7 @@ export default function ExpensesListPage() {
                         <RotateCw className={loading ? "animate-spin h-4 w-4" : "h-4 w-4"} />
                     </Button>
                     {hasPermission('crear_gastos') && (
-                        <Button>
+                        <Button onClick={() => setNewDialogOpen(true)}>
                             <Plus className="mr-2 h-4 w-4" />
                             Nuevo Gasto
                         </Button>
@@ -251,7 +293,30 @@ export default function ExpensesListPage() {
                                         <TableRow key={expense.id}>
                                             <ResizableTableCell columnId="description" getColumnCellProps={getColumnCellProps}>
                                                 <div className="font-medium">{expense.description}</div>
-                                                {expense.is_recurring && <Badge variant="secondary" className="mt-1 text-xs">Recurrente</Badge>}
+                                                {expense.is_recurring && (
+                                                    <div className="mt-1">
+                                                        {(() => {
+                                                            const interval = expense.recurrence_interval || 'monthly';
+                                                            const styles: Record<string, string> = {
+                                                                daily: "bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200",
+                                                                weekly: "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border-indigo-200",
+                                                                monthly: "bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200",
+                                                                yearly: "bg-pink-100 text-pink-800 hover:bg-pink-200 border-pink-200",
+                                                            };
+                                                            const labels: Record<string, string> = {
+                                                                daily: "Diario",
+                                                                weekly: "Semanal",
+                                                                monthly: "Mensual",
+                                                                yearly: "Anual",
+                                                            };
+                                                            return (
+                                                                <Badge variant="secondary" className={`text-xs ${styles[interval] || styles.monthly}`}>
+                                                                    {labels[interval] || 'Recurrente'}
+                                                                </Badge>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                )}
                                             </ResizableTableCell>
                                             <ResizableTableCell columnId="category" getColumnCellProps={getColumnCellProps}>
                                                 {expense.category?.name || '-'}
@@ -263,13 +328,25 @@ export default function ExpensesListPage() {
                                                 {new Date(expense.date).toLocaleDateString()}
                                             </ResizableTableCell>
                                             <ResizableTableCell columnId="status" getColumnCellProps={getColumnCellProps}>
-                                                {getStatusBadge(expense.status)}
+                                                {getStatusBadge(expense)}
                                             </ResizableTableCell>
                                             <ResizableTableCell columnId="actions" getColumnCellProps={getColumnCellProps} className="text-right">
                                                 <div className="flex justify-end gap-1">
+                                                    {(expense.status === 'pending' || expense.status === 'approved') && hasPermission('editar_gastos') && (
+                                                        <Button variant="ghost" size="icon" title="Pagar" onClick={() => handlePayClick(expense)} className="text-green-600 hover:text-green-700 hover:bg-green-50">
+                                                            <DollarSign className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
                                                     {hasPermission('editar_gastos') && (
-                                                        <Button variant="ghost" size="icon" title="Editar">
-                                                            <Pencil className="h-4 w-4" />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            title={expense.status === 'paid' ? "No se puede editar un gasto pagado" : "Editar"}
+                                                            onClick={() => handleEditClick(expense)}
+                                                            disabled={expense.status === 'paid'}
+                                                            className={expense.status === 'paid' ? "opacity-50 cursor-not-allowed" : ""}
+                                                        >
+                                                            <Pencil className="h-4 w-4 text-orange-500" />
                                                         </Button>
                                                     )}
                                                     {hasPermission('eliminar_gastos') && (
@@ -300,17 +377,38 @@ export default function ExpensesListPage() {
                 className="mt-4 mb-6"
             />
 
+            {/* New Expense Dialog */}
+            <NewExpenseDialog
+                open={newDialogOpen}
+                onOpenChange={setNewDialogOpen}
+                onSuccess={handleDialogSuccess}
+            />
+
+            {/* Edit Expense Dialog */}
+            <EditExpenseDialog
+                open={editDialogOpen}
+                onOpenChange={setEditDialogOpen}
+                expense={selectedExpense}
+                onSuccess={handleDialogSuccess}
+            />
+
+            {/* Delete Confirmation Dialog */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
                             Esta acción no se puede deshacer. El gasto será eliminado permanentemente.
+                            {expenses.find(e => e.id === expenseToDelete)?.status === 'paid' && (
+                                <span className="block mt-2 font-semibold text-red-600">
+                                    ¡Atención! Este gasto está pagado. Al eliminarlo, se revertirá el movimiento de caja asociado y se actualizarán los saldos.
+                                </span>
+                            )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+                        <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
                             Eliminar
                         </AlertDialogAction>
                     </AlertDialogFooter>
@@ -319,3 +417,4 @@ export default function ExpensesListPage() {
         </div>
     )
 }
+

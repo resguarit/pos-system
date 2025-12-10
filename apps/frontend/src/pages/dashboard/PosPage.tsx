@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -29,6 +29,7 @@ import { useSaleTotals } from '@/hooks/useSaleTotals'
 
 export default function POSPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [cart, setCart] = useState<CartItem[]>([])
   const [categories, setCategories] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
@@ -40,15 +41,15 @@ export default function POSPage() {
 
   // Funciones para manejar localStorage del carrito
   const CART_STORAGE_KEY = 'pos_cart'
-  
+
   // Estado para manejar memoria de sucursales (igual que en Caja)
   const [originalBranchSelection, setOriginalBranchSelection] = useState<string[]>([])
-  
+
   const saveCartToStorage = (cartData: CartItem[]) => {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartData))
- 
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartData))
+
   }
-  
+
   const loadCartFromStorage = (): CartItem[] => {
     try {
       const savedCart = localStorage.getItem(CART_STORAGE_KEY)
@@ -60,7 +61,7 @@ export default function POSPage() {
     }
     return []
   }
-  
+
   const clearCartFromStorage = () => {
     try {
       localStorage.removeItem(CART_STORAGE_KEY)
@@ -69,7 +70,7 @@ export default function POSPage() {
     }
   }
 
-  
+
 
   // Cash register validation hook y refresco manual
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(selectedBranch?.id) || 1)
@@ -99,7 +100,7 @@ export default function POSPage() {
 
   // Estado para controlar el Sheet del carrito
   const [cartSheetOpen, setCartSheetOpen] = useState(false)
-  
+
   // Hooks personalizados para responsabilidades separadas
   const isMobile = useIsMobile()
 
@@ -120,12 +121,50 @@ export default function POSPage() {
 
   // Cargar carrito desde localStorage al montar el componente
   useEffect(() => {
-    const savedCart = loadCartFromStorage()
-    if (savedCart.length > 0) {
-      setCart(savedCart)
-      toast.info(`Carrito restaurado: ${savedCart.length} producto${savedCart.length > 1 ? 's' : ''} encontrado${savedCart.length > 1 ? 's' : ''}`)
+    // Si viene un presupuesto para editar, cargarlo
+    if (location.state?.budgetToEdit) {
+      const budget = location.state.budgetToEdit
+      const mappedItems = budget.items?.map((item: any) => {
+        const ivaRate = item.product?.iva?.rate || 0
+        const priceNet = Number(item.unit_price)
+        // Calcular precio bruto aproximado (o usar el del producto si coincide)
+        const priceGross = priceNet * (1 + ivaRate / 100)
+
+        return {
+          id: item.product_id.toString(),
+          product_id: item.product_id,
+          code: item.product?.code || '',
+          name: item.product?.description || '',
+          price: priceNet,
+          price_with_iva: priceGross,
+          sale_price: priceGross, // Precio base para mostrar
+          iva_rate: ivaRate,
+          quantity: Number(item.quantity),
+          image: '',
+          currency: 'ARS',
+          discount_type: item.discount_type,
+          discount_value: Number(item.discount_value),
+          is_from_combo: false,
+        }
+      }) || []
+
+      if (mappedItems.length > 0) {
+        setCart(mappedItems)
+        toast.success(`Presupuesto #${budget.id} cargado`, {
+          description: 'Se han cargado los ítems del presupuesto.'
+        })
+        // Limpiar el state para evitar recargas accidentales
+        window.history.replaceState({}, document.title)
+      }
+    } else {
+      // Comportamiento normal: cargar de localStorage
+      const savedCart = loadCartFromStorage()
+      if (savedCart.length > 0) {
+        setCart(savedCart)
+        toast.info(`Carrito restaurado: ${savedCart.length} producto${savedCart.length > 1 ? 's' : ''} encontrado${savedCart.length > 1 ? 's' : ''}`)
+      }
     }
-  }, [])
+  }, [location.state])
 
   // Efecto para manejar memoria de sucursales (igual que en Caja)
   useEffect(() => {
@@ -133,7 +172,7 @@ export default function POSPage() {
     if (selectedBranchIds.length > 1 && originalBranchSelection.length === 0) {
       setOriginalBranchSelection([...selectedBranchIds])
     }
-    
+
     // Si no hay sucursal seleccionada y tenemos selección original, restaurar
     if (selectedBranchIds.length === 0 && originalBranchSelection.length > 0) {
       setSelectedBranchIds([...originalBranchSelection])
@@ -151,14 +190,14 @@ export default function POSPage() {
         setSelectedBranchIds([...originalBranchSelection])
         setOriginalBranchSelection([])
       }
-      
+
       // Agregar listener para detectar navegación
       const handleBeforeUnload = () => {
         cleanup()
       }
-      
+
       window.addEventListener('beforeunload', handleBeforeUnload)
-      
+
       // Cleanup del listener cuando el componente se desmonte
       return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload)
@@ -186,9 +225,9 @@ export default function POSPage() {
     try {
       const response = await request({ method: "GET", url: "/categories" })
       // La API devuelve datos paginados: response.data.data contiene el array de categorías
-      const categoriesData = Array.isArray(response) ? response : 
-                            Array.isArray(response?.data?.data) ? response.data.data :
-                            Array.isArray(response?.data) ? response.data : [];
+      const categoriesData = Array.isArray(response) ? response :
+        Array.isArray(response?.data?.data) ? response.data.data :
+          Array.isArray(response?.data) ? response.data : [];
       setCategories(categoriesData)
     } catch (err) {
       console.error("Error fetching categories:", err);
@@ -200,16 +239,16 @@ export default function POSPage() {
     try {
       const response = await request({ method: "GET", url: "/products?include=category,iva" })
       // Manejar estructura paginada para productos también
-      const productData = Array.isArray(response) ? response : 
-                         Array.isArray(response?.data?.data) ? response.data.data :
-                         Array.isArray(response?.data) ? response.data : [];
+      const productData = Array.isArray(response) ? response :
+        Array.isArray(response?.data?.data) ? response.data.data :
+          Array.isArray(response?.data) ? response.data : [];
       const mappedProducts = productData.map((p: any) => {
         const salePriceWithIva = p.sale_price || 0;
         const ivaRate = p.iva?.rate || 0;
-        
+
         // El sale_price de la API YA INCLUYE IVA, necesitamos calcular el precio sin IVA
         // Redondeamos a 2 decimales porque la división puede generar errores de precisión
-        const priceWithoutIva = ivaRate > 0 
+        const priceWithoutIva = ivaRate > 0
           ? Math.round((salePriceWithIva / (1 + ivaRate / 100) + Number.EPSILON) * 100) / 100
           : salePriceWithIva;
 
@@ -277,7 +316,7 @@ export default function POSPage() {
     // Si el pricing/productos dependen de sucursal, descomentar:
     // fetchProducts()
     // fetchPaymentMethods()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBranch?.id, selectionChangeToken])
 
   const filteredProducts = products.filter((product) => {
@@ -303,23 +342,23 @@ export default function POSPage() {
   // Actualizar para respetar la cantidad por click
   const addToCart = (product: CartItem, qty?: number) => {
     const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1)
-    
+
     setCart((prevCart) => {
       // ✅ Solo buscar productos individuales (no de combos) con el mismo ID
-      const existingIndividualItem = prevCart.find((item) => 
+      const existingIndividualItem = prevCart.find((item) =>
         item.id === product.id && !item.is_from_combo
       );
-      
+
       if (existingIndividualItem) {
-        return prevCart.map((item) => 
+        return prevCart.map((item) =>
           item.id === product.id && !item.is_from_combo
-            ? { ...item, quantity: item.quantity + quantityToAdd } 
+            ? { ...item, quantity: item.quantity + quantityToAdd }
             : item
         );
       } else {
         // ✅ Asegurar que siempre tenga product_id y que sea un producto individual
-        const cartItem: CartItem = { 
-          ...product, 
+        const cartItem: CartItem = {
+          ...product,
           quantity: quantityToAdd,
           product_id: product.product_id || parseInt(product.id), // Fallback si no tiene product_id
           is_from_combo: false, // ✅ Asegurar que sea un producto individual
@@ -347,24 +386,24 @@ export default function POSPage() {
     try {
       // Obtener detalles de precio del combo
       const priceDetails = await getComboPriceDetails(combo.id);
-      
+
       // Calcular el descuento total aplicado
       const totalDiscount = priceDetails.discount_amount;
       const totalBasePrice = priceDetails.base_price;
-      
+
       // Calcular el factor de descuento proporcional
       const discountFactor = totalBasePrice > 0 ? totalDiscount / totalBasePrice : 0;
-      
+
       // Agregar cada producto del combo al carrito con descuento aplicado
       const comboItems = priceDetails.items_breakdown.map((item) => {
         // Calcular precio con descuento proporcional aplicado
         const discountedPrice = item.total_price * (1 - discountFactor);
         const discountedUnitPrice = item.unit_price * (1 - discountFactor);
-        
+
         // Calcular el porcentaje de descuento aplicado a este producto
-        const itemDiscountPercentage = item.unit_price > 0 ? 
+        const itemDiscountPercentage = item.unit_price > 0 ?
           ((item.unit_price - discountedUnitPrice) / item.unit_price) * 100 : 0;
-        
+
         return {
           id: `combo-${combo.id}-${item.product.id}`,
           product_id: item.product.id, // ✅ Campo requerido para el backend
@@ -392,13 +431,13 @@ export default function POSPage() {
       // Agregar cada producto al carrito
       setCart((prevCart) => {
         let newCart = [...prevCart];
-        
+
         comboItems.forEach((comboItem) => {
           // ✅ Solo buscar items de combos con el mismo ID exacto
-          const existingComboItem = newCart.find((item) => 
+          const existingComboItem = newCart.find((item) =>
             item.id === comboItem.id && item.is_from_combo
           );
-          
+
           if (existingComboItem) {
             // Si el producto de combo ya existe, sumar la cantidad
             newCart = newCart.map((item) =>
@@ -411,7 +450,7 @@ export default function POSPage() {
             newCart.push(comboItem);
           }
         });
-        
+
         return newCart;
       });
 
@@ -625,7 +664,7 @@ export default function POSPage() {
                   <SelectItem key={branch.id} value={branch.id.toString()}>
                     <div className="flex items-center gap-2">
                       {branch.color && (
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full border"
                           style={{ backgroundColor: branch.color }}
                         />
@@ -640,13 +679,13 @@ export default function POSPage() {
 
           {/* Cash Register Status - Show appropriate component based on selection */}
           {selectedBranchIds.length > 1 ? (
-            <MultipleBranchesCashStatus 
+            <MultipleBranchesCashStatus
               className="mb-2"
               showOpenButton={true}
               compact={false}
             />
           ) : (
-            <CashRegisterStatusBadge 
+            <CashRegisterStatusBadge
               branchId={Number(selectedBranch?.id) || 1}
               compact={false}
               showOperator={true}
@@ -655,114 +694,115 @@ export default function POSPage() {
               className="mb-2"
             />
           )}
-            
-            <div className="mb-4 flex flex-col sm:flex-row items-center gap-4">
-                <div className="relative w-full sm:w-auto sm:flex-grow flex">
-                    <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-                    <Input
-                        type="text"
-                        placeholder="Escanear o buscar producto..."
-                        className="w-full pl-8 pr-12"
-                        value={productCodeInput}
-                        onChange={(e) => setProductCodeInput(e.target.value)}
-                        onKeyDown={handleProductCodeSubmit}
-                        autoFocus
-                    />
-                    <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-1 top-1 h-8 w-8 p-0"
-                    onClick={searchAndAddProduct}
-                    disabled={!productCodeInput.trim()}
-                    >
-                    <Search className="h-4 w-4" />
-                    </Button>
-                </div>
 
-                {/* Cantidad por selección (selector único) */}
-                <div className="flex items-center gap-2">
-                  <Popover open={qtySelectorOpen} onOpenChange={setQtySelectorOpen}>
-                    <PopoverTrigger asChild>
-                      <Button type="button" variant="outline" className="min-w-[110px] justify-between">
-                        Cant. x{Math.max(1, addQtyPerClick)}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-56 p-3" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Cantidad</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          step={1}
-                          value={addQtyPerClick}
-                          onChange={(e) => {
-                            const v = Math.floor(Number(e.target.value))
-                            setAddQtyPerClick(isNaN(v) ? 1 : Math.max(1, v))
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') setQtySelectorOpen(false)
-                          }}
-                        />
-                        <div className="grid grid-cols-3 gap-2 pt-1">
-                          {[1, 2, 3, 5, 10, 20].map((n) => (
-                            <Button
-                              key={n}
-                              type="button"
-                              variant={addQtyPerClick === n ? 'default' : 'outline'}
-                              size="sm"
-                              className="w-full"
-                              onClick={() => { setAddQtyPerClick(n); setQtySelectorOpen(false) }}
-                            >
-                              x{n}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Categoría" />
-                    </SelectTrigger>
-                    <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                    <SelectItem value="all">Todas</SelectItem>
-                    {Array.isArray(categories) && categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id.toString()}>
-                        {category.name}
-                        </SelectItem>
-                    ))}
-                    {(!Array.isArray(categories) || categories.length === 0) && (
-                        <SelectItem value="no-categories" disabled>
-                        No hay categorías disponibles
-                        </SelectItem>
-                    )}
-                    </SelectContent>
-                </Select>
+          <div className="mb-4 flex flex-col sm:flex-row items-center gap-4">
+            <div className="relative w-full sm:w-auto sm:flex-grow flex">
+              <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+              <Input
+                type="text"
+                placeholder="Escanear o buscar producto..."
+                className="w-full pl-8 pr-12"
+                value={productCodeInput}
+                onChange={(e) => setProductCodeInput(e.target.value)}
+                onKeyDown={handleProductCodeSubmit}
+                autoFocus
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-1 top-1 h-8 w-8 p-0"
+                onClick={searchAndAddProduct}
+                disabled={!productCodeInput.trim()}
+              >
+                <Search className="h-4 w-4" />
+              </Button>
             </div>
 
-            {/* Espaciado adicional */}
-            <div className="mb-6"></div>
+            {/* Cantidad por selección (selector único) */}
+            <div className="flex items-center gap-2">
+              <Popover open={qtySelectorOpen} onOpenChange={setQtySelectorOpen}>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="min-w-[110px] justify-between">
+                    Cant. x{Math.max(1, addQtyPerClick)}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-3" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Cantidad</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={addQtyPerClick}
+                      onChange={(e) => {
+                        const v = Math.floor(Number(e.target.value))
+                        setAddQtyPerClick(isNaN(v) ? 1 : Math.max(1, v))
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setQtySelectorOpen(false)
+                      }}
+                    />
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      {[1, 2, 3, 5, 10, 20].map((n) => (
+                        <Button
+                          key={n}
+                          type="button"
+                          variant={addQtyPerClick === n ? 'default' : 'outline'}
+                          size="sm"
+                          className="w-full"
+                          onClick={() => { setAddQtyPerClick(n); setQtySelectorOpen(false) }}
+                        >
+                          x{n}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
 
-            {/* Sección de Combos - Movida al principio para mejor visibilidad */}
-            <ComboSection
-              branchId={selectedBranch?.id || null}
-              addQtyPerClick={addQtyPerClick}
-              formatCurrency={formatCurrency}
-              onComboAdded={addComboToCart}
-            />
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder="Categoría" />
+              </SelectTrigger>
+              <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
+                <SelectItem value="all">Todas</SelectItem>
+                {Array.isArray(categories) && categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id.toString()}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+                {(!Array.isArray(categories) || categories.length === 0) && (
+                  <SelectItem value="no-categories" disabled>
+                    No hay categorías disponibles
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
 
-            {/* Separador visual */}
-            <div className="my-8 border-t border-gray-200"></div>
+          {/* Espaciado adicional */}
+          <div className="mb-6"></div>
 
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {/* Sección de Combos - Movida al principio para mejor visibilidad */}
+          <ComboSection
+            branchId={selectedBranch?.id || null}
+            addQtyPerClick={addQtyPerClick}
+            formatCurrency={formatCurrency}
+            onComboAdded={addComboToCart}
+            searchTerm={productCodeInput}
+          />
+
+          {/* Separador visual */}
+          <div className="my-8 border-t border-gray-200"></div>
+
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredProducts.map((product) => {
               const ui = getStockUi(product.id)
               return (
-                <Card 
-                  key={product.id} 
+                <Card
+                  key={product.id}
                   className={`flex flex-col h-full overflow-hidden cursor-pointer hover:border-primary border ${ui.card}`}
                   onClick={() => addToCart(product, addQtyPerClick)}
                 >
@@ -776,10 +816,10 @@ export default function POSPage() {
                     </p>
                   </CardContent>
                   <CardFooter className="p-3 pt-2 mt-auto">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className={`w-full h-8 cursor-pointer ${ui.button}`} 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`w-full h-8 cursor-pointer ${ui.button}`}
                       onClick={(e) => { e.stopPropagation(); addToCart(product, addQtyPerClick); }}
                     >
                       Agregar x{Math.max(1, addQtyPerClick)}
@@ -788,7 +828,7 @@ export default function POSPage() {
                 </Card>
               )
             })}
-            </div>
+          </div>
         </div>
 
         {/* Carrito en desktop - Panel lateral */}

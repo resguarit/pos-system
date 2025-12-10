@@ -53,7 +53,9 @@ export const PERMISSIONS_CONFIG = {
       'editar_ventas',
       'anular_ventas',
       'reimprimir_comprobantes',
-      'aplicar_descuentos'
+      'aplicar_descuentos',
+      'convertir_presupuestos',
+      'solo_crear_presupuestos'
     ]
   },
 

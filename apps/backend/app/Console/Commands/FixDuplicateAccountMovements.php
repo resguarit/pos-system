@@ -15,7 +15,7 @@ class FixDuplicateAccountMovements extends Command
     public function handle()
     {
         $dryRun = $this->option('dry-run');
-        
+
         if ($dryRun) {
             $this->warn('🔍 MODO DRY-RUN: Solo se mostrarán los cambios, no se aplicarán.');
             $this->newLine();
@@ -114,14 +114,16 @@ class FixDuplicateAccountMovements extends Command
 
         try {
             $deleted = CurrentAccountMovement::whereIn('id', $movementIds)->delete();
-            
+
             DB::commit();
-            
+
             $this->info("✅ {$deleted} movimientos duplicados eliminados correctamente.");
             $this->newLine();
-            $this->comment('⚠️  IMPORTANTE: Después de eliminar movimientos, es necesario recalcular los balances de las cuentas corrientes.');
-            $this->comment('   Ejecuta: php artisan current-accounts:recalculate-balances (si existe)');
-            
+
+            // Recalcular balances automáticamente después de eliminar duplicados
+            $this->info('🔄 Recalculando balances de cuentas afectadas...');
+            $this->call('current-accounts:recalculate-balances');
+
             return 0;
 
         } catch (\Exception $e) {

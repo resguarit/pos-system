@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Pagination from '@/components/ui/pagination';
 import { toast } from 'sonner';
-import { 
-  ArrowLeft, 
-  CreditCard, 
-  TrendingUp, 
+import {
+  ArrowLeft,
+  CreditCard,
+  TrendingUp,
   DollarSign,
   Calendar,
   User,
@@ -27,9 +27,9 @@ import { useCurrentAccountActions } from '@/hooks/useCurrentAccountActions';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { PaymentDialog } from './PaymentDialog';
-import { 
-  calculateOutstandingBalance, 
-  calculateTotalPendingSales, 
+import {
+  calculateOutstandingBalance,
+  calculateTotalPendingSales,
   getOutstandingBalanceDescription,
   formatOutstandingBalance,
   getBalanceColorClass
@@ -38,9 +38,10 @@ import {
 interface CurrentAccountDetailsProps {
   accountId: number;
   onBack: () => void;
+  onStatsRefresh?: () => void;
 }
 
-export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetailsProps) {
+export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: CurrentAccountDetailsProps) {
   const [account, setAccount] = useState<CurrentAccount | null>(null);
   const [movements, setMovements] = useState<CurrentAccountMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +53,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
   const perPage = 10;
   const movementsTableRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<number>(0);
-  
+
   // Estados para los diálogos
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
@@ -140,6 +141,10 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
     loadAccountDetails();
     loadPendingSales();
     loadMovements();
+    // Notificar al componente padre para refrescar las estadísticas de las cards
+    if (onStatsRefresh) {
+      onStatsRefresh();
+    }
   };
 
   const loadPendingSales = async () => {
@@ -232,7 +237,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
             <p className="text-muted-foreground">Cuenta Corriente #{account.id}</p>
           </div>
         </div>
-        
+
         <div className="flex space-x-2">
           {hasPermission('gestionar_cuentas_corrientes') && account.status === 'active' && (
             <Button onClick={() => setShowPaymentDialog(true)} variant="default">
@@ -240,14 +245,14 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
               Registrar Pago
             </Button>
           )}
-          
+
           {hasPermission('suspender_cuentas_corrientes') && account.status === 'active' && (
             <Button variant="outline" onClick={handleSuspend}>
               <Pause className="h-4 w-4 mr-2" />
               Suspender
             </Button>
           )}
-          
+
           {hasPermission('reactivar_cuentas_corrientes') && account.status === 'suspended' && (
             <Button variant="outline" onClick={handleReactivate}>
               <Play className="h-4 w-4 mr-2" />
@@ -396,7 +401,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                   <p className="text-muted-foreground">No hay movimientos registrados</p>
                 </div>
               ) : (
-                <div 
+                <div
                   ref={movementsTableRef}
                   className="overflow-x-auto overflow-y-auto max-h-[600px]"
                   style={{ scrollBehavior: 'auto' }}
@@ -447,61 +452,61 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
                         // El backend ya calcula correctamente el balance después de cada movimiento
                         // Solo hay saldo adeudado (deuda pendiente), así que nunca debe ser negativo
                         const saldoAdeudado = Math.max(0, movement.balance_after || 0);
-                        
+
                         return (
-                            <tr key={movement.id}>
-                              <ResizableTableCell
-                                columnId="fecha"
-                                getColumnCellProps={resizableColumns.getColumnCellProps}
-                              >
-                                {movement.movement_date ? 
-                                  new Date(movement.movement_date).toLocaleString('es-AR', {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit'
-                                  }) :
-                                  new Date(movement.created_at).toLocaleString('es-AR', {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit'
-                                  })
-                                }
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="tipo"
-                                getColumnCellProps={resizableColumns.getColumnCellProps}
-                              >
-                                {movement.movement_type.name}
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="descripcion"
-                                getColumnCellProps={resizableColumns.getColumnCellProps}
-                              >
-                                {movement.description}
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="monto"
-                                getColumnCellProps={resizableColumns.getColumnCellProps}
-                                className={movement.is_outflow ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
-                              >
-                                {movement.is_outflow ? '+' : '-'}{CurrentAccountUtils.formatCurrency(movement.amount)}
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="balance"
-                                getColumnCellProps={resizableColumns.getColumnCellProps}
-                                className={saldoAdeudado > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}
-                              >
-                                {CurrentAccountUtils.formatCurrency(saldoAdeudado)}
-                              </ResizableTableCell>
-                            </tr>
-                          );
-                        })}
+                          <tr key={movement.id}>
+                            <ResizableTableCell
+                              columnId="fecha"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                            >
+                              {movement.movement_date ?
+                                new Date(movement.movement_date).toLocaleString('es-AR', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit'
+                                }) :
+                                new Date(movement.created_at).toLocaleString('es-AR', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  second: '2-digit'
+                                })
+                              }
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="tipo"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                            >
+                              {movement.movement_type.name}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="descripcion"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                            >
+                              {movement.description}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="monto"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                              className={movement.is_outflow ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
+                            >
+                              {movement.is_outflow ? '+' : '-'}{CurrentAccountUtils.formatCurrency(movement.amount)}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="balance"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                              className={saldoAdeudado > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}
+                            >
+                              {CurrentAccountUtils.formatCurrency(saldoAdeudado)}
+                            </ResizableTableCell>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -533,7 +538,7 @@ export function CurrentAccountDetails({ accountId, onBack }: CurrentAccountDetai
             currentBalance={account.current_balance}
             onSuccess={handleSuccess}
           />
-          
+
         </>
       )}
     </div>

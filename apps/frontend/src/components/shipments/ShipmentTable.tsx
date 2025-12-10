@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Shipment, ShipmentStage } from '@/types/shipment';
-import { Package, Truck, CheckCircle, Clock, Eye, ChevronUp, ChevronDown, Edit, Printer } from 'lucide-react';
+import { Package, Truck, CheckCircle, Clock, Eye, ChevronUp, ChevronDown, Edit, Printer, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 
@@ -10,6 +10,7 @@ interface ShipmentTableProps {
   onViewShipment: (shipmentId: number) => void;
   onEditShipment?: (shipmentId: number) => void;
   onPrintShipment?: (shipmentId: number) => void;
+  onDownloadShipment?: (shipmentId: number) => void;
   loading?: boolean;
   showBranchColumn?: boolean;
   getBranchInfo?: (branchId: number) => any;
@@ -39,6 +40,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
   onViewShipment,
   onEditShipment,
   onPrintShipment,
+  onDownloadShipment,
   loading = false,
   showBranchColumn = false,
   getBranchInfo,
@@ -68,7 +70,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
   const getStageColor = useCallback((stageId: number): string => {
     const stage = stages.find(s => s.id === stageId);
     if (!stage) return 'bg-gray-100 text-gray-700';
-    
+
     switch (stage.order) {
       case 1: return 'bg-yellow-100 text-yellow-700';
       case 2: return 'bg-blue-100 text-blue-700';
@@ -81,7 +83,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
   const getStageIcon = useCallback((stageId: number) => {
     const stage = stages.find(s => s.id === stageId);
     if (!stage) return Package;
-    
+
     switch (stage.order) {
       case 1: return Clock;
       case 2: return Package;
@@ -197,7 +199,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
           <thead className="bg-gray-50">
             <tr>
               {/* Referencia */}
-              <th 
+              <th
                 style={{ width: columnWidths.reference }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -210,7 +212,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
 
               {/* Sucursal - Solo mostrar si showBranchColumn es true */}
               {showBranchColumn && (
-                <th 
+                <th
                   style={{ width: columnWidths.branch }}
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
                 >
@@ -223,7 +225,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               )}
 
               {/* Prioridad */}
-              <th 
+              <th
                 style={{ width: columnWidths.priority }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none cursor-pointer hover:bg-gray-100 transition-colors"
                 onClick={() => handleSort('priority')}
@@ -241,7 +243,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Estado */}
-              <th 
+              <th
                 style={{ width: columnWidths.status }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none cursor-pointer hover:bg-gray-100 transition-colors"
                 onClick={() => handleSort('status')}
@@ -259,7 +261,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Estado de Pago */}
-              <th 
+              <th
                 style={{ width: columnWidths.paymentStatus }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -271,7 +273,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Dirección */}
-              <th 
+              <th
                 style={{ width: columnWidths.address }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -283,7 +285,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Cliente */}
-              <th 
+              <th
                 style={{ width: columnWidths.customer }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -295,7 +297,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Transportista */}
-              <th 
+              <th
                 style={{ width: columnWidths.transporter }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -307,7 +309,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Pedidos */}
-              <th 
+              <th
                 style={{ width: columnWidths.sales }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -319,7 +321,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Creado */}
-              <th 
+              <th
                 style={{ width: columnWidths.created }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none cursor-pointer hover:bg-gray-100 transition-colors"
                 onClick={() => handleSort('created_at')}
@@ -337,7 +339,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Actualizado */}
-              <th 
+              <th
                 style={{ width: columnWidths.updated }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -349,7 +351,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               </th>
 
               {/* Acciones */}
-              <th 
+              <th
                 style={{ width: columnWidths.actions }}
                 className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
               >
@@ -374,9 +376,9 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                       const branchInfo = getBranchInfo?.(shipment.branch_id);
                       const branchColor = branchInfo?.color || '#6b7280';
                       const branchName = branchInfo?.description || `Sucursal ${shipment.branch_id}`;
-                      
+
                       return (
-                        <div 
+                        <div
                           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border-2"
                           style={{
                             borderColor: branchColor,
@@ -419,11 +421,10 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 <td className="px-6 py-4 whitespace-nowrap">
                   {shipment.shipping_cost && parseFloat(shipment.shipping_cost.toString()) > 0 ? (
                     <div className="flex items-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        shipment.is_paid 
-                          ? 'bg-green-100 text-green-700' 
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${shipment.is_paid
+                          ? 'bg-green-100 text-green-700'
                           : 'bg-red-100 text-red-700'
-                      }`}>
+                        }`}>
                         {shipment.is_paid ? 'Pagado' : 'Pendiente'}
                       </span>
                     </div>
@@ -461,14 +462,14 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     {(() => {
                       const transporter = shipment.transporter;
                       if (!transporter) return '-';
-                      
+
                       const firstName = transporter.person?.first_name || '';
                       const lastName = transporter.person?.last_name || '';
-                      
+
                       if (firstName || lastName) {
                         return `${firstName} ${lastName}`.trim();
                       }
-                      
+
                       return transporter.username || `ID: ${shipment.metadata?.transportista_id}`;
                     })()}
                   </div>
@@ -517,7 +518,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                         <Eye className="h-4 w-4 text-blue-600" />
                       </Button>
                     )}
-                    
+
                     {hasPermission('editar_envios') && onEditShipment && (
                       <Button
                         variant="ghost"
@@ -530,7 +531,20 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                         <Edit className="h-4 w-4 text-orange-600" />
                       </Button>
                     )}
-                    
+
+                    {(hasPermission('imprimir_etiqueta_envio') || hasPermission('ver_envios')) && onDownloadShipment && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onDownloadShipment(shipment.id)}
+                        className="h-8 w-8 p-0"
+                        aria-label="Descargar etiqueta PDF"
+                        title="Descargar Etiqueta PDF"
+                      >
+                        <Download className="h-4 w-4 text-green-600" />
+                      </Button>
+                    )}
+
                     {(hasPermission('imprimir_etiqueta_envio') || hasPermission('ver_envios')) && onPrintShipment && (
                       <Button
                         variant="ghost"

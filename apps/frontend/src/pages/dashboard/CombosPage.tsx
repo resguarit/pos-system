@@ -349,8 +349,8 @@ export default function CombosPage() {
                         className="flex-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 border border-blue-200 hover:border-blue-300"
                         onClick={() => handleViewDetails(combo)}
                       >
-                        <Eye className="h-3 w-3 mr-1" />
-                        Ver
+                        <Eye className="h-3 w-3 lg:mr-1" />
+                        <span className="hidden lg:inline">Ver</span>
                       </Button>
                       {canEditCombos && (
                         <Button
@@ -359,8 +359,8 @@ export default function CombosPage() {
                           className="flex-1 text-orange-500 hover:text-orange-700 hover:bg-orange-50 border border-orange-200 hover:border-orange-300"
                           onClick={() => handleEditCombo(combo)}
                         >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Editar
+                          <Edit className="h-3 w-3 lg:mr-1" />
+                          <span className="hidden lg:inline">Editar</span>
                         </Button>
                       )}
                       {canDeleteCombos && (
@@ -370,8 +370,8 @@ export default function CombosPage() {
                           className="flex-1 text-red-500 hover:text-red-700 hover:bg-red-50 border border-red-200 hover:border-red-300"
                           onClick={() => handleDeleteCombo(combo)}
                         >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Eliminar
+                          <Trash2 className="h-3 w-3 lg:mr-1" />
+                          <span className="hidden lg:inline">Eliminar</span>
                         </Button>
                       )}
                     </div>

@@ -32,7 +32,7 @@ export default function ShipmentsPage() {
   const { hasPermission, isLoading: authLoading } = useAuth();
   const { request } = useApi() as any;
   const { selectedBranchIds, branches, setSelectedBranchIds } = useBranch();
-  
+
   // Estados principales
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [stages, setStages] = useState<ShipmentStage[]>([]);
@@ -45,13 +45,13 @@ export default function ShipmentsPage() {
   const [showEditShipment, setShowEditShipment] = useState(false);
   const [editingShipmentId, setEditingShipmentId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [perPage, setPerPage] = useState(10);
-  
+
   // Estados para búsqueda de clientes y transportistas
   const [customerSearch, setCustomerSearch] = useState('');
   const [transporterSearch, setTransporterSearch] = useState('');
@@ -72,8 +72,8 @@ export default function ShipmentsPage() {
   });
 
   // Derivar branches seleccionadas desde el contexto
-  const selectedBranchIdsArray = useMemo(() => 
-    selectedBranchIds?.map(id => parseInt(String(id), 10)).filter(Number.isFinite) || [], 
+  const selectedBranchIdsArray = useMemo(() =>
+    selectedBranchIds?.map(id => parseInt(String(id), 10)).filter(Number.isFinite) || [],
     [selectedBranchIds]
   );
 
@@ -100,16 +100,16 @@ export default function ShipmentsPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const stagesResponse = await shipmentService.getStages();
       setStages(Array.isArray(stagesResponse) ? stagesResponse : []);
-      
+
       // Obtener el array actual de sucursales (este callback se recrea cuando cambian)
       const currentBranchIds = selectedBranchIds?.map(id => parseInt(String(id), 10)).filter(Number.isFinite) || [];
-      
+
       // Verificar si hay múltiples sucursales seleccionadas
       const hasMultipleBranches = currentBranchIds.length > 1;
-      
+
       if (hasMultipleBranches) {
         // Cargar envíos de múltiples sucursales
         // @ts-ignore - page is not in ShipmentFilters type but backend accepts it
@@ -119,18 +119,18 @@ export default function ShipmentsPage() {
         // Cargar envíos de una sola sucursal
         // @ts-ignore - page is not in ShipmentFilters type but backend accepts it
         const shipmentsResponse = await shipmentService.getShipments({ ...filters, per_page: perPage, page });
-        const shipmentsData = Array.isArray(shipmentsResponse.data) 
-          ? shipmentsResponse.data 
+        const shipmentsData = Array.isArray(shipmentsResponse.data)
+          ? shipmentsResponse.data
           : [];
         setShipments(shipmentsData);
-        
+
         // Guardar información de paginación
         if (shipmentsResponse.meta) {
           setCurrentPage(shipmentsResponse.meta.current_page || 1);
           setTotalPages(shipmentsResponse.meta.last_page || 1);
           setTotalItems(shipmentsResponse.meta.total || 0);
         }
-        
+
         // Guardar estadísticas del backend
         if (shipmentsResponse && 'stats' in shipmentsResponse && shipmentsResponse.stats) {
           setBackendStats(shipmentsResponse.stats);
@@ -164,7 +164,7 @@ export default function ShipmentsPage() {
       fetchData();
     }
   }, [authLoading, fetchData]);
-  
+
   const fetchCustomers = async () => {
     try {
       const response = await request({ method: 'GET', url: '/customers' });
@@ -176,7 +176,7 @@ export default function ShipmentsPage() {
       console.error('Error fetching customers:', error);
     }
   };
-  
+
   const fetchUsers = async () => {
     try {
       const response = await request({ method: 'GET', url: '/users?include=person' });
@@ -207,20 +207,20 @@ export default function ShipmentsPage() {
   // Filtrar por término de búsqueda y filtros adicionales
   const filteredShipments = useMemo(() => {
     let filtered = selectedBranchIdsArray.length > 1 ? allShipments : shipments;
-    
+
     // Filtrar por search term
     if (searchTerm) {
-      filtered = filtered.filter(s => 
+      filtered = filtered.filter(s =>
         s.tracking_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         s.reference?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     // Filtrar por prioridad
     if (filters.priority) {
       filtered = filtered.filter(s => s.priority === filters.priority);
     }
-    
+
     // Filtrar por cliente
     if (filters.customer) {
       filtered = filtered.filter(s => {
@@ -228,14 +228,14 @@ export default function ShipmentsPage() {
         return customerId?.toString() === filters.customer;
       });
     }
-    
+
     // Filtrar por transportista
     if (filters.transporter) {
-      filtered = filtered.filter(s => 
+      filtered = filtered.filter(s =>
         s.metadata?.transportista_id?.toString() === filters.transporter
       );
     }
-    
+
     // Filtrar por sucursal
     if (filters.branch && selectedBranchIdsArray.length > 1) {
       filtered = filtered.filter(s => {
@@ -243,7 +243,7 @@ export default function ShipmentsPage() {
         return branchIdStr === filters.branch;
       });
     }
-    
+
     return filtered;
   }, [shipments, allShipments, searchTerm, filters, selectedBranchIdsArray.length]);
 
@@ -257,7 +257,7 @@ export default function ShipmentsPage() {
         completed: consolidatedStats.total_delivered || 0,
       };
     }
-    
+
     // Para una sola sucursal, usar estadísticas del backend
     if (backendStats) {
       return {
@@ -267,7 +267,7 @@ export default function ShipmentsPage() {
         completed: backendStats.total_delivered || 0,
       };
     }
-    
+
     // Fallback: calcular en frontend si no hay estadísticas del backend
     const shipmentsToAnalyze = shipments;
     return {
@@ -379,18 +379,18 @@ export default function ShipmentsPage() {
       }
 
       toast.success(`Generando etiqueta para envío ${shipment.reference || shipmentId}...`);
-      
+
       // Descargar el PDF con autenticación usando request (incluye token)
-      const response = await request({ 
-        method: 'GET', 
+      const response = await request({
+        method: 'GET',
         url: `/shipments/${shipmentId}/pdf`,
         responseType: 'blob'
       });
-      
+
       if (!response || !(response instanceof Blob)) {
         throw new Error("La respuesta del servidor no es un archivo PDF válido.");
       }
-      
+
       // Crear blob URL del PDF descargado
       const blob = new Blob([response], { type: 'application/pdf' });
       const blobUrl = window.URL.createObjectURL(blob);
@@ -402,13 +402,13 @@ export default function ShipmentsPage() {
       iframe.style.width = '0';
       iframe.style.height = '0';
       iframe.style.border = 'none';
-      
+
       // Agregar al DOM
       document.body.appendChild(iframe);
-      
+
       // Asignar blob URL al iframe
       iframe.src = blobUrl;
-      
+
       // Cuando el iframe cargue, ejecutar print
       iframe.onload = () => {
         setTimeout(() => {
@@ -419,7 +419,7 @@ export default function ShipmentsPage() {
           } catch (err) {
             toast.error("No se pudo abrir el diálogo de impresión.");
           }
-          
+
           // Limpiar después de un tiempo
           setTimeout(() => {
             if (document.body.contains(iframe)) {
@@ -429,7 +429,7 @@ export default function ShipmentsPage() {
           }, 1000);
         }, 500);
       };
-      
+
       // Timeout de seguridad
       setTimeout(() => {
         if (document.body.contains(iframe)) {
@@ -437,10 +437,55 @@ export default function ShipmentsPage() {
         }
         window.URL.revokeObjectURL(blobUrl);
       }, 30000);
-      
+
     } catch (error) {
       toast.error('Error al imprimir etiqueta');
       console.error('Print error:', error);
+    }
+  };
+
+  const handleDownloadShipment = async (shipmentId: number) => {
+    try {
+      const shipment = shipments.find(s => s.id === shipmentId) || allShipments.find(s => s.id === shipmentId);
+      if (!shipment) {
+        toast.error('Envío no encontrado');
+        return;
+      }
+
+      toast.success(`Descargando etiqueta para envío ${shipment.reference || shipmentId}...`);
+
+      // Descargar el PDF con autenticación usando request (incluye token)
+      const response = await request({
+        method: 'GET',
+        url: `/shipments/${shipmentId}/pdf`,
+        responseType: 'blob'
+      });
+
+      if (!response || !(response instanceof Blob)) {
+        throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+      }
+
+      // Crear blob del PDF descargado
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      // Crear un enlace temporal para descargar
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `etiqueta-envio-${shipment.reference || shipmentId}.pdf`;
+
+      // Agregar al DOM, hacer clic y remover
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Limpiar el blob URL
+      window.URL.revokeObjectURL(blobUrl);
+
+      toast.success('Etiqueta descargada correctamente');
+    } catch (error) {
+      toast.error('Error al descargar etiqueta');
+      console.error('Download error:', error);
     }
   };
 
@@ -467,9 +512,9 @@ export default function ShipmentsPage() {
       {/* Breadcrumb para una sola sucursal */}
       {selectedBranchIdsArray.length === 1 && originalBranchSelection.length > 1 && (
         <div className="flex items-center">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleGoBackToMultipleBranches}
             className="text-muted-foreground hover:text-foreground hover:bg-muted/50"
           >
@@ -688,7 +733,7 @@ export default function ShipmentsPage() {
                 {showCustomerDropdown && customerSearch && (
                   <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {customers
-                      .filter(c => 
+                      .filter(c =>
                         customerSearch.trim() === '' ||
                         `${c.person?.first_name || ''} ${c.person?.last_name || ''}`.toLowerCase().includes(customerSearch.toLowerCase()) ||
                         c.email?.toLowerCase().includes(customerSearch.toLowerCase())
@@ -699,7 +744,7 @@ export default function ShipmentsPage() {
                           key={customer.id}
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                           onClick={() => {
-                            const name = customer.person 
+                            const name = customer.person
                               ? `${customer.person.first_name} ${customer.person.last_name}`.trim()
                               : customer.email || `ID: ${customer.id}`;
                             setCustomerSearch(name);
@@ -708,7 +753,7 @@ export default function ShipmentsPage() {
                           }}
                         >
                           <div className="text-sm font-medium">
-                            {customer.person 
+                            {customer.person
                               ? `${customer.person.first_name} ${customer.person.last_name}`.trim()
                               : 'Sin nombre'}
                           </div>
@@ -730,7 +775,7 @@ export default function ShipmentsPage() {
                 {showTransporterDropdown && transporterSearch && (
                   <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {users
-                      .filter(u => 
+                      .filter(u =>
                         transporterSearch.trim() === '' ||
                         `${u.person?.first_name || ''} ${u.person?.last_name || ''}`.toLowerCase().includes(transporterSearch.toLowerCase()) ||
                         u.email?.toLowerCase().includes(transporterSearch.toLowerCase()) ||
@@ -742,7 +787,7 @@ export default function ShipmentsPage() {
                           key={user.id}
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                           onClick={() => {
-                            const name = user.person 
+                            const name = user.person
                               ? `${user.person.first_name} ${user.person.last_name}`.trim()
                               : user.username || user.email || `ID: ${user.id}`;
                             setTransporterSearch(name);
@@ -751,7 +796,7 @@ export default function ShipmentsPage() {
                           }}
                         >
                           <div className="text-sm font-medium">
-                            {user.person 
+                            {user.person
                               ? `${user.person.first_name} ${user.person.last_name}`.trim()
                               : user.username || 'Sin nombre'}
                           </div>
@@ -854,6 +899,7 @@ export default function ShipmentsPage() {
         onViewShipment={handleViewShipment}
         onEditShipment={handleEditShipmentClick}
         onPrintShipment={handlePrintShipment}
+        onDownloadShipment={handleDownloadShipment}
         loading={loading || allShipmentsLoading}
         showBranchColumn={selectedBranchIdsArray.length > 1}
         getBranchInfo={getBranchInfo}

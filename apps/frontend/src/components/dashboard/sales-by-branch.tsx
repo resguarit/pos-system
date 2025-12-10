@@ -16,20 +16,9 @@ interface SalesByBranchProps {
 }
 
 export function SalesByBranch({ data = [], isLoading = false }: SalesByBranchProps) {
-  // Forzar estado vacío para probar
-  if (true) {
-    return (
-      <div className="h-[350px] flex flex-col items-center justify-center text-center">
-        <Building2 className="h-8 w-8 text-gray-400 mb-4" />
-        <p className="text-sm text-gray-500">No hay datos de ventas por sucursal disponibles</p>
-        <p className="text-xs text-gray-400 mt-1">No se encontraron ventas para mostrar en el período seleccionado</p>
-      </div>
-    )
-  }
-
   if (isLoading) {
     return (
-      <LoadingSkeleton 
+      <LoadingSkeleton
         className="h-[350px] w-full"
         items={6}
       />
@@ -38,7 +27,7 @@ export function SalesByBranch({ data = [], isLoading = false }: SalesByBranchPro
 
   if (!data || data.length === 0) {
     return (
-      <EmptyState 
+      <EmptyState
         icon={<Building2 className="h-8 w-8 text-gray-400" />}
         title="No hay datos de ventas por sucursal disponibles"
         description="No se encontraron ventas para mostrar en el período seleccionado"
@@ -67,11 +56,11 @@ export function SalesByBranch({ data = [], isLoading = false }: SalesByBranchPro
         />
         <Tooltip
           formatter={(value: number, name: string) => [
-            name === "total" 
+            name === "total"
               ? `$${value.toLocaleString("es-AR", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                })}`
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              })}`
               : value,
             name === "total" ? "Total Ventas" : name
           ]}

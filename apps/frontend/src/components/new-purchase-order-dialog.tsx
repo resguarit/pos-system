@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2, CheckCircle, AlertCircle, ShoppingCart } from 'lucide-react';
+import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService';
 import { getBranches } from '@/lib/api/branchService';
@@ -59,7 +59,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
   });
 
   const [selectedCurrency, setSelectedCurrency] = useState<'ARS' | 'USD' | ''>(''); // Nueva estado para moneda
-  
+
   const [items, setItems] = useState<PurchaseOrderItem[]>([]);
   const [newItem, setNewItem] = useState({
     product_id: '',
@@ -152,10 +152,10 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
 
   useEffect(() => {
     if (productSearch && selectedCurrency) {
-      const filtered = products.filter(product => 
+      const filtered = products.filter(product =>
         // Filtrar por búsqueda de texto
         ((typeof product.description === "string" && product.description.toLowerCase().includes(productSearch.toLowerCase())) ||
-        (typeof product.code === "string" && product.code.toLowerCase().includes(productSearch.toLowerCase()))) &&
+          (typeof product.code === "string" && product.code.toLowerCase().includes(productSearch.toLowerCase()))) &&
         // Filtrar por moneda seleccionada
         (product.currency || 'ARS') === selectedCurrency
       );
@@ -189,9 +189,9 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
             const min = Number(s.min_stock ?? 0)
             return { product, stock: current, min_stock: min }
           })
-          .filter(x => 
-            x.product && 
-            String((x.product as any).supplier_id ?? '') === supplierId && 
+          .filter(x =>
+            x.product &&
+            String((x.product as any).supplier_id ?? '') === supplierId &&
             x.stock < x.min_stock &&
             (x.product.currency || 'ARS') === selectedCurrency // Filtrar por moneda
           )
@@ -237,11 +237,11 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
       // Verificar si el proveedor del producto es diferente al de la orden
       const orderSupplierId = parseInt(form.supplier_id);
       const productSupplierId = selectedProduct.supplier_id;
-      
+
       if (productSupplierId !== orderSupplierId) {
         // Solo mostrar información, NO actualizar el proveedor en el frontend
         // El backend se encargará de actualizar solo el proveedor (no el precio) al crear la orden
-        
+
         // Producto con proveedor diferente - se actualizará automáticamente
       }
 
@@ -272,7 +272,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         };
         setItems([...items, itemToAdd]);
       }
-      
+
       // Limpia los campos del nuevo item
       setNewItem({
         product_id: '',
@@ -377,23 +377,23 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
 
   const addSuggestedProduct = () => {
     if (!editingSuggestion) return
-    
+
     const pid = Number(editingSuggestion.product.id)
     const idx = items.findIndex(i => i.product_id === pid)
-    
+
     if (idx !== -1) {
-      toast.warning('Producto ya agregado', { 
-        description: 'Este producto ya está en la lista de compra.' 
+      toast.warning('Producto ya agregado', {
+        description: 'Este producto ya está en la lista de compra.'
       })
       return
     }
-    
-    setItems(prev => [...prev, { 
-      product_id: pid, 
-      quantity: editingSuggestion.quantity, 
-      purchase_price: editingSuggestion.price 
+
+    setItems(prev => [...prev, {
+      product_id: pid,
+      quantity: editingSuggestion.quantity,
+      purchase_price: editingSuggestion.price
     }])
-    
+
     setEditingSuggestion(null)
     toast.success('Producto agregado', {
       description: `${editingSuggestion.product.description} agregado a la orden.`
@@ -422,7 +422,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
           </DialogDescription>
         </DialogHeader>
 
-        <form 
+        <form
           onSubmit={(e) => {
             // Verificar si el submit viene de un Enter no deseado
             const activeElement = document.activeElement as HTMLElement;
@@ -439,17 +439,17 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
             // Prevenir que cualquier Enter dentro del formulario lo envíe
             if (e.key === 'Enter') {
               const target = e.target as HTMLElement;
-              
+
               // Solo permitir Enter en botones de submit
               if (target.tagName === 'BUTTON' && (target.getAttribute('type') === 'submit' || target.classList.contains('submit-button'))) {
                 return;
               }
-              
+
               // Solo permitir Enter en textareas
               if (target.tagName === 'TEXTAREA') {
                 return;
               }
-              
+
               // Para todos los demás casos, prevenir completamente
               e.preventDefault();
               e.stopPropagation();
@@ -491,7 +491,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                       {lowStockSuggestions.map((s, i) => {
                         const isAdded = isProductAlreadyAdded(s.product.id)
                         const isEditing = editingSuggestion?.product.id === s.product.id
-                        
+
                         return (
                           <React.Fragment key={i}>
                             <TableRow>
@@ -501,9 +501,9 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                               <TableCell>{s.min_stock}</TableCell>
                               <TableCell>{s.suggestedQty}</TableCell>
                               <TableCell className="text-right">
-                                <Button 
-                                  type="button" 
-                                  size="sm" 
+                                <Button
+                                  type="button"
+                                  size="sm"
                                   variant={isAdded ? "secondary" : "default"}
                                   disabled={isAdded}
                                   onClick={() => openEditSuggestionForm(s)}
@@ -537,7 +537,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                                         <X className="h-4 w-4" />
                                       </Button>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-3 gap-4">
                                       <div className="space-y-2">
                                         <Label htmlFor={`edit-qty-${i}`}>Cantidad *</Label>
@@ -587,15 +587,15 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                                     </div>
 
                                     <div className="flex gap-2">
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          onClick={addSuggestedProduct}
-                                          disabled={editingSuggestion.quantity <= 0 || editingSuggestion.price <= 0}
-                                        >
-                                          <Plus className="h-4 w-4 mr-2" />
-                                          Agregar a la Orden
-                                        </Button>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={addSuggestedProduct}
+                                        disabled={editingSuggestion.quantity <= 0 || editingSuggestion.price <= 0}
+                                      >
+                                        <Plus className="h-4 w-4 mr-2" />
+                                        Agregar a la Orden
+                                      </Button>
                                       <Button
                                         type="button"
                                         variant="outline"
@@ -638,8 +638,8 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
             {!disableBranchSelection && (
               <div className="space-y-2">
                 <Label htmlFor="branch_id">Sucursal *</Label>
-                <Select 
-                  value={form.branch_id} 
+                <Select
+                  value={form.branch_id}
                   onValueChange={(value) => setForm({ ...form, branch_id: value })}
                 >
                   <SelectTrigger>
@@ -650,7 +650,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                       <SelectItem key={branch.id} value={branch.id.toString()}>
                         <div className="flex items-center gap-2">
                           {branch.color && (
-                            <div 
+                            <div
                               className="w-3 h-3 rounded-full border"
                               style={{ backgroundColor: branch.color }}
                             />
@@ -699,89 +699,75 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
             </div>
 
             <div className="space-y-2">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="order_date">Fecha de Orden</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !form.order_date && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {form.order_date ? format(form.order_date, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={form.order_date}
-                        onSelect={(date) => handleFormChange('order_date', date instanceof Date ? date : new Date())}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="flex-1 space-y-2">
-                  <Label htmlFor="payment_method_id">Método de Pago *</Label>
-                  <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
-                    <SelectTrigger className="w-full min-w-0 sm:min-w-[200px]">
-                      <SelectValue placeholder="Seleccione un método de pago" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60 overflow-y-auto">
-                      {paymentMethods.map((pm) => (
-                        <SelectItem key={pm.id} value={pm.id.toString()}>
-                          {pm.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <Label htmlFor="order_date">Fecha de Orden</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !form.order_date && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {form.order_date ? format(form.order_date, "PPP", { locale: es }) : <span>Seleccione una fecha</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={form.order_date}
+                    onSelect={(date) => handleFormChange('order_date', date instanceof Date ? date : new Date())}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment_method_id">Método de Pago *</Label>
+              <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Seleccione un método de pago" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60 overflow-y-auto">
+                  {paymentMethods.map((pm) => (
+                    <SelectItem key={pm.id} value={pm.id.toString()}>
+                      {pm.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Checkbox para afectar caja registradora - Alineado con inputs */}
+            <div className="space-y-2">
+              <Label className="invisible block">Afecta Caja</Label>
+              <div className="flex items-center gap-2 h-10">
+                <Checkbox
+                  id="affects_cash_register"
+                  checked={affectsCashRegister}
+                  onCheckedChange={(checked) => setAffectsCashRegister(checked === true)}
+                  className={cn(
+                    "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 data-[state=checked]:text-white",
+                    !affectsCashRegister && "border-red-600"
+                  )}
+                />
+                <Label
+                  htmlFor="affects_cash_register"
+                  className="text-sm cursor-pointer whitespace-nowrap"
+                >
+                  {affectsCashRegister ? (
+                    <span className="text-green-700 font-medium">Afecta balance de caja</span>
+                  ) : (
+                    <span className="text-red-600 font-medium">No afecta balance de caja</span>
+                  )}
+                </Label>
               </div>
             </div>
           </div>
 
-          {/* Checkbox para afectar caja registradora */}
-          <div className={`p-4 border-2 rounded-lg transition-colors ${affectsCashRegister ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
-            <div className="flex items-start space-x-3">
-              <Checkbox 
-                id="affects_cash_register" 
-                checked={affectsCashRegister}
-                onCheckedChange={(checked) => setAffectsCashRegister(checked === true)}
-                className="mt-1 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-              />
-              <div className="flex-1">
-                <Label 
-                  htmlFor="affects_cash_register"
-                  className="text-base font-semibold cursor-pointer flex items-center gap-2"
-                >
-                  {affectsCashRegister ? (
-                    <>
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="text-green-700">Esta compra SÍ afecta el balance de la caja</span>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-5 w-5 text-orange-600" />
-                      <span className="text-orange-700">Esta compra NO afecta el balance de la caja</span>
-                    </>
-                  )}
-                </Label>
-                <p className={`text-sm mt-1 ${affectsCashRegister ? 'text-green-600' : 'text-orange-600'}`}>
-                  {affectsCashRegister 
-                    ? "El monto se descontará del balance de la caja registradora automáticamente." 
-                    : "Se creará un registro informativo sin modificar el balance de la caja."
-                  }
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Haz clic para cambiar este comportamiento
-                </p>
-              </div>
-            </div>
-          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notas</Label>
@@ -796,7 +782,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
 
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Productos</h3>
-            
+
             <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
               <div className="space-y-2">
                 <Label>Producto *</Label>
@@ -814,11 +800,11 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         e.stopPropagation();
-                        
+
                         // Si hay productos filtrados, seleccionar el primero
                         if (filteredProducts.length > 0) {
                           selectProduct(filteredProducts[0]);
-                          
+
                           // Si ya hay cantidad y precio, agregar automáticamente el producto
                           if (newItem.quantity && newItem.purchase_price) {
                             addItem();
@@ -828,7 +814,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                     }}
                   />
                   <Search className="absolute right-3 top-3 h-4 w-4 text-gray-400" />
-                  
+
                   {showProductSearch && filteredProducts.length > 0 && (
                     <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
                       {filteredProducts.map((product) => (
@@ -906,7 +892,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                       const currentPrice = product ? Number(product.unit_price) : 0;
                       const orderPrice = item.purchase_price;
                       const isPriceChanged = Math.abs(currentPrice - orderPrice) > 0.01;
-                      
+
                       return (
                         <TableRow key={index}>
                           <TableCell>
@@ -952,10 +938,10 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                               type="button"
                               variant="outline"
                               size="sm"
-                            onClick={() => removeItem(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                              onClick={() => removeItem(index)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );

@@ -13,23 +13,25 @@ interface ComboSectionProps {
   addQtyPerClick: number;
   formatCurrency: (amount: number) => string;
   onComboAdded: (combo: Combo, quantity: number) => Promise<void>;
+  searchTerm?: string; // Término de búsqueda para filtrar combos
 }
 
-export function ComboSection({ 
-  branchId, 
-  addQtyPerClick, 
-  formatCurrency, 
-  onComboAdded 
+export function ComboSection({
+  branchId,
+  addQtyPerClick,
+  formatCurrency,
+  onComboAdded,
+  searchTerm = ''
 }: ComboSectionProps) {
   const [selectedCombo, setSelectedCombo] = useState<Combo | null>(null);
   const [showComboDetails, setShowComboDetails] = useState(false);
   const [addingCombo, setAddingCombo] = useState<number | null>(null);
-  
-  const { 
-    fetchAvailableCombos, 
+
+  const {
+    fetchAvailableCombos,
     checkComboStock,
     getComboPriceDetails,
-    loading 
+    loading
   } = useCombosInPOS();
 
   const [combos, setCombos] = useState<Combo[]>([]);
@@ -43,7 +45,7 @@ export function ComboSection({
   useEffect(() => {
     const loadCombos = async () => {
       if (!branchId) return;
-      
+
       try {
         const availableCombos = await fetchAvailableCombos(branchId);
         setCombos(availableCombos);
@@ -81,14 +83,14 @@ export function ComboSection({
     try {
       setAddingCombo(combo.id);
       const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1);
-      
+
       if (!branchId) {
         throw new Error("Debe seleccionar una sucursal");
       }
 
       // Verificar disponibilidad
       const availability = await checkComboStock(combo.id, branchId, quantityToAdd);
-      
+
       // Solo bloquear si no hay stock configurado en la sucursal
       if (!availability.is_available) {
         const limitingProduct = availability.limiting_products?.[0];
@@ -97,12 +99,12 @@ export function ComboSection({
           throw new Error(`${productName} no tiene stock configurado en esta sucursal`);
         }
       }
-      
+
       // Mostrar advertencia si hay stock bajo o negativo, pero permitir la venta
       if (availability.limiting_products && availability.limiting_products.length > 0) {
         const limitingProduct = availability.limiting_products[0];
         const productName = limitingProduct.product?.description || 'producto';
-        
+
         if (limitingProduct.reason === 'Stock negativo') {
           toast.warning(`⚠️ Stock negativo en ${productName} (${limitingProduct.available} unidades). La venta continuará.`);
         } else if (limitingProduct.reason === 'Stock bajo') {
@@ -132,20 +134,33 @@ export function ComboSection({
   return (
     <>
       <ComboSectionHeader />
-      
+
       <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-        {combos.map((combo) => (
-          <ComboCard
-            key={`combo-${combo.id}`}
-            combo={combo}
-            finalPrice={comboPrices.get(combo.id)}
-            formatCurrency={formatCurrency}
-            addQtyPerClick={addQtyPerClick}
-            addingCombo={addingCombo}
-            onAddToCart={handleAddComboToCart}
-            onShowDetails={showComboDetailsDialog}
-          />
-        ))}
+        {combos
+          .filter((combo) => {
+            if (!searchTerm) return true;
+            const term = searchTerm.toLowerCase();
+            // Buscar en nombre del combo
+            if (combo.name?.toLowerCase().includes(term)) return true;
+            // Buscar en productos del combo
+            if (combo.combo_items?.some((item) =>
+              item.product?.description?.toLowerCase().includes(term) ||
+              item.product?.code?.toString().includes(term)
+            )) return true;
+            return false;
+          })
+          .map((combo) => (
+            <ComboCard
+              key={`combo-${combo.id}`}
+              combo={combo}
+              finalPrice={comboPrices.get(combo.id)}
+              formatCurrency={formatCurrency}
+              addQtyPerClick={addQtyPerClick}
+              addingCombo={addingCombo}
+              onAddToCart={handleAddComboToCart}
+              onShowDetails={showComboDetailsDialog}
+            />
+          ))}
       </div>
 
       {/* Diálogo de detalles del combo */}
@@ -207,11 +222,11 @@ const getComboBadgeVariant = (combo: Combo): "destructive" | "default" | "second
   if (combo.discount_type === 'percentage' && combo.discount_value >= 20) {
     return 'destructive';
   }
-  
+
   if (combo.discount_type === 'percentage' && combo.discount_value >= 10) {
     return 'default';
   }
-  
+
   return 'secondary';
 };
 
@@ -229,14 +244,14 @@ interface ComboCardProps {
   onShowDetails: (combo: Combo) => void;
 }
 
-const ComboCard: React.FC<ComboCardProps> = ({ 
-  combo, 
+const ComboCard: React.FC<ComboCardProps> = ({
+  combo,
   finalPrice,
-  formatCurrency, 
-  addQtyPerClick, 
-  addingCombo, 
-  onAddToCart, 
-  onShowDetails 
+  formatCurrency,
+  addQtyPerClick,
+  addingCombo,
+  onAddToCart,
+  onShowDetails
 }) => {
   // Event handlers con early returns
   const handleCardClick = useCallback(() => {
@@ -257,18 +272,18 @@ const ComboCard: React.FC<ComboCardProps> = ({
   const isLoading = addingCombo === combo.id;
 
   return (
-    <Card 
+    <Card
       className="group relative overflow-hidden border border-gray-200 hover:border-gray-300 transition-all duration-300 hover:shadow-md bg-white flex flex-col cursor-pointer"
       onClick={handleCardClick}
     >
       <ComboDiscountBadge combo={combo} formatCurrency={formatCurrency} />
-      
+
       <CardContent className="flex-1 p-3 pt-8 pb-2">
         <ComboCardContent combo={combo} finalPrice={finalPrice} formatCurrency={formatCurrency} />
       </CardContent>
 
       <CardFooter className="p-3 pt-2 mt-auto">
-        <ComboCardActions 
+        <ComboCardActions
           combo={combo}
           isLoading={isLoading}
           addQtyPerClick={addQtyPerClick}
@@ -294,15 +309,15 @@ interface ComboDiscountBadgeProps {
 
 const ComboDiscountBadge: React.FC<ComboDiscountBadgeProps> = ({ combo, formatCurrency }) => (
   <div className="absolute top-3 right-3 z-10">
-    <Badge 
+    <Badge
       variant={getComboBadgeVariant(combo)}
       className="shadow-md font-semibold"
     >
-      {combo.discount_type === 'percentage' 
-        ? `${combo.discount_value}% OFF` 
+      {combo.discount_type === 'percentage'
+        ? `${combo.discount_value}% OFF`
         : `${formatCurrency(combo.discount_value)} OFF`
       }
-    </Badge>  
+    </Badge>
   </div>
 );
 
@@ -329,14 +344,14 @@ const ComboCardContent: React.FC<ComboCardContentProps> = ({ combo, finalPrice, 
       <h3 className="font-medium text-sm mb-1 leading-tight text-gray-900 group-hover:text-blue-900 transition-colors truncate">
         {combo.name}
       </h3>
-      
+
       {/* Precio del combo - destacado */}
       {finalPrice !== undefined && (
         <p className="text-muted-foreground text-sm mb-2 font-semibold">
           {formatPrice(finalPrice)}
         </p>
       )}
-      
+
       {/* Indicador de productos incluidos */}
       <div className="flex items-center gap-1 mt-auto">
         <span className={`inline-block w-2 h-2 rounded-full bg-green-500`} />
@@ -360,28 +375,28 @@ interface ComboCardActionsProps {
   onAddClick: (e: React.MouseEvent) => void;
 }
 
-const ComboCardActions: React.FC<ComboCardActionsProps> = ({ 
-  combo, 
-  isLoading, 
-  addQtyPerClick, 
-  onDetailsClick, 
-  onAddClick 
+const ComboCardActions: React.FC<ComboCardActionsProps> = ({
+  combo,
+  isLoading,
+  addQtyPerClick,
+  onDetailsClick,
+  onAddClick
 }) => (
-  <div className="flex flex-col gap-1.5 w-full">
+  <div className="flex flex-row sm:flex-col gap-1.5 w-full">
     <Button
       variant="outline"
       size="sm"
-      className="w-full h-8 text-xs bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 hover:text-gray-700"
+      className="flex-1 sm:w-full h-8 text-xs bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 hover:text-gray-700"
       onClick={onDetailsClick}
       aria-label={`Ver detalles de ${combo.name}`}
     >
-      <Info className="h-3 w-3 mr-1" />
-      Detalles
+      <Info className="h-3 w-3 sm:mr-1" />
+      <span className="hidden sm:inline">Detalles</span>
     </Button>
-    <Button 
-      variant="outline" 
-      size="sm" 
-      className="w-full h-8 cursor-pointer bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900" 
+    <Button
+      variant="outline"
+      size="sm"
+      className="flex-1 sm:w-full h-8 cursor-pointer bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900"
       onClick={onAddClick}
       disabled={isLoading}
       aria-label={`Agregar ${combo.name} al carrito`}
@@ -390,8 +405,8 @@ const ComboCardActions: React.FC<ComboCardActionsProps> = ({
         <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-700"></div>
       ) : (
         <>
-          <Zap className="h-3 w-3 mr-1" />
-          Agregar x{Math.max(1, addQtyPerClick)}
+          <Zap className="h-3 w-3 sm:mr-1" />
+          <span className="hidden sm:inline">Agregar x{Math.max(1, addQtyPerClick)}</span>
         </>
       )}
     </Button>

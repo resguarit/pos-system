@@ -23,4 +23,10 @@ interface SaleServiceInterface
     public function getAllSalesGlobal(Request $request);
     public function getSalesSummaryGlobal(Request $request);
     public function getSalesHistoryGlobal(Request $request);
+
+    // Budget management methods
+    public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null): SaleHeader;
+    public function deleteBudget(int $budgetId, int $userId): bool;
+    public function getBudgets(Request $request): Collection;
+    public function approveBudget(int $id): SaleHeader;
 }
