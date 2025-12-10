@@ -117,7 +117,7 @@ const ViewSaleDialog = ({
   // --- INICIO DE LA MODIFICACIÓN ---
 
   // 1. Determinar si el comprobante es un presupuesto basándonos en los datos.
-  const isBudget = (typeof saleToDisplay.receipt_type === 'string' ? saleToDisplay.receipt_type : saleToDisplay.receipt_type?.description || '').toLowerCase().includes('presupuesto');
+  const isBudget = (saleToDisplay.receipt_type as any)?.afip_code === '016' || (saleToDisplay.receipt_type as any)?.name === 'Presupuesto' || (typeof saleToDisplay.receipt_type === 'string' ? saleToDisplay.receipt_type : saleToDisplay.receipt_type?.description || '').toLowerCase().includes('presupuesto');
 
   // 2. Definir textos dinámicos basados en si es un presupuesto o una venta.
   const dialogTitle = isBudget ? "Detalle del Presupuesto" : "Detalle de Venta";
@@ -178,9 +178,9 @@ const ViewSaleDialog = ({
             {isBudget ? (
               <div className="flex items-center gap-2">
                 <Badge variant="outline" className={`${saleToDisplay.status === 'approved' ? 'border-green-500 text-green-700 bg-green-50' :
-                    saleToDisplay.status === 'pending' ? 'border-yellow-500 text-yellow-700 bg-yellow-50' :
-                      saleToDisplay.status === 'annulled' ? 'border-red-500 text-red-700 bg-red-50' :
-                        'border-gray-500 text-gray-700 bg-gray-50'
+                  saleToDisplay.status === 'pending' ? 'border-yellow-500 text-yellow-700 bg-yellow-50' :
+                    saleToDisplay.status === 'annulled' ? 'border-red-500 text-red-700 bg-red-50' :
+                      'border-gray-500 text-gray-700 bg-gray-50'
                   }`}>
                   {saleToDisplay.status === 'approved' ? 'Aprobado' :
                     saleToDisplay.status === 'pending' ? 'Pendiente' :
