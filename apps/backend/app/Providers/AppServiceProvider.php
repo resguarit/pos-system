@@ -118,6 +118,7 @@ class AppServiceProvider extends ServiceProvider
         Relation::morphMap([
             'sale' => \App\Models\SaleHeader::class,
             'expense' => \App\Models\Expense::class,
+            'purchase_order' => \App\Models\PurchaseOrder::class,
         ]);
 
 
