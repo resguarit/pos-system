@@ -291,10 +291,8 @@ export function filterManualCashMovementTypes(
   // El usuario solicitó explícitamente dejar solo los necesarios como retiro y monto inicial
   const ALLOWED_MANUAL_TYPES = [
     'Retiro de efectivo', // Nombre exacto en DB
-    'Ingreso inicial',    // Nombre exacto en DB
     'Ingreso de efectivo', // Nombre exacto en DB (NUEVO)
     'Retiro de dinero',   // Variación por si acaso
-    'Monto inicial',      // Variación por si acaso
     'Ingreso de dinero',  // Genérico
     'Salida de dinero',   // Genérico
   ];
