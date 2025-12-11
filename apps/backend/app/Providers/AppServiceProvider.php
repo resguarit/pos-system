@@ -119,6 +119,7 @@ class AppServiceProvider extends ServiceProvider
             'sale' => \App\Models\SaleHeader::class,
             'expense' => \App\Models\Expense::class,
             'purchase_order' => \App\Models\PurchaseOrder::class,
+            'sale_annulment' => \App\Models\SaleHeader::class,
         ]);
 
 
