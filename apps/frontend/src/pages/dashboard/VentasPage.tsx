@@ -16,29 +16,16 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import {
-  MoreHorizontal,
-  Pencil,
   FileText,
   Download,
   Printer,
-  Check,
-  X,
-  Search,
-  Calendar as CalendarIcon,
-  Filter,
-  ArrowUpDown,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Eye,
   Loader2,
-  AlertCircle,
-  FileCheck,
-  Trash2,
   RefreshCw,
   TrendingUp,
   Wallet,
-  Users
+  Users,
+  X
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -153,6 +140,17 @@ export default function VentasPage() {
     limit: 5
   });
 
+  // Wrapper function to refresh sales after converting budget
+  const handleConvertToSale = async (budgetId: number, receiptTypeId: number, cashRegisterId?: number) => {
+    const result = await convertToSale(budgetId, receiptTypeId, cashRegisterId);
+    // Refresh sales list after successful conversion
+    if (dateRange.from && dateRange.to) {
+      await fetchSales(dateRange.from, dateRange.to, currentPage, debouncedSearch);
+      await fetchStats(dateRange.from, dateRange.to);
+    }
+    return result;
+  };
+
   // Cash register validation - usando la sucursal seleccionada
   const currentBranchId = selectedBranch?.id ? Number(selectedBranch.id) : 1;
 
@@ -256,6 +254,14 @@ export default function VentasPage() {
         apiParams.to_date = format(toDate, "yyyy-MM-dd");
       }
 
+      // Filtrar por sucursales seleccionadas
+      if (selectedBranchIds.length > 0) {
+        selectedBranchIds.forEach(id => {
+          if (!apiParams['branch_id[]']) apiParams['branch_id[]'] = [];
+          apiParams['branch_id[]'].push(id);
+        });
+      }
+
       // Agregar búsqueda al backend
       if (search) {
         apiParams.search = search;
@@ -347,6 +353,13 @@ export default function VentasPage() {
         apiParams.from_date = format(fromDate, "yyyy-MM-dd");
         apiParams.to_date = format(toDate, "yyyy-MM-dd");
       }
+      // Filtrar por sucursales seleccionadas
+      if (selectedBranchIds.length > 0) {
+        selectedBranchIds.forEach(id => {
+          if (!apiParams['branch_id[]']) apiParams['branch_id[]'] = [];
+          apiParams['branch_id[]'].push(id);
+        });
+      }
       const response = await request({
         method: "GET",
         url: `/sales/global/summary`,
@@ -434,23 +447,49 @@ export default function VentasPage() {
     return sale.branch?.description || 'N/A';
   };
 
-  const receiptTypeColors: Record<string, string> = {
-    'FACTURAS A': 'bg-purple-50 text-purple-700 hover:bg-purple-50 hover:text-purple-700',
-    'NOTAS DE DEBITO A': 'bg-orange-50 text-orange-700 hover:bg-orange-50 hover:text-orange-700',
-    'NOTAS DE CREDITO A': 'bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700',
-    'RECIBOS A': 'bg-yellow-50 text-yellow-700 hover:bg-yellow-50 hover:text-yellow-700',
-    'NOTAS DE VENTA AL CONTADO A': 'bg-indigo-50 text-indigo-700 hover:bg-indigo-50 hover:text-indigo-700',
-    'FACTURAS B': 'bg-cyan-50 text-cyan-700 hover:bg-cyan-50 hover:text-cyan-700',
-    'NOTAS DE DEBITO B': 'bg-orange-100 text-orange-800 hover:bg-orange-100 hover:text-orange-800',
-    'NOTAS DE CREDITO B': 'bg-red-100 text-red-800 hover:bg-red-100 hover:text-red-800',
-    'RECIBOS B': 'bg-lime-50 text-lime-700 hover:bg-lime-50 hover:text-lime-700',
-    'NOTAS DE VENTA AL CONTADO B': 'bg-fuchsia-50 text-fuchsia-700 hover:bg-fuchsia-50 hover:text-fuchsia-700',
-    'FACTURAS C': 'bg-teal-50 text-teal-700 hover:bg-teal-50 hover:text-teal-700',
-    'NOTAS DE DEBITO C': 'bg-orange-200 text-orange-900 hover:bg-orange-200 hover:text-orange-900',
-    'NOTAS DE CREDITO C': 'bg-red-200 text-red-900 hover:bg-red-200 hover:text-red-900',
-    'RECIBOS C': 'bg-pink-50 text-pink-700 hover:bg-pink-50 hover:text-pink-700',
-    'PRESUPUESTO': 'bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700',
-    'FACTURA X': 'bg-gray-100 text-gray-700 hover:bg-gray-100 hover:text-gray-700',
+  // Receipt type color configuration - following DRY principle with typed structure
+  // All badges use outline variant with consistent bg/text/border pattern
+  type ReceiptTypeStyle = {
+    bg: string;
+    text: string;
+    border: string;
+  };
+
+  const receiptTypeStyles: Record<string, ReceiptTypeStyle> = {
+    // Facturas - Tonos púrpura/azul
+    'FACTURAS A': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-300' },
+    'FACTURAS B': { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-300' },
+    'FACTURAS C': { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-300' },
+    'FACTURA X': { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-300' },
+
+    // Notas de Débito - Tonos naranja
+    'NOTAS DE DEBITO A': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-300' },
+    'NOTAS DE DEBITO B': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-300' },
+    'NOTAS DE DEBITO C': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-300' },
+
+    // Notas de Crédito - Tonos rojos/rosados
+    'NOTAS DE CREDITO A': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-300' },
+    'NOTAS DE CREDITO B': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-300' },
+    'NOTAS DE CREDITO C': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-300' },
+
+    // Recibos - Tonos lima/verde claro
+    'RECIBOS A': { bg: 'bg-lime-50', text: 'text-lime-700', border: 'border-lime-300' },
+    'RECIBOS B': { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-300' },
+    'RECIBOS C': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300' },
+
+    // Notas de Venta al Contado - Tonos índigo/violeta
+    'NOTAS DE VENTA AL CONTADO A': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-300' },
+    'NOTAS DE VENTA AL CONTADO B': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-300' },
+
+    // Presupuesto - Tono esmeralda (matching PresupuestosPage)
+    'PRESUPUESTO': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  };
+
+  // Default style for unknown receipt types
+  const defaultReceiptTypeStyle: ReceiptTypeStyle = {
+    bg: 'bg-gray-50',
+    text: 'text-gray-700',
+    border: 'border-gray-300',
   };
 
   const getReceiptType = (
@@ -483,14 +522,53 @@ export default function VentasPage() {
   const getReceiptTypeBadge = (
     receiptInfo: { displayName: string; filterKey: string; afipCode: string }
   ) => {
-    const cssClasses =
-      receiptTypeColors[receiptInfo.filterKey] ||
-      'bg-gray-100 text-gray-700 hover:bg-gray-100 hover:text-gray-700';
     const textToShow =
       receiptInfo.displayName !== "N/A"
         ? receiptInfo.displayName
         : receiptInfo.afipCode;
-    return <Badge className={cssClasses}>{textToShow}</Badge>;
+
+    // Get style or use default
+    const style = receiptTypeStyles[receiptInfo.filterKey] || defaultReceiptTypeStyle;
+
+    return (
+      <Badge
+        variant="outline"
+        className={`${style.bg} ${style.text} ${style.border}`}
+      >
+        {textToShow}
+      </Badge>
+    );
+  };
+
+  // Helper to check if a sale is a budget (AFIP code 016)
+  const isBudget = (sale: SaleHeader): boolean => {
+    if (sale.receipt_type && typeof sale.receipt_type === 'object') {
+      return sale.receipt_type.afip_code === '016';
+    }
+    const afipCode = (sale as any).receipt_type_code as string;
+    return afipCode === '016';
+  };
+
+  // Helper to get budget status badge - matches PresupuestosPage styling
+  const getBudgetStatusBadge = (sale: SaleHeader) => {
+    if (!isBudget(sale)) return null;
+
+    const status = sale.status;
+
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">Pendiente</Badge>;
+      case 'approved':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">Aprobado</Badge>;
+      case 'active':
+        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">Vigente</Badge>;
+      case 'converted':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">Convertido</Badge>;
+      case 'annulled':
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300">Anulado</Badge>;
+      default:
+        return null;
+    }
   };
 
 
@@ -726,9 +804,7 @@ export default function VentasPage() {
     }
   };
 
-  const handleEditBudget = (budget: SaleHeader) => {
-    navigate('/dashboard/pos', { state: { budgetToEdit: budget } });
-  };
+
 
   /**
    * Maneja la actualización de una venta después de autorización AFIP
@@ -1122,7 +1198,7 @@ export default function VentasPage() {
                 <div className="relative w-full md:w-auto">
                   <input
                     type="text"
-                    placeholder={statusFilter === 'budgets' ? "Buscar por cliente..." : "Buscar ventas..."}
+                    placeholder={statusFilter === 'budgets' ? "Buscar presupuesto..." : "Buscar ventas..."}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background w-full"
@@ -1189,11 +1265,12 @@ export default function VentasPage() {
                   budgets={budgets}
                   loading={loadingBudgets}
                   actionLoading={actionLoadingBudgets}
-                  onConvert={convertToSale}
+                  showBranchColumn={selectedBranchIds.length > 1}
+                  onConvert={handleConvertToSale}
                   onDelete={deleteBudget}
                   onApprove={approveBudget}
                   onViewDetail={(budget) => handleViewDetail(budget as any)}
-                  onEdit={(budget) => handleEditBudget(budget as any)}
+
                 />
 
                 {/* Pagination for Budgets */}
@@ -1358,6 +1435,7 @@ export default function VentasPage() {
                             <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
                               <div className="flex items-center gap-2">
                                 {getReceiptTypeBadge(getReceiptType(sale))}
+                                {getBudgetStatusBadge(sale)}
                                 <AfipStatusBadge sale={sale} />
 
                               </div>
@@ -1406,7 +1484,7 @@ export default function VentasPage() {
                               className="text-right"
                             >
                               <span
-                                className={`${sale.status === 'annulled' ? 'line-through text-red-500 font-medium' : ''}`}
+                                className={`font-bold ${sale.status === 'annulled' ? 'line-through text-red-500' : ''}`}
                                 title={sale.status === 'annulled' ? 'Venta anulada' : ''}
                               >
                                 {formatCurrency(sale.total)}
@@ -1418,38 +1496,17 @@ export default function VentasPage() {
                               className="text-center"
                             >
                               <div className="flex justify-center items-center gap-1">
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
-                                      title="Acciones"
-                                      type="button"
-                                    >
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                      onClick={() => handleViewDetail(sale)}
-                                      className="cursor-pointer"
-                                    >
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      Ver Detalle
-                                    </DropdownMenuItem>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-blue-700 hover:bg-blue-100 hover:text-blue-800 border-blue-200 cursor-pointer"
+                                  title="Ver Detalle"
+                                  type="button"
+                                  onClick={() => handleViewDetail(sale)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
 
-                                    {(sale.receipt_type as any)?.name?.toLowerCase().includes('presupuesto') && (
-                                      <DropdownMenuItem
-                                        onClick={() => handleEditBudget(sale)}
-                                        className="cursor-pointer"
-                                      >
-                                        <Pencil className="mr-2 h-4 w-4" />
-                                        Editar Presupuesto
-                                      </DropdownMenuItem>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
                                 <Button
                                   variant="ghost"
                                   className={`text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
@@ -1527,145 +1584,153 @@ export default function VentasPage() {
             )}
           </Tabs>
 
-          {statusFilter === 'annulled' && !loadingAnnulled && (
-            <div className="mt-4 mb-6 text-center text-sm text-muted-foreground">
-              Mostrando {filteredSales.length} {filteredSales.length === 1 ? 'venta anulada' : 'ventas anuladas'} en el período seleccionado
-            </div>
-          )}
+          {
+            statusFilter === 'annulled' && !loadingAnnulled && (
+              <div className="mt-4 mb-6 text-center text-sm text-muted-foreground">
+                Mostrando {filteredSales.length} {filteredSales.length === 1 ? 'venta anulada' : 'ventas anuladas'} en el período seleccionado
+              </div>
+            )
+          }
 
           {/* Dialogs */}
-          {selectedSale && (
-            <ViewSaleDialog
-              open={isDetailOpen}
-              onOpenChange={setIsDetailOpen}
-              sale={selectedSale}
-              getCustomerName={getCustomerName}
-              formatDate={formatDate}
-              getReceiptType={getReceiptType}
-              onPrintPdf={async (sale) => {
-                if (!sale || !sale.id) {
-                  toast.error("No se puede imprimir: ID de venta faltante.");
-                  return;
-                }
-                try {
-                  // Descargar el PDF con autenticación usando request (incluye token)
-                  const response = await request({
-                    method: 'GET',
-                    url: `/pos/sales/${sale.id}/pdf`,
-                    responseType: 'blob'
-                  });
-
-                  if (!response || !(response instanceof Blob)) {
-                    throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+          {
+            selectedSale && (
+              <ViewSaleDialog
+                open={isDetailOpen}
+                onOpenChange={setIsDetailOpen}
+                sale={selectedSale}
+                getCustomerName={getCustomerName}
+                formatDate={formatDate}
+                getReceiptType={getReceiptType}
+                onPrintPdf={async (sale) => {
+                  if (!sale || !sale.id) {
+                    toast.error("No se puede imprimir: ID de venta faltante.");
+                    return;
                   }
+                  try {
+                    // Descargar el PDF con autenticación usando request (incluye token)
+                    const response = await request({
+                      method: 'GET',
+                      url: `/pos/sales/${sale.id}/pdf`,
+                      responseType: 'blob'
+                    });
 
-                  // Crear blob URL del PDF descargado
-                  const blob = new Blob([response], { type: 'application/pdf' });
-                  const blobUrl = window.URL.createObjectURL(blob);
-
-                  // Crear iframe oculto para imprimir
-                  const iframe = document.createElement('iframe');
-                  iframe.style.display = 'none';
-                  iframe.style.position = 'fixed';
-                  iframe.style.width = '0';
-                  iframe.style.height = '0';
-                  iframe.style.border = 'none';
-
-                  // Agregar al DOM
-                  document.body.appendChild(iframe);
-
-                  // Asignar blob URL al iframe
-                  iframe.src = blobUrl;
-
-                  // Cuando el iframe cargue, ejecutar print
-                  iframe.onload = () => {
-                    setTimeout(() => {
-                      try {
-                        // Ejecutar impresión desde el iframe
-                        iframe.contentWindow?.focus();
-                        iframe.contentWindow?.print();
-                      } catch (err) {
-                        toast.error("No se pudo abrir el diálogo de impresión.");
-                      }
-
-                      // Limpiar después de un tiempo
-                      setTimeout(() => {
-                        if (document.body.contains(iframe)) {
-                          document.body.removeChild(iframe);
-                        }
-                        window.URL.revokeObjectURL(blobUrl);
-                      }, 1000);
-                    }, 500);
-                  };
-
-                  // Timeout de seguridad
-                  setTimeout(() => {
-                    if (document.body.contains(iframe)) {
-                      document.body.removeChild(iframe);
-                      window.URL.revokeObjectURL(blobUrl);
+                    if (!response || !(response instanceof Blob)) {
+                      throw new Error("La respuesta del servidor no es un archivo PDF válido.");
                     }
-                  }, 10000);
-                } catch (error) {
-                  toast.error("Error al imprimir el PDF");
-                }
-              }}
-              onDownloadPdf={async (sale) => {
-                if (!sale || !sale.id) {
-                  toast.error("No se puede descargar el PDF: ID de venta faltante.");
-                  return;
-                }
-                try {
-                  const response = await request({
-                    method: 'GET',
-                    url: `/pos/sales/${sale.id}/pdf`,
-                    responseType: 'blob'
-                  });
-                  if (!response || !(response instanceof Blob)) {
-                    throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+
+                    // Crear blob URL del PDF descargado
+                    const blob = new Blob([response], { type: 'application/pdf' });
+                    const blobUrl = window.URL.createObjectURL(blob);
+
+                    // Crear iframe oculto para imprimir
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.style.position = 'fixed';
+                    iframe.style.width = '0';
+                    iframe.style.height = '0';
+                    iframe.style.border = 'none';
+
+                    // Agregar al DOM
+                    document.body.appendChild(iframe);
+
+                    // Asignar blob URL al iframe
+                    iframe.src = blobUrl;
+
+                    // Cuando el iframe cargue, ejecutar print
+                    iframe.onload = () => {
+                      setTimeout(() => {
+                        try {
+                          // Ejecutar impresión desde el iframe
+                          iframe.contentWindow?.focus();
+                          iframe.contentWindow?.print();
+                        } catch (err) {
+                          toast.error("No se pudo abrir el diálogo de impresión.");
+                        }
+
+                        // Limpiar después de un tiempo
+                        setTimeout(() => {
+                          if (document.body.contains(iframe)) {
+                            document.body.removeChild(iframe);
+                          }
+                          window.URL.revokeObjectURL(blobUrl);
+                        }, 1000);
+                      }, 500);
+                    };
+
+                    // Timeout de seguridad
+                    setTimeout(() => {
+                      if (document.body.contains(iframe)) {
+                        document.body.removeChild(iframe);
+                        window.URL.revokeObjectURL(blobUrl);
+                      }
+                    }, 10000);
+                  } catch (error) {
+                    toast.error("Error al imprimir el PDF");
                   }
-                  const blob = new Blob([response], { type: 'application/pdf' });
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-                  const receiptNumber = sale.receipt_number || sale.id;
-                  const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-                  a.download = fileName;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-                  toast.success("PDF descargado exitosamente");
-                } catch (error) {
-                  toast.error("Error al descargar PDF");
-                }
-              }}
-              onSaleUpdated={handleSaleUpdated}
-            />
-          )}
+                }}
+                onDownloadPdf={async (sale) => {
+                  if (!sale || !sale.id) {
+                    toast.error("No se puede descargar el PDF: ID de venta faltante.");
+                    return;
+                  }
+                  try {
+                    const response = await request({
+                      method: 'GET',
+                      url: `/pos/sales/${sale.id}/pdf`,
+                      responseType: 'blob'
+                    });
+                    if (!response || !(response instanceof Blob)) {
+                      throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+                    }
+                    const blob = new Blob([response], { type: 'application/pdf' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+                    const receiptNumber = sale.receipt_number || sale.id;
+                    const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                    toast.success("PDF descargado exitosamente");
+                  } catch (error) {
+                    toast.error("Error al descargar PDF");
+                  }
+                }}
+                onSaleUpdated={handleSaleUpdated}
+              />
+            )
+          }
 
           {/* Annul Sale Dialog */}
-          {saleToAnnul && (
-            <AnnulSaleDialog
-              isOpen={isAnnulDialogOpen}
-              onClose={() => setIsAnnulDialogOpen(false)}
-              sale={saleToAnnul}
-              onSuccess={handleAnnulSuccess}
-            />
-          )}
+          {
+            saleToAnnul && (
+              <AnnulSaleDialog
+                isOpen={isAnnulDialogOpen}
+                onClose={() => setIsAnnulDialogOpen(false)}
+                sale={saleToAnnul}
+                onSuccess={handleAnnulSuccess}
+              />
+            )
+          }
 
-          {selectedSale && isReceiptOpen && (
-            <SaleReceiptPreviewDialog
-              open={isReceiptOpen}
-              onOpenChange={setIsReceiptOpen}
-              sale={selectedSale}
-              customerName={getCustomerName(selectedSale)}
-              customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
-              formatDate={formatDate}
-              formatCurrency={formatCurrency}
-              onPrint={() => window.print()}
-            />
-          )}
+          {
+            selectedSale && isReceiptOpen && (
+              <SaleReceiptPreviewDialog
+                open={isReceiptOpen}
+                onOpenChange={setIsReceiptOpen}
+                sale={selectedSale}
+                customerName={getCustomerName(selectedSale)}
+                customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
+                formatDate={formatDate}
+                formatCurrency={formatCurrency}
+                onPrint={() => window.print()}
+              />
+            )
+          }
 
           <style>{`
         @media print {
@@ -1695,8 +1760,8 @@ export default function VentasPage() {
           }
         }
       `}</style>
-        </div>
-      </BranchRequiredWrapper>
-    </ProtectedRoute>
+        </div >
+      </BranchRequiredWrapper >
+    </ProtectedRoute >
   );
 }

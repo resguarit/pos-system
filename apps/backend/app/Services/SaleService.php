@@ -1724,7 +1724,7 @@ class SaleService implements SaleServiceInterface
     public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null): SaleHeader
     {
         return DB::transaction(function () use ($budgetId, $newReceiptTypeId, $userId, $cashRegisterId) {
-            // Buscar el presupuesto
+            // Buscar el presupuesto con relaciones necesarias
             $budget = SaleHeader::with(['items.product', 'receiptType', 'customer', 'salePayments'])
                 ->lockForUpdate()
                 ->find($budgetId);
@@ -1733,47 +1733,21 @@ class SaleService implements SaleServiceInterface
                 throw new \Exception('Presupuesto no encontrado.');
             }
 
-            // Verificar que sea un presupuesto (código AFIP 016)
-            if (!$budget->receiptType || $budget->receiptType->afip_code !== '016') {
-                throw new \Exception('Solo se pueden convertir presupuestos.');
-            }
+            // Validaciones
+            $this->validateIsBudget($budget);
+            $this->validateBudgetNotAnnulled($budget);
+            $this->validateBudgetNotConverted($budget);
+            $this->validateBudgetManagementPermission($userId);
 
-            // Verificar que no esté anulado
-            if ($budget->status === 'annulled') {
-                throw new \Exception('No se puede convertir un presupuesto anulado.');
-            }
-
-            // Verificar que no haya sido convertido previamente
-            if ($budget->status === 'converted') {
-                throw new \Exception('Este presupuesto ya fue convertido a venta.');
-            }
-
-            // Verificar permisos del usuario
-            $converter = \App\Models\User::find($userId);
-            if (!$converter || !$converter->hasPermission('convertir_presupuestos')) {
-                throw new \Exception('No tiene permisos para convertir presupuestos a ventas.');
-            }
-
-            // Obtener el nuevo tipo de comprobante
+            // Obtener y validar el nuevo tipo de comprobante
             $newReceiptType = ReceiptType::find($newReceiptTypeId);
             if (!$newReceiptType) {
                 throw new \Exception('Tipo de comprobante no válido.');
             }
+            $this->validateNotBudgetReceiptType($newReceiptType);
 
-            // Verificar que no sea otro presupuesto
-            if ($newReceiptType->afip_code === '016') {
-                throw new \Exception('Debe seleccionar un tipo de comprobante diferente a presupuesto.');
-            }
-
-            // Obtener siguiente número de comprobante para el nuevo tipo
-            $lastSale = SaleHeader::where('branch_id', $budget->branch_id)
-                ->where('receipt_type_id', $newReceiptTypeId)
-                ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
-                ->lockForUpdate()
-                ->first();
-
-            $nextReceiptNumber = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
-            $newReceiptNumber = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+            // Generar número de comprobante
+            $newReceiptNumber = $this->generateNextReceiptNumber($budget->branch_id, $newReceiptTypeId);
 
             // Crear la nueva venta basada en el presupuesto
             $sale = SaleHeader::create([
@@ -1782,7 +1756,7 @@ class SaleService implements SaleServiceInterface
                 'receipt_number' => $newReceiptNumber,
                 'date' => Carbon::now(),
                 'customer_id' => $budget->customer_id,
-                'user_id' => $userId, // El usuario que convierte
+                'user_id' => $userId,
                 'subtotal' => $budget->subtotal,
                 'total_iva_amount' => $budget->total_iva_amount,
                 'total' => $budget->total,
@@ -1798,52 +1772,10 @@ class SaleService implements SaleServiceInterface
                 'converted_from_budget_id' => $budget->id,
             ]);
 
-            // Copiar items del presupuesto a la nueva venta
-            foreach ($budget->items as $item) {
-                $sale->items()->create([
-                    'product_id' => $item->product_id,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->unit_price,
-                    'item_subtotal' => $item->item_subtotal,
-                    'item_iva' => $item->item_iva,
-                    'item_total' => $item->item_total,
-                    'iva_rate' => $item->iva_rate,
-                    'iva_id' => $item->iva_id,
-                    'discount_type' => $item->discount_type,
-                    'discount_value' => $item->discount_value,
-                    'discount_amount' => $item->discount_amount,
-                ]);
-
-                // Reducir stock
-                $stockService = app(\App\Services\StockService::class);
-                $stockService->reduceStockByProductAndBranch(
-                    $item->product_id,
-                    $sale->branch_id,
-                    $item->quantity
-                );
-            }
-
-            // Copiar IVAs
-            if ($budget->saleIvas) {
-                foreach ($budget->saleIvas as $iva) {
-                    $sale->saleIvas()->create([
-                        'iva_id' => $iva->iva_id,
-                        'iva_rate' => $iva->iva_rate,
-                        'base_amount' => $iva->base_amount,
-                        'iva_amount' => $iva->iva_amount,
-                    ]);
-                }
-            }
-
-            // Copiar métodos de pago si existen
-            if ($budget->salePayments && $budget->salePayments->count() > 0) {
-                foreach ($budget->salePayments as $payment) {
-                    $sale->salePayments()->create([
-                        'payment_method_id' => $payment->payment_method_id,
-                        'amount' => $payment->amount,
-                    ]);
-                }
-            }
+            // Copiar datos del presupuesto a la venta
+            $this->copyBudgetItems($budget, $sale);
+            $this->copyBudgetIvas($budget, $sale);
+            $this->copyBudgetPayments($budget, $sale);
 
             // Registrar movimientos de caja y cuenta corriente
             if ($cashRegisterId) {
@@ -2042,5 +1974,172 @@ class SaleService implements SaleServiceInterface
         $budget->save();
 
         return $budget;
+    }
+
+    /**
+     * Valida que el registro sea un presupuesto válido
+     *
+     * @param SaleHeader $budget
+     * @throws \Exception
+     */
+    private function validateIsBudget(SaleHeader $budget): void
+    {
+        if (!$budget->receiptType || $budget->receiptType->afip_code !== '016') {
+            throw new \Exception('El comprobante seleccionado no es un presupuesto.');
+        }
+    }
+
+    /**
+     * Valida que el presupuesto no esté anulado
+     *
+     * @param SaleHeader $budget
+     * @throws \Exception
+     */
+    private function validateBudgetNotAnnulled(SaleHeader $budget): void
+    {
+        if ($budget->status === 'annulled') {
+            throw new \Exception('No se puede operar con un presupuesto anulado.');
+        }
+    }
+
+    /**
+     * Valida que el presupuesto no haya sido convertido previamente
+     *
+     * @param SaleHeader $budget
+     * @throws \Exception
+     */
+    private function validateBudgetNotConverted(SaleHeader $budget): void
+    {
+        if ($budget->status === 'converted') {
+            throw new \Exception('Este presupuesto ya fue convertido a venta.');
+        }
+    }
+
+    /**
+     * Valida que el usuario tenga permisos para gestionar presupuestos
+     *
+     * @param int $userId
+     * @throws \Exception
+     */
+    private function validateBudgetManagementPermission(int $userId): void
+    {
+        $user = \App\Models\User::find($userId);
+
+        if (!$user) {
+            throw new \Exception('Usuario no encontrado.');
+        }
+
+        if (!$user->hasPermission('gestionar_presupuestos')) {
+            throw new \Exception('No tiene permisos para gestionar presupuestos.');
+        }
+    }
+
+    /**
+     * Valida que el tipo de comprobante de destino no sea un presupuesto
+     *
+     * @param ReceiptType $receiptType
+     * @throws \Exception
+     */
+    private function validateNotBudgetReceiptType(ReceiptType $receiptType): void
+    {
+        if ($receiptType->afip_code === '016') {
+            throw new \Exception('Debe seleccionar un tipo de comprobante diferente a presupuesto.');
+        }
+    }
+
+    /**
+     * Genera el siguiente número de comprobante
+     *
+     * @param int $branchId
+     * @param int $receiptTypeId
+     * @return string
+     */
+    private function generateNextReceiptNumber(int $branchId, int $receiptTypeId): string
+    {
+        $lastSale = SaleHeader::where('branch_id', $branchId)
+            ->where('receipt_type_id', $receiptTypeId)
+            ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
+            ->lockForUpdate()
+            ->first();
+
+        $nextReceiptNumber = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
+
+        return str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Copia los items de un presupuesto a una venta
+     *
+     * @param SaleHeader $source
+     * @param SaleHeader $destination
+     */
+    private function copyBudgetItems(SaleHeader $source, SaleHeader $destination): void
+    {
+        $stockService = app(\App\Services\StockService::class);
+
+        foreach ($source->items as $item) {
+            $destination->items()->create([
+                'product_id' => $item->product_id,
+                'quantity' => $item->quantity,
+                'unit_price' => $item->unit_price,
+                'item_subtotal' => $item->item_subtotal,
+                'item_iva' => $item->item_iva,
+                'item_total' => $item->item_total,
+                'iva_rate' => $item->iva_rate,
+                'iva_id' => $item->iva_id,
+                'discount_type' => $item->discount_type,
+                'discount_value' => $item->discount_value,
+                'discount_amount' => $item->discount_amount,
+            ]);
+
+            // Reducir stock
+            $stockService->reduceStockByProductAndBranch(
+                $item->product_id,
+                $destination->branch_id,
+                $item->quantity
+            );
+        }
+    }
+
+    /**
+     * Copia los IVAs de un presupuesto a una venta
+     *
+     * @param SaleHeader $source
+     * @param SaleHeader $destination
+     */
+    private function copyBudgetIvas(SaleHeader $source, SaleHeader $destination): void
+    {
+        if (!$source->saleIvas) {
+            return;
+        }
+
+        foreach ($source->saleIvas as $iva) {
+            $destination->saleIvas()->create([
+                'iva_id' => $iva->iva_id,
+                'iva_rate' => $iva->iva_rate,
+                'base_amount' => $iva->base_amount,
+                'iva_amount' => $iva->iva_amount,
+            ]);
+        }
+    }
+
+    /**
+     * Copia los métodos de pago de un presupuesto a una venta
+     *
+     * @param SaleHeader $source
+     * @param SaleHeader $destination
+     */
+    private function copyBudgetPayments(SaleHeader $source, SaleHeader $destination): void
+    {
+        if (!$source->salePayments || $source->salePayments->count() === 0) {
+            return;
+        }
+
+        foreach ($source->salePayments as $payment) {
+            $destination->salePayments()->create([
+                'payment_method_id' => $payment->payment_method_id,
+                'amount' => $payment->amount,
+            ]);
+        }
     }
 }

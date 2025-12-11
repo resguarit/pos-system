@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatCurrency } from '@/utils/sale-calculations'
-import { FileCheck, Trash2, Eye, Loader2, AlertCircle, FileText, Download, Printer, Check, X, Pencil } from 'lucide-react'
+import { FileCheck, Trash2, Eye, Loader2, AlertCircle, FileText, Download, Printer, Check, X } from 'lucide-react'
 import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header'
 import { useAuth } from '@/context/AuthContext'
@@ -24,22 +24,22 @@ interface PresupuestosPageProps {
     budgets: Budget[]
     loading: boolean
     actionLoading: number | null
+    showBranchColumn?: boolean
     onConvert: (budgetId: number, receiptTypeId: number) => Promise<any>
     onDelete: (budgetId: number) => Promise<any>
     onApprove: (budgetId: number) => Promise<any>
     onViewDetail: (budget: Budget) => void
-    onEdit: (budget: Budget) => void
 }
 
 export default function PresupuestosPage({
     budgets,
     loading,
     actionLoading,
+    showBranchColumn = true,
     onConvert,
     onDelete,
     onApprove,
-    onViewDetail,
-    onEdit
+    onViewDetail
 }: PresupuestosPageProps) {
     const { hasPermission } = useAuth()
     const { request } = useApi()
@@ -53,14 +53,13 @@ export default function PresupuestosPage({
     const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null)
     const [selectedReceiptTypeId, setSelectedReceiptTypeId] = useState<number | null>(null)
 
-    const canConvertBudgets = hasPermission('convertir_presupuestos')
-    const canApproveBudgets = hasPermission('sales.auto_approve') || hasPermission('convertir_presupuestos') // Asumimos permiso similar
+    const canManageBudgets = hasPermission('gestionar_presupuestos')
 
     // Resizable columns configuration matching Sales table
     const columnConfig = [
-        { id: 'number', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
-        { id: 'customer', minWidth: 150, maxWidth: 300, defaultWidth: 200 },
-        { id: 'receipt_type', minWidth: 150, maxWidth: 250, defaultWidth: 180 },
+        { id: 'number', minWidth: 80, maxWidth: 120, defaultWidth: 90 },
+        { id: 'customer', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
+        { id: 'receipt_type', minWidth: 150, maxWidth: 250, defaultWidth: 120 },
         { id: 'branch', minWidth: 100, maxWidth: 200, defaultWidth: 150 },
         { id: 'items', minWidth: 60, maxWidth: 100, defaultWidth: 80 },
         { id: 'date', minWidth: 80, maxWidth: 150, defaultWidth: 100 },
@@ -167,17 +166,12 @@ export default function PresupuestosPage({
 
     return (
         <div className="flex flex-col gap-4">
-            {/* Info card for users who can convert */}
-            {canConvertBudgets && (
-                <Card className="border-blue-200 bg-blue-50/50">
-                    <CardContent className="flex items-start gap-3 pt-4 pb-4">
-                        <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                        <div className="text-sm text-blue-800">
-                            <strong>Gestión de Presupuestos:</strong> Los presupuestos activos pueden ser
-                            convertidos a ventas. Al convertir, se reduce el stock y se registran los movimientos de caja.
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* Compact info for users who can convert */}
+            {canManageBudgets && (
+                <div className="flex items-center gap-2 px-3 py-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-md">
+                    <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span>Los presupuestos activos pueden ser convertidos a ventas. Al convertir, se reduce el stock y se registran los movimientos de caja.</span>
+                </div>
             )}
 
             {/* Budgets Table */}
@@ -198,7 +192,7 @@ export default function PresupuestosPage({
                                 <ResizableTableHeader columnId="number" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Nº Venta</ResizableTableHeader>
                                 <ResizableTableHeader columnId="customer" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Cliente</ResizableTableHeader>
                                 <ResizableTableHeader columnId="receipt_type" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Comprobante</ResizableTableHeader>
-                                <ResizableTableHeader columnId="branch" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Sucursal</ResizableTableHeader>
+                                <ResizableTableHeader columnId="branch" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className={showBranchColumn ? "" : "hidden"}>Sucursal</ResizableTableHeader>
                                 <ResizableTableHeader columnId="items" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className="text-center">Items</ResizableTableHeader>
                                 <ResizableTableHeader columnId="date" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Fecha</ResizableTableHeader>
                                 <ResizableTableHeader columnId="total" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className="text-right">Total</ResizableTableHeader>
@@ -212,8 +206,8 @@ export default function PresupuestosPage({
                                         {budget.receipt_number.replace(/^#/, '')}
                                     </ResizableTableCell>
                                     <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
-                                        <div className="truncate" title={budget.customer}>
-                                            {budget.customer}
+                                        <div className="truncate" title={budget.customer === 'N/A' ? '-' : budget.customer}>
+                                            {budget.customer === 'N/A' ? '-' : budget.customer}
                                         </div>
                                     </ResizableTableCell>
                                     <ResizableTableCell columnId="receipt_type" getColumnCellProps={getColumnCellProps}>
@@ -224,7 +218,7 @@ export default function PresupuestosPage({
                                             {getStatusBadge(budget.status)}
                                         </div>
                                     </ResizableTableCell>
-                                    <ResizableTableCell columnId="branch" getColumnCellProps={getColumnCellProps}>
+                                    <ResizableTableCell columnId="branch" getColumnCellProps={getColumnCellProps} className={showBranchColumn ? "" : "hidden"}>
                                         <Badge
                                             variant="outline"
                                             className="text-xs border-2 font-medium"
@@ -258,18 +252,8 @@ export default function PresupuestosPage({
                                                 <Eye className="h-4 w-4" />
                                             </Button>
 
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-amber-700 hover:bg-amber-100 hover:text-amber-800 border-amber-200"
-                                                onClick={() => onEdit(budget)}
-                                                title="Editar Presupuesto"
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
-
                                             {/* Actions for Pending Budgets */}
-                                            {budget.status === 'pending' && canApproveBudgets && (
+                                            {budget.status === 'pending' && canManageBudgets && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -290,7 +274,7 @@ export default function PresupuestosPage({
                                             )}
 
                                             {/* Actions for Approved/Active Budgets */}
-                                            {(budget.status === 'active' || budget.status === 'approved') && canConvertBudgets && (
+                                            {(budget.status === 'active' || budget.status === 'approved') && canManageBudgets && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -307,8 +291,8 @@ export default function PresupuestosPage({
                                                 </Button>
                                             )}
 
-                                            {/* Delete Action (if not converted/annulled) */}
-                                            {budget.status !== 'converted' && budget.status !== 'annulled' && (
+                                            {/* Delete Action (requires gestionar_presupuestos permission) */}
+                                            {budget.status !== 'converted' && budget.status !== 'annulled' && canManageBudgets && (
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -367,7 +351,7 @@ export default function PresupuestosPage({
                                 <CardContent className="pt-4 text-sm">
                                     <div className="flex justify-between">
                                         <span>Cliente:</span>
-                                        <span className="font-medium">{selectedBudget.customer}</span>
+                                        <span className="font-medium">{selectedBudget.customer === 'N/A' ? '-' : selectedBudget.customer}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span>Total:</span>
@@ -415,7 +399,7 @@ export default function PresupuestosPage({
                         <DialogTitle>Confirmar Aprobación</DialogTitle>
                     </DialogHeader>
                     <div className="py-4">
-                        <p>¿Estás seguro de que deseas aprobar el presupuesto <strong>#{selectedBudget?.id}</strong>?</p>
+                        <p>¿Estás seguro de que deseas aprobar el presupuesto <strong>#{selectedBudget?.receipt_number}</strong>?</p>
                         <p className="text-sm text-gray-500 mt-2">El presupuesto pasará a estado "Aprobado" y podrá ser convertido a venta.</p>
                     </div>
                     <div className="flex justify-end gap-2">
