@@ -24,6 +24,7 @@ import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
 import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
 import type { PaymentMethod, ReceiptType, SaleData, CompletedSale } from '@/types/sale'
+import { useAfip } from "@/hooks/useAfip"
 
 const CART_STORAGE_KEY = 'pos_cart'
 
@@ -34,6 +35,7 @@ export default function CompleteSalePage() {
   const { selectedBranch } = useBranch()
   const { user, hasPermission } = useAuth()
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(selectedBranch?.id) || 1)
+  const { checkCuitCertificate } = useAfip()
 
   // Obtener datos del carrito desde location.state
   const initialCart = (location.state?.cart as CartItem[]) || []
@@ -169,12 +171,13 @@ export default function CompleteSalePage() {
         enabled_receipt_types: enabledReceiptTypes
       })
 
-      // IDs de tipos internos (siempre disponibles para ventas)
-      const INTERNAL_RECEIPT_TYPE_IDS = [1, 2] // Presupuesto (1), Factura X (2)
+      // Códigos AFIP para tipos internos
+      const INTERNAL_CODES = ['016', '017'] // Presupuesto (016), Factura X (017)
 
-      // IDs de facturas AFIP (solo estas aplican para ventas, no notas de crédito/débito)
-      // Factura A (3), Factura B (8), Factura C (13), Factura M (17)
-      const FACTURA_IDS = [1, 2, 3, 8, 13, 17]
+      // Códigos AFIP para facturas válidas
+      // Factura A (001), Factura B (006), Factura C (011), Factura M (049)
+      // Presupuesto (016), Factura X (017)
+      const FACTURA_CODES = ['001', '006', '011', '049', '016', '017']
 
       let availableTypes: ReceiptType[] = []
 
@@ -186,7 +189,7 @@ export default function CompleteSalePage() {
 
       // Mapear y filtrar SOLO facturas (no notas de crédito/débito/recibos)
       const mappedTypes = allTypes
-        .filter((item: any) => FACTURA_IDS.includes(item.id))
+        .filter((item: any) => FACTURA_CODES.includes(item.afip_code))
         .map((item: any): ReceiptType => ({
           id: item.id,
           name: item.description || item.name,
@@ -195,26 +198,36 @@ export default function CompleteSalePage() {
 
       // Si la sucursal NO tiene CUIT, solo mostrar tipos internos
       if (!branchCuit || branchCuit.length !== 11) {
-        availableTypes = mappedTypes.filter((t: ReceiptType) => INTERNAL_RECEIPT_TYPE_IDS.includes(t.id))
+        availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(t.afip_code))
         console.log('Sucursal sin CUIT: mostrando solo tipos internos', availableTypes)
       }
-      // Si tiene CUIT y tipos habilitados configurados, filtrar por los habilitados
-      else if (enabledReceiptTypes && Array.isArray(enabledReceiptTypes) && enabledReceiptTypes.length > 0) {
-        // Filtrar por los habilitados que también sean facturas
-        availableTypes = mappedTypes.filter((t: ReceiptType) => enabledReceiptTypes.includes(t.id))
-        console.log(`Sucursal con CUIT ${branchCuit}: mostrando ${availableTypes.length} tipos habilitados`, availableTypes)
-      }
-      // Si tiene CUIT pero no tiene tipos habilitados configurados, mostrar todas las facturas
       else {
-        availableTypes = mappedTypes
-        console.log('Sucursal con CUIT pero sin tipos configurados: mostrando todas las facturas', availableTypes.length)
+        // Verificar si el CUIT tiene certificado válido
+        const certStatus = await checkCuitCertificate(branchCuit)
+
+        if (!certStatus.has_certificate || !certStatus.is_valid) {
+          // Tiene CUIT pero no certificado válido -> Solo tipos internos
+          availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(t.afip_code))
+          console.log(`Sucursal con CUIT ${branchCuit} pero SIN certificado válido: mostrando solo tipos internos`, availableTypes)
+        }
+        // Si tiene CUIT y tipos habilitados configurados, filtrar por los habilitados
+        else if (enabledReceiptTypes && Array.isArray(enabledReceiptTypes) && enabledReceiptTypes.length > 0) {
+          // Filtrar por los habilitados que también sean facturas
+          availableTypes = mappedTypes.filter((t: ReceiptType) => enabledReceiptTypes.includes(t.id))
+          console.log(`Sucursal con CUIT ${branchCuit}: mostrando ${availableTypes.length} tipos habilitados`, availableTypes)
+        }
+        // Si tiene CUIT pero no tiene tipos habilitados configurados, mostrar todas las facturas
+        else {
+          availableTypes = mappedTypes
+          console.log('Sucursal con CUIT pero sin tipos configurados: mostrando todas las facturas', availableTypes.length)
+        }
       }
 
       // RESTRICCIÓN POR PERMISO: Si el usuario TIENE permiso solo_crear_presupuestos,
       // solo puede emitir Presupuestos (ID=1)
       const isRestrictedToBudgets = hasPermission('solo_crear_presupuestos')
       if (isRestrictedToBudgets) {
-        const presupuesto = availableTypes.find((t: ReceiptType) => t.id === 1) // Presupuesto ID = 1
+        const presupuesto = availableTypes.find((t: ReceiptType) => t.afip_code === '016') // Presupuesto Code = 016
         if (presupuesto) {
           availableTypes = [presupuesto]
           console.log('Usuario con permiso solo_crear_presupuestos: restringido a Presupuestos')
@@ -230,9 +243,9 @@ export default function CompleteSalePage() {
 
       // Seleccionar tipo de comprobante por defecto
       if (availableTypes.length > 0) {
-        // Prioridad: Factura B (8) > Factura X (2) > primero disponible
-        const defaultReceipt = availableTypes.find((t: ReceiptType) => t.id === 8) || // Factura B
-          availableTypes.find((t: ReceiptType) => t.id === 2) || // Factura X
+        // Prioridad: Factura B (006) > Factura X (017) > primero disponible
+        const defaultReceipt = availableTypes.find((t: ReceiptType) => t.afip_code === '006') || // Factura B
+          availableTypes.find((t: ReceiptType) => t.afip_code === '017') || // Factura X
           availableTypes[0]
 
         if (defaultReceipt) {
