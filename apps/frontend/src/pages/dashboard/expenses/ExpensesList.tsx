@@ -5,10 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { useBranch } from "@/context/BranchContext";
 
 export default function ExpensesList() {
+    const { selectedBranchIds } = useBranch();
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const showBranchColumn = selectedBranchIds.length > 1;
 
     useEffect(() => {
         loadExpenses();
@@ -79,6 +83,9 @@ export default function ExpensesList() {
                             <th className="p-4 font-medium">Descripción</th>
                             <th className="p-4 font-medium">Categoría</th>
                             <th className="p-4 font-medium">Monto</th>
+                            {showBranchColumn && (
+                                <th className="p-4 font-medium">Sucursal</th>
+                            )}
                             <th className="p-4 font-medium">Estado</th>
                             <th className="p-4 font-medium">Acciones</th>
                         </tr>
@@ -86,11 +93,11 @@ export default function ExpensesList() {
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={6} className="p-4 text-center">Cargando...</td>
+                                <td colSpan={showBranchColumn ? 7 : 6} className="p-4 text-center">Cargando...</td>
                             </tr>
                         ) : expenses.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="p-4 text-center">No hay gastos registrados.</td>
+                                <td colSpan={showBranchColumn ? 7 : 6} className="p-4 text-center">No hay gastos registrados.</td>
                             </tr>
                         ) : (
                             expenses.map((expense) => (
@@ -99,6 +106,11 @@ export default function ExpensesList() {
                                     <td className="p-4">{expense.description}</td>
                                     <td className="p-4">{expense.category?.name || "-"}</td>
                                     <td className="p-4 font-medium">${Number(expense.amount).toFixed(2)}</td>
+                                    {showBranchColumn && (
+                                        <td className="p-4">
+                                            {expense.branch?.description || expense.branch?.name || "-"}
+                                        </td>
+                                    )}
                                     <td className="p-4">
                                         <Badge variant={expense.status === "paid" ? "default" : "secondary"}>
                                             {expense.status === "paid" ? "Pagado" : expense.status === "pending" ? "Pendiente" : expense.status}
@@ -116,3 +128,4 @@ export default function ExpensesList() {
         </div>
     );
 }
+

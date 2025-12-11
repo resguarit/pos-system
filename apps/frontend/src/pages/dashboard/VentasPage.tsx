@@ -157,11 +157,11 @@ export default function VentasPage() {
   // Configuración de columnas redimensionables
   const columnConfig = [
     { id: 'receipt_number', minWidth: 100, maxWidth: 160, defaultWidth: 120 },
-    { id: 'customer', minWidth: 150, maxWidth: 300, defaultWidth: 200 },
-    { id: 'receipt_type', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
-    { id: 'branch', minWidth: 120, maxWidth: 250, defaultWidth: 180 },
-    { id: 'items', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
-    { id: 'date', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
+    { id: 'customer', minWidth: 100, maxWidth: 200, defaultWidth: 120 },
+    { id: 'receipt_type', minWidth: 150, maxWidth: 350, defaultWidth: 220 },
+    { id: 'branch', minWidth: 120, maxWidth: 150, defaultWidth: 120 },
+    { id: 'items', minWidth: 80, maxWidth: 100, defaultWidth: 100 },
+    { id: 'date', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
     { id: 'total', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
     { id: 'actions', minWidth: 120, maxWidth: 160, defaultWidth: 140 }
   ];
@@ -1350,7 +1350,7 @@ export default function VentasPage() {
                           columnId="branch"
                           getResizeHandleProps={getResizeHandleProps}
                           getColumnHeaderProps={getColumnHeaderProps}
-                          className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
+                          className={selectedBranchIds.length > 1 ? "" : "hidden"}
                         >
                           Sucursal
                         </ResizableTableHeader>
@@ -1443,7 +1443,7 @@ export default function VentasPage() {
                             <ResizableTableCell
                               columnId="branch"
                               getColumnCellProps={getColumnCellProps}
-                              className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
+                              className={selectedBranchIds.length > 1 ? "" : "hidden"}
                             >
                               {(() => {
                                 const branchColor = getBranchColor(sale);

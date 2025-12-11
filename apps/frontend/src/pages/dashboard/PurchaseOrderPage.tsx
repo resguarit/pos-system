@@ -511,7 +511,7 @@ export default function PurchaseOrderPage() {
                 <TableRow>
                   <ResizableTableHeader columnId="number" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>N° Orden</ResizableTableHeader>
                   <ResizableTableHeader columnId="supplier" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Proveedor</ResizableTableHeader>
-                  <ResizableTableHeader columnId="branch" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps} className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}>Sucursal</ResizableTableHeader>
+                  <ResizableTableHeader columnId="branch" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps} className={selectedBranchIds.length > 1 ? "" : "hidden"}>Sucursal</ResizableTableHeader>
                   <ResizableTableHeader columnId="date" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Fecha</ResizableTableHeader>
                   <ResizableTableHeader columnId="status" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Estado</ResizableTableHeader>
                   <ResizableTableHeader columnId="total" getResizeHandleProps={getOrderResizeHandleProps} getColumnHeaderProps={getOrderColumnHeaderProps}>Total</ResizableTableHeader>
@@ -530,7 +530,7 @@ export default function PurchaseOrderPage() {
                     <ResizableTableCell
                       columnId="branch"
                       getColumnCellProps={getOrderColumnCellProps}
-                      className={selectedBranchIds.length > 1 ? "" : "hidden md:table-cell"}
+                      className={selectedBranchIds.length > 1 ? "" : "hidden"}
                     >
                       {(() => {
                         const branchColor = getBranchColor(order);

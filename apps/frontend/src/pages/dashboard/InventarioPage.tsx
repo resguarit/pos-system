@@ -26,9 +26,11 @@ import { NumberFormatter } from '@/lib/formatters/numberFormatter';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { useAuth } from '@/hooks/useAuth';
+import { useBranch } from '@/context/BranchContext';
 
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
+  const { selectedBranchIds } = useBranch();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -39,7 +41,7 @@ export default function InventarioPage() {
   const [categories, setCategories] = useState<ProductCategoryType[]>([])
   const [parentCategories, setParentCategories] = useState<ProductCategoryType[]>([])
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
-  
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState<string>("")
@@ -144,8 +146,8 @@ export default function InventarioPage() {
       });
 
       const productList = Array.isArray(data?.data?.data) ? data.data.data :
-                         Array.isArray(data?.data) ? data.data :
-                         Array.isArray(data) ? data : [];
+        Array.isArray(data?.data) ? data.data :
+          Array.isArray(data) ? data : [];
 
       if (productList.length > 0) {
         await fetchStocksForProducts(productList, signal);
@@ -218,10 +220,10 @@ export default function InventarioPage() {
         url: "/branches",
         signal,
       })
-      const branchesData = Array.isArray(response?.data?.data) ? response.data.data : 
-                          Array.isArray(response?.data) ? response.data : 
-                          Array.isArray(response) ? response : []
-      
+      const branchesData = Array.isArray(response?.data?.data) ? response.data.data :
+        Array.isArray(response?.data) ? response.data :
+          Array.isArray(response) ? response : []
+
       setBranches(branchesData)
       dispatch({ type: "SET_ENTITIES", entityType: "branches", entities: branchesData })
       if (branchesData.length > 0) {
@@ -251,15 +253,15 @@ export default function InventarioPage() {
           signal,
         })
       ])
-      
-      const categoriesData = Array.isArray(categoriesResponse?.data?.data) ? categoriesResponse.data.data : 
-                            Array.isArray(categoriesResponse?.data) ? categoriesResponse.data : 
-                            Array.isArray(categoriesResponse) ? categoriesResponse : []
-      
-      const parentCategoriesData = Array.isArray(parentCategoriesResponse?.data?.data) ? parentCategoriesResponse.data.data : 
-                                  Array.isArray(parentCategoriesResponse?.data) ? parentCategoriesResponse.data : 
-                                  Array.isArray(parentCategoriesResponse) ? parentCategoriesResponse : []
-      
+
+      const categoriesData = Array.isArray(categoriesResponse?.data?.data) ? categoriesResponse.data.data :
+        Array.isArray(categoriesResponse?.data) ? categoriesResponse.data :
+          Array.isArray(categoriesResponse) ? categoriesResponse : []
+
+      const parentCategoriesData = Array.isArray(parentCategoriesResponse?.data?.data) ? parentCategoriesResponse.data.data :
+        Array.isArray(parentCategoriesResponse?.data) ? parentCategoriesResponse.data :
+          Array.isArray(parentCategoriesResponse) ? parentCategoriesResponse : []
+
       setCategories(categoriesData)
       setParentCategories(parentCategoriesData)
       dispatch({ type: "SET_ENTITIES", entityType: "categories", entities: categoriesData })
@@ -348,12 +350,12 @@ export default function InventarioPage() {
         if (!product.stocks || !Array.isArray(product.stocks)) {
           return false
         }
-        
+
         const hasMatchingBranch = product.stocks.some((stock) => {
           const matches = selectedBranches.includes(String(stock.branch_id))
           return matches
         })
-        
+
         return hasMatchingBranch
       })
     }
@@ -586,17 +588,17 @@ export default function InventarioPage() {
 
   const branchOptions = branches.map((b) => ({ value: String(b.id), label: b.description || `Sucursal ${b.id}` }))
   const categoryOptions = [
-    ...parentCategories.map((parent) => ({ 
-      value: String(parent.id), 
-      label: `${parent.name}` 
+    ...parentCategories.map((parent) => ({
+      value: String(parent.id),
+      label: `${parent.name}`
     })),
     ...categories
       .filter((cat) => cat.parent_id)
       .map((sub) => {
         const parent = parentCategories.find(p => p.id === sub.parent_id)
-        return { 
-          value: String(sub.id), 
-          label: `  └ ${sub.name}${parent ? ` (${parent.name})` : ''}` 
+        return {
+          value: String(sub.id),
+          label: `  └ ${sub.name}${parent ? ` (${parent.name})` : ''}`
         }
       })
   ]
@@ -694,7 +696,7 @@ export default function InventarioPage() {
     }
     return rows
   }
-  
+
   const togglePerBranchView = () => {
     const next = !perBranchView
     setPerBranchView(next)
@@ -713,7 +715,7 @@ export default function InventarioPage() {
       maximumFractionDigits: 2,
       useGrouping: true
     });
-    
+
     if (currency === 'USD') {
       return `$ ${formattedNumber} USD`;
     }
@@ -734,609 +736,358 @@ export default function InventarioPage() {
 
   return (
     <ProtectedRoute permissions={['ver_productos', 'ver_stock']} requireAny={true}>
-      <BranchRequiredWrapper 
-        title="Selecciona una sucursal" 
+      <BranchRequiredWrapper
+        title="Selecciona una sucursal"
         description="El inventario necesita una sucursal seleccionada para mostrar los productos y stock disponibles."
         allowMultipleBranches={true}
       >
         <div className="h-full w-full flex flex-col gap-4 p-2 sm:p-4 md:p-6">
-        <div className="flex items-center justify-between space-y-2">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Inventario</h2>
-          <div className="flex items-center space-x-2 overflow-x-auto scrollbar-hide">
-            <div className="flex items-center space-x-2 min-w-max">
-              <Button variant="outline" size="icon" onClick={refreshData} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              </Button>
-              {hasPermission('exportar_lista_precios') && (
-                <Button
-                  variant="outline"
-                  onClick={() => setExportDialogOpen(true)}
-                  className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
-                >
-                  <Download className="h-4 w-4" />
-                  Exportar Lista
+          <div className="flex items-center justify-between space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Inventario</h2>
+            <div className="flex items-center space-x-2 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center space-x-2 min-w-max">
+                <Button variant="outline" size="icon" onClick={refreshData} disabled={loading}>
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 </Button>
-              )}
-              {hasPermission('actualizar_precios_masivo') && (
-                <Button
-                  variant="outline"
-                  onClick={() => setAdvancedBulkUpdateDialogOpen(true)}
-                  className="flex gap-2 h-10 px-4 py-2 min-w-[180px]"
-                >
-                  <Calculator className="h-4 w-4" />
-                  Actualización Avanzada de Precios
-                </Button>
-              )}
-              {hasPermission('actualizar_stock') && (
-                <AddStockButton branches={branches} onStockAdded={refreshData} />
-              )}
-              {hasPermission('crear_productos') && (
-                <NewProductButton onProductCreated={refreshData} />
-              )}
+                {hasPermission('exportar_lista_precios') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setExportDialogOpen(true)}
+                    className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
+                  >
+                    <Download className="h-4 w-4" />
+                    Exportar Lista
+                  </Button>
+                )}
+                {hasPermission('actualizar_precios_masivo') && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setAdvancedBulkUpdateDialogOpen(true)}
+                    className="flex gap-2 h-10 px-4 py-2 min-w-[180px]"
+                  >
+                    <Calculator className="h-4 w-4" />
+                    Actualización Avanzada de Precios
+                  </Button>
+                )}
+                {hasPermission('actualizar_stock') && (
+                  <AddStockButton branches={branches} onStockAdded={refreshData} />
+                )}
+                {hasPermission('crear_productos') && (
+                  <NewProductButton onProductCreated={refreshData} />
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex w-full flex-col space-y-4 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-2 md:space-y-0">
-          <div className="flex flex-1 min-w-0 items-center gap-2">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Buscar productos..."
-                className="w-full pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+          <div className="flex w-full flex-col space-y-4 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-2 md:space-y-0">
+            <div className="flex flex-1 min-w-0 items-center gap-2">
+              <div className="relative w-full md:w-80">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Buscar productos..."
+                  className="w-full pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar categorías">
-                  <span className="truncate">Categorías</span>
-                  <span className=" flex items-center gap-1 text-muted-foreground">
-                    <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{catSummary}</span>
-                    <ChevronDown className="h-4 w-4 opacity-70" />
-                  </span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                <div className="mb-2 text-xs text-muted-foreground">Selecciona categorías</div>
-                <MultiSelectCheckbox options={categoryOptions} selected={selectedCategories} onChange={setSelectedCategories} />
-              </PopoverContent>
-            </Popover>
-            {branches.length > 1 && (
+            <div className="flex items-center gap-2 flex-wrap justify-end">
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar sucursales">
-                    <span className="truncate">Sucursales</span>
-                    <span className="ml-2 flex items-center gap-1 text-muted-foreground">
-                      <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{branchSummary}</span>
+                  <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar categorías">
+                    <span className="truncate">Categorías</span>
+                    <span className=" flex items-center gap-1 text-muted-foreground">
+                      <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{catSummary}</span>
                       <ChevronDown className="h-4 w-4 opacity-70" />
                     </span>
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                  <div className="mb-2 text-xs text-muted-foreground">Selecciona sucursales</div>
-                  <MultiSelectCheckbox options={branchOptions} selected={selectedBranches} onChange={setSelectedBranches} />
+                  <div className="mb-2 text-xs text-muted-foreground">Selecciona categorías</div>
+                  <MultiSelectCheckbox options={categoryOptions} selected={selectedCategories} onChange={setSelectedCategories} />
                 </PopoverContent>
               </Popover>
-            )}
+              {branches.length > 1 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar sucursales">
+                      <span className="truncate">Sucursales</span>
+                      <span className="ml-2 flex items-center gap-1 text-muted-foreground">
+                        <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{branchSummary}</span>
+                        <ChevronDown className="h-4 w-4 opacity-70" />
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                    <div className="mb-2 text-xs text-muted-foreground">Selecciona sucursales</div>
+                    <MultiSelectCheckbox options={branchOptions} selected={selectedBranches} onChange={setSelectedBranches} />
+                  </PopoverContent>
+                </Popover>
+              )}
 
-            {hasPermission('ver_stock') && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar estados de stock">
-                    <span className="truncate">Estado stock</span>
-                    <span className="ml-2 flex items-center gap-1 text-muted-foreground">
-                      <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{statusSummary}</span>
-                      <ChevronDown className="h-4 w-4 opacity-70" />
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                  <div className="mb-2 text-xs text-muted-foreground">Selecciona estados</div>
-                  <MultiSelectCheckbox options={statusOptions} selected={selectedStockStatuses} onChange={setSelectedStockStatuses} />
-                </PopoverContent>
-              </Popover>
-            )}
+              {hasPermission('ver_stock') && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar estados de stock">
+                      <span className="truncate">Estado stock</span>
+                      <span className="ml-2 flex items-center gap-1 text-muted-foreground">
+                        <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{statusSummary}</span>
+                        <ChevronDown className="h-4 w-4 opacity-70" />
+                      </span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                    <div className="mb-2 text-xs text-muted-foreground">Selecciona estados</div>
+                    <MultiSelectCheckbox options={statusOptions} selected={selectedStockStatuses} onChange={setSelectedStockStatuses} />
+                  </PopoverContent>
+                </Popover>
+              )}
 
-            {branches.length > 1 && (
-              <Button variant={perBranchView ? "default" : "outline"} onClick={togglePerBranchView} title={perBranchView ? "Cambiar a vista por producto" : "Cambiar a vista por sucursal"} className="whitespace-nowrap text-xs sm:text-sm">
-                {perBranchView ? "Modo: Por sucursal" : "Modo: Por producto"}
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>
-              {error} -{" "}
-              <Button variant="link" className="p-0 h-auto" onClick={refreshData}>Reintentar</Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {loading ? (
-          <div className="flex flex-1 justify-center items-center py-8">
-            <div className="flex flex-col items-center">
-              <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">Cargando productos...</p>
+              {branches.length > 1 && (
+                <Button variant={perBranchView ? "default" : "outline"} onClick={togglePerBranchView} title={perBranchView ? "Cambiar a vista por producto" : "Cambiar a vista por sucursal"} className="whitespace-nowrap text-xs sm:text-sm">
+                  {perBranchView ? "Modo: Por sucursal" : "Modo: Por producto"}
+                </Button>
+              )}
             </div>
           </div>
-        ) : (
-          <div className="flex-1 rounded-md border bg-card">
-            {perBranchView ? (
-              (() => {
-                const rows = getFilteredRows()
-                const paged = paginate(rows)
-                return paged.total > 0 ? (
-                  <div className="relative h-full overflow-y-auto">
-                    <Table ref={tableRef} className="w-full">
-                      <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                        <TableRow>
-                          <ResizableTableHeader
-                            columnId="description"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                          >
-                            Producto
-                          </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="category"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden sm:table-cell"
-                          >
-                            Categoría
-                          </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="unit_price"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden lg:table-cell"
-                          >
-                            Precio Unitario
-                          </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="sale_price"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden lg:table-cell"
-                          >
-                            Precio Venta
-                          </ResizableTableHeader>
-                          {hasPermission('ver_stock') && (
-                            <>
-                              <ResizableTableHeader
-                                columnId="stock"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                                className="hidden sm:table-cell"
-                              >
-                                Stock Actual
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="stock-min-max"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                                className="hidden lg:table-cell"
-                              >
-                                Stock Min/Max
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="stock-status"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Estado Stock
-                              </ResizableTableHeader>
-                            </>
-                          )}
-                          <ResizableTableHeader
-                            columnId="status"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden sm:table-cell"
-                          >
-                            Estado
-                          </ResizableTableHeader>
-                          {branches.length > 1 && (
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                {error} -{" "}
+                <Button variant="link" className="p-0 h-auto" onClick={refreshData}>Reintentar</Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {loading ? (
+            <div className="flex flex-1 justify-center items-center py-8">
+              <div className="flex flex-col items-center">
+                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="mt-2 text-sm text-muted-foreground">Cargando productos...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 rounded-md border bg-card">
+              {perBranchView ? (
+                (() => {
+                  const rows = getFilteredRows()
+                  const paged = paginate(rows)
+                  return paged.total > 0 ? (
+                    <div className="relative h-full overflow-y-auto">
+                      <Table ref={tableRef} className="w-full">
+                        <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                          <TableRow>
                             <ResizableTableHeader
-                              columnId="branch"
+                              columnId="description"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                            >
+                              Producto
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="category"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                              className="hidden sm:table-cell"
+                            >
+                              Categoría
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="unit_price"
                               getResizeHandleProps={getResizeHandleProps}
                               getColumnHeaderProps={getColumnHeaderProps}
                               className="hidden lg:table-cell"
                             >
-                              Sucursal
+                              Precio Unitario
                             </ResizableTableHeader>
-                          )}
-                          <ResizableTableHeader
-                            columnId="actions"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                          >
-                            Acciones
-                          </ResizableTableHeader>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody className="bg-background">
-                        {paged.items.map((row) => {
-                          const stock = row.stock
-                          const stockStatus = getRowStockStatus(stock)
-                          const p = row.product
-                          return (
-                            <TableRow key={row.key} className={`${!p.status ? "bg-gray-100/90 text-gray-500" : "bg-background hover:bg-muted/50"}`}>
-                              <ResizableTableCell
-                                columnId="description"
-                                getColumnCellProps={getColumnCellProps}
-                                className={!p.status ? "text-gray-500" : ""}
+                            <ResizableTableHeader
+                              columnId="sale_price"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                              className="hidden lg:table-cell"
+                            >
+                              Precio Venta
+                            </ResizableTableHeader>
+                            {hasPermission('ver_stock') && (
+                              <>
+                                <ResizableTableHeader
+                                  columnId="stock"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
+                                  className="hidden sm:table-cell"
+                                >
+                                  Stock Actual
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
+                                  columnId="stock-min-max"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
+                                  className="hidden lg:table-cell"
+                                >
+                                  Stock Min/Max
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
+                                  columnId="stock-status"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
+                                >
+                                  Estado Stock
+                                </ResizableTableHeader>
+                              </>
+                            )}
+                            <ResizableTableHeader
+                              columnId="status"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                              className="hidden sm:table-cell"
+                            >
+                              Estado
+                            </ResizableTableHeader>
+                            {selectedBranchIds.length > 1 && (
+                              <ResizableTableHeader
+                                columnId="branch"
+                                getResizeHandleProps={getResizeHandleProps}
+                                getColumnHeaderProps={getColumnHeaderProps}
+                                className="hidden lg:table-cell"
                               >
-                                <div className="flex items-center">
-                                  <div className="flex-1 min-w-0">
-                                    <p className="truncate text-sm font-medium">{p.description}</p>
-                                    <p className="truncate text-xs text-muted-foreground">{p.code}</p>
-                                  </div>
-                                </div>
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="category"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden sm:table-cell ${!p.status ? "text-gray-500" : ""}`}
-                              >
-                                <span className="truncate block">{p.category?.name || "Sin categoría"}</span>
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="unit_price"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
-                              >
-                                <span className="truncate block">{formatUnitPrice(p.unit_price, p.currency)}</span>
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="sale_price"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
-                              >
-                                <span className="truncate block">{formatSalePrice(p.sale_price)}</span>
-                              </ResizableTableCell>
-                              {hasPermission('ver_stock') && (
-                                <>
-                                  <ResizableTableCell
-                                    columnId="stock"
-                                    getColumnCellProps={getColumnCellProps}
-                                    className={`hidden sm:table-cell font-medium ${!p.status ? "text-gray-500" : ""}`}
-                                  >
-                                    <span className="truncate block">{Number.parseInt(String(stock.current_stock)) || 0}</span>
-                                  </ResizableTableCell>
-                                  <ResizableTableCell
-                                    columnId="stock-min-max"
-                                    getColumnCellProps={getColumnCellProps}
-                                    className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
-                                  >
-                                    <span className="truncate block">{Number.parseInt(String(stock.min_stock)) || 0} / {Number.parseInt(String(stock.max_stock)) || 0}</span>
-                                  </ResizableTableCell>
-                                  <ResizableTableCell
-                                    columnId="stock-status"
-                                    getColumnCellProps={getColumnCellProps}
-                                    className={!p.status ? "opacity-60" : ""}
-                                  >
-                                    <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
-                                  </ResizableTableCell>
-                                </>
-                              )}
-                              <ResizableTableCell
-                                columnId="status"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden sm:table-cell ${!p.status ? "opacity-60" : ""}`}
-                              >
-                                <Badge variant="outline" className={`${p.status ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"} truncate`}>
-                                  {p.status ? "Activo" : "Inactivo"}
-                                </Badge>
-                              </ResizableTableCell>
-                              {branches.length > 1 && (
+                                Sucursal
+                              </ResizableTableHeader>
+                            )}
+                            <ResizableTableHeader
+                              columnId="actions"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                            >
+                              Acciones
+                            </ResizableTableHeader>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="bg-background">
+                          {paged.items.map((row) => {
+                            const stock = row.stock
+                            const stockStatus = getRowStockStatus(stock)
+                            const p = row.product
+                            return (
+                              <TableRow key={row.key} className={`${!p.status ? "bg-gray-100/90 text-gray-500" : "bg-background hover:bg-muted/50"}`}>
                                 <ResizableTableCell
-                                  columnId="branch"
+                                  columnId="description"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={!p.status ? "text-gray-500" : ""}
+                                >
+                                  <div className="flex items-center">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="truncate text-sm font-medium">{p.description}</p>
+                                      <p className="truncate text-xs text-muted-foreground">{p.code}</p>
+                                    </div>
+                                  </div>
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="category"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={`hidden sm:table-cell ${!p.status ? "text-gray-500" : ""}`}
+                                >
+                                  <span className="truncate block">{p.category?.name || "Sin categoría"}</span>
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="unit_price"
                                   getColumnCellProps={getColumnCellProps}
                                   className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
                                 >
-                                  <div className="flex items-center">
-                                    {(() => {
-                                      const branchInfo = branches.find(b => String(b.id) === String(stock.branch_id));
-                                      const branchColor = branchInfo?.color || '#0ea5e9';
-                                      
-                                      
-                                      return (
-                                        <span 
-                                          className={`mr-2 h-2 w-2 rounded-full ${!p.status ? "bg-gray-400" : ""}`}
-                                          style={!p.status ? {} : { backgroundColor: branchColor }}
-                                        ></span>
-                                      );
-                                    })()}
-                                    <span className="truncate">{row.branchName}</span>
+                                  <span className="truncate block">{formatUnitPrice(p.unit_price, p.currency)}</span>
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="sale_price"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
+                                >
+                                  <span className="truncate block">{formatSalePrice(p.sale_price)}</span>
+                                </ResizableTableCell>
+                                {hasPermission('ver_stock') && (
+                                  <>
+                                    <ResizableTableCell
+                                      columnId="stock"
+                                      getColumnCellProps={getColumnCellProps}
+                                      className={`hidden sm:table-cell font-medium ${!p.status ? "text-gray-500" : ""}`}
+                                    >
+                                      <span className="truncate block">{Number.parseInt(String(stock.current_stock)) || 0}</span>
+                                    </ResizableTableCell>
+                                    <ResizableTableCell
+                                      columnId="stock-min-max"
+                                      getColumnCellProps={getColumnCellProps}
+                                      className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
+                                    >
+                                      <span className="truncate block">{Number.parseInt(String(stock.min_stock)) || 0} / {Number.parseInt(String(stock.max_stock)) || 0}</span>
+                                    </ResizableTableCell>
+                                    <ResizableTableCell
+                                      columnId="stock-status"
+                                      getColumnCellProps={getColumnCellProps}
+                                      className={!p.status ? "opacity-60" : ""}
+                                    >
+                                      <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                    </ResizableTableCell>
+                                  </>
+                                )}
+                                <ResizableTableCell
+                                  columnId="status"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={`hidden sm:table-cell ${!p.status ? "opacity-60" : ""}`}
+                                >
+                                  <Badge variant="outline" className={`${p.status ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"} truncate`}>
+                                    {p.status ? "Activo" : "Inactivo"}
+                                  </Badge>
+                                </ResizableTableCell>
+                                {selectedBranchIds.length > 1 && (
+                                  <ResizableTableCell
+                                    columnId="branch"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <div className="flex items-center">
+                                      {(() => {
+                                        const branchInfo = branches.find(b => String(b.id) === String(stock.branch_id));
+                                        const branchColor = branchInfo?.color || '#0ea5e9';
+
+
+                                        return (
+                                          <span
+                                            className={`mr-2 h-2 w-2 rounded-full ${!p.status ? "bg-gray-400" : ""}`}
+                                            style={!p.status ? {} : { backgroundColor: branchColor }}
+                                          ></span>
+                                        );
+                                      })()}
+                                      <span className="truncate">{row.branchName}</span>
+                                    </div>
+                                  </ResizableTableCell>
+                                )}
+                                <ResizableTableCell
+                                  columnId="actions"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={!p.status ? "opacity-60" : ""}
+                                >
+                                  <div className="flex justify-end items-center gap-1">
+                                    <Button variant="ghost" size="sm" onClick={() => handleViewClick(p)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    {hasPermission('editar_productos') && (
+                                      <Button variant="ghost" size="sm" onClick={() => handleEditClick(p)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                    {hasPermission('eliminar_productos') && (
+                                      <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(p)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
                                   </div>
                                 </ResizableTableCell>
-                              )}
-                              <ResizableTableCell
-                                columnId="actions"
-                                getColumnCellProps={getColumnCellProps}
-                                className={!p.status ? "opacity-60" : ""}
-                              >
-                                <div className="flex justify-end items-center gap-1">
-                                  <Button variant="ghost" size="sm" onClick={() => handleViewClick(p)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  {hasPermission('editar_productos') && (
-                                    <Button variant="ghost" size="sm" onClick={() => handleEditClick(p)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                  {hasPermission('eliminar_productos') && (
-                                    <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(p)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </ResizableTableCell>
-                            </TableRow>
-                          )
-                        })}
-                      </TableBody>
-                    </Table>
-                    <div className="flex items-center justify-between p-3 border-t bg-muted/30">
-                      <Pagination
-                        currentPage={paged.currentPage}
-                        lastPage={paged.totalPages}
-                        total={paged.total}
-                        itemName="productos"
-                        onPageChange={(page) => handleGoToPage(page, paged.totalPages)}
-                        disabled={false}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center"><p className="text-center text-muted-foreground">No hay productos disponibles con los filtros seleccionados</p></div>
-                )
-              })()
-            ) : (
-              <div className="relative h-full overflow-y-auto">
-                <Table ref={tableRef} className="w-full">
-                  <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                    <TableRow>
-                      <ResizableTableHeader
-                        columnId="description"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                      >
-                        Producto
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="category"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                        className="hidden sm:table-cell"
-                      >
-                        Categoría
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="unit_price"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                        className="hidden lg:table-cell"
-                      >
-                        Precio Unitario
-                      </ResizableTableHeader>
-                      <ResizableTableHeader
-                        columnId="sale_price"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                        className="hidden lg:table-cell"
-                      >
-                        Precio Venta
-                      </ResizableTableHeader>
-                      {hasPermission('ver_stock') && (
-                        <>
-                          <ResizableTableHeader
-                            columnId="stock"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden sm:table-cell"
-                          >
-                            Stock Actual
-                          </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="stock-min-max"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                            className="hidden lg:table-cell"
-                          >
-                            Stock Min/Max
-                          </ResizableTableHeader>
-                          <ResizableTableHeader
-                            columnId="stock-status"
-                            getResizeHandleProps={getResizeHandleProps}
-                            getColumnHeaderProps={getColumnHeaderProps}
-                          >
-                            Estado Stock
-                          </ResizableTableHeader>
-                        </>
-                      )}
-                      <ResizableTableHeader
-                        columnId="status"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                        className="hidden sm:table-cell"
-                      >
-                        Estado
-                      </ResizableTableHeader>
-                      {branches.length > 1 && (
-                        <ResizableTableHeader
-                          columnId="branch"
-                          getResizeHandleProps={getResizeHandleProps}
-                          getColumnHeaderProps={getColumnHeaderProps}
-                          className="hidden lg:table-cell"
-                        >
-                          Sucursal
-                        </ResizableTableHeader>
-                      )}
-                      <ResizableTableHeader
-                        columnId="actions"
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                      >
-                        Acciones
-                      </ResizableTableHeader>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="bg-background">
-                    {(() => {
-                      const paged = paginate(filteredProducts)
-                      return paged.items.map((product) => {
-                        const stockStatus = getStockStatus(product)
-                        const stock = getProductStock(product)
-                        return (
-                          <TableRow key={product.id} className={`${!product.status ? "bg-gray-100/90 text-gray-500" : "bg-background hover:bg-muted/50"}`}>
-                            <ResizableTableCell
-                              columnId="description"
-                              getColumnCellProps={getColumnCellProps}
-                              className={!product.status ? "text-gray-500" : ""}
-                            >
-                              <div className="flex items-center">
-                                <div className="flex-1 min-w-0">
-                                  <p className="truncate text-sm font-medium">{product.description}</p>
-                                  <p className="truncate text-xs text-muted-foreground">{product.code}</p>
-                                </div>
-                              </div>
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="category"
-                              getColumnCellProps={getColumnCellProps}
-                              className={`hidden sm:table-cell ${!product.status ? "text-gray-500" : ""}`}
-                            >
-                              <span className="truncate block">{product.category?.name || "Sin categoría"}</span>
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="unit_price"
-                              getColumnCellProps={getColumnCellProps}
-                              className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
-                            >
-                              <span className="truncate block">{formatUnitPrice(product.unit_price, product.currency)}</span>
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="sale_price"
-                              getColumnCellProps={getColumnCellProps}
-                              className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
-                            >
-                              <span className="truncate block">{formatSalePrice(product.sale_price)}</span>
-                            </ResizableTableCell>
-                            {hasPermission('ver_stock') && (
-                              <>
-                                <ResizableTableCell
-                                  columnId="stock"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className={`hidden sm:table-cell font-medium ${!product.status ? "text-gray-500" : ""}`}
-                                >
-                                  <span className="truncate block">{Number.parseInt(String(stock.current)) || 0}</span>
-                                </ResizableTableCell>
-                                <ResizableTableCell
-                                  columnId="stock-min-max"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
-                                >
-                                  <span className="truncate block">{Number.parseInt(String(stock.min)) || 0} / {Number.parseInt(String(stock.max)) || 0}</span>
-                                </ResizableTableCell>
-                                <ResizableTableCell
-                                  columnId="stock-status"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className={!product.status ? "opacity-60" : ""}
-                                >
-                                  <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
-                                </ResizableTableCell>
-                              </>
-                            )}
-                            <ResizableTableCell
-                              columnId="status"
-                              getColumnCellProps={getColumnCellProps}
-                              className={`hidden sm:table-cell ${!product.status ? "opacity-60" : ""}`}
-                            >
-                              <Badge variant="outline" className={`${product.status ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"} truncate`}>
-                                {product.status ? "Activo" : "Inactivo"}
-                              </Badge>
-                            </ResizableTableCell>
-                            {branches.length > 1 && (
-                              <ResizableTableCell
-                                columnId="branch"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
-                              >
-                                <div className="flex items-center">
-                                  {(() => {
-                                    const branchDisplay = getBranchDisplayForProduct(product);
-                                    
-                                    
-                                    if (branchDisplay.branches.length === 0) {
-                                      return (
-                                        <span className={`mr-2 h-2 w-2 rounded-full ${!product.status ? "bg-gray-400" : "bg-gray-300"}`}></span>
-                                      );
-                                    }
-                                    
-                                    // Show multiple branch colors
-                                    return (
-                                      <div className="flex items-center gap-1">
-                                        {branchDisplay.branches.map((branch) => (
-                                          <span 
-                                            key={branch.id}
-                                            className={`h-2 w-2 rounded-full ${!product.status ? "bg-gray-400" : ""}`}
-                                            style={!product.status ? {} : { backgroundColor: branch.color }}
-                                            title={branch.name}
-                                          ></span>
-                                        ))}
-                                      </div>
-                                    );
-                                  })()}
-                                  <span className="truncate ml-2">{getBranchNameForProduct(product)}</span>
-                                </div>
-                              </ResizableTableCell>
-                            )}
-                            <ResizableTableCell
-                              columnId="actions"
-                              getColumnCellProps={getColumnCellProps}
-                              className={!product.status ? "opacity-60" : ""}
-                            >
-                              <div className="flex justify-end items-center gap-1">
-                                <Button variant="ghost" size="sm" onClick={() => handleViewClick(product)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                                {hasPermission('editar_productos') && (
-                                  <Button variant="ghost" size="sm" onClick={() => handleEditClick(product)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {hasPermission('eliminar_productos') && (
-                                  <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(product)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </ResizableTableCell>
-                          </TableRow>
-                        )
-                      })
-                    })()}
-                  </TableBody>
-                </Table>
-                {(() => {
-                  const paged = paginate(filteredProducts)
-                  return (
-                    <div className="flex items-center justify-between p-3 border-t bg-muted/30">
-                      <div className="flex items-center gap-3">
-                        <select className="h-8 rounded-md border px-2 text-sm bg-background" value={perPage} onChange={(e) => handlePerPageChange(parseInt(e.target.value, 10))}>
-                          {[10, 25, 50, 100, 200].map((n) => (<option key={n} value={n}>{n} por página</option>))}
-                        </select>
-                      </div>
-                      <div>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                      <div className="flex items-center justify-between p-3 border-t bg-muted/30">
                         <Pagination
                           currentPage={paged.currentPage}
                           lastPage={paged.totalPages}
@@ -1347,45 +1098,296 @@ export default function InventarioPage() {
                         />
                       </div>
                     </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center"><p className="text-center text-muted-foreground">No hay productos disponibles con los filtros seleccionados</p></div>
                   )
-                })()}
-              </div>
-            )}
-          </div>
-        )}
+                })()
+              ) : (
+                <div className="relative h-full overflow-y-auto">
+                  <Table ref={tableRef} className="w-full">
+                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                      <TableRow>
+                        <ResizableTableHeader
+                          columnId="description"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                        >
+                          Producto
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="category"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="hidden sm:table-cell"
+                        >
+                          Categoría
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="unit_price"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="hidden lg:table-cell"
+                        >
+                          Precio Unitario
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="sale_price"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="hidden lg:table-cell"
+                        >
+                          Precio Venta
+                        </ResizableTableHeader>
+                        {hasPermission('ver_stock') && (
+                          <>
+                            <ResizableTableHeader
+                              columnId="stock"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                              className="hidden sm:table-cell"
+                            >
+                              Stock Actual
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="stock-min-max"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                              className="hidden lg:table-cell"
+                            >
+                              Stock Min/Max
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="stock-status"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                            >
+                              Estado Stock
+                            </ResizableTableHeader>
+                          </>
+                        )}
+                        <ResizableTableHeader
+                          columnId="status"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="hidden sm:table-cell"
+                        >
+                          Estado
+                        </ResizableTableHeader>
+                        {selectedBranchIds.length > 1 && (
+                          <ResizableTableHeader
+                            columnId="branch"
+                            getResizeHandleProps={getResizeHandleProps}
+                            getColumnHeaderProps={getColumnHeaderProps}
+                            className="hidden lg:table-cell"
+                          >
+                            Sucursal
+                          </ResizableTableHeader>
+                        )}
+                        <ResizableTableHeader
+                          columnId="actions"
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                        >
+                          Acciones
+                        </ResizableTableHeader>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="bg-background">
+                      {(() => {
+                        const paged = paginate(filteredProducts)
+                        return paged.items.map((product) => {
+                          const stockStatus = getStockStatus(product)
+                          const stock = getProductStock(product)
+                          return (
+                            <TableRow key={product.id} className={`${!product.status ? "bg-gray-100/90 text-gray-500" : "bg-background hover:bg-muted/50"}`}>
+                              <ResizableTableCell
+                                columnId="description"
+                                getColumnCellProps={getColumnCellProps}
+                                className={!product.status ? "text-gray-500" : ""}
+                              >
+                                <div className="flex items-center">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="truncate text-sm font-medium">{product.description}</p>
+                                    <p className="truncate text-xs text-muted-foreground">{product.code}</p>
+                                  </div>
+                                </div>
+                              </ResizableTableCell>
+                              <ResizableTableCell
+                                columnId="category"
+                                getColumnCellProps={getColumnCellProps}
+                                className={`hidden sm:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                              >
+                                <span className="truncate block">{product.category?.name || "Sin categoría"}</span>
+                              </ResizableTableCell>
+                              <ResizableTableCell
+                                columnId="unit_price"
+                                getColumnCellProps={getColumnCellProps}
+                                className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                              >
+                                <span className="truncate block">{formatUnitPrice(product.unit_price, product.currency)}</span>
+                              </ResizableTableCell>
+                              <ResizableTableCell
+                                columnId="sale_price"
+                                getColumnCellProps={getColumnCellProps}
+                                className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                              >
+                                <span className="truncate block">{formatSalePrice(product.sale_price)}</span>
+                              </ResizableTableCell>
+                              {hasPermission('ver_stock') && (
+                                <>
+                                  <ResizableTableCell
+                                    columnId="stock"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden sm:table-cell font-medium ${!product.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <span className="truncate block">{Number.parseInt(String(stock.current)) || 0}</span>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="stock-min-max"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <span className="truncate block">{Number.parseInt(String(stock.min)) || 0} / {Number.parseInt(String(stock.max)) || 0}</span>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="stock-status"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={!product.status ? "opacity-60" : ""}
+                                  >
+                                    <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                  </ResizableTableCell>
+                                </>
+                              )}
+                              <ResizableTableCell
+                                columnId="status"
+                                getColumnCellProps={getColumnCellProps}
+                                className={`hidden sm:table-cell ${!product.status ? "opacity-60" : ""}`}
+                              >
+                                <Badge variant="outline" className={`${product.status ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"} truncate`}>
+                                  {product.status ? "Activo" : "Inactivo"}
+                                </Badge>
+                              </ResizableTableCell>
+                              {selectedBranchIds.length > 1 && (
+                                <ResizableTableCell
+                                  columnId="branch"
+                                  getColumnCellProps={getColumnCellProps}
+                                  className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                                >
+                                  <div className="flex items-center">
+                                    {(() => {
+                                      const branchDisplay = getBranchDisplayForProduct(product);
 
-        {selectedProduct && (
-          <EditProductDialog
-            open={editDialogOpen}
-            onOpenChange={setEditDialogOpen}
-            product={selectedProduct}
-            onProductUpdated={refreshData}
+
+                                      if (branchDisplay.branches.length === 0) {
+                                        return (
+                                          <span className={`mr-2 h-2 w-2 rounded-full ${!product.status ? "bg-gray-400" : "bg-gray-300"}`}></span>
+                                        );
+                                      }
+
+                                      // Show multiple branch colors
+                                      return (
+                                        <div className="flex items-center gap-1">
+                                          {branchDisplay.branches.map((branch) => (
+                                            <span
+                                              key={branch.id}
+                                              className={`h-2 w-2 rounded-full ${!product.status ? "bg-gray-400" : ""}`}
+                                              style={!product.status ? {} : { backgroundColor: branch.color }}
+                                              title={branch.name}
+                                            ></span>
+                                          ))}
+                                        </div>
+                                      );
+                                    })()}
+                                    <span className="truncate ml-2">{getBranchNameForProduct(product)}</span>
+                                  </div>
+                                </ResizableTableCell>
+                              )}
+                              <ResizableTableCell
+                                columnId="actions"
+                                getColumnCellProps={getColumnCellProps}
+                                className={!product.status ? "opacity-60" : ""}
+                              >
+                                <div className="flex justify-end items-center gap-1">
+                                  <Button variant="ghost" size="sm" onClick={() => handleViewClick(product)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  {hasPermission('editar_productos') && (
+                                    <Button variant="ghost" size="sm" onClick={() => handleEditClick(product)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  {hasPermission('eliminar_productos') && (
+                                    <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(product)} className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </ResizableTableCell>
+                            </TableRow>
+                          )
+                        })
+                      })()}
+                    </TableBody>
+                  </Table>
+                  {(() => {
+                    const paged = paginate(filteredProducts)
+                    return (
+                      <div className="flex items-center justify-between p-3 border-t bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <select className="h-8 rounded-md border px-2 text-sm bg-background" value={perPage} onChange={(e) => handlePerPageChange(parseInt(e.target.value, 10))}>
+                            {[10, 25, 50, 100, 200].map((n) => (<option key={n} value={n}>{n} por página</option>))}
+                          </select>
+                        </div>
+                        <div>
+                          <Pagination
+                            currentPage={paged.currentPage}
+                            lastPage={paged.totalPages}
+                            total={paged.total}
+                            itemName="productos"
+                            onPageChange={(page) => handleGoToPage(page, paged.totalPages)}
+                            disabled={false}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {selectedProduct && (
+            <EditProductDialog
+              open={editDialogOpen}
+              onOpenChange={setEditDialogOpen}
+              product={selectedProduct}
+              onProductUpdated={refreshData}
+            />
+          )}
+          {viewDialogOpen && selectedProduct && (
+            <ViewProductDialog
+              open={viewDialogOpen}
+              onOpenChange={setViewDialogOpen}
+              product={selectedProduct}
+            />
+          )}
+          {deleteDialogOpen && selectedProduct && (
+            <DeleteProductDialog
+              open={deleteDialogOpen}
+              onOpenChange={setDeleteDialogOpen}
+              product={selectedProduct}
+              onProductDeleted={refreshData}
+            />
+          )}
+          <ExportPriceListDialog
+            open={exportDialogOpen}
+            onOpenChange={setExportDialogOpen}
           />
-        )}
-        {viewDialogOpen && selectedProduct && (
-          <ViewProductDialog
-            open={viewDialogOpen}
-            onOpenChange={setViewDialogOpen}
-            product={selectedProduct}
+          <BulkPriceUpdateModal
+            open={advancedBulkUpdateDialogOpen}
+            onOpenChange={setAdvancedBulkUpdateDialogOpen}
+            onSuccess={refreshData}
           />
-        )}
-        {deleteDialogOpen && selectedProduct && (
-          <DeleteProductDialog
-            open={deleteDialogOpen}
-            onOpenChange={setDeleteDialogOpen}
-            product={selectedProduct}
-            onProductDeleted={refreshData}
-          />
-        )}
-        <ExportPriceListDialog
-          open={exportDialogOpen}
-          onOpenChange={setExportDialogOpen}
-        />
-        <BulkPriceUpdateModal
-          open={advancedBulkUpdateDialogOpen}
-          onOpenChange={setAdvancedBulkUpdateDialogOpen}
-          onSuccess={refreshData}
-        />
         </div>
       </BranchRequiredWrapper>
     </ProtectedRoute>

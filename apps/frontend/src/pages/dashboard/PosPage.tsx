@@ -660,7 +660,9 @@ export default function POSPage() {
                 <SelectValue placeholder="Seleccionar sucursal" />
               </SelectTrigger>
               <SelectContent>
-                {branches?.map((branch) => (
+                {branches?.filter(branch =>
+                  selectedBranchIds.length === 0 || selectedBranchIds.includes(branch.id.toString())
+                ).map((branch) => (
                   <SelectItem key={branch.id} value={branch.id.toString()}>
                     <div className="flex items-center gap-2">
                       {branch.color && (
