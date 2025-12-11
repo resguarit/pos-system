@@ -51,10 +51,7 @@ class SaleAnnulmentController extends Controller
     {
         // Verificar permiso de anular ventas
         $user = auth()->user();
-        $hasPermission = $user->role
-            ->permissions()
-            ->where('name', 'anular_ventas')
-            ->exists();
+        $hasPermission = $user->hasPermission('anular_ventas');
 
         if (!$hasPermission) {
             return response()->json([
@@ -200,7 +197,7 @@ class SaleAnnulmentController extends Controller
         foreach ($sale->currentAccountMovements as $currentAccountMovement) {
             // Obtener el tipo de movimiento original
             $originalMovementType = $currentAccountMovement->movementType;
-            
+
             if (!$originalMovementType) {
                 continue; // Saltar si no hay tipo de movimiento
             }
@@ -209,7 +206,7 @@ class SaleAnnulmentController extends Controller
             // Si el original era 'salida' (aumenta deuda), la anulación debe ser 'entrada' (reduce deuda)
             // Si el original era 'entrada' (reduce deuda), la anulación debe ser 'salida' (aumenta deuda)
             $oppositeOperationType = $originalMovementType->operation_type === 'salida' ? 'entrada' : 'salida';
-            
+
             // Buscar o crear tipo de movimiento para anulación con el tipo opuesto
             $annulmentMovementType = MovementType::firstOrCreate(
                 [

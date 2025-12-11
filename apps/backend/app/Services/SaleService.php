@@ -227,23 +227,10 @@ class SaleService implements SaleServiceInterface
             $data['total'] = $finalTotal;
             $data['date'] = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::now();
 
-            // 5.1) Determinar estado inicial basado en permisos del usuario
-            $user = \App\Models\User::find($data['user_id']);
-            $hasAutoApprove = false;
-
-            if ($user) {
-                // Verificar si el usuario tiene el permiso sales.auto_approve
-                $hasAutoApprove = $user->hasPermission('sales.auto_approve');
-            }
-
-            // Establecer estado: 'approved' si tiene permiso, 'pending' si no
-            $data['status'] = $hasAutoApprove ? 'approved' : 'pending';
-
-            // Si se auto-aprueba, registrar quién y cuándo
-            if ($hasAutoApprove) {
-                $data['approved_by'] = $data['user_id'];
-                $data['approved_at'] = Carbon::now();
-            }
+            // 5.1) Determinar estado inicial basado en tipo de comprobante
+            // Las ventas normales se crean con status 'active'
+            // Los presupuestos también se crean con status 'active' (se distinguen por receipt_type)
+            $data['status'] = 'active';
 
             // 6) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
             // Usar lockForUpdate dentro de la transacción para evitar race conditions
@@ -299,9 +286,10 @@ class SaleService implements SaleServiceInterface
                 SaleIva::create($total);
             }
 
-            // 10) Reducir stock SOLO si la venta está aprobada
+            // 10) Reducir stock para ventas que NO son presupuestos
             $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
-            $shouldReduceStock = $data['status'] === 'approved' && (!$receiptType || $receiptType->afip_code !== '016');
+            // Reducir stock si NO es presupuesto (afip_code 016)
+            $shouldReduceStock = !$receiptType || $receiptType->afip_code !== '016';
 
             if ($shouldReduceStock) {
                 $branchId = $data['branch_id'];
@@ -315,8 +303,8 @@ class SaleService implements SaleServiceInterface
                 }
             }
 
-            // 11) Registrar movimientos SOLO si la venta está aprobada
-            if ($registerMovement && $data['status'] === 'approved') {
+            // 11) Registrar movimientos para ventas (NO presupuestos)
+            if ($registerMovement && (!$receiptType || $receiptType->afip_code !== '016')) {
                 $this->registerSaleMovementFromPayments($saleHeader, $data['current_cash_register_id'] ?? null);
             }
 
