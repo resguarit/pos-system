@@ -40,6 +40,16 @@ class Employee extends Model
         return $this->belongsTo(Branch::class);
     }
 
+    /**
+     * Many-to-many relationship with branches
+     * Allows an employee to work in multiple branches
+     */
+    public function branches()
+    {
+        return $this->belongsToMany(Branch::class, 'employee_branch')
+            ->withTimestamps();
+    }
+
     public function expenses()
     {
         return $this->hasMany(Expense::class);

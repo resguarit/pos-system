@@ -113,6 +113,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     navigate('/'); // Redirige al dashboard principal después del login
   }, [loadProfile, navigate]);
 
+  // Permisos de RESTRICCIÓN: Estos limitan capacidades en lugar de otorgarlas.
+  // Los administradores NO deben tener estos automáticamente - deben verificarse
+  // directamente en los permisos asignados al usuario.
+  const RESTRICTION_PERMISSIONS = [
+    'solo_crear_presupuestos', // Restringe a solo poder crear presupuestos (no facturas)
+  ];
+
   /**
    * Verifica si el usuario tiene un permiso específico.
    */
@@ -121,7 +128,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return false;
     }
 
-    // Los administradores tienen todos los permisos
+    // Para permisos de RESTRICCIÓN, verificar directamente en los permisos del usuario
+    // (los admins NO deben tener estas restricciones automáticamente)
+    if (RESTRICTION_PERMISSIONS.includes(permission)) {
+      return user.permissions.includes(permission);
+    }
+
+    // Los administradores tienen todos los permisos (excepto restricciones)
     if (user.role?.name === 'Admin' || user.role?.name === 'admin' || user.role?.name === 'Administrador') {
       return true;
     }

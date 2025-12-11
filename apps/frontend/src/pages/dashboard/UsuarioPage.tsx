@@ -6,10 +6,10 @@ import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resiza
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, RotateCw, Search, Eye, Pencil, Trash2, BarChart3 } from "lucide-react"
-import { useEffect, useState, useCallback } from "react" 
+import { useEffect, useState, useCallback } from "react"
 import useApi from "@/hooks/useApi"
 import { useAuth } from "@/hooks/useAuth"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
 import { RoleBadge } from "@/components/roles/RoleBadge"
 import {
@@ -75,13 +75,15 @@ export default function UsuariosPage() {
   });
   const [users, setUsers] = useState<User[]>([])
   const [roles, setRoles] = useState<Role[]>([]);
-  const [searchText, setSearchText] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialFilter = searchParams.get('filter') || '';
+  const [searchText, setSearchText] = useState(initialFilter);
   const [selectedRole, setSelectedRole] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
-  
-  
+
+
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
@@ -112,7 +114,7 @@ export default function UsuariosPage() {
         params,
         signal
       })
-      
+
       // Manejar respuesta paginada
       if (response?.data) {
         const usersData = Array.isArray(response.data) ? response.data : response.data.data || []
@@ -395,8 +397,8 @@ export default function UsuariosPage() {
                         <div className="flex flex-col gap-1">
                           {user.branches.slice(0, 2).map((branch) => (
                             <div key={branch.id} className="flex items-center">
-                              <span 
-                                className="mr-2 h-2 w-2 rounded-full" 
+                              <span
+                                className="mr-2 h-2 w-2 rounded-full"
                                 style={{ backgroundColor: branch.color || '#0ea5e9' }}
                               ></span>
                               <span className="text-sm truncate" title={branch.description}>{branch.description}</span>
@@ -458,7 +460,7 @@ export default function UsuariosPage() {
                             className="hover:bg-emerald-100 group cursor-pointer"
                             asChild
                           >
-                            <Link 
+                            <Link
                               to={`/dashboard/usuarios/${user.id}/desempeno`}
                             >
                               <BarChart3 className="h-4 w-4 text-emerald-600 group-hover:text-emerald-700" />

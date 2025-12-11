@@ -53,6 +53,9 @@ class UserService implements UserServiceInterface // Implement the interface
     /**
      * Create a new user and associated person.
      */
+    /**
+     * Create a new user and associated person.
+     */
     public function createUser(array $data): User
     {
         // Normalizar payload desde frontend (person.* y posibles camelCase)
@@ -70,32 +73,80 @@ class UserService implements UserServiceInterface // Implement the interface
         }
 
         // Validación de requeridos según backend
-        if (empty($data['email']) || empty($data['username']) || empty($data['password']) || empty($data['role_id']) || empty($data['first_name']) || empty($data['last_name'])) {
+        if (empty($data['email']) || empty($data['username']) || empty($data['password']) || empty($data['role_id'])) {
             throw new Exception("Missing required fields for user creation.");
+        }
+
+        // Si no se vincula a un empleado existente, requerimos nombre y apellido
+        if (empty($data['employee_id']) && (empty($data['first_name']) || empty($data['last_name']))) {
+            throw new Exception("Missing required fields (Name) for user creation.");
         }
 
         DB::beginTransaction();
         try {
-            // 1. Create Person using PersonService
-            $person = $this->personService->createPerson([
-                'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
-                'cuit' => $data['cuit'] ?? null,
-                'address' => $data['address'] ?? null,
-                'phone' => $data['phone'] ?? null,
-                'fiscal_condition_id' => $data['fiscal_condition_id'] ?? null,
-                'person_type_id' => $data['person_type_id'] ?? null, // Ensure correct type ID for User
-            ]);
+            $personId = null;
+            $employee = null;
+
+            // Caso 1: Vincular con empleado existente
+            if (!empty($data['employee_id'])) {
+                $employee = \App\Models\Employee::findOrFail($data['employee_id']);
+                $personId = $employee->person_id;
+            }
+            // Caso 2: Crear nueva persona
+            else {
+                $person = $this->personService->createPerson([
+                    'first_name' => $data['first_name'],
+                    'last_name' => $data['last_name'],
+                    'cuit' => $data['cuit'] ?? null,
+                    'address' => $data['address'] ?? null,
+                    'phone' => $data['phone'] ?? null,
+                    'fiscal_condition_id' => $data['fiscal_condition_id'] ?? null,
+                    'person_type_id' => $data['person_type_id'] ?? null,
+                ]);
+                $personId = $person->id;
+            }
 
             // 2. Create User linked to Person
             $user = User::create([
-                'person_id' => $person->id,
+                'person_id' => $personId,
                 'email' => $data['email'],
                 'username' => $data['username'],
-                'password' => Hash::make($data['password']), // Hash the password
+                'password' => Hash::make($data['password']),
                 'active' => $data['active'] ?? true,
                 'role_id' => $data['role_id'],
             ]);
+
+            // Si se vinculó a un empleado existente, actualizar el user_id del empleado
+            if ($employee) {
+                $employee->user_id = $user->id;
+                $employee->save();
+            }
+
+            // Caso 3: Crear nuevo empleado (si se solicitó y no se vinculó a uno existente)
+            if (empty($data['employee_id']) && !empty($data['is_employee']) && $data['is_employee'] === true) {
+                // Obtener el nombre del rol para el puesto
+                $roleName = \App\Models\Role::find($data['role_id'])?->name ?? 'Empleado';
+
+                // Usar la primera sucursal asignada o la primera disponible
+                $branchId = null;
+                if (!empty($data['branches']) && is_array($data['branches']) && count($data['branches']) > 0) {
+                    $branchId = $data['branches'][0];
+                } else {
+                    $branchId = \App\Models\Branch::first()?->id;
+                }
+
+                if ($branchId) {
+                    \App\Models\Employee::create([
+                        'person_id' => $personId,
+                        'user_id' => $user->id,
+                        'branch_id' => $branchId,
+                        'job_title' => $roleName,
+                        'salary' => 0, // Default salary
+                        'hire_date' => now(),
+                        'status' => 'active',
+                    ]);
+                }
+            }
 
             // 3. Sincronizar sucursales si vienen en el payload
             if (!empty($data['branches']) && is_array($data['branches'])) {
@@ -108,7 +159,6 @@ class UserService implements UserServiceInterface // Implement the interface
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Error creating user: " . $e->getMessage());
-            // Provide a more specific error message if possible
             throw new Exception("Failed to create user. " . $e->getMessage());
         }
     }

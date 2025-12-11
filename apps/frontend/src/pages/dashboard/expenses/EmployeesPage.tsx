@@ -5,7 +5,8 @@ import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { Search, Pencil, Trash2, RotateCw, Plus, Link2 } from "lucide-react"
+import { Search, Pencil, Trash2, RotateCw, Plus, Link2, Eye, User } from "lucide-react"
+import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
 import Pagination from "@/components/ui/pagination"
@@ -58,6 +59,7 @@ export default function EmployeesPage() {
     const [newDialogOpen, setNewDialogOpen] = useState(false)
     const [editDialogOpen, setEditDialogOpen] = useState(false)
     const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
+    const [viewOnlyMode, setViewOnlyMode] = useState(false)
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [employeeToDelete, setEmployeeToDelete] = useState<number | null>(null)
 
@@ -123,8 +125,15 @@ export default function EmployeesPage() {
         fetchEmployees(currentPage);
     }, [fetchEmployees, currentPage]);
 
+    const handleViewClick = (employee: Employee) => {
+        setSelectedEmployee(employee)
+        setViewOnlyMode(true)
+        setEditDialogOpen(true)
+    }
+
     const handleEditClick = (employee: Employee) => {
         setSelectedEmployee(employee)
+        setViewOnlyMode(false)
         setEditDialogOpen(true)
     }
 
@@ -254,14 +263,26 @@ export default function EmployeesPage() {
                                             </ResizableTableCell>
                                             <ResizableTableCell columnId="actions" getColumnCellProps={getColumnCellProps} className="text-right">
                                                 <div className="flex justify-end gap-1">
+                                                    {hasPermission('ver_empleados') && (
+                                                        <Button variant="ghost" size="icon" title="Ver Detalles" className="hover:bg-blue-100 group" onClick={() => handleViewClick(employee)}>
+                                                            <Eye className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
+                                                        </Button>
+                                                    )}
                                                     {hasPermission('editar_empleados') && (
-                                                        <Button variant="ghost" size="icon" title="Editar" onClick={() => handleEditClick(employee)}>
-                                                            <Pencil className="h-4 w-4" />
+                                                        <Button variant="ghost" size="icon" title="Editar" className="hover:bg-orange-100 group" onClick={() => handleEditClick(employee)}>
+                                                            <Pencil className="h-4 w-4 text-orange-600 group-hover:text-orange-700" />
+                                                        </Button>
+                                                    )}
+                                                    {employee.user_id && hasPermission('ver_usuarios') && (
+                                                        <Button variant="ghost" size="icon" title="Ver Usuario Vinculado" className="hover:bg-green-100 group" asChild>
+                                                            <Link to={`/dashboard/usuarios?filter=${encodeURIComponent(employee.person?.first_name + ' ' + employee.person?.last_name)}`}>
+                                                                <User className="h-4 w-4 text-green-600 group-hover:text-green-700" />
+                                                            </Link>
                                                         </Button>
                                                     )}
                                                     {hasPermission('eliminar_empleados') && (
-                                                        <Button variant="ghost" size="icon" title="Eliminar" onClick={() => handleDeleteClick(employee.id)}>
-                                                            <Trash2 className="h-4 w-4 text-red-600" />
+                                                        <Button variant="ghost" size="icon" title="Eliminar" className="hover:bg-red-100 group" onClick={() => handleDeleteClick(employee.id)}>
+                                                            <Trash2 className="h-4 w-4 text-red-600 group-hover:text-red-700" />
                                                         </Button>
                                                     )}
                                                 </div>
@@ -300,6 +321,7 @@ export default function EmployeesPage() {
                 onOpenChange={setEditDialogOpen}
                 employee={selectedEmployee}
                 onSuccess={handleDialogSuccess}
+                viewOnly={viewOnlyMode}
             />
 
             {/* Delete Confirmation Dialog */}

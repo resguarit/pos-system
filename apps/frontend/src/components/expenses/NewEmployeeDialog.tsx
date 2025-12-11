@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Plus, UserPlus, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import useApi from '@/hooks/useApi';
@@ -27,6 +28,10 @@ interface AvailableUser {
     id: number;
     email: string;
     full_name: string;
+    role?: {
+        id: number;
+        name: string;
+    };
     person?: {
         first_name: string;
         last_name: string;
@@ -52,7 +57,7 @@ interface EmployeeFormData {
     address: string;
     documento: string;
     cuit: string;
-    branch_id: string;
+    branch_ids: string[];
     job_title: string;
     salary: string;
     hire_date: string;
@@ -69,7 +74,7 @@ const initialFormData: EmployeeFormData = {
     address: '',
     documento: '',
     cuit: '',
-    branch_id: '',
+    branch_ids: [],
     job_title: '',
     salary: '',
     hire_date: new Date().toISOString().split('T')[0],
@@ -90,9 +95,12 @@ export function NewEmployeeDialog({ open, onOpenChange, onSuccess }: NewEmployee
         if (open) {
             fetchAvailableUsers();
 
-            // Set default branch if only one selected
+            // Set default branches if only one selected
             if (selectedBranchIds.length === 1) {
-                setFormData(prev => ({ ...prev, branch_id: selectedBranchIds[0] }));
+                setFormData(prev => ({ ...prev, branch_ids: [selectedBranchIds[0]] }));
+            } else if (selectedBranchIds.length > 1) {
+                // Pre-select all available branches
+                setFormData(prev => ({ ...prev, branch_ids: [...selectedBranchIds] }));
             }
         } else {
             // Reset form when dialog closes
@@ -112,13 +120,13 @@ export function NewEmployeeDialog({ open, onOpenChange, onSuccess }: NewEmployee
         }
     };
 
-    // When user is selected, populate form with their data
+    // When user is selected, populate form with their data and role as job_title
     const handleUserSelect = (userId: string) => {
         setFormData(prev => ({ ...prev, user_id: userId }));
 
         if (userId) {
             const user = availableUsers.find(u => u.id.toString() === userId);
-            if (user?.person) {
+            if (user) {
                 setFormData(prev => ({
                     ...prev,
                     first_name: user.person?.first_name || '',
@@ -127,9 +135,20 @@ export function NewEmployeeDialog({ open, onOpenChange, onSuccess }: NewEmployee
                     phone: user.person?.phone || '',
                     address: user.person?.address || '',
                     cuit: user.person?.cuit || '',
+                    job_title: user.role?.name || prev.job_title, // Default job_title from role
                 }));
             }
         }
+    };
+
+    // Toggle branch selection
+    const handleBranchToggle = (branchId: string, checked: boolean) => {
+        setFormData(prev => ({
+            ...prev,
+            branch_ids: checked
+                ? [...prev.branch_ids, branchId]
+                : prev.branch_ids.filter(id => id !== branchId)
+        }));
     };
 
     const validateForm = () => {
@@ -151,8 +170,8 @@ export function NewEmployeeDialog({ open, onOpenChange, onSuccess }: NewEmployee
         if (!formData.salary || parseFloat(formData.salary) < 0) {
             newErrors.salary = 'El salario debe ser un número válido';
         }
-        if (!formData.branch_id) {
-            newErrors.branch_id = 'La sucursal es requerida';
+        if (formData.branch_ids.length === 0) {
+            newErrors.branch_ids = 'Debe seleccionar al menos una sucursal';
         }
 
         setErrors(newErrors);
@@ -168,7 +187,7 @@ export function NewEmployeeDialog({ open, onOpenChange, onSuccess }: NewEmployee
             setLoading(true);
 
             const payload: any = {
-                branch_id: parseInt(formData.branch_id),
+                branch_ids: formData.branch_ids.map(id => parseInt(id)),
                 job_title: formData.job_title || null,
                 salary: parseFloat(formData.salary) || 0,
                 hire_date: formData.hire_date,
@@ -378,36 +397,41 @@ export function NewEmployeeDialog({ open, onOpenChange, onSuccess }: NewEmployee
                     )}
 
                     {/* Employment details */}
+                    <div className="space-y-3">
+                        {/* @ts-ignore */}
+                        <Label>Sucursales <span className="text-red-500">*</span></Label>
+                        <div className={`grid gap-2 p-3 border rounded-lg ${errors.branch_ids ? 'border-red-500' : ''}`}>
+                            {branches
+                                .filter(b => selectedBranchIds.includes(String(b.id)))
+                                .map((branch) => (
+                                    <div key={branch.id} className="flex items-center space-x-2">
+                                        {/* @ts-ignore */}
+                                        <Checkbox
+                                            id={`branch-${branch.id}`}
+                                            checked={formData.branch_ids.includes(branch.id.toString())}
+                                            onCheckedChange={(checked) => handleBranchToggle(branch.id.toString(), !!checked)}
+                                        />
+                                        {/* @ts-ignore */}
+                                        <Label
+                                            htmlFor={`branch-${branch.id}`}
+                                            className="text-sm font-normal cursor-pointer flex items-center gap-2"
+                                        >
+                                            <span
+                                                className="w-2 h-2 rounded-full"
+                                                style={{ backgroundColor: branch.color || '#0ea5e9' }}
+                                            />
+                                            {branch.description}
+                                        </Label>
+                                    </div>
+                                ))}
+                        </div>
+                        {errors.branch_ids && <p className="text-sm text-red-500">{errors.branch_ids}</p>}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             {/* @ts-ignore */}
-                            <Label>Sucursal <span className="text-red-500">*</span></Label>
-                            <Select
-                                value={formData.branch_id}
-                                onValueChange={(value) => setFormData(prev => ({ ...prev, branch_id: value }))}
-                            >
-                                {/* @ts-ignore */}
-                                <SelectTrigger className={errors.branch_id ? 'border-red-500' : ''}>
-                                    <SelectValue placeholder="Seleccionar sucursal" />
-                                </SelectTrigger>
-                                {/* @ts-ignore */}
-                                <SelectContent>
-                                    {branches
-                                        .filter(b => selectedBranchIds.includes(String(b.id)))
-                                        .map((branch) => (
-                                            /* @ts-ignore */
-                                            <SelectItem key={branch.id} value={branch.id.toString()}>
-                                                {branch.description}
-                                            </SelectItem>
-                                        ))}
-                                </SelectContent>
-                            </Select>
-                            {errors.branch_id && <p className="text-sm text-red-500">{errors.branch_id}</p>}
-                        </div>
-
-                        <div className="space-y-2">
-                            {/* @ts-ignore */}
-                            <Label htmlFor="job_title">Puesto</Label>
+                            <Label htmlFor="job_title">Puesto {formData.link_user && '(del rol)'}</Label>
                             <Input
                                 id="job_title"
                                 value={formData.job_title}

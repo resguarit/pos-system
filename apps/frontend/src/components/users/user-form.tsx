@@ -1,7 +1,7 @@
 import type React from "react"
 import { useState, useEffect } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import axios from "axios"; 
+import axios from "axios";
 
 // Componentes de UI
 import { Button } from "@/components/ui/button"
@@ -20,8 +20,8 @@ import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
 
 // Utilidades y Iconos
-import { getRoleStyle } from "@/types/roles-styles" 
-import { ArrowLeft, Save, Loader2, Eye, EyeOff } from "lucide-react"
+import { getRoleStyle } from "@/types/roles-styles"
+import { ArrowLeft, Save, Loader2, Eye, EyeOff, UserPlus, Link as LinkIcon } from "lucide-react"
 
 
 // --- Interfaces ---
@@ -35,6 +35,20 @@ interface Role {
   id: string
   name: string
   description: string
+}
+
+interface Employee {
+  id: number
+  first_name: string
+  last_name: string
+  person: {
+    first_name: string
+    last_name: string
+    address?: string
+    phone?: string
+    cuit?: string
+  }
+  user_id?: number
 }
 
 interface UserFormProps {
@@ -58,9 +72,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
     roleId: "",
     active: true,
     branches: [] as string[],
-    address: "",
-    phone: "",
-    cuit: "",
+    employeeId: "",
+    isEmployee: false,
   })
 
   const [repeatPassword, setRepeatPassword] = useState("")
@@ -68,13 +81,15 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
   const [allBranches, setAllBranches] = useState<Branch[]>([])
   const [allRoles, setAllRoles] = useState<Role[]>([])
+  const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([])
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDataLoading, setIsDataLoading] = useState(true)
 
   const [showPassword, setShowPassword] = useState(false)
   const [showRepeatPassword, setShowRepeatPassword] = useState(false)
+  const [linkToEmployee, setLinkToEmployee] = useState(false)
 
   // Estados para validación de duplicados
   const [usernameError, setUsernameError] = useState<string>("")
@@ -99,13 +114,24 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
           request({ method: "GET", url: "/branches", signal }),
           request({ method: "GET", url: "/roles", signal })
         ])
-        
+
+        // Correcting the employee fetch strategy
+        let employeesData: Employee[] = [];
+        if (!userId) {
+          const empResponse = await request({ method: "GET", url: "/employees?limit=100", signal });
+          // Filter employees that don't have a user_id
+          const allEmployees = empResponse.data || empResponse.data.data || [];
+          employeesData = allEmployees.filter((e: Employee) => !e.user_id);
+        }
+
         if (signal.aborted) return
 
         const branchesData = branchesRes.data || [];
         const rolesData = rolesRes.data || [];
+
         setAllBranches(branchesData)
         setAllRoles(rolesData)
+        setAvailableEmployees(employeesData)
 
         if (userId) {
           const userRes = await request({ method: "GET", url: `/users/${userId}`, signal })
@@ -156,7 +182,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
   const populateFormWithUserData = (user: any) => {
     // Guardar las sucursales del usuario
     const userBranches = user.branches?.map((b: any) => String(b.id)) || [];
-    
+
     setFormData(prev => ({
       firstName: user.person?.first_name || "",
       lastName: user.person?.last_name || "",
@@ -166,12 +192,11 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       roleId: String(user.role_id || ""),
       active: !!user.active,
       branches: userBranches, // Preservar las sucursales
-      address: user.person?.address || "",
-      phone: user.person?.phone || "",
-      cuit: user.person?.cuit || "",
+      employeeId: "", // On edit we don't support relinking yet
+      isEmployee: false,
     }))
   }
-  
+
   // Función para verificar si el username ya existe
   const checkUsernameExists = async (username: string) => {
     if (!username.trim()) {
@@ -185,7 +210,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
         method: 'GET',
         url: `/users/check-username/${encodeURIComponent(username)}`
       });
-      
+
       if (response.exists && username !== (userId ? formData.username : '')) {
         setUsernameError("Este nombre de usuario ya está en uso");
         toast.error("Este nombre de usuario ya está en uso", {
@@ -215,7 +240,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
         method: 'GET',
         url: `/users/check-email/${encodeURIComponent(email)}`
       });
-      
+
       if (response.exists && email !== (userId ? formData.email : '')) {
         setEmailError("Este email ya está en uso");
         toast.error("Este email ya está en uso", {
@@ -234,7 +259,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
   // Función para verificar si la combinación nombre + apellido ya existe
   const checkNameExists = async (firstName: string, lastName: string) => {
-    if (!firstName.trim() || !lastName.trim()) {
+    if (!firstName.trim() || !lastName.trim() || linkToEmployee) {
       setNameError("");
       return;
     }
@@ -245,7 +270,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
         method: 'GET',
         url: `/users/check-name/${encodeURIComponent(firstName)}/${encodeURIComponent(lastName)}`
       });
-      
+
       if (response.exists && (firstName !== (userId ? formData.firstName : '') || lastName !== (userId ? formData.lastName : ''))) {
         setNameError("Esta combinación de nombre y apellido ya está en uso");
         toast.error("Esta combinación de nombre y apellido ya está en uso", {
@@ -264,7 +289,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))
-    
+
     // Validación de duplicados con debounce para username y email
     if (e.target.name === 'username') {
       // Limpiar timeout anterior si existe
@@ -276,7 +301,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       }, 500);
       setUsernameTimeoutId(newTimeoutId);
     }
-    
+
     if (e.target.name === 'email') {
       // Limpiar timeout anterior si existe
       if (emailTimeoutId) {
@@ -289,7 +314,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
     }
 
     // Validación de duplicados para combinación nombre + apellido
-    if (e.target.name === 'firstName' || e.target.name === 'lastName') {
+    if ((e.target.name === 'firstName' || e.target.name === 'lastName') && !linkToEmployee) {
       // Limpiar timeout anterior si existe
       if (nameTimeoutId) {
         clearTimeout(nameTimeoutId);
@@ -305,6 +330,30 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
   const handleSwitchChange = (name: string, checked: boolean) => {
     setFormData((prev) => ({ ...prev, [name]: checked }))
+  }
+
+  const handleLinkToEmployeeChange = (checked: boolean) => {
+    setLinkToEmployee(checked);
+    if (!checked) {
+      setFormData(prev => ({
+        ...prev,
+        employeeId: "",
+        firstName: "",
+        lastName: ""
+      }));
+    }
+  }
+
+  const handleEmployeeSelect = (employeeId: string) => {
+    const employee = availableEmployees.find(e => e.id === Number(employeeId));
+    if (employee) {
+      setFormData(prev => ({
+        ...prev,
+        employeeId: employeeId,
+        firstName: employee.person.first_name,
+        lastName: employee.person.last_name,
+      }));
+    }
   }
 
   const handleRoleChange = (value: string) => {
@@ -334,8 +383,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
     }
     const requiredFields = ['firstName', 'lastName', 'email', 'username', 'roleId'];
     if (requiredFields.some(field => !formData[field as keyof typeof formData])) {
-        toast.error("Error de validación", { description: "Por favor, completa todos los campos obligatorios." });
-        return;
+      toast.error("Error de validación", { description: "Por favor, completa todos los campos obligatorios." });
+      return;
     }
     if (!userId && !formData.password) {
       toast.error("Error de validación", { description: "La contraseña es obligatoria para nuevos usuarios." });
@@ -345,7 +394,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       toast.error("Error de validación", { description: "Debe asignar al menos una sucursal." });
       return;
     }
-    
+
     setPasswordError("");
     setIsSubmitting(true);
 
@@ -363,6 +412,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
           address: formData.address || "",
           phone: formData.phone || "",
         },
+        employee_id: formData.employeeId ? Number(formData.employeeId) : null,
+        is_employee: formData.isEmployee
       };
 
       if (userId) {
@@ -422,6 +473,61 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
             <TabsTrigger value="sucursales">Sucursales</TabsTrigger>
           </TabsList>
           <TabsContent value="general" className="space-y-4">
+
+            {/* Sección de Vinculación con Empleado (Solo en creación) */}
+            {!userId && !viewOnly && (
+              <Card className="border-blue-200 bg-blue-50/30 max-w-2xl">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <LinkIcon className="h-4 w-4 text-blue-600" />
+                    Vinculación con Empleado
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Vincular a empleado existente o crear uno nuevo.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="link-employee"
+                      checked={linkToEmployee}
+                      onCheckedChange={handleLinkToEmployeeChange}
+                    />
+                    <Label htmlFor="link-employee" className="text-sm">Vincular con un empleado existente</Label>
+                  </div>
+
+                  {linkToEmployee ? (
+                    <div className="space-y-2">
+                      <Label className="text-sm">Seleccionar Empleado</Label>
+                      <Select onValueChange={handleEmployeeSelect} value={formData.employeeId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Buscar empleado..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableEmployees.map(emp => (
+                            <SelectItem key={emp.id} value={String(emp.id)}>
+                              {emp.person.first_name} {emp.person.last_name} (DNI: {emp.person.cuit || 'N/A'})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="create-employee"
+                        checked={formData.isEmployee}
+                        onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isEmployee: checked === true }))}
+                      />
+                      <Label htmlFor="create-employee" className="cursor-pointer text-sm">
+                        Registrar automáticamente como nuevo empleado
+                      </Label>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle>Información del Usuario</CardTitle>
@@ -431,13 +537,13 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
                   <div className="space-y-2">
                     <Label htmlFor="firstName">Nombre <span className="text-red-500">*</span></Label>
                     <div className="relative">
-                      <Input 
-                        id="firstName" 
-                        name="firstName" 
-                        value={formData.firstName} 
-                        onChange={handleInputChange} 
-                        disabled={viewOnly || isSubmitting} 
-                        required 
+                      <Input
+                        id="firstName"
+                        name="firstName"
+                        value={formData.firstName}
+                        onChange={handleInputChange}
+                        disabled={viewOnly || isSubmitting || linkToEmployee}
+                        required
                         className={nameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                         style={{ borderColor: nameError ? '#ef4444' : undefined }}
                       />
@@ -451,13 +557,13 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
                   <div className="space-y-2">
                     <Label htmlFor="lastName">Apellido <span className="text-red-500">*</span></Label>
                     <div className="relative">
-                      <Input 
-                        id="lastName" 
-                        name="lastName" 
-                        value={formData.lastName} 
-                        onChange={handleInputChange} 
-                        disabled={viewOnly || isSubmitting} 
-                        required 
+                      <Input
+                        id="lastName"
+                        name="lastName"
+                        value={formData.lastName}
+                        onChange={handleInputChange}
+                        disabled={viewOnly || isSubmitting || linkToEmployee}
+                        required
                         className={nameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                         style={{ borderColor: nameError ? '#ef4444' : undefined }}
                       />
@@ -468,20 +574,17 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
                       )}
                     </div>
                   </div>
-                  <div className="space-y-2"><Label htmlFor="address">Dirección</Label><Input id="address" name="address" value={formData.address} onChange={handleInputChange} disabled={viewOnly || isSubmitting} /></div>
-                  <div className="space-y-2"><Label htmlFor="phone">Teléfono</Label><Input id="phone" name="phone" value={formData.phone} onChange={handleInputChange} disabled={viewOnly || isSubmitting} /></div>
-                  <div className="space-y-2"><Label htmlFor="cuit">CUIT</Label><Input id="cuit" name="cuit" value={formData.cuit} onChange={handleInputChange} disabled={viewOnly || isSubmitting} placeholder="Sin CUIT" /></div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email <span className="text-red-500">*</span></Label>
                     <div className="relative">
-                      <Input 
-                        id="email" 
-                        name="email" 
-                        type="email" 
-                        value={formData.email} 
-                        onChange={handleInputChange} 
-                        disabled={viewOnly || isSubmitting} 
-                        required 
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        disabled={viewOnly || isSubmitting}
+                        required
                         className={emailError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                         style={{ borderColor: emailError ? '#ef4444' : undefined }}
                       />
@@ -495,13 +598,13 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
                   <div className="space-y-2">
                     <Label htmlFor="username">Nombre de Usuario <span className="text-red-500">*</span></Label>
                     <div className="relative">
-                      <Input 
-                        id="username" 
-                        name="username" 
-                        value={formData.username} 
-                        onChange={handleInputChange} 
-                        disabled={viewOnly || isSubmitting} 
-                        required 
+                      <Input
+                        id="username"
+                        name="username"
+                        value={formData.username}
+                        onChange={handleInputChange}
+                        disabled={viewOnly || isSubmitting}
+                        required
                         className={usernameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                         style={{ borderColor: usernameError ? '#ef4444' : undefined }}
                       />
@@ -548,7 +651,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
                   <div className="space-y-2">
                     <Label htmlFor="repeatPassword">Confirmar Contraseña</Label>
                     <div className="relative">
-                      <Input id="repeatPassword" type={showRepeatPassword ? "text" : "password"} value={repeatPassword} onChange={(e) => setRepeatPassword(e.target.value)} disabled={viewOnly || isSubmitting || !formData.password} placeholder="••••••••" required={!userId && !!formData.password}/>
+                      <Input id="repeatPassword" type={showRepeatPassword ? "text" : "password"} value={repeatPassword} onChange={(e) => setRepeatPassword(e.target.value)} disabled={viewOnly || isSubmitting || !formData.password} placeholder="••••••••" required={!userId && !!formData.password} />
                       <button type="button" className="absolute right-2.5 top-2.5" onClick={() => setShowRepeatPassword(v => !v)} disabled={viewOnly}><span className="sr-only">Toggle password visibility</span>{showRepeatPassword ? <EyeOff className="w-5 h-5 text-gray-400" /> : <Eye className="w-5 h-5 text-gray-400" />}</button>
                     </div>
                   </div>
@@ -571,7 +674,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
             </Card>
           </TabsContent>
           <TabsContent value="sucursales" className="space-y-4">
-             <Card>
+            <Card>
               <CardHeader>
                 <CardTitle>Acceso a Sucursales <span className="text-red-500">*</span></CardTitle>
                 <CardDescription>Selecciona las sucursales a las que tendrá acceso este usuario.</CardDescription>
