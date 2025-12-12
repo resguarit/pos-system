@@ -197,7 +197,7 @@ class SaleController extends Controller
         return response()->json($summary);
     }
 
-    public function downloadPdf($id)
+    public function downloadPdf(Request $request, $id)
     {
         try {
             $sale = \App\Models\SaleHeader::with([
@@ -209,7 +209,10 @@ class SaleController extends Controller
                 'saleFiscalCondition',
             ])->findOrFail($id);
 
-            return $this->saleService->downloadPdf($id);
+            // Obtener formato de la query string (default: standard)
+            $format = $request->query('format', 'standard');
+
+            return $this->saleService->downloadPdf($id, $format);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Error generando PDF: ' . $e->getMessage()

@@ -856,7 +856,7 @@ class SaleService implements SaleServiceInterface
         ];
     }
 
-    public function downloadPdf(int $id)
+    public function downloadPdf(int $id, string $format = 'standard')
     {
         $sale = SaleHeader::with([
             'items.product.iva',
@@ -868,7 +868,19 @@ class SaleService implements SaleServiceInterface
         ])->findOrFail($id);
 
         $data = ['sale' => $sale];
-        $pdf = Pdf::loadView('pdf.sale', $data);
+
+        // Seleccionar plantilla según el formato
+        $template = $format === 'thermal' ? 'pdf.ticket' : 'pdf.sale';
+
+        $pdf = Pdf::loadView($template, $data);
+
+        // Configurar tamaño de página según formato
+        if ($format === 'thermal') {
+            // Usamos A4 completo pero el contenido se limitará a 80mm a la izquierda
+            // Esto asegura que en la vista previa A4 se vea alineado a la izquierda y no centrado/cortado
+            $pdf->setPaper('a4', 'portrait');
+        }
+
         return $pdf->download('comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf');
     }
 
