@@ -24,7 +24,7 @@ class CurrentAccountMovementRequest extends FormRequest
         return [
             'current_account_id' => 'required|integer|exists:current_accounts,id',
             'movement_type_id' => 'required|integer|exists:movement_types,id',
-            'amount' => 'required|numeric|min:0.01|max:999999.99',
+            'amount' => 'required|numeric|min:0|max:999999.99',
             'description' => 'required|string|max:500',
             'reference' => 'nullable|string|max:100',
             'sale_id' => 'nullable|integer|exists:sales_header,id',

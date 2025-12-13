@@ -595,7 +595,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function processCreditPurchase(int $accountId, array $purchaseData): CurrentAccountMovement
     {
         $validatedData = Validator::make($purchaseData, [
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0',
             'description' => 'required|string|max:500',
             'movement_type_id' => 'nullable|exists:movement_types,id',
             'sale_id' => 'nullable|exists:sales_header,id',
@@ -932,7 +932,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $rules = [
             'current_account_id' => 'required|integer|exists:current_accounts,id',
             'movement_type_id' => 'required|integer|exists:movement_types,id',
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0',
             'description' => 'required|string|max:500',
             'reference' => 'nullable|string|max:100',
             'sale_id' => 'nullable|integer|exists:sales_header,id',
