@@ -33,7 +33,7 @@ const defaultFeatures = {
   shipments: true,
   auditorias: true,
   metodosPago: true,
-  gastos: true,
+  gastos: false,
 } as const;
 
 let envFeatures = {};

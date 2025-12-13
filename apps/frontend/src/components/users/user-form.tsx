@@ -18,6 +18,7 @@ import { toast } from "sonner"
 // Hooks y Contexto
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
+import features from "@/config/features"
 
 // Utilidades y Iconos
 import { getRoleStyle } from "@/types/roles-styles"
@@ -474,8 +475,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
           </TabsList>
           <TabsContent value="general" className="space-y-4">
 
-            {/* Sección de Vinculación con Empleado (Solo en creación) */}
-            {!userId && !viewOnly && (
+            {/* Sección de Vinculación con Empleado (Solo en creación y si gastos está habilitado) */}
+            {!userId && !viewOnly && features.gastos && (
               <Card className="border-blue-200 bg-blue-50/30 max-w-2xl">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">
