@@ -128,15 +128,32 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
         if (signal.aborted) return
 
         const branchesData = branchesRes.data || [];
-        // Normalizar IDs a strings para evitar problemas de comparación de tipos
-        const rolesData = (rolesRes.data || []).map((role: any) => ({
-          ...role,
-          id: String(role.id)
-        }));
 
-        setAllBranches(branchesData)
-        setAllRoles(rolesData)
-        setAvailableEmployees(employeesData)
+        // Robust extraction for roles
+        let rolesArray = [];
+        // Check if rolesRes is directly the array
+        if (Array.isArray(rolesRes)) {
+          rolesArray = rolesRes;
+        }
+        // Check if it's in .data (standard)
+        else if (Array.isArray(rolesRes?.data)) {
+          rolesArray = rolesRes.data;
+        }
+        // Check if it's in .data.data (paginated or wrapped)
+        else if (Array.isArray(rolesRes?.data?.data)) {
+          rolesArray = rolesRes.data.data;
+        }
+
+        // Final fallback: try to access data property if it exists, otherwise empty
+        if (!rolesArray || !Array.isArray(rolesArray)) {
+          console.warn("Roles data structure unexpected:", rolesRes);
+          rolesArray = [];
+        }
+
+        // Fix: Ensure IDs are handled consistently (though we cast to string later)
+        setAllBranches(branchesData);
+        setAllRoles(rolesArray);
+        setAvailableEmployees(employeesData);
 
         if (userId) {
           const userRes = await request({ method: "GET", url: `/users/${userId}`, signal })
@@ -165,7 +182,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
   // Efecto para actualizar el rol seleccionado
   useEffect(() => {
-    setSelectedRole(allRoles.find((r) => r.id === formData.roleId) || null)
+    // Fix: Convert both to string for comparison as API returns number IDs but form uses strings
+    setSelectedRole(allRoles.find((r) => String(r.id) === String(formData.roleId)) || null)
   }, [formData.roleId, allRoles])
 
   // Limpiar timeouts al desmontar el componente
