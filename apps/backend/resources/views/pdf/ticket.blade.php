@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <title>Ticket</title>
     <style>
+        /* CSS EXACTO - NO TOCAR */
         @page {
             margin: 0;
             size: 80mm auto;
@@ -19,27 +20,25 @@
         }
 
         .ticket-wrapper {
-            /* MARGENES DE SEGURIDAD PARA IMPRESORA TÉRMICA */
-            margin-left: 1mm;
-            /* Espacio blanco obligatorio a la izquierda */
-            margin-right: 2mm;
-            margin-top: 2mm;
+            /* MARGEN IZQUIERDO 10mm (Para salvar el corte de impresora) */
+            margin-left: 10mm;
 
-            /* Ancho seguro para evitar cortes y saltos de línea */
-            width: 72mm;
-            max-width: 72mm;
+            /* ANCHO 60mm (Para asegurar que entre todo a la derecha) */
+            width: 60mm;
+            max-width: 60mm;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: fixed;
         }
 
         td {
             padding: 1px 0;
             vertical-align: top;
+            white-space: normal;
             word-wrap: break-word;
+            overflow: visible;
         }
 
         .center {
@@ -60,16 +59,19 @@
 
         .mono {
             font-family: 'DejaVu Sans Mono', monospace;
+            font-size: 9px;
         }
 
         .header-title {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
+            text-align: center;
         }
 
         .header-info {
             font-size: 8px;
+            text-align: center;
         }
 
         .divider {
@@ -82,11 +84,13 @@
         .prod-desc {
             font-size: 9px;
             font-weight: bold;
-            padding-top: 2px;
+            padding-top: 3px;
+            display: block;
+            width: 100%;
         }
 
         .total-row {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
             padding-top: 5px;
         }
@@ -94,81 +98,68 @@
 </head>
 
 <body>
+    @php
+        $name = null;
+        try {
+            if (class_exists('\App\Models\Setting')) {
+                $companyName = \App\Models\Setting::where('key', 'company_name')->first();
+                $name = $companyName ? json_decode($companyName->value, true) : null;
+            }
+        } catch (\Exception $e) {
+        }
+    @endphp
+
     <div class="ticket-wrapper">
 
-        <!-- HEADER: Sucursal y dirección -->
-        <div class="center">
-            <div class="header-title">{{ $sale->branch->description ?? 'SUCURSAL' }}</div>
-            <div class="header-info">
-                @if($sale->branch && $sale->branch->address)
-                    {{ $sale->branch->address }}
-                @endif
-            </div>
+        <div class="header-title">{{ $name ?? ($sale->branch->description ?? 'SUCURSAL') }}</div>
+        <div class="header-info">
+            @if($sale->branch && $sale->branch->address)
+                {{ $sale->branch->address }}
+            @endif
         </div>
+        <div class="header-info">RESPONSABLE INSCRIPTO</div>
 
         <div class="divider"></div>
 
-        <!-- FECHA/HORA Y NÚMERO -->
         <table style="font-size: 9px;">
             <tr>
                 <td class="left bold">Fecha:
-                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y') : date('d/m/Y') }}
-                </td>
+                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y') : date('d/m/Y') }}</td>
                 <td class="right bold">Hora:
-                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('H:i') : date('H:i') }}
-                </td>
-            </tr>
-            <tr>
-                <td colspan="2" class="center bold" style="font-size: 11px; padding-top: 3px;">
-                    N° {{ $sale->receipt_number }}
-                </td>
+                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('H:i') : date('H:i') }}</td>
             </tr>
         </table>
 
         <div class="divider"></div>
 
-        <!-- CLIENTE -->
-        <div style="font-size: 9px;">
-            <div><span class="bold">Cliente:</span>
-                @if($sale->customer)
-                    {{ Str::limit($sale->customer->business_name ?? (($sale->customer->person->first_name ?? '') . ' ' . ($sale->customer->person->last_name ?? '')), 35) }}
-                @else
-                    CONSUMIDOR FINAL
-                @endif
-            </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <!-- ENCABEZADO PRODUCTOS -->
         <table style="font-size: 8px; font-weight: bold; margin-bottom: 2px;">
             <tr>
                 <td style="width: 15%;" class="left">CANT</td>
-                <td style="width: 50%;" class="left">P.UNIT</td>
-                <td style="width: 35%;" class="right">IMPORTE</td>
+                <td style="width: 40%;" class="left">P.UNIT</td>
+                <td style="width: 45%;" class="right">IMPORTE</td>
             </tr>
         </table>
 
-        <!-- PRODUCTOS -->
         @foreach($sale->items as $item)
             @php
                 $qty = (float) $item->quantity;
                 $unitPrice = (float) ($item->unit_price ?? 0);
                 $lineTotal = (float) ($item->item_total ?? 0);
             @endphp
+
             <div class="prod-desc">{{ $item->product->description ?? 'Item' }}</div>
-            <table class="mono" style="font-size: 9px;">
+
+            <table class="mono">
                 <tr>
                     <td style="width: 15%;" class="left">{{ $qty }}</td>
-                    <td style="width: 50%;" class="left">${{ number_format($unitPrice, 2, ',', '.') }}</td>
-                    <td style="width: 35%;" class="right bold">${{ number_format($lineTotal, 2, ',', '.') }}</td>
+                    <td style="width: 40%;" class="left">${{ number_format($unitPrice, 2, ',', '.') }}</td>
+                    <td style="width: 45%;" class="right bold">${{ number_format($lineTotal, 2, ',', '.') }}</td>
                 </tr>
             </table>
         @endforeach
 
         <div class="divider"></div>
 
-        <!-- TOTALES -->
         <table style="font-size: 10px;">
             <tr>
                 <td class="right">Subtotal:</td>
@@ -188,7 +179,6 @@
 
         <div class="divider"></div>
 
-        <!-- FOOTER -->
         <div class="center" style="margin-top: 5px;">
             <div style="font-size: 9px;">¡Gracias por su compra!</div>
         </div>
