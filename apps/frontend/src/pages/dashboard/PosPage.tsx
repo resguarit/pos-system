@@ -25,6 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { formatCurrency, roundToTwoDecimals } from '@/utils/sale-calculations'
 import { useSaleTotals } from '@/hooks/useSaleTotals'
+import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
+import type { SaleHeader } from '@/types/sale'
 
 
 export default function POSPage() {
@@ -38,6 +40,10 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
   const { request } = useApi()
   const { selectedBranch, selectionChangeToken, selectedBranchIds, branches, setSelectedBranchIds } = useBranch()
+
+  // Estado para el diálogo de recibo
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [completedSale, setCompletedSale] = useState<SaleHeader | null>(null)
 
   // Funciones para manejar localStorage del carrito
   const CART_STORAGE_KEY = 'pos_cart'
@@ -163,6 +169,16 @@ export default function POSPage() {
         setCart(savedCart)
         toast.info(`Carrito restaurado: ${savedCart.length} producto${savedCart.length > 1 ? 's' : ''} encontrado${savedCart.length > 1 ? 's' : ''}`)
       }
+    }
+  }, [location.state])
+
+  // Efecto para detectar venta completada desde CompleteSalePage
+  useEffect(() => {
+    if (location.state?.completedSale) {
+      setCompletedSale(location.state.completedSale)
+      setShowReceiptPreview(true)
+      // Limpiar el state para no reabrir al recargar
+      window.history.replaceState({}, document.title)
     }
   }, [location.state])
 
@@ -857,6 +873,24 @@ export default function POSPage() {
           </>
         )}
       </div>
+
+      {/* Diálogo de vista previa de recibo */}
+      <SaleReceiptPreviewDialog
+        open={showReceiptPreview}
+        onOpenChange={setShowReceiptPreview}
+        sale={completedSale}
+        customerName={completedSale?.customer?.business_name ||
+          (completedSale?.customer?.person ? `${completedSale.customer.person.first_name || ''} ${completedSale.customer.person.last_name || ''}`.trim() : 'Cliente')}
+        customerCuit={completedSale?.customer?.person?.cuit}
+        formatDate={(date) => date ? new Date(date).toLocaleDateString('es-AR', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        }) : ''}
+        formatCurrency={formatCurrency}
+      />
 
     </ProtectedRoute>
   );

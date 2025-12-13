@@ -15,18 +15,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import {
-  FileText,
-  Download,
-  Printer,
-  Eye,
-  Loader2,
-  RefreshCw,
-  TrendingUp,
-  Wallet,
-  Users,
-  X
-} from 'lucide-react';
+import { ArrowLeft, CalendarRange, Download, FileText, Printer, RefreshCw, TrendingUp, Users, Wallet, X, Loader2, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 
@@ -575,6 +564,10 @@ export default function VentasPage() {
   const [annulledSales, setAnnulledSales] = useState<SaleHeader[]>([]);
   const [loadingAnnulled, setLoadingAnnulled] = useState(false);
 
+  // Estado para el diálogo de impresión
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [selectedReceiptSale, setSelectedReceiptSale] = useState<SaleHeader | null>(null);
+
   // Cargar todas las ventas anuladas cuando se selecciona el filtro
   useEffect(() => {
     if (statusFilter === 'annulled') {
@@ -892,81 +885,26 @@ export default function VentasPage() {
     }
   };
 
-  const handlePrintPdf = async (sale: SaleHeader) => {
-    if (!sale || !sale.id) {
-      toast.error("No se puede imprimir: ID de venta faltante.");
-      return;
-    }
-
-    const actionKey = `print-${sale.id}`;
-    setLoadingActions(prev => ({ ...prev, [actionKey]: true }));
-
+  const handlePrintReceipt = async (sale: SaleHeader) => {
     try {
-      // Descargar el PDF con autenticación usando request (incluye token)
-      const response = await request({
-        method: 'GET',
-        url: `/pos/sales/${sale.id}/pdf`,
-        responseType: 'blob'
-      });
-
-      if (!response || !(response instanceof Blob)) {
-        throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-      }
-
-      // Crear blob URL del PDF descargado
-      const blob = new Blob([response], { type: 'application/pdf' });
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      // Crear iframe oculto para imprimir
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.style.position = 'fixed';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = 'none';
-
-      // Agregar al DOM
-      document.body.appendChild(iframe);
-
-      // Asignar blob URL al iframe
-      iframe.src = blobUrl;
-
-      // Cuando el iframe cargue, ejecutar print
-      iframe.onload = () => {
-        setTimeout(() => {
-          try {
-            // Ejecutar impresión desde el iframe
-            iframe.contentWindow?.focus();
-            iframe.contentWindow?.print();
-          } catch (err) {
-            toast.error("No se pudo abrir el diálogo de impresión.");
-          }
-
-          // Limpiar después de un tiempo
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-            window.URL.revokeObjectURL(blobUrl);
-          }, 1000);
-        }, 500);
-      };
-
-      // Timeout de seguridad
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
-          window.URL.revokeObjectURL(blobUrl);
-        }
-      }, 10000);
-
-      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
-
+      const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+      const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+      setSelectedReceiptSale(fullSale)
+      setShowReceiptPreview(true)
     } catch (error) {
-      toast.error("Error al preparar la impresión.");
-      setLoadingActions(prev => ({ ...prev, [actionKey]: false }));
+      console.error('Error fetching sale details for receipt:', error)
+      toast.error('No se pudo cargar el detalle del comprobante')
+      setSelectedReceiptSale(sale)
+      setShowReceiptPreview(true)
     }
   };
+
+  // Deprecated: handlePrintPdf replaced by handlePrintReceipt
+  /*
+  const handlePrintPdf = async (sale: SaleHeader) => {
+    // ... logic moved to SaleReceiptPreviewDialog or deprecated
+  };
+  */
 
   const handleAnnulSale = (sale: SaleHeader) => {
     setSaleToAnnul(sale);
@@ -1534,7 +1472,7 @@ export default function VentasPage() {
                                   size="icon"
                                   onClick={
                                     hasPermission('reimprimir_comprobantes')
-                                      ? () => handlePrintPdf(sale)
+                                      ? () => handlePrintReceipt(sale)
                                       : undefined
                                   }
                                   title={
@@ -1603,71 +1541,7 @@ export default function VentasPage() {
                 formatDate={formatDate}
                 getReceiptType={getReceiptType}
                 onPrintPdf={async (sale) => {
-                  if (!sale || !sale.id) {
-                    toast.error("No se puede imprimir: ID de venta faltante.");
-                    return;
-                  }
-                  try {
-                    // Descargar el PDF con autenticación usando request (incluye token)
-                    const response = await request({
-                      method: 'GET',
-                      url: `/pos/sales/${sale.id}/pdf`,
-                      responseType: 'blob'
-                    });
-
-                    if (!response || !(response instanceof Blob)) {
-                      throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-                    }
-
-                    // Crear blob URL del PDF descargado
-                    const blob = new Blob([response], { type: 'application/pdf' });
-                    const blobUrl = window.URL.createObjectURL(blob);
-
-                    // Crear iframe oculto para imprimir
-                    const iframe = document.createElement('iframe');
-                    iframe.style.display = 'none';
-                    iframe.style.position = 'fixed';
-                    iframe.style.width = '0';
-                    iframe.style.height = '0';
-                    iframe.style.border = 'none';
-
-                    // Agregar al DOM
-                    document.body.appendChild(iframe);
-
-                    // Asignar blob URL al iframe
-                    iframe.src = blobUrl;
-
-                    // Cuando el iframe cargue, ejecutar print
-                    iframe.onload = () => {
-                      setTimeout(() => {
-                        try {
-                          // Ejecutar impresión desde el iframe
-                          iframe.contentWindow?.focus();
-                          iframe.contentWindow?.print();
-                        } catch (err) {
-                          toast.error("No se pudo abrir el diálogo de impresión.");
-                        }
-
-                        // Limpiar después de un tiempo
-                        setTimeout(() => {
-                          if (document.body.contains(iframe)) {
-                            document.body.removeChild(iframe);
-                          }
-                          window.URL.revokeObjectURL(blobUrl);
-                        }, 1000);
-                      }, 500);
-                    };
-
-                    // Timeout de seguridad
-                    setTimeout(() => {
-                      if (document.body.contains(iframe)) {
-                        document.body.removeChild(iframe);
-                        window.URL.revokeObjectURL(blobUrl);
-                      }
-                    }, 10000);
-                  } catch (error) {
-                    toast.error("Error al imprimir el PDF");
-                  }
+                  handlePrintReceipt(sale);
                 }}
                 onDownloadPdf={async (sale) => {
                   if (!sale || !sale.id) {
@@ -1762,6 +1636,16 @@ export default function VentasPage() {
       `}</style>
         </div >
       </BranchRequiredWrapper >
+      {/* Diálogo de impresión */}
+      <SaleReceiptPreviewDialog
+        open={showReceiptPreview}
+        onOpenChange={setShowReceiptPreview}
+        sale={selectedReceiptSale}
+        customerName={selectedReceiptSale ? getCustomerName(selectedReceiptSale) : ''}
+        customerCuit={selectedReceiptSale?.customer?.person?.cuit}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+      />
     </ProtectedRoute >
   );
 }
