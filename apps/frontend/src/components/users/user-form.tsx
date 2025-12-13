@@ -128,7 +128,11 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
         if (signal.aborted) return
 
         const branchesData = branchesRes.data || [];
-        const rolesData = rolesRes.data || [];
+        // Normalizar IDs a strings para evitar problemas de comparación de tipos
+        const rolesData = (rolesRes.data || []).map((role: any) => ({
+          ...role,
+          id: String(role.id)
+        }));
 
         setAllBranches(branchesData)
         setAllRoles(rolesData)
