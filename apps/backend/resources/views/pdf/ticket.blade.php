@@ -3,31 +3,43 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Ticket {{ $sale->receipt_number }}</title>
+    <title>Ticket</title>
     <style>
         @page {
             margin: 0;
+            size: 80mm auto;
         }
 
         body {
             font-family: 'DejaVu Sans', sans-serif;
-            font-size: 10px;
+            font-size: 9px;
             margin: 0;
-            padding: 10mm;
-            width: 80mm;
-            max-width: 80mm;
+            padding: 0;
             color: #000;
+        }
+
+        .ticket-wrapper {
+            /* MARGENES DE SEGURIDAD PARA IMPRESORA TÉRMICA */
+            margin-left: 7mm;
+            /* Espacio blanco obligatorio a la izquierda */
+            margin-right: 2mm;
+            margin-top: 2mm;
+
+            /* Ancho seguro para evitar cortes y saltos de línea */
+            width: 72mm;
+            max-width: 72mm;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         td {
-            padding: 2px 0;
+            padding: 1px 0;
             vertical-align: top;
+            word-wrap: break-word;
         }
 
         .center {
@@ -38,153 +50,150 @@
             text-align: right;
         }
 
+        .left {
+            text-align: left;
+        }
+
         .bold {
             font-weight: bold;
         }
 
-        .divider td {
+        .mono {
+            font-family: 'DejaVu Sans Mono', monospace;
+        }
+
+        .header-title {
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .header-info {
+            font-size: 8px;
+        }
+
+        .divider {
             border-bottom: 1px dashed #000;
-            height: 1px;
-            padding: 3px 0;
+            margin: 3px 0;
+            width: 100%;
+            display: block;
+        }
+
+        .prod-desc {
+            font-size: 9px;
+            font-weight: bold;
+            padding-top: 2px;
+        }
+
+        .total-row {
+            font-size: 13px;
+            font-weight: bold;
+            padding-top: 5px;
         }
     </style>
 </head>
 
 <body>
-    @php
-        $companyName = \App\Models\Setting::where('key', 'company_name')->first();
-        $companyPhone = \App\Models\Setting::where('key', 'company_phone')->first();
+    <div class="ticket-wrapper">
 
-        $name = $companyName ? json_decode($companyName->value, true) : '';
-        $phone = $companyPhone ? json_decode($companyPhone->value, true) : '';
-
-        $totalIva = 0;
-        if ($sale->saleIvas && $sale->saleIvas->count() > 0) {
-            foreach ($sale->saleIvas as $saleIva) {
-                $totalIva += (float) $saleIva->amount;
-            }
-        }
-    @endphp
-
-    <table>
-        <!-- HEADER -->
-        <tr>
-            <td class="center bold" style="font-size: 12px;">{{ $name ?: ($sale->branch->description ?? 'EMPRESA') }}
-            </td>
-        </tr>
-        @if($sale->branch && $sale->branch->address)
-            <tr>
-                <td class="center" style="font-size: 9px;">{{ $sale->branch->address }}</td>
-            </tr>
-        @endif
-        @if($phone || ($sale->branch && $sale->branch->phone))
-            <tr>
-                <td class="center" style="font-size: 9px;">Tel: {{ $phone ?: $sale->branch->phone }}</td>
-            </tr>
-        @endif
-
-        <!-- DIVIDER -->
-        <tr class="divider">
-            <td></td>
-        </tr>
-
-        <!-- NÚMERO -->
-        <tr>
-            <td class="center bold" style="font-size: 11px;">N° {{ $sale->receipt_number }}</td>
-        </tr>
-        <tr>
-            <td class="center" style="font-size: 9px;">
-                {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y H:i') : '-' }}
-            </td>
-        </tr>
-
-        <!-- DIVIDER -->
-        <tr class="divider">
-            <td></td>
-        </tr>
-
-        <!-- CLIENTE -->
-        <tr>
-            <td style="font-size: 9px;">
-                <span class="bold">Cliente:</span>
-                @if($sale->customer)
-                    {{ $sale->customer->business_name ?? (($sale->customer->person->first_name ?? '') . ' ' . ($sale->customer->person->last_name ?? '')) }}
-                @else
-                    Consumidor Final
+        <!-- HEADER: Sucursal y dirección -->
+        <div class="center">
+            <div class="header-title">{{ $sale->branch->description ?? 'SUCURSAL' }}</div>
+            <div class="header-info">
+                @if($sale->branch && $sale->branch->address)
+                    {{ $sale->branch->address }}
                 @endif
-            </td>
-        </tr>
+            </div>
+        </div>
 
-        <!-- DIVIDER -->
-        <tr class="divider">
-            <td></td>
-        </tr>
-    </table>
+        <div class="divider"></div>
 
-    <!-- PRODUCTOS -->
-    <table>
-        @foreach($sale->items as $item)
-            @php
-                $qty = (int) $item->quantity;
-                $total = (int) round($item->item_total);
-            @endphp
+        <!-- FECHA/HORA Y NÚMERO -->
+        <table style="font-size: 9px;">
             <tr>
-                <td colspan="2" class="bold" style="font-size: 9px;">{{ $item->product->description ?? 'Producto' }}</td>
-            </tr>
-            <tr>
-                <td style="font-size: 9px; width: 50%;">x{{ $qty }}</td>
-                <td class="right" style="font-size: 9px; width: 50%;">${{ number_format($total, 0, ',', '.') }}</td>
-            </tr>
-        @endforeach
-    </table>
-
-    <table>
-        <!-- DIVIDER -->
-        <tr class="divider">
-            <td></td>
-        </tr>
-
-        <!-- TOTALES -->
-        <tr>
-            <td class="center" style="font-size: 10px;">Subtotal:
-                ${{ number_format((int) round($sale->subtotal), 0, ',', '.') }}</td>
-        </tr>
-
-        @if($totalIva > 0)
-            <tr>
-                <td class="center" style="font-size: 10px;">IVA: ${{ number_format((int) round($totalIva), 0, ',', '.') }}
+                <td class="left bold">Fecha:
+                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y') : date('d/m/Y') }}
+                </td>
+                <td class="right bold">Hora:
+                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('H:i') : date('H:i') }}
                 </td>
             </tr>
-        @endif
-
-        @if($sale->discount_amount > 0)
             <tr>
-                <td class="center" style="font-size: 10px;">Desc:
-                    -${{ number_format((int) round($sale->discount_amount), 0, ',', '.') }}</td>
+                <td colspan="2" class="center bold" style="font-size: 11px; padding-top: 3px;">
+                    N° {{ $sale->receipt_number }}
+                </td>
             </tr>
-        @endif
+        </table>
 
-        <!-- DIVIDER -->
-        <tr class="divider">
-            <td></td>
-        </tr>
+        <div class="divider"></div>
 
-        <!-- TOTAL -->
-        <tr>
-            <td class="center bold" style="font-size: 12px; padding: 5px 0;">Total
-                ${{ number_format((int) round($sale->total), 0, ',', '.') }}</td>
-        </tr>
+        <!-- CLIENTE -->
+        <div style="font-size: 9px;">
+            <div><span class="bold">Cliente:</span>
+                @if($sale->customer)
+                    {{ Str::limit($sale->customer->business_name ?? (($sale->customer->person->first_name ?? '') . ' ' . ($sale->customer->person->last_name ?? '')), 35) }}
+                @else
+                    CONSUMIDOR FINAL
+                @endif
+            </div>
+        </div>
 
-        <!-- DIVIDER -->
-        <tr class="divider">
-            <td></td>
-        </tr>
+        <div class="divider"></div>
+
+        <!-- ENCABEZADO PRODUCTOS -->
+        <table style="font-size: 8px; font-weight: bold; margin-bottom: 2px;">
+            <tr>
+                <td style="width: 15%;" class="left">CANT</td>
+                <td style="width: 50%;" class="left">P.UNIT</td>
+                <td style="width: 35%;" class="right">IMPORTE</td>
+            </tr>
+        </table>
+
+        <!-- PRODUCTOS -->
+        @foreach($sale->items as $item)
+            @php
+                $qty = (float) $item->quantity;
+                $unitPrice = (float) ($item->unit_price ?? 0);
+                $lineTotal = (float) ($item->item_total ?? 0);
+            @endphp
+            <div class="prod-desc">{{ $item->product->description ?? 'Item' }}</div>
+            <table class="mono" style="font-size: 9px;">
+                <tr>
+                    <td style="width: 15%;" class="left">{{ $qty }}</td>
+                    <td style="width: 50%;" class="left">${{ number_format($unitPrice, 2, ',', '.') }}</td>
+                    <td style="width: 35%;" class="right bold">${{ number_format($lineTotal, 2, ',', '.') }}</td>
+                </tr>
+            </table>
+        @endforeach
+
+        <div class="divider"></div>
+
+        <!-- TOTALES -->
+        <table style="font-size: 10px;">
+            <tr>
+                <td class="right">Subtotal:</td>
+                <td class="right mono">${{ number_format($sale->subtotal, 2, ',', '.') }}</td>
+            </tr>
+            @if($sale->discount_amount > 0)
+                <tr>
+                    <td class="right">Descuento:</td>
+                    <td class="right mono">-${{ number_format($sale->discount_amount, 2, ',', '.') }}</td>
+                </tr>
+            @endif
+            <tr class="total-row">
+                <td class="right">TOTAL:</td>
+                <td class="right mono">${{ number_format($sale->total, 2, ',', '.') }}</td>
+            </tr>
+        </table>
+
+        <div class="divider"></div>
 
         <!-- FOOTER -->
-        <tr>
-            <td class="center" style="font-size: 9px; padding-top: 5px;">¡Gracias por su compra!</td>
-        </tr>
-    </table>
+        <div class="center" style="margin-top: 5px;">
+            <div style="font-size: 9px;">¡Gracias por su compra!</div>
+        </div>
+
+    </div>
 </body>
 
 </html>
