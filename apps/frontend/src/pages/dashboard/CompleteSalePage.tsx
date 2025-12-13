@@ -23,7 +23,7 @@ import { formatCurrency, roundToTwoDecimals, extractProductId } from '@/utils/sa
 import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
 import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
-import type { PaymentMethod, ReceiptType, SaleData, CompletedSale } from '@/types/sale'
+import type { PaymentMethod, ReceiptType, SaleData, SaleHeader } from '@/types/sale'
 import { useAfip } from "@/hooks/useAfip"
 
 const CART_STORAGE_KEY = 'pos_cart'
@@ -50,7 +50,7 @@ export default function CompleteSalePage() {
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false)
   const [isProcessingSale, setIsProcessingSale] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
-  const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null)
+  const [completedSale, setCompletedSale] = useState<SaleHeader | null>(null)
   const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('')
   const [globalDiscountValue, setGlobalDiscountValue] = useState<string>('')
 
@@ -291,13 +291,13 @@ export default function CompleteSalePage() {
     }
   }, [])
 
-  const getCustomerName = useCallback((sale: CompletedSale | null): string => {
+  const getCustomerName = useCallback((sale: SaleHeader | null): string => {
     if (!sale?.customer) return 'Consumidor Final'
     const customer = sale.customer
     if (customer.person) {
       return `${customer.person.first_name || ''} ${customer.person.last_name || ''}`.trim()
     }
-    return customer.name || 'Cliente'
+    return customer.business_name || 'Cliente'
   }, [])
 
   const handleConfirmSale = useCallback(async () => {
@@ -386,6 +386,10 @@ export default function CompleteSalePage() {
           })
           const normalizedSale = (saleDetails as any)?.data ?? saleDetails
           setCompletedSale(normalizedSale)
+
+          localStorage.removeItem(CART_STORAGE_KEY)
+          navigate("/dashboard/pos", { state: { completedSale: normalizedSale } })
+          return
         }
       } catch (err) {
         console.error('Error al obtener detalles de la venta:', err)
