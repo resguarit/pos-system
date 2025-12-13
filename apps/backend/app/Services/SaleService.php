@@ -876,9 +876,7 @@ class SaleService implements SaleServiceInterface
 
         // Configurar tamaño de página según formato
         if ($format === 'thermal') {
-            // Usamos A4 completo pero el contenido se limitará a 80mm a la izquierda
-            // Esto asegura que en la vista previa A4 se vea alineado a la izquierda y no centrado/cortado
-            $pdf->setPaper('a4', 'portrait');
+            $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait'); // 80mm de ancho, altura automática
         }
 
         return $pdf->download('comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf');

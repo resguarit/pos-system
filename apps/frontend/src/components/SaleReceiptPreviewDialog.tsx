@@ -77,18 +77,9 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
     }
 
     setIsPrinting(true);
-
-    // Safety timeout to reset state if printing hangs
-    const safetyTimeout = setTimeout(() => {
-      if (isPrinting) {
-        setIsPrinting(false);
-      }
-    }, 10000); // 10 seconds max wait
-
     try {
+      // Usar el backend para generar el PDF
       const format = isThermal ? 'thermal' : 'standard';
-
-      // Obtener el PDF como blob
       const response = await request({
         method: 'GET',
         url: `/pos/sales/${sale.id}/pdf?format=${format}`,
@@ -99,6 +90,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
         throw new Error("La respuesta del servidor no es un archivo PDF válido.");
       }
 
+      // Crear objeto blob y URL
       const blob = new Blob([response], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
 
@@ -110,37 +102,29 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
       iframe.style.width = '0';
       iframe.style.height = '0';
       iframe.style.border = 'none';
+      iframe.src = url;
 
-      // Definir onload ANTES de asignar src y append
+      document.body.appendChild(iframe);
+
+      // Esperar a que cargue y luego imprimir
       iframe.onload = () => {
-        clearTimeout(safetyTimeout); // Clear safety timeout as load succeeded
         setTimeout(() => {
           try {
             iframe.contentWindow?.focus();
             iframe.contentWindow?.print();
           } catch (e) {
             console.error('Error al imprimir:', e);
-            alert('Error al intentar abrir el diálogo de impresión.');
           } finally {
-            // Limpiar después de un tiempo prudente para permitir que se abra el diálogo
+            // Limpiar
             setTimeout(() => {
-              try {
-                document.body.removeChild(iframe);
-                window.URL.revokeObjectURL(url);
-              } catch (e) {
-                // Ignore cleanup errors
-              }
+              document.body.removeChild(iframe);
+              window.URL.revokeObjectURL(url);
               setIsPrinting(false);
-            }, 2000); // Aumentado a 2s para asegurar que el diálogo de impresión se inicie
+            }, 1000);
           }
         }, 500);
       };
-
-      iframe.src = url;
-      document.body.appendChild(iframe);
-
     } catch (error: any) {
-      clearTimeout(safetyTimeout);
       console.error("Error al imprimir:", error);
       const errorMessage = error?.response?.data?.message ||
         error?.message ||
