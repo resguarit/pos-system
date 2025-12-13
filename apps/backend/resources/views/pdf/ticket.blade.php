@@ -20,7 +20,7 @@
 
         .ticket-wrapper {
             /* MARGENES DE SEGURIDAD PARA IMPRESORA TÉRMICA */
-            margin-left: 7mm;
+            margin-left: 1mm;
             /* Espacio blanco obligatorio a la izquierda */
             margin-right: 2mm;
             margin-top: 2mm;
