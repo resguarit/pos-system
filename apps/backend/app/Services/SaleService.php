@@ -878,11 +878,6 @@ class SaleService implements SaleServiceInterface
 
         $pdf = Pdf::loadView($template, $data);
 
-        // Configurar tamaño de página según formato
-        if ($format === 'thermal') {
-            $pdf->setPaper([0, 0, 226.77, 841.89], 'portrait'); // 80mm de ancho, altura automática
-        }
-
         return $pdf->download('comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf');
     }
 
