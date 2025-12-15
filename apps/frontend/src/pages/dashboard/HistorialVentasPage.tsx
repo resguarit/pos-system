@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Eye, Download } from "lucide-react"
+import { Eye, Download, Printer } from "lucide-react"
 import { useEntityContext } from "@/context/EntityContext";
 import { type Branch } from '@/types/branch';
 import { type SaleHeader } from '@/types/sale';
 import ViewSaleDialog from '@/components/view-sale-dialog';
+import SaleReceiptPreviewDialog from '@/components/SaleReceiptPreviewDialog';
 import { AfipStatusBadge } from '@/components/sales/AfipStatusBadge';
 import { useState, useCallback } from 'react';
 import useApi from '@/hooks/useApi';
@@ -26,7 +27,11 @@ export default function SalesHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  
+
+  // Estado para el diálogo de impresión
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [selectedReceiptSale, setSelectedReceiptSale] = useState<SaleHeader | null>(null);
+
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage] = useState(15);
@@ -59,14 +64,14 @@ export default function SalesHistoryPage() {
         url: `/sales/history/branch/${branchId}`,
         params: { group_by: 'day' }
       });
-      
+
       // Para obtener las ventas individuales, necesitamos hacer otra llamada
       const salesResponse = await request({
         method: 'GET',
         url: `/sales`,
         params: { branch_id: branchId, per_page: 1000 } // Obtener todas para paginación client-side
       });
-      
+
       if (salesResponse && salesResponse.success) {
         setSales(salesResponse.data || []);
       }
@@ -128,7 +133,7 @@ export default function SalesHistoryPage() {
         url: `/sales/${sale.id}/pdf`,
         responseType: 'blob'
       });
-      
+
       const blob = new Blob([response], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -145,17 +150,31 @@ export default function SalesHistoryPage() {
     }
   };
 
+  const handlePrintReceipt = async (sale: SaleHeader) => {
+    try {
+      const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+      const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+      setSelectedReceiptSale(fullSale)
+      setShowReceiptPreview(true)
+    } catch (error) {
+      console.error('Error fetching sale details for receipt:', error)
+      toast.error('No se pudo cargar el detalle del comprobante')
+      setSelectedReceiptSale(sale)
+      setShowReceiptPreview(true)
+    }
+  };
+
   /**
    * Maneja la actualización de una venta después de autorización AFIP
    */
   const handleSaleUpdated = async (updatedSale: SaleHeader) => {
     // Actualizar en la lista local
-    setSales(prevSales => 
-      prevSales.map(sale => 
+    setSales(prevSales =>
+      prevSales.map(sale =>
         sale.id === updatedSale.id ? updatedSale : sale
       )
     );
-    
+
     // Actualizar la venta seleccionada
     if (selectedSale && selectedSale.id === updatedSale.id) {
       setSelectedSale(updatedSale);
@@ -183,7 +202,7 @@ export default function SalesHistoryPage() {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6 text-center">Historial de Ventas por Sucursal</h1>
-      
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Seleccionar Sucursal</CardTitle>
@@ -278,25 +297,36 @@ export default function SalesHistoryPage() {
                           </TableCell>
                           <TableCell className="text-center">
                             {hasPermission('ver_ventas') && (
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer" 
-                                onClick={() => handleViewDetail(sale)} 
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                                onClick={() => handleViewDetail(sale)}
                                 title="Ver Detalle"
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
                             )}
                             {hasPermission('reimprimir_comprobantes') && (
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 cursor-pointer" 
-                                onClick={() => handleDownloadPdf(sale)} 
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 cursor-pointer"
+                                onClick={() => handleDownloadPdf(sale)}
                                 title="Descargar PDF"
                               >
                                 <Download className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {hasPermission('reimprimir_comprobantes') && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-purple-600 hover:text-purple-700 hover:bg-purple-50 cursor-pointer"
+                                onClick={() => handlePrintReceipt(sale)}
+                                title="Imprimir Ticket"
+                              >
+                                <Printer className="h-4 w-4" />
                               </Button>
                             )}
                           </TableCell>
@@ -332,9 +362,21 @@ export default function SalesHistoryPage() {
           formatDate={formatDate}
           getReceiptType={getReceiptType}
           onDownloadPdf={handleDownloadPdf}
+          onPrintPdf={async (sale) => handlePrintReceipt(sale)}
           onSaleUpdated={handleSaleUpdated}
         />
       )}
+
+      {/* Diálogo de impresión */}
+      <SaleReceiptPreviewDialog
+        open={showReceiptPreview}
+        onOpenChange={setShowReceiptPreview}
+        sale={selectedReceiptSale}
+        customerName={selectedReceiptSale ? getCustomerName(selectedReceiptSale) : ''}
+        customerCuit={selectedReceiptSale?.customer?.person?.cuit}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+      />
     </div>
   );
 }

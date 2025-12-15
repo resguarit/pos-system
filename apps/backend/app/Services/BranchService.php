@@ -12,16 +12,18 @@ class BranchService implements BranchServiceInterface
     public function getAllBranches(): \Illuminate\Support\Collection
     {
         $branches = Branch::with('manager.person')->get();
-        // Obtener conteo exacto de usuarios activos por sucursal desde la tabla pivote y users (no soft deleted)
-        $userCounts = DB::table('branch_user')
-            ->join('users', 'branch_user.user_id', '=', 'users.id')
-            ->whereNull('users.deleted_at')
-            ->select('branch_user.branch_id', DB::raw('COUNT(branch_user.user_id) as count'))
-            ->groupBy('branch_user.branch_id')
+
+        // Obtener conteo exacto de empleados por sucursal desde la tabla pivote
+        $employeeCounts = DB::table('employee_branch')
+            ->join('employees', 'employee_branch.employee_id', '=', 'employees.id')
+            ->whereNull('employees.deleted_at')
+            ->select('employee_branch.branch_id', DB::raw('COUNT(employee_branch.employee_id) as count'))
+            ->groupBy('employee_branch.branch_id')
             ->pluck('count', 'branch_id');
+
         // Asignar el conteo a cada sucursal
         foreach ($branches as $branch) {
-            $branch->users_count = $userCounts[$branch->id] ?? 0;
+            $branch->employees_count = $employeeCounts[$branch->id] ?? 0;
         }
         return $branches;
     }
@@ -63,13 +65,14 @@ class BranchService implements BranchServiceInterface
 
     public function getBranchPersonnel($branchId)
     {
-        // Obtener los user_id asociados a la sucursal desde la tabla pivote
-        $userIds = DB::table('branch_user')
+        // Obtener los employee_id asociados a la sucursal desde la tabla pivote
+        $employeeIds = DB::table('employee_branch')
             ->where('branch_id', $branchId)
-            ->pluck('user_id');
-        // Traer los usuarios completos con persona y rol
-        return \App\Models\User::with(['person', 'role'])
-            ->whereIn('id', $userIds)
+            ->pluck('employee_id');
+
+        // Traer los empleados completos con persona y rol de usuario si existe
+        return \App\Models\Employee::with(['person', 'user.role'])
+            ->whereIn('id', $employeeIds)
             ->get();
     }
 

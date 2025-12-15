@@ -9,19 +9,27 @@ import { useSales } from "@/hooks/useSales"
 import { useDashboard } from "@/hooks/useDashboard"
 import { useBranch } from "@/context/BranchContext"
 import ViewSaleDialog from "@/components/view-sale-dialog"
+import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
+
 import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge"
 import useApi from "@/hooks/useApi"
 import { useState } from "react"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
+import { toast } from "sonner"
 
 export default function DashboardPage() {
   const { selectedBranchIds, branches, selectionChangeToken } = useBranch()
   const [selectedSale, setSelectedSale] = useState<any>(null)
   const [saleDialogOpen, setSaleDialogOpen] = useState(false)
   const [loadingSaleDetail, setLoadingSaleDetail] = useState(false)
+
+  // Estado para el diálogo de impresión
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [selectedReceiptSale, setSelectedReceiptSale] = useState<any>(null);
+
   const { request } = useApi()
-  const { sales, isLoading: salesLoading, error: salesError } = useSales({ 
+  const { sales, isLoading: salesLoading, error: salesError } = useSales({
     limit: 5,
     branchId: selectedBranchIds,
     externalDeps: [selectionChangeToken]
@@ -66,7 +74,7 @@ export default function DashboardPage() {
     if (selectedSale && selectedSale.id === updatedSale.id) {
       setSelectedSale(updatedSale);
     }
-    
+
     // El hook useSales se actualizará automáticamente en la próxima carga
     // pero podemos forzar una recarga si es necesario
     // Por ahora, solo actualizamos la venta seleccionada
@@ -116,7 +124,7 @@ export default function DashboardPage() {
     if (sale.customer && typeof sale.customer === 'string' && sale.customer !== 'N/A') {
       return sale.customer;
     }
-    
+
     // Fallback for other possible structures
     if (sale.customer_name) {
       return sale.customer_name;
@@ -139,9 +147,22 @@ export default function DashboardPage() {
   const getReceiptType = (sale: any) => {
     return {
       displayName: sale.receiptType?.name || sale.receipt_type?.name || 'Venta',
-      afipCode: sale.receiptType?.afip_code || sale.receipt_type?.afip_code || '0'
     }
   }
+
+  const handlePrintReceipt = async (sale: any) => {
+    try {
+      const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+      const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+      setSelectedReceiptSale(fullSale)
+      setShowReceiptPreview(true)
+    } catch (error) {
+      console.error('Error fetching sale details for receipt:', error)
+      toast.error('No se pudo cargar el detalle del comprobante')
+      setSelectedReceiptSale(sale)
+      setShowReceiptPreview(true)
+    }
+  };
 
 
   return (
@@ -150,13 +171,13 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between space-y-2">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h2>
         </div>
-        
+
         <Tabs defaultValue="overview" className="flex flex-col space-y-4 flex-1">
           <TabsList className="w-fit bg-gray-100">
             <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:text-black-600 data-[state=active]:shadow-md">Vista General</TabsTrigger>
           </TabsList>
 
-         <TabsContent value="overview" className="space-y-4 flex-1 overflow-y-auto pr-2 sm:pr-4">
+          <TabsContent value="overview" className="space-y-4 flex-1 overflow-y-auto pr-2 sm:pr-4">
             {/* Grid responsive para métricas */}
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
               {hasPermission('ver_ventas') && (
@@ -164,15 +185,15 @@ export default function DashboardPage() {
                   <MetricCard
                     title="Ventas Totales (Este Mes)"
                     value={formatCurrency(generalStats?.total_sales || 0)}
-                    subtitle={salesSummary?.growth_percentage !== undefined 
-                      ? salesSummary.growth_percentage === null 
+                    subtitle={salesSummary?.growth_percentage !== undefined
+                      ? salesSummary.growth_percentage === null
                         ? "Nuevo período (sin datos anteriores)"
                         : `${formatPercentage(salesSummary.growth_percentage)} respecto al mes anterior`
                       : '+0.0% respecto al mes anterior'}
                     subtitleColor={
-                      (salesSummary?.growth_percentage ?? 0) > 0 ? 'text-green-600' : 
-                      (salesSummary?.growth_percentage ?? 0) < 0 ? 'text-red-600' : 
-                      'text-orange-600'
+                      (salesSummary?.growth_percentage ?? 0) > 0 ? 'text-green-600' :
+                        (salesSummary?.growth_percentage ?? 0) < 0 ? 'text-red-600' :
+                          'text-orange-600'
                     }
                     isLoading={dashboardLoading}
                     icon={
@@ -260,7 +281,7 @@ export default function DashboardPage() {
                 }
               />
             </div>
-            
+
             {/* Cards principales - responsive */}
             <div className="flex flex-col gap-4 lg:flex-row items-stretch min-h-0">
               {hasPermission('ver_ventas') && (
@@ -291,9 +312,9 @@ export default function DashboardPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <RecentSales 
-                      sales={sales} 
-                      isLoading={salesLoading} 
+                    <RecentSales
+                      sales={sales}
+                      isLoading={salesLoading}
                       onViewSale={handleViewSale}
                       getCustomerName={getCustomerName}
                     />
@@ -301,7 +322,7 @@ export default function DashboardPage() {
                 </Card>
               )}
             </div>
-            
+
             {/* Grid inferior - responsive */}
             <div className="grid gap-4 grid-cols-1 lg:grid-cols-7">
               {hasPermission('ver_stock') && (
@@ -336,60 +357,72 @@ export default function DashboardPage() {
           </TabsContent>
         </Tabs>
 
-      {/* Diálogo para ver detalles de venta */}
-      {saleDialogOpen && (
-        loadingSaleDetail ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
-            <div className="bg-white rounded-lg p-8 shadow-lg flex flex-col items-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-              <span className="text-blue-700 font-medium">Cargando detalle de venta...</span>
+        {/* Diálogo para ver detalles de venta */}
+        {saleDialogOpen && (
+          loadingSaleDetail ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+              <div className="bg-white rounded-lg p-8 shadow-lg flex flex-col items-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                <span className="text-blue-700 font-medium">Cargando detalle de venta...</span>
+              </div>
             </div>
-          </div>
-        ) : (
-          hasPermission('ver_ventas') && (
-            <ViewSaleDialog
-              sale={selectedSale}
-              open={saleDialogOpen}
-              onOpenChange={setSaleDialogOpen}
-              getCustomerName={getCustomerName}
-              formatDate={formatDate}
-              getReceiptType={getReceiptType}
-              onDownloadPdf={async (sale) => {
-                if (!sale || !sale.id) {
-                  alert("No se puede descargar el PDF: ID de venta faltante.");
-                  return;
-                }
-                try {
-                  const response = await request({ 
-                    method: 'GET', 
-                    url: `/pos/sales/${sale.id}/pdf`,
-                    responseType: 'blob'
-                  });
-                  if (!response || !(response instanceof Blob)) {
-                    throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+          ) : (
+            hasPermission('ver_ventas') && (
+              <ViewSaleDialog
+                sale={selectedSale}
+                open={saleDialogOpen}
+                onOpenChange={setSaleDialogOpen}
+                getCustomerName={getCustomerName}
+                formatDate={formatDate}
+                getReceiptType={getReceiptType}
+                onDownloadPdf={async (sale) => {
+                  if (!sale || !sale.id) {
+                    alert("No se puede descargar el PDF: ID de venta faltante.");
+                    return;
                   }
-                  const blob = new Blob([response], { type: 'application/pdf' });
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-                  const receiptNumber = sale.receipt_number || sale.id;
-                  const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-                  a.download = fileName;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-                } catch (error) {
-                  console.error("Error downloading PDF:", error);
-                  alert("Error al descargar PDF");
-                }
-              }}
-              onSaleUpdated={handleSaleUpdated}
-            />
+                  try {
+                    const response = await request({
+                      method: 'GET',
+                      url: `/pos/sales/${sale.id}/pdf`,
+                      responseType: 'blob'
+                    });
+                    if (!response || !(response instanceof Blob)) {
+                      throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+                    }
+                    const blob = new Blob([response], { type: 'application/pdf' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+                    const receiptNumber = sale.receipt_number || sale.id;
+                    const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                  } catch (error) {
+                    console.error("Error downloading PDF:", error);
+                    alert("Error al descargar PDF");
+                  }
+                }}
+                onPrintPdf={async (sale) => handlePrintReceipt(sale)}
+                onSaleUpdated={handleSaleUpdated}
+              />
+            )
           )
-        )
-      )}
+        )}
+
+        {/* Diálogo de impresión */}
+        <SaleReceiptPreviewDialog
+          open={showReceiptPreview}
+          onOpenChange={setShowReceiptPreview}
+          sale={selectedReceiptSale}
+          customerName={selectedReceiptSale ? getCustomerName(selectedReceiptSale) : ''}
+          customerCuit={selectedReceiptSale?.client?.person?.cuit || selectedReceiptSale?.customer?.person?.cuit}
+          formatDate={formatDate}
+          formatCurrency={(val) => formatCurrency(Number(val))}
+        />
       </div>
     </ProtectedRoute>
   )

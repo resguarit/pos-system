@@ -8,7 +8,8 @@ import { Search, Eye, Calendar } from 'lucide-react'
 import useApi from '@/hooks/useApi'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
-import ViewSaleDialog from '@/components/view-sale-dialog'
+import ViewSaleDialog from "@/components/view-sale-dialog"
+import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import Pagination from '@/components/ui/pagination'
 
 interface Transaction {
@@ -53,6 +54,26 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
   // New: state for viewing sale details
   const [selectedSale, setSelectedSale] = useState<any>(null)
   const [saleDialogOpen, setSaleDialogOpen] = useState(false)
+
+  // State for receipt preview
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false)
+  const [selectedReceiptSale, setSelectedReceiptSale] = useState<any>(null)
+
+  const handlePrintReceipt = async (sale: any) => {
+    try {
+      // Fetch full sale details to ensure items are present
+      const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+      const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+      setSelectedReceiptSale(fullSale)
+      setShowReceiptPreview(true)
+    } catch (error) {
+      console.error('Error fetching sale details for receipt:', error)
+      toast.error('No se pudo cargar el detalle del comprobante')
+      // Fallback to passed sale if fetch fails, though it might be incomplete
+      setSelectedReceiptSale(sale)
+      setShowReceiptPreview(true)
+    }
+  }
 
   const loadTransactions = async () => {
     setIsLoading(true)
@@ -161,7 +182,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
       style: 'currency',
       currency: 'ARS',
     }).format(amount)
-    
+
     return type === 'entry' ? `+${formattedAmount}` : `-${formattedAmount}`
   }
 
@@ -367,7 +388,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
                   style: 'currency',
                   currency: 'ARS',
                 }).format(
-                  filteredTransactions.reduce((sum, t) => 
+                  filteredTransactions.reduce((sum, t) =>
                     t.type === 'entry' ? sum + t.amount : sum - t.amount, 0
                   )
                 )}
@@ -394,8 +415,20 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
               setSelectedSale(updatedSale);
             }
           }}
+          onPrintPdf={async (sale) => handlePrintReceipt(sale)}
         />
       )}
+
+      {/* Dialogo de impresión de comprobante */}
+      <SaleReceiptPreviewDialog
+        open={showReceiptPreview}
+        onOpenChange={setShowReceiptPreview}
+        sale={selectedReceiptSale}
+        customerName={selectedReceiptSale ? getCustomerName(selectedReceiptSale) : ''}
+        customerCuit={selectedReceiptSale?.customer?.person?.cuit || selectedReceiptSale?.customer?.cuit}
+        formatDate={formatDateForDialog}
+        formatCurrency={(val) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(Number(val))}
+      />
     </Card>
   )
 }

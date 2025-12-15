@@ -82,7 +82,7 @@ class EmployeeController extends Controller
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:255',
-            'documento' => 'nullable|string|max:20',
+            'documento' => 'nullable|numeric',
             'cuit' => 'nullable|string|max:11',
             'branch_id' => 'nullable|exists:branches,id', // Keep for backwards compatibility
             'branch_ids' => 'nullable|array', // New: multiple branches
@@ -178,7 +178,7 @@ class EmployeeController extends Controller
             'address' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:255',
             'cuit' => 'nullable|string|max:11',
-            'documento' => 'nullable|string|max:20',
+            'documento' => 'nullable|numeric',
             'branch_id' => 'nullable|exists:branches,id', // Keep for backwards compatibility
             'branch_ids' => 'nullable|array', // Multiple branches support
             'branch_ids.*' => 'exists:branches,id',

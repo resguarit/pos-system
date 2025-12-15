@@ -18,7 +18,6 @@ import { toast } from "sonner"
 // Hooks y Contexto
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
-import features from "@/config/features"
 
 // Utilidades y Iconos
 import { getRoleStyle } from "@/types/roles-styles"
@@ -110,77 +109,47 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
     const loadData = async () => {
       setIsDataLoading(true)
-
-      // 1. Carga de datos críticos (Sucursales y Roles)
       try {
         const [branchesRes, rolesRes] = await Promise.all([
           request({ method: "GET", url: "/branches", signal }),
           request({ method: "GET", url: "/roles", signal })
         ])
 
-        const branchesData = branchesRes.data || [];
-
-        // Robust extraction for roles
-        let rolesArray = [];
-        if (Array.isArray(rolesRes)) {
-          rolesArray = rolesRes;
-        } else if (Array.isArray(rolesRes?.data)) {
-          rolesArray = rolesRes.data;
-        } else if (Array.isArray(rolesRes?.data?.data)) {
-          rolesArray = rolesRes.data.data;
-        }
-
-        if (!rolesArray || !Array.isArray(rolesArray)) {
-          console.warn("Roles data structure unexpected:", rolesRes);
-          rolesArray = [];
-        }
-
-        setAllBranches(branchesData);
-        setAllRoles(rolesArray);
-
-      } catch (error: any) {
-        if (!axios.isCancel(error)) {
-          console.error("Error fetching critical data:", error);
-          const msg = error?.response?.data?.message || error.message || "Error desconocido";
-          toast.error("Error al cargar datos críticos", { description: msg });
-        }
-        setIsDataLoading(false);
-        return; // Detener si fallan datos críticos
-      }
-
-      // 2. Carga de datos no críticos (Empleados)
-      if (!userId) {
-        try {
+        // Correcting the employee fetch strategy
+        let employeesData: Employee[] = [];
+        if (!userId) {
           const empResponse = await request({ method: "GET", url: "/employees?limit=100", signal });
+          // Filter employees that don't have a user_id
           const allEmployees = empResponse.data || empResponse.data.data || [];
-          const employeesData = allEmployees.filter((e: Employee) => !e.user_id);
-          setAvailableEmployees(employeesData);
-        } catch (error: any) {
-          console.warn("Could not fetch employees:", error);
-          // No mostramos toast para no alarmar si es algo secundario, o mostramos algo sutil
-          // toast.error("No se pudieron cargar empleados", { description: "Puede continuar creando el usuario." });
+          employeesData = allEmployees.filter((e: Employee) => !e.user_id);
         }
-      }
 
-      // 3. Carga de datos del usuario (si es edición)
-      if (userId) {
-        try {
+        if (signal.aborted) return
+
+        const branchesData = branchesRes.data || [];
+        const rolesData = rolesRes.data || [];
+
+        setAllBranches(branchesData)
+        setAllRoles(rolesData)
+        setAvailableEmployees(employeesData)
+
+        if (userId) {
           const userRes = await request({ method: "GET", url: `/users/${userId}`, signal })
           if (signal.aborted) return
 
           const userData = userRes.data || userRes;
           populateFormWithUserData(userData);
           dispatch({ type: 'SET_ENTITY', entityType: 'users', id: userId, entity: userData });
-        } catch (error: any) {
-          if (!axios.isCancel(error)) {
-            console.error("Error fetching user data:", error);
-            toast.error("Error al cargar usuario", { description: "No se pudo obtener la información del usuario." });
-          }
         }
-      }
-
-      if (!signal.aborted) {
-        setIsDataLoading(false)
+      } catch (error: any) {
+        if (!axios.isCancel(error)) {
+          console.error("Error fetching user form data:", error);
+          toast.error("Error al cargar datos", { description: "No se pudieron obtener los datos para el formulario." });
+        }
+      } finally {
+        if (!signal.aborted) {
+          setIsDataLoading(false)
+        }
       }
     }
 
@@ -191,8 +160,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
   // Efecto para actualizar el rol seleccionado
   useEffect(() => {
-    // Fix: Convert both to string for comparison as API returns number IDs but form uses strings
-    setSelectedRole(allRoles.find((r) => String(r.id) === String(formData.roleId)) || null)
+    setSelectedRole(allRoles.find((r) => r.id === formData.roleId) || null)
   }, [formData.roleId, allRoles])
 
   // Limpiar timeouts al desmontar el componente
@@ -506,8 +474,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
           </TabsList>
           <TabsContent value="general" className="space-y-4">
 
-            {/* Sección de Vinculación con Empleado (Solo en creación y si gastos está habilitado) */}
-            {!userId && !viewOnly && features.gastos && (
+            {/* Sección de Vinculación con Empleado (Solo en creación) */}
+            {!userId && !viewOnly && (
               <Card className="border-blue-200 bg-blue-50/30 max-w-2xl">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">

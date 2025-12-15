@@ -12,14 +12,17 @@ import useApi from "@/hooks/useApi"
 import { toast } from "sonner"
 import { RoleBadge } from "@/components/roles/RoleBadge"
 
-interface User {
+interface Employee {
   id: string;
   person: {
     first_name: string;
     last_name: string;
   } | null;
-  role: {
-    name: string;
+  job_title: string | null;
+  user?: {
+    role: {
+      name: string;
+    };
   };
 }
 
@@ -37,7 +40,7 @@ export function BranchPersonnelModal({
   onClose,
 }: BranchPersonnelModalProps) {
   const { request } = useApi();
-  const [personnel, setPersonnel] = useState<User[]>([]);
+  const [personnel, setPersonnel] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -81,28 +84,35 @@ export function BranchPersonnelModal({
             </div>
           ) : personnel.length > 0 ? (
             <ul className="space-y-3">
-              {personnel.map((user) => {
-                const firstName = user.person?.first_name || '';
-                const lastName = user.person?.last_name || '';
-                const userInitials = `${firstName[0] || ''}${lastName[0] || ''}` || 'U';
-                const fullName = user.person 
+              {personnel.map((employee) => {
+                const firstName = employee.person?.first_name || '';
+                const lastName = employee.person?.last_name || '';
+                const initials = `${firstName[0] || ''}${lastName[0] || ''}` || 'E';
+                const fullName = employee.person
                   ? `${firstName} ${lastName}`.trim()
-                  : 'Usuario sin información de persona';
+                  : 'Empleado sin información de persona';
 
                 return (
-                  <li key={user.id} className="flex items-center justify-between p-2 rounded-md border">
+                  <li key={employee.id} className="flex items-center justify-between p-2 rounded-md border">
                     <div className="flex items-center gap-3">
                       <Avatar>
-                         <AvatarFallback>{userInitials}</AvatarFallback>
+                        <AvatarFallback>{initials}</AvatarFallback>
                       </Avatar>
-                      <span className="font-medium">
-                        {fullName}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {fullName}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {employee.job_title || 'Sin puesto'}
+                        </span>
+                      </div>
                     </div>
-                    <RoleBadge 
-                      roleName={user.role.name}
-                      iconSize="h-3.5 w-3.5"
-                    />
+                    {employee.user?.role && (
+                      <RoleBadge
+                        roleName={employee.user.role.name}
+                        iconSize="h-3.5 w-3.5"
+                      />
+                    )}
                   </li>
                 );
               })}

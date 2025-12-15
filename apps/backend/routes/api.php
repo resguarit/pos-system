@@ -493,6 +493,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Expenses Module Routes
     Route::prefix('expenses')->group(function () {
         Route::get('/', [ExpenseController::class, 'index']);
+        Route::get('/stats', [ExpenseController::class, 'stats']);
         Route::post('/', [ExpenseController::class, 'store']);
         Route::get('/{expense}', [ExpenseController::class, 'show']);
         Route::put('/{expense}', [ExpenseController::class, 'update']);

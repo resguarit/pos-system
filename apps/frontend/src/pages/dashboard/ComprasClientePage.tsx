@@ -19,12 +19,12 @@ import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
 import { type SaleHeader } from "@/types/sale";
 import { ArrowLeft, Download, Search, Filter, Eye, /*Receipt*/ } from "lucide-react";
 import type { DateRange } from "@/components/ui/date-range-picker";
-import { 
-  receiptTypeColors, 
-  getReceiptType, 
-  getReceiptTypeBadgeClasses, 
+import {
+  receiptTypeColors,
+  getReceiptType,
+  getReceiptTypeBadgeClasses,
   getReceiptTypeBadgeText,
-  type ReceiptTypeInfo 
+  type ReceiptTypeInfo
 } from "@/lib/receiptTypeUtils";
 
 export default function CustomerPurchasesPage() {
@@ -174,11 +174,11 @@ export default function CustomerPurchasesPage() {
   const filteredPurchases = purchases.filter((purchase: SaleHeader) => {
     const matchesSearch =
       purchase.receipt_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (typeof purchase.branch === 'object' ? purchase.branch?.description || "" : purchase.branch || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+      (typeof purchase.branch === 'object' ? purchase.branch?.description || "" : purchase.branch || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (getReceiptType(purchase).displayName || "").toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesReceiptType = receiptTypeFilter === "all" || 
+    const matchesReceiptType = receiptTypeFilter === "all" ||
       getReceiptType(purchase).filterKey === receiptTypeFilter;
-    const matchesBranch = branchFilter === "all" || 
+    const matchesBranch = branchFilter === "all" ||
       (typeof purchase.branch === 'object' ? purchase.branch?.id?.toString() === branchFilter : false);
     let matchesDate = true;
     if (dateRange && dateRange.from instanceof Date) {
@@ -193,10 +193,10 @@ export default function CustomerPurchasesPage() {
         matchesDate = purchaseDate >= fromDate;
       }
     } else if (dateRange && dateRange.to instanceof Date) {
-        const purchaseDate = new Date(purchase.date);
-        const toDate = new Date(dateRange.to);
-        toDate.setHours(23, 59, 59, 999);
-        matchesDate = purchaseDate <= toDate;
+      const purchaseDate = new Date(purchase.date);
+      const toDate = new Date(dateRange.to);
+      toDate.setHours(23, 59, 59, 999);
+      matchesDate = purchaseDate <= toDate;
     }
     return matchesSearch && matchesReceiptType && matchesBranch && matchesDate;
   })
@@ -241,7 +241,7 @@ export default function CustomerPurchasesPage() {
 
   const getBranchColor = (purchase: SaleHeader) => {
     let branchId: number | null = null;
-    
+
     if (typeof purchase.branch === 'object' && purchase.branch?.id) {
       branchId = Number(purchase.branch.id);
     } else if (typeof purchase.branch === 'string') {
@@ -249,12 +249,12 @@ export default function CustomerPurchasesPage() {
       const branch = branches.find(b => b.description === purchase.branch);
       branchId = branch?.id ? Number(branch.id) : null;
     }
-    
+
     if (branchId) {
       const branch = branches.find(b => Number(b.id) === branchId);
       return branch?.color || '#6b7280';
     }
-    
+
     return '#6b7280'; // Color por defecto
   };
 
@@ -279,34 +279,34 @@ export default function CustomerPurchasesPage() {
 
   const handleDownloadPdf = async (sale: SaleHeader) => {
     if (!sale || !sale.id) {
-            alert("No se puede descargar el PDF: ID de venta faltante.");
-            return;
-          }
-          try {
-            const response = await request({ 
-              method: 'GET', 
-              url: `/pos/sales/${sale.id}/pdf`,
-              responseType: 'blob'
-            });
-            if (!response || !(response instanceof Blob)) {
-              throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-            }
-            const blob = new Blob([response], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-            const receiptNumber = sale.receipt_number || sale.id;
-            const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-          } catch (error) {
-            console.error("Error downloading PDF:", error);
-            alert("Error al descargar PDF");
-          }
+      alert("No se puede descargar el PDF: ID de venta faltante.");
+      return;
+    }
+    try {
+      const response = await request({
+        method: 'GET',
+        url: `/pos/sales/${sale.id}/pdf`,
+        responseType: 'blob'
+      });
+      if (!response || !(response instanceof Blob)) {
+        throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+      }
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+      const receiptNumber = sale.receipt_number || sale.id;
+      const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      alert("Error al descargar PDF");
+    }
   }
 
 
@@ -399,12 +399,12 @@ export default function CustomerPurchasesPage() {
               <SelectItem value="all">Todos los tipos</SelectItem>
               {Object.keys(receiptTypeColors).filter(key => key !== 'default').map((key) => (
                 <SelectItem key={key} value={key}>
-                  {key} 
+                  {key}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          
+
           {/* Branch Filter - Only show when multiple branches are selected */}
           {selectedBranchIds.length > 1 && (
             <Select value={branchFilter} onValueChange={setBranchFilter}>
@@ -417,7 +417,7 @@ export default function CustomerPurchasesPage() {
                   <SelectItem key={branch.id} value={branch.id.toString()}>
                     <div className="flex items-center gap-2">
                       {branch.color && (
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full border"
                           style={{ backgroundColor: branch.color }}
                         />
@@ -429,7 +429,7 @@ export default function CustomerPurchasesPage() {
               </SelectContent>
             </Select>
           )}
-          
+
           <DatePickerWithRange className="w-full md:w-auto" selected={dateRange} onSelect={range => setDateRange(range ?? { from: new Date(), to: new Date() })} />
         </div>
       </div>
@@ -462,10 +462,10 @@ export default function CustomerPurchasesPage() {
                     {(() => {
                       const branchColor = getBranchColor(purchase);
                       const branchName = getBranchName(purchase);
-                      
+
                       return (
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className="text-xs border-2 font-medium"
                           style={{
                             borderColor: branchColor,
@@ -496,7 +496,7 @@ export default function CustomerPurchasesPage() {
                           <span className="sr-only">Ver detalle</span>
                         </Button>
                       )}
-                    
+
                       {hasPermission('reimprimir_comprobantes') && (
                         <Button
                           variant="ghost"
@@ -513,29 +513,29 @@ export default function CustomerPurchasesPage() {
                   </TableCell>
                 </TableRow>
               )))
-            : (
-              <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
-                  {searchTerm || receiptTypeFilter !== "all" || branchFilter !== "all" || dateRange?.from
-                    ? "No se encontraron comprobantes con los filtros aplicados"
-                    : "Este cliente no tiene comprobantes registrados"}
-                </TableCell>
-              </TableRow>
-            )}
+              : (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-24 text-center">
+                    {searchTerm || receiptTypeFilter !== "all" || branchFilter !== "all" || dateRange?.from
+                      ? "No se encontraron comprobantes con los filtros aplicados"
+                      : "Este cliente no tiene comprobantes registrados"}
+                  </TableCell>
+                </TableRow>
+              )}
           </TableBody>
         </Table>
       </div>
-      
+
       {selectedSale && (
         <ViewSaleDialog
           open={isDetailOpen}
           onOpenChange={setIsDetailOpen}
           sale={selectedSale}
           getCustomerName={() => // Changed: No longer uses 'sale' argument for name
-            customer?.person 
-              ? `${customer.person.first_name} ${customer.person.last_name}` 
+            customer?.person
+              ? `${customer.person.first_name} ${customer.person.last_name}`
               : customer?.business_name || "Cliente" // Changed: Uses page's customer state
-          } 
+          }
           formatDate={formatDate} // Ensure this formatDate handles null/undefined
           getReceiptType={getReceiptType}
           onDownloadPdf={async (sale) => {
@@ -544,8 +544,8 @@ export default function CustomerPurchasesPage() {
               return;
             }
             try {
-              const response = await request({ 
-                method: 'GET', 
+              const response = await request({
+                method: 'GET',
                 url: `/pos/sales/${sale.id}/pdf`,
                 responseType: 'blob'
               });
@@ -574,17 +574,30 @@ export default function CustomerPurchasesPage() {
               setSelectedSale(updatedSale);
             }
           }}
+          onPrintPdf={async (sale) => {
+            try {
+              const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+              const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+              setSelectedSale(fullSale)
+              setIsReceiptOpen(true)
+            } catch (error) {
+              console.error('Error fetching sale details for receipt:', error)
+              toast.error('No se pudo cargar el detalle del comprobante')
+              setSelectedSale(sale)
+              setIsReceiptOpen(true)
+            }
+          }}
         />
       )}
-      
+
       {selectedSale && ( // Changed to use the new component
         <SaleReceiptPreviewDialog
           open={isReceiptOpen}
           onOpenChange={setIsReceiptOpen}
           sale={selectedSale}
           customerName={ // Added prop
-            customer?.person 
-              ? `${customer.person.first_name} ${customer.person.last_name}` 
+            customer?.person
+              ? `${customer.person.first_name} ${customer.person.last_name}`
               : customer?.business_name || "Cliente" // Derives from page's customer state
           }
           customerCuit={customer?.person?.cuit || customer?.cuit}

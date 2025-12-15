@@ -1,6 +1,6 @@
 {
   "name": "pos-system",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "Modern Point of Sale (POS) system built with React/TypeScript and Laravel",
   "private": true,
   "keywords": [

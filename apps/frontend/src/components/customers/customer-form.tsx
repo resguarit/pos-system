@@ -57,7 +57,7 @@ interface DocumentType {
 interface CustomerFormProps {
   customerId?: string
   viewOnly?: boolean
-  customerData?: Customer 
+  customerData?: Customer
   onSuccess?: (customer: Customer) => void // callback opcional al guardar
   disableNavigate?: boolean // si true, no navega al terminar
   onCancel?: () => void // si se provee, el botón Volver dispara esta función en lugar de navegar
@@ -80,13 +80,13 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     state: "",
     postal_code: "",
     cuit: "",
-    fiscal_condition_id: "1", 
-    person_type_id: "1", 
+    fiscal_condition_id: "1",
+    person_type_id: "1",
     credit_limit: "",
     active: true,
     notes: "",
-    document_type_id: "", 
-    documento: "", 
+    document_type_id: "",
+    documento: "",
   })
 
   const [isLoading, setIsLoading] = useState(false)
@@ -134,7 +134,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     return () => {
       controller.abort();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, customerData, dispatch])
 
   const loadCustomerData = async (id: string, signal?: AbortSignal) => {
@@ -165,7 +165,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       console.error("El objeto cliente o persona es inválido", customer);
       return;
     }
-    
+
     setFormData({
       first_name: customer.person.first_name ?? "",
       last_name: customer.person.last_name ?? "",
@@ -178,8 +178,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       cuit: customer.person.cuit ?? "",
       fiscal_condition_id: (customer.person.fiscal_condition_id ?? "1").toString(),
       person_type_id: (customer.person.person_type_id ?? "1").toString(),
-      credit_limit: customer.person.credit_limit !== null && customer.person.credit_limit !== undefined 
-        ? customer.person.credit_limit.toString() 
+      credit_limit: customer.person.credit_limit !== null && customer.person.credit_limit !== undefined
+        ? customer.person.credit_limit.toString()
         : "",
       active: customer.active,
       notes: customer.notes ?? "",
@@ -202,10 +202,10 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         method: 'GET',
         url: `/customers/check-name/${encodeURIComponent(firstName)}/${encodeURIComponent(lastName)}`
       });
-      
-      if (response.exists && 
-          (firstName !== (customerData?.person?.first_name || '') || 
-           lastName !== (customerData?.person?.last_name || ''))) {
+
+      if (response.exists &&
+        (firstName !== (customerData?.person?.first_name || '') ||
+          lastName !== (customerData?.person?.last_name || ''))) {
         setNameError("Esta combinación de nombre y apellido ya existe");
         toast.error("Esta combinación de nombre y apellido ya existe", {
           description: "Por favor, verifica los datos del cliente."
@@ -224,7 +224,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-    
+
     // Validación de duplicados con debounce para nombre y apellido
     if (name === 'first_name' || name === 'last_name') {
       const timeoutId = setTimeout(() => {
@@ -247,14 +247,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validación de campos obligatorios
     const errors: string[] = []
-    
+
     if (!formData.first_name?.trim()) {
       errors.push("El nombre es obligatorio")
     }
-    
+
     if (!formData.last_name?.trim()) {
       errors.push("El apellido es obligatorio")
     }
@@ -281,10 +281,10 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         postal_code: formData.postal_code,
         phone: formData.phone,
         cuit: formData.cuit,
-        fiscal_condition_id: formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1, 
-        person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,  
+        fiscal_condition_id: formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1,
+        person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,
         credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
-        document_type_id: formData.document_type_id ? parseInt(formData.document_type_id, 10) : null, 
+        document_type_id: formData.document_type_id ? parseInt(formData.document_type_id, 10) : null,
         documento: formData.documento || null,
       }
 
@@ -296,14 +296,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
       if (response && response.success) {
         if (customerId) {
-          dispatch({ 
-            type: 'SET_ENTITY', 
-            entityType: 'customers', 
-            id: customerId, 
-            entity: response.data 
+          dispatch({
+            type: 'SET_ENTITY',
+            entityType: 'customers',
+            id: customerId,
+            entity: response.data
           });
         }
-        
+
         toast.success(customerId ? "Cliente actualizado" : "Cliente creado", {
           description: customerId
             ? "Los datos del cliente han sido actualizados correctamente"
@@ -312,7 +312,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
         // Ejecutar callback si viene desde POS u otra vista embebida
         if (onSuccess) {
-          try { onSuccess(response.data as Customer) } catch {}
+          try { onSuccess(response.data as Customer) } catch { }
         }
 
         // Navegar solo si no está deshabilitado
@@ -550,14 +550,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                           <Label htmlFor="active">Estado de la cuenta</Label>
                           <div className="flex items-center space-x-2 pt-2">
                             <Switch
-                                id="active"
-                                checked={formData.active}
-                                onCheckedChange={handleSwitchChange}
-                                disabled={viewOnly || isLoading}
-                                className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 cursor-pointer"
+                              id="active"
+                              checked={formData.active}
+                              onCheckedChange={handleSwitchChange}
+                              disabled={viewOnly || isLoading}
+                              className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500 cursor-pointer"
                             />
                             <Label htmlFor="active" className={`transition-colors cursor-pointer ${formData.active ? 'text-green-600' : 'text-red-600'}`}>
-                                {formData.active ? "Activa" : "Inactiva"}
+                              {formData.active ? "Activa" : "Inactiva"}
                             </Label>
                           </div>
                         </div>

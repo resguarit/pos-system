@@ -69,11 +69,11 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
   const [salePrice, setSalePrice] = useState<number | null>(null);
   const [salePriceARS, setSalePriceARS] = useState<number | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number>(1000); // Default USD to ARS rate
-  
+
   // Helper functions to convert between UI format and backend format
   const statusToString = (status: boolean): string => status ? "active" : "inactive";
   const stringToStatus = (status: string): boolean => status === "active";
-  
+
   const {
     register,
     handleSubmit,
@@ -130,29 +130,29 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     if (unitPrice && markup) {
       // Usar la misma lógica que el backend: costo * (1 + iva) * (1 + markup)
       let costInArs = unitPrice;
-      
+
       // 1. Convertir USD a ARS si es necesario
       if (currency === 'USD' && exchangeRate) {
         costInArs = unitPrice * exchangeRate;
       }
-      
+
       // 2. Aplicar IVA primero (si hay IVA seleccionado)
       let costWithIva = costInArs;
       if (selectedIva && selectedIva.rate > 0) {
         costWithIva = costInArs * (1 + selectedIva.rate / 100);
       }
-      
+
       // 3. Aplicar markup después
       const markupDecimal = markup / 100; // Convertir porcentaje a decimal
       const priceWithMarkup = costWithIva * (1 + markupDecimal);
-      
+
       // 4. Redondear a múltiplos de 100 para precios grandes
-      const finalPrice = priceWithMarkup < 1000 
+      const finalPrice = priceWithMarkup < 1000
         ? Math.round(priceWithMarkup / 10) * 10  // Para precios pequeños, múltiplos de 10
         : Math.round(priceWithMarkup / 100) * 100; // Para precios grandes, múltiplos de 100
-      
+
       setSalePrice(finalPrice);
-      
+
       // El precio ya está en ARS después de la conversión
       setSalePriceARS(finalPrice);
     } else {
@@ -164,36 +164,36 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
   // Función para calcular markup cuando se ingresa precio de venta manualmente
   const calculateMarkupFromSalePrice = (salePrice: number) => {
     if (!unitPrice || !salePrice || unitPrice <= 0 || salePrice <= 0) return 0;
-    
+
     let costInArs = unitPrice;
-    
+
     // 1. Convertir USD a ARS si es necesario
     if (currency === 'USD' && exchangeRate) {
       costInArs = unitPrice * exchangeRate;
     }
-    
+
     // Validar que el costo sea válido
     if (!costInArs || costInArs <= 0 || !isFinite(costInArs)) {
       return 0;
     }
-    
+
     // 2. Remover IVA del precio de venta si existe
     let priceWithoutIva = salePrice;
     if (selectedIva && selectedIva.rate > 0) {
       priceWithoutIva = salePrice / (1 + selectedIva.rate / 100);
     }
-    
+
     // Validar que el precio sin IVA sea válido
     if (!priceWithoutIva || priceWithoutIva <= 0 || !isFinite(priceWithoutIva)) {
       return 0;
     }
-    
+
     // 3. Calcular markup: (precio_sin_iva / costo) - 1
     const markupDecimal = (priceWithoutIva / costInArs) - 1;
-    
+
     // 4. Asegurar que el markup nunca sea negativo (mínimo 0%)
     const safeMarkup = markupDecimal < 0 ? 0 : markupDecimal;
-    
+
     // 5. Convertir a porcentaje y redondear a 2 decimales
     return Math.round(safeMarkup * 10000) / 100; // Redondear a 2 decimales
   };
@@ -208,7 +208,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
           axios.get(`${apiUrl}/ivas`),
           axios.get(`${apiUrl}/suppliers`)
         ]);
-        
+
         setParentCategories(parentCategoriesRes.data?.data || []);
         setMeasures(measuresRes.data?.data || []);
         setIvas(ivasRes.data?.data || []);
@@ -233,7 +233,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
           }
         }
       } catch (error) {
-        console.error("Failed to fetch reference data:", error);        toast.error("Failed to load reference data.");
+        console.error("Failed to fetch reference data:", error); toast.error("Failed to load reference data.");
       }
     };
 
@@ -254,17 +254,17 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     setLoading(true);
     try {
       if (product?.id) {
-        await axios.put(`${apiUrl}/products/${product.id}`, data);        toast.success("Product updated successfully!");
+        await axios.put(`${apiUrl}/products/${product.id}`, data); toast.success("Product updated successfully!");
       } else {
-        await axios.post(`${apiUrl}/products`, data);        toast.success("Product created successfully!");
+        await axios.post(`${apiUrl}/products`, data); toast.success("Product created successfully!");
         reset();
       }
-      
+
       if (onSuccess) {
         onSuccess();
       }
     } catch (error) {
-      console.error("Failed to save product:", error);      toast("Error", {
+      console.error("Failed to save product:", error); toast("Error", {
         description: "Failed to save product. Please try again.",
       });
     } finally {
@@ -276,10 +276,10 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="description">Description*</Label>
-        <Input 
-          id="description" 
+        <Input
+          id="description"
           {...register("description", { required: "Product description is required" })}
-          placeholder="Enter product description" 
+          placeholder="Enter product description"
         />
         {errors.description && (
           <p className="text-sm text-red-500">{errors.description.message}</p>
@@ -289,10 +289,10 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="code">Code*</Label>
-          <Input 
-            id="code" 
+          <Input
+            id="code"
             {...register("code", { required: "Product code is required" })}
-            placeholder="Enter product code" 
+            placeholder="Enter product code"
           />
           {errors.code && (
             <p className="text-sm text-red-500">{errors.code.message}</p>
@@ -301,7 +301,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
         <div className="space-y-2">
           <Label htmlFor="measure_id">Unit of Measure*</Label>
-          <Select 
+          <Select
             onValueChange={(value) => setValue("measure_id", value)}
             defaultValue={product?.measure_id}
           >
@@ -325,7 +325,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="parent_category">Categoría Principal</Label>
-          <Select 
+          <Select
             value={selectedParentCategory}
             onValueChange={async (value) => {
               setSelectedParentCategory(value);
@@ -353,7 +353,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
         <div className="space-y-2">
           <Label htmlFor="category_id">Categoría/Subcategoría*</Label>
-          <Select 
+          <Select
             onValueChange={(value) => setValue("category_id", value)}
             defaultValue={product?.category_id}
           >
@@ -367,7 +367,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
                   {category.name}
                 </SelectItem>
               ))}
-              
+
               {/* Mostrar subcategorías del padre seleccionado */}
               {selectedParentCategory && subcategories.length > 0 && (
                 <>
@@ -392,7 +392,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="supplier_id">Proveedor*</Label>
-          <Select 
+          <Select
             onValueChange={(value) => setValue("supplier_id", value)}
             defaultValue={product?.supplier_id}
           >
@@ -415,7 +415,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="currency">Moneda del Precio Unitario*</Label>
-        <Select 
+        <Select
           onValueChange={(value) => setValue("currency", value as 'ARS' | 'USD')}
           defaultValue={product?.currency || "ARS"}
         >
@@ -437,16 +437,16 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
           <Label htmlFor="unit_price">
             Unit Price* {currency === 'USD' ? '(USD)' : '(ARS)'}
           </Label>
-          <Input 
-            id="unit_price" 
+          <Input
+            id="unit_price"
             type="number"
             step="0.01"
-            {...register("unit_price", { 
+            {...register("unit_price", {
               required: "Unit price is required",
               valueAsNumber: true,
               min: { value: 0, message: "Price must be positive" }
             })}
-            placeholder="0.00" 
+            placeholder="0.00"
           />
           {errors.unit_price && (
             <p className="text-sm text-red-500">{errors.unit_price.message}</p>
@@ -456,11 +456,11 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         <div className="space-y-2">
           <Label htmlFor="markup">Markup (%) *</Label>
           <div className="relative">
-            <Input 
-              id="markup" 
+            <Input
+              id="markup"
               type="number"
               step="0.01"
-              {...register("markup", { 
+              {...register("markup", {
                 required: "Markup is required",
                 valueAsNumber: true,
                 min: { value: 0, message: "Markup must be positive" }
@@ -481,8 +481,8 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
           <Label htmlFor="sale_price">
             Sale Price {currency === 'USD' ? '(USD)' : '(ARS)'}
           </Label>
-          <Input 
-            id="sale_price" 
+          <Input
+            id="sale_price"
             type="number"
             step="0.01"
             value={salePrice !== null ? salePrice.toFixed(2) : ''}
@@ -490,7 +490,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
               const newSalePrice = parseFloat(e.target.value) || 0;
               setSalePrice(newSalePrice);
               setSalePriceARS(newSalePrice);
-              
+
               // Calcular markup automáticamente
               if (newSalePrice > 0 && unitPrice > 0) {
                 const calculatedMarkup = calculateMarkupFromSalePrice(newSalePrice);
@@ -507,8 +507,8 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
         {currency === 'USD' && (
           <div className="space-y-2">
             <Label htmlFor="sale_price_ars">Precio Final (ARS)</Label>
-            <Input 
-              id="sale_price_ars" 
+            <Input
+              id="sale_price_ars"
               type="number"
               step="0.01"
               value={salePriceARS !== null ? salePriceARS.toFixed(2) : ''}
@@ -524,7 +524,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="iva_id">IVA Tax*</Label>
-        <Select 
+        <Select
           onValueChange={(value) => setValue("iva_id", value)}
           defaultValue={product?.iva_id}
         >
@@ -546,7 +546,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="status">Status*</Label>
-        <Select 
+        <Select
           onValueChange={(value) => setValue("status", stringToStatus(value))}
           defaultValue={product?.status ? statusToString(product.status) : "active"}
         >
@@ -561,8 +561,8 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       </div>
 
       <div className="flex items-center space-x-2">
-        <Switch 
-          id="web" 
+        <Switch
+          id="web"
           checked={watch("web")}
           onCheckedChange={(checked) => setValue("web", checked)}
         />
@@ -571,17 +571,17 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="observaciones">Notes/Observations</Label>
-        <Textarea 
-          id="observaciones" 
+        <Textarea
+          id="observaciones"
           {...register("observaciones")}
-          placeholder="Additional notes about the product" 
+          placeholder="Additional notes about the product"
           rows={3}
         />
       </div>
 
-      <SubmitButton 
-        isLoading={loading} 
-        loadingText="Saving..." 
+      <SubmitButton
+        isLoading={loading}
+        loadingText="Saving..."
         className="w-full"
       >
         {product?.id ? "Update Product" : "Create Product"}

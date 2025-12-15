@@ -9,16 +9,16 @@ use Illuminate\Validation\ValidationException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
-        api: __DIR__.'/../routes/api.php',
-        commands: __DIR__.'/../routes/console.php',
+        web: __DIR__ . '/../routes/web.php',
+        api: __DIR__ . '/../routes/api.php',
+        commands: __DIR__ . '/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'cash.open' => \App\Http\Middleware\CheckCashRegisterOpen::class,
         ]);
-        
+
         // Ensure CORS middleware runs for API routes
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
@@ -29,23 +29,25 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->report(function (\Throwable $e) {
             // Don't report errors related to file writing (like log permissions)
             $message = $e->getMessage();
-            if (str_contains($message, 'Permission denied') || 
+            if (
+                str_contains($message, 'Permission denied') ||
                 str_contains($message, 'Failed to open stream') ||
-                str_contains($message, 'laravel.log')) {
+                str_contains($message, 'laravel.log')
+            ) {
                 return false; // Don't report this exception
             }
             return null; // Continue with normal reporting
         });
-        
+
         // Ensure all API exception responses include CORS headers
         $exceptions->render(function (\Throwable $e, Request $request) {
             // Only handle API routes
             if (!$request->is('api/*')) {
                 return null; // Let Laravel handle non-API routes
             }
-            
+
             $statusCode = 500;
-            
+
             if (method_exists($e, 'getStatusCode')) {
                 $statusCode = $e->getStatusCode();
             } elseif ($e instanceof ValidationException) {
@@ -55,12 +57,12 @@ return Application::configure(basePath: dirname(__DIR__))
                     'message' => 'Validation error',
                     'errors' => $e->errors(),
                 ], $statusCode);
-                
+
                 // Add CORS headers for validation errors
                 $origin = $request->header('Origin');
                 $allowedOrigins = config('cors.allowed_origins', []);
                 $allowedPatterns = config('cors.allowed_origins_patterns', []);
-                
+
                 $isAllowed = false;
                 if ($origin) {
                     if (in_array('*', $allowedOrigins) || in_array($origin, $allowedOrigins)) {
@@ -74,7 +76,7 @@ return Application::configure(basePath: dirname(__DIR__))
                         }
                     }
                 }
-                
+
                 if ($isAllowed) {
                     $response->headers->set('Access-Control-Allow-Origin', $origin);
                     $response->headers->set('Access-Control-Allow-Methods', implode(', ', config('cors.allowed_methods', ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'])));
@@ -83,7 +85,7 @@ return Application::configure(basePath: dirname(__DIR__))
                         $response->headers->set('Access-Control-Allow-Credentials', 'true');
                     }
                 }
-                
+
                 return $response;
             } elseif ($e instanceof \Illuminate\Auth\AuthenticationException) {
                 $statusCode = 401;
@@ -92,12 +94,12 @@ return Application::configure(basePath: dirname(__DIR__))
             } elseif ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
                 $statusCode = 404;
             }
-            
+
             // Get allowed origins from config
             $origin = $request->header('Origin');
             $allowedOrigins = config('cors.allowed_origins', []);
             $allowedPatterns = config('cors.allowed_origins_patterns', []);
-            
+
             // Check if origin is allowed
             $isAllowed = false;
             if ($origin) {
@@ -112,7 +114,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     }
                 }
             }
-            
+
             // Build response
             $response = response()->json([
                 'message' => $e->getMessage() ?: 'Internal server error',
@@ -122,7 +124,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     'trace' => $e->getTraceAsString(),
                 ] : null,
             ], $statusCode);
-            
+
             // Add CORS headers if origin is allowed
             if ($isAllowed) {
                 $response->headers->set('Access-Control-Allow-Origin', $origin);
@@ -132,7 +134,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     $response->headers->set('Access-Control-Allow-Credentials', 'true');
                 }
             }
-            
+
             return $response;
         });
     })->create();

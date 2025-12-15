@@ -28,6 +28,7 @@ import { useCashRegistersHistory } from "@/hooks/useCashRegistersHistory"
 import { useMultiBranchFilters } from "@/hooks/useMultiBranchFilters"
 import { toast } from "sonner"
 import ViewSaleDialog from "@/components/view-sale-dialog"
+import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import { ViewPurchaseOrderDialog } from "@/components/view-purchase-order-dialog"
 import useApi from "@/hooks/useApi"
 import { useSearchParams } from "react-router-dom"
@@ -204,6 +205,10 @@ export default function CajaPage() {
   // Modal de detalle de venta
   const [saleDialogOpen, setSaleDialogOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<any>(null)
+
+  // Estado para el diálogo de impresión
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
+  const [selectedReceiptSale, setSelectedReceiptSale] = useState<any>(null);
 
   // Los formularios ahora se manejan dentro de los diálogos
 
@@ -793,6 +798,20 @@ export default function CajaPage() {
       toast.error(error?.response?.data?.message || 'Error al crear el movimiento')
     } finally {
       setIsPageLoading(false)
+    }
+  }
+
+  const handlePrintReceipt = async (sale: any) => {
+    try {
+      const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+      const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+      setSelectedReceiptSale(fullSale)
+      setShowReceiptPreview(true)
+    } catch (error) {
+      console.error('Error fetching sale details for receipt:', error)
+      toast.error('No se pudo cargar el detalle del comprobante')
+      setSelectedReceiptSale(sale)
+      setShowReceiptPreview(true)
     }
   }
 
@@ -1532,10 +1551,10 @@ export default function CajaPage() {
 
                                       return (
                                         <span className={`${Math.abs(difference) < 0.01
-                                            ? 'text-blue-600'
-                                            : difference > 0
-                                              ? 'text-green-600'
-                                              : 'text-red-600'
+                                          ? 'text-blue-600'
+                                          : difference > 0
+                                            ? 'text-green-600'
+                                            : 'text-red-600'
                                           }`}>
                                           {Math.abs(difference) < 0.01
                                             ? 'Sin diferencia'
@@ -1550,8 +1569,8 @@ export default function CajaPage() {
                                 </td>
                                 <td className="px-4 py-4 whitespace-nowrap">
                                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cashRegister.status === 'open'
-                                      ? 'bg-green-100 text-green-800'
-                                      : 'bg-gray-100 text-gray-800'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
                                     }`}>
                                     {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
                                   </span>
@@ -1956,10 +1975,10 @@ export default function CajaPage() {
 
                                     return (
                                       <span className={`${Math.abs(difference) < 0.01
-                                          ? 'text-blue-600'
-                                          : difference > 0
-                                            ? 'text-green-600'
-                                            : 'text-red-600'
+                                        ? 'text-blue-600'
+                                        : difference > 0
+                                          ? 'text-green-600'
+                                          : 'text-red-600'
                                         }`}>
                                         {Math.abs(difference) < 0.01
                                           ? 'Sin diferencia'
@@ -1974,8 +1993,8 @@ export default function CajaPage() {
                               </td>
                               <td className="px-4 py-4 whitespace-nowrap">
                                 <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cashRegister.status === 'open'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
                                   }`}>
                                   {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
                                 </span>
@@ -2116,12 +2135,27 @@ export default function CajaPage() {
             alert("Error al descargar PDF");
           }
         }}
+        onPrintPdf={async (sale) => handlePrintReceipt(sale)}
         onSaleUpdated={(updatedSale) => {
           // Actualizar la venta seleccionada si es la misma
           if (selectedSale && selectedSale.id === updatedSale.id) {
             setSelectedSale(updatedSale);
           }
         }}
+      />
+
+      {/* Diálogo de impresión */}
+      <SaleReceiptPreviewDialog
+        open={showReceiptPreview}
+        onOpenChange={setShowReceiptPreview}
+        sale={selectedReceiptSale}
+        customerName={selectedReceiptSale ? getCustomerName(selectedReceiptSale) : ''}
+        customerCuit={selectedReceiptSale?.client?.person?.cuit || selectedReceiptSale?.customer?.person?.cuit}
+        formatDate={(d) => {
+          if (!d) return 'N/A'
+          return new Date(d).toLocaleDateString('es-AR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+        }}
+        formatCurrency={(val) => formatCurrency(Number(val))}
       />
 
       {/* Modal de detalle de orden de compra */}

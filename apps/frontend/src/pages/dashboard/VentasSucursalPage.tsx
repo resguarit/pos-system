@@ -36,7 +36,7 @@ interface Branch {
   address?: string;
   phone?: string;
   status?: number;
-} 
+}
 
 // Iconos
 import { ArrowLeft, Download, Search, Filter, Eye, FileText, /*Receipt,*/ BarChart, Users, Loader2 } from "lucide-react"
@@ -53,7 +53,7 @@ export default function BranchSalesPage() {
   const [sales, setSales] = useState<SaleHeader[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [receiptTypeFilter, setReceiptTypeFilter] = useState("all")
-  
+
   const [dateRange, setDateRange] = useState<DateRange>({ from: startOfYear(new Date()), to: new Date() });
 
   const [showChart, setShowChart] = useState(false)
@@ -68,10 +68,10 @@ export default function BranchSalesPage() {
     client_count: 0,
   })
   const [isExporting, setIsExporting] = useState(false)
-  
+
   // Estados para paginación
   const [currentPage, setCurrentPage] = useState(1)
-  
+
   // Ref para hacer scroll a la tabla al cambiar de página
   const tableRef = useRef<HTMLDivElement>(null)
 
@@ -92,23 +92,23 @@ export default function BranchSalesPage() {
       ]);
 
       if (signal.aborted) return;
-       
+
       // El backend puede devolver los datos directamente o dentro de .data
       const statsData = statsRes.data || statsRes;
-      
+
       setBranch((branchRes.data || { id, description: `Sucursal ${id}` }) as Branch);
-      
+
       const salesData = salesRes.data || [];
-      
+
       setSales(salesData);
-      
+
       // Filtrar ventas por rango de fechas seleccionado
       salesData.filter((sale: any) => {
         const saleDate = new Date(sale.date);
         return saleDate >= from && saleDate <= to;
       });
 
-      
+
       // Comentar esta línea para usar el filtro temporal
       // setSales(ventasFiltradas);
       setStats({
@@ -138,7 +138,7 @@ export default function BranchSalesPage() {
   // --- Funciones Auxiliares y de Formateo ---
   const getCustomerName = (sale: SaleHeader): string => {
     const customer = sale.customer as any;
-    
+
 
     if (typeof customer === 'string') {
       const trimmed = customer.trim();
@@ -210,7 +210,7 @@ export default function BranchSalesPage() {
     const startIndex = (currentPage - 1) * PAGE_SIZE;
     const endIndex = startIndex + PAGE_SIZE;
     const paginatedSales = filteredSales.slice(startIndex, endIndex);
-    
+
     return { totalItems, totalPages, paginatedSales };
   }, [filteredSales, currentPage]);
 
@@ -232,7 +232,7 @@ export default function BranchSalesPage() {
     try {
       return format(new Date(dateString), "dd/MM/yyyy HH:mm", { locale: es });
     } catch {
-      return dateString; 
+      return dateString;
     }
   }
 
@@ -284,12 +284,12 @@ export default function BranchSalesPage() {
    */
   const handleSaleUpdated = async (updatedSale: SaleHeader) => {
     // Actualizar en la lista local
-    setSales(prevSales => 
-      prevSales.map(sale => 
+    setSales(prevSales =>
+      prevSales.map(sale =>
         sale.id === updatedSale.id ? updatedSale : sale
       )
     );
-    
+
     // Actualizar la venta seleccionada
     if (selectedSale && selectedSale.id === updatedSale.id) {
       setSelectedSale(updatedSale);
@@ -302,16 +302,16 @@ export default function BranchSalesPage() {
         from_date: format(dateRange.from, "yyyy-MM-dd"),
         to_date: format(dateRange.to, "yyyy-MM-dd"),
       };
-      
+
       try {
         const [salesRes, statsRes] = await Promise.all([
           request({ method: "GET", url: `/sales`, params: apiParams }),
           request({ method: "GET", url: `/sales/summary`, params: apiParams })
         ]);
-        
+
         const salesData = salesRes.data || [];
         setSales(Array.isArray(salesData) ? salesData : []);
-        
+
         const statsData = statsRes.data || statsRes;
         setStats(statsData);
       } catch (error) {
@@ -337,33 +337,33 @@ export default function BranchSalesPage() {
 
   const handleDownloadPdf = async (sale: SaleHeader) => {
     if (!sale || !sale.id) {
-            alert("No se puede descargar el PDF: ID de venta faltante.");
-            return;
-          }
-          try {
-            const response = await request({ 
-              method: 'GET', 
-              url: `/pos/sales/${sale.id}/pdf`,
-              responseType: 'blob'
-            });
-            if (!response || !(response instanceof Blob)) {
-              throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-            }
-            const blob = new Blob([response], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-            const receiptNumber = sale.receipt_number || sale.id;
-            const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
-          } catch (error) {
-            alert("Error al descargar PDF");
-          }
+      alert("No se puede descargar el PDF: ID de venta faltante.");
+      return;
+    }
+    try {
+      const response = await request({
+        method: 'GET',
+        url: `/pos/sales/${sale.id}/pdf`,
+        responseType: 'blob'
+      });
+      if (!response || !(response instanceof Blob)) {
+        throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+      }
+      const blob = new Blob([response], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+      const receiptNumber = sale.receipt_number || sale.id;
+      const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert("Error al descargar PDF");
+    }
   };
 
   const uniqueReceiptTypes = Array.from(new Set(sales.map(sale => getReceiptType(sale).filterKey)))
@@ -457,7 +457,7 @@ export default function BranchSalesPage() {
           </CollapsibleTrigger>
         </div>
         <CollapsibleContent>
-            {params.id && <SalesHistoryChart branchId={parseInt(params.id)} dateRange={dateRange} className="w-full" />}
+          {params.id && <SalesHistoryChart branchId={parseInt(params.id)} dateRange={dateRange} className="w-full" />}
         </CollapsibleContent>
       </Collapsible>
 
@@ -499,7 +499,7 @@ export default function BranchSalesPage() {
             {!loading && paginationData.paginatedSales.map((sale) => {
               const receiptTypeInfo = getReceiptType(sale);
               const { className: badgeClassName } = getReceiptStyle(receiptTypeInfo.displayName);
-              
+
               return (
                 <TableRow key={sale.id}>
                   <TableCell className="font-medium">{sale.receipt_number || sale.id}</TableCell>
@@ -553,8 +553,8 @@ export default function BranchSalesPage() {
           return;
         }
         try {
-          const response = await request({ 
-            method: 'GET', 
+          const response = await request({
+            method: 'GET',
             url: `/pos/sales/${sale.id}/pdf`,
             responseType: 'blob'
           });
@@ -578,48 +578,61 @@ export default function BranchSalesPage() {
           alert("Error al descargar PDF");
         }
       }}
-      onSaleUpdated={handleSaleUpdated}
-      />)}
-      {selectedSale && branch && (
-        <SaleReceiptPreviewDialog 
-          open={isReceiptOpen} 
-          onOpenChange={setIsReceiptOpen} 
-          sale={selectedSale} 
-          customerName={getCustomerName(selectedSale)} 
-          customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
-          formatDate={formatDate} 
-          formatCurrency={formatCurrency} 
-          onDownloadPdf={async (sale: SaleHeader) => {
-          if (!sale || !sale.id) {
-            alert("No se puede descargar el PDF: ID de venta faltante.");
-            return;
-          }
+        onSaleUpdated={handleSaleUpdated}
+        onPrintPdf={async (sale) => {
           try {
-            const response = await request({ 
-              method: 'GET', 
-              url: `/pos/sales/${sale.id}/pdf`,
-              responseType: 'blob'
-            });
-            if (!response || !(response instanceof Blob)) {
-              throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-            }
-            const blob = new Blob([response], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-            const receiptNumber = sale.receipt_number || sale.id;
-            const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url);
+            const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+            const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+            setSelectedSale(fullSale)
+            setIsReceiptOpen(true)
           } catch (error) {
-            console.error("Error downloading PDF:", error);
-            alert("Error al descargar PDF");
+            console.error('Error fetching sale details for receipt:', error)
+            toast.error('No se pudo cargar el detalle del comprobante')
+            setSelectedSale(sale)
+            setIsReceiptOpen(true)
           }
         }}
+      />)}
+      {selectedSale && branch && (
+        <SaleReceiptPreviewDialog
+          open={isReceiptOpen}
+          onOpenChange={setIsReceiptOpen}
+          sale={selectedSale}
+          customerName={getCustomerName(selectedSale)}
+          customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
+          formatDate={formatDate}
+          formatCurrency={formatCurrency}
+          onDownloadPdf={async (sale: SaleHeader) => {
+            if (!sale || !sale.id) {
+              alert("No se puede descargar el PDF: ID de venta faltante.");
+              return;
+            }
+            try {
+              const response = await request({
+                method: 'GET',
+                url: `/pos/sales/${sale.id}/pdf`,
+                responseType: 'blob'
+              });
+              if (!response || !(response instanceof Blob)) {
+                throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+              }
+              const blob = new Blob([response], { type: 'application/pdf' });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+              const receiptNumber = sale.receipt_number || sale.id;
+              const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+              a.download = fileName;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+            } catch (error) {
+              console.error("Error downloading PDF:", error);
+              alert("Error al descargar PDF");
+            }
+          }}
         />
       )}
     </div>
