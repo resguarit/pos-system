@@ -1,10 +1,10 @@
 name: 🧪 CI - Tests & Validation
 
 on:
-  push:
-    branches: [ master, develop ]
+  # Solo corre en PRs para ahorrar minutos (el deploy ya valida el build)
   pull_request:
     branches: [ master ]
+  workflow_dispatch:  # Permite ejecutar manualmente si es necesario
 
 jobs:
   frontend:

@@ -133,12 +133,13 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: apps/frontend/package-lock.json
         
     - name: Install dependencies
       run: |
         cd apps/frontend
-        rm -rf node_modules package-lock.json
-        npm install --force
+        npm ci || npm install --force
         npm install @rollup/rollup-linux-x64-gnu --save-optional || true
         npm install @swc/core-linux-x64-gnu --save-optional || true
         npm install lightningcss-linux-x64-gnu --save-optional || true
@@ -243,18 +244,4 @@ jobs:
       run: |
         echo "✅ Frontend deployment completed for RG POS"
 
-  notify:
-    name: Deployment Summary - RG POS
-    needs: [deploy_frontend, deploy_backend]
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-    - name: Deployment Summary
-      run: |
-        echo "=========================================="
-        echo "🚀 RG POS - Deployment Summary"
-        echo "=========================================="
-        echo "Frontend: ${{ needs.deploy_frontend.result }}"
-        echo "Backend:  ${{ needs.deploy_backend.result }}"
-        echo "=========================================="
+# Job notify eliminado para ahorrar minutos de GitHub Actions
