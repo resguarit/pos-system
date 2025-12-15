@@ -33,9 +33,11 @@ interface DatePickerWithRangeProps {
   className?: string
   selected: DateRange | undefined
   onSelect: (range: DateRange | undefined) => void
+  align?: "center" | "start" | "end"
+  side?: "top" | "right" | "bottom" | "left"
 }
 
-export function DatePickerWithRange({ className, selected, onSelect }: DatePickerWithRangeProps) {
+export function DatePickerWithRange({ className, selected, onSelect, align = "start", side = "bottom" }: DatePickerWithRangeProps) {
   // Estado para controlar la apertura/cierre del Popover
   const [open, setOpen] = React.useState(false);
   // Calculamos el ancho del contenido del calendario según el número de meses
@@ -48,21 +50,21 @@ export function DatePickerWithRange({ className, selected, onSelect }: DatePicke
 
   // Adaptador para convertir entre los tipos de fecha  
   const handleSelect = React.useCallback((date: Date | null | { from: Date; to?: Date }) => {
-    
+
     // Si recibimos null o undefined, simplemente pasamos undefined al callback
     if (!date) {
       onSelect(undefined);
       return;
     }
-      // Si recibimos un objeto de rango completo del calendario
+    // Si recibimos un objeto de rango completo del calendario
     if (typeof date === "object" && "from" in date) {
       // Asegurarnos que ambas fechas son válidas
       const from = date.from instanceof Date ? date.from : new Date(date.from);
-      let to = date.to instanceof Date ? date.to : 
-              date.to ? new Date(date.to) : undefined;
-      
+      let to = date.to instanceof Date ? date.to :
+        date.to ? new Date(date.to) : undefined;
+
       // Verificar que la fecha "from" es válida (no es anterior a 1970)
-      if (!isNaN(from.getTime()) && from.getFullYear() >= 1970) {        
+      if (!isNaN(from.getTime()) && from.getFullYear() >= 1970) {
         if (to && !isNaN(to.getTime()) && to.getFullYear() >= 1970) {
           // Primero actualizar la selección y luego cerrar el calendario
           onSelect({ from, to });
@@ -78,7 +80,7 @@ export function DatePickerWithRange({ className, selected, onSelect }: DatePicke
       }
       return;
     }
-      // Si es una fecha, verificar que sea válida y posterior a 1970
+    // Si es una fecha, verificar que sea válida y posterior a 1970
     if (date instanceof Date && !isNaN(date.getTime()) && date.getFullYear() >= 1970) {
       // Si ya tenemos una fecha de inicio pero no de fin, establecer como fin
       if (selected?.from && !selected.to) {
@@ -86,12 +88,12 @@ export function DatePickerWithRange({ className, selected, onSelect }: DatePicke
           from: new Date(selected.from),
           to: new Date(date)
         };
-          // Ordenar las fechas (por si el usuario selecciona primero fecha fin y luego inicio)
+        // Ordenar las fechas (por si el usuario selecciona primero fecha fin y luego inicio)
         if (date < selected.from) {
           newRange.from = new Date(date);
           newRange.to = new Date(selected.from);
         }
-          // Actualizar la selección y luego cerrar el calendario
+        // Actualizar la selección y luego cerrar el calendario
         onSelect(newRange);
         // Cerramos después de un pequeño delay para asegurar que la actualización se complete
         setTimeout(() => setOpen(false), 100);
@@ -109,40 +111,42 @@ export function DatePickerWithRange({ className, selected, onSelect }: DatePicke
           <Button
             id="date"
             variant={"outline"}
-            className={cn("w-[300px] justify-start text-left font-normal", !selected && "text-muted-foreground")}
+            className={cn("w-[220px] justify-start text-left font-normal", !selected && "text-muted-foreground")}
           >            <CalendarIcon className="mr-2 h-4 w-4" />            {selected && selected.from && !isNaN(selected.from.getTime()) ? (
-              selected.to && !isNaN(selected.to.getTime()) ? (
-                <>
-                  {safeFormat(selected.from, "dd/MM/yyyy", { locale: es })} -{" "}
-                  {safeFormat(selected.to, "dd/MM/yyyy", { locale: es })}
-                </>
-              ) : (
-                safeFormat(selected.from, "dd/MM/yyyy", { locale: es })
-              )
+            selected.to && !isNaN(selected.to.getTime()) ? (
+              <>
+                {safeFormat(selected.from, "dd/MM/yyyy", { locale: es })} -{" "}
+                {safeFormat(selected.to, "dd/MM/yyyy", { locale: es })}
+              </>
             ) : (
-              <span>Seleccionar rango de fechas</span>
-            )}
+              safeFormat(selected.from, "dd/MM/yyyy", { locale: es })
+            )
+          ) : (
+            <span>Seleccionar fechas</span>
+          )}
           </Button>
-        </PopoverTrigger>        <PopoverContent 
-          className={cn("w-auto p-0", isMobile ? "max-w-[320px]" : "min-w-[600px]")} 
-          align="start"
+        </PopoverTrigger>        <PopoverContent
+          className={cn("w-auto p-0", isMobile ? "max-w-[320px]" : "min-w-[600px]")}
+          align={align}
+          side={side}
+          sideOffset={5}
         >
           <div className={cn(isMobile ? "" : "grid grid-cols-2 gap-2")}>
             <Calendar
-              initialFocus              mode="range"
+              initialFocus mode="range"
               defaultMonth={selected?.from || new Date()}
               selected={selected}
               onSelect={handleSelect}
               className="w-full"
             />
-            
+
             {/* Si no está en móvil, muestra un segundo calendario */}
             {!isMobile && (
               <Calendar
                 mode="range"
-                defaultMonth={selected?.from 
+                defaultMonth={selected?.from
                   ? new Date(selected.from.getFullYear(), selected.from.getMonth() + 1)
-                  : new Date(new Date().getFullYear(), new Date().getMonth() + 1)}                selected={selected}
+                  : new Date(new Date().getFullYear(), new Date().getMonth() + 1)} selected={selected}
                 onSelect={handleSelect}
                 className="w-full"
               />

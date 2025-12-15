@@ -12,7 +12,7 @@ const SelectValue = SelectPrimitive.Value
 
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & { children?: React.ReactNode }
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
@@ -67,11 +67,11 @@ SelectScrollDownButton.displayName =
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & { children?: React.ReactNode }
 >(({ className, children, position = "popper", ...props }, ref) => {
   // Check if dark mode is active
   const isDarkMode = document.documentElement.classList.contains('dark');
-  
+
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
@@ -79,7 +79,7 @@ const SelectContent = React.forwardRef<
         className={cn(
           "relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-md border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           position === "popper" &&
-            "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className
         )}
         style={{
@@ -97,7 +97,7 @@ const SelectContent = React.forwardRef<
           className={cn(
             "p-1",
             position === "popper" &&
-              "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
+            "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
           )}
         >
           {children}
@@ -123,7 +123,7 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName
 
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & { children?: React.ReactNode }
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
