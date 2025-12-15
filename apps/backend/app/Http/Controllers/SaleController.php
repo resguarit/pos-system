@@ -200,6 +200,14 @@ class SaleController extends Controller
     public function downloadPdf(Request $request, $id)
     {
         try {
+            // Debug: Log the incoming request
+            \Log::info('SaleController downloadPdf called', [
+                'sale_id' => $id,
+                'query_format' => $request->query('format'),
+                'all_query' => $request->query(),
+                'url' => $request->fullUrl()
+            ]);
+
             $sale = \App\Models\SaleHeader::with([
                 'items.product.iva',
                 'branch',

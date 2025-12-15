@@ -858,10 +858,18 @@ class SaleService implements SaleServiceInterface
 
     /**
      * Generate PDF for sale
-     * Force deploy for ticket fix v2
+     * Force deploy for ticket fix v3
      */
     public function downloadPdf(int $id, string $format = 'standard')
     {
+        // Debug: Log the format parameter received
+        \Log::info('PDF Download requested', [
+            'sale_id' => $id,
+            'format_received' => $format,
+            'is_thermal' => ($format === 'thermal'),
+            'template_selected' => $format === 'thermal' ? 'pdf.ticket' : 'pdf.sale'
+        ]);
+
         $sale = SaleHeader::with([
             'items.product.iva',
             'branch',
