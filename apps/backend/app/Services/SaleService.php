@@ -856,6 +856,10 @@ class SaleService implements SaleServiceInterface
         ];
     }
 
+    /**
+     * Generate PDF for sale
+     * Force deploy for ticket fix v2
+     */
     public function downloadPdf(int $id, string $format = 'standard')
     {
         $sale = SaleHeader::with([
