@@ -21,7 +21,6 @@ interface ThermalTicketContentProps {
 
 const ThermalTicketContent: React.FC<ThermalTicketContentProps> = ({
     sale,
-    customerName,
     formatDate,
     companyDetails,
 }) => {
@@ -31,107 +30,108 @@ const ThermalTicketContent: React.FC<ThermalTicketContentProps> = ({
     const backendCompanyName = branch?.description || branch?.name || '';
     const backendAddress = branch?.address || '';
 
-    // Valores de empresa a mostrar
-    const companyName = companyDetails.name || backendCompanyName || 'Empresa';
+    // Valores de empresa a mostrar (igual que blade: usa company_name o branch description)
+    const companyName = companyDetails.name || backendCompanyName || 'SUCURSAL';
 
-    // Derivar nombre del cliente (limitado a 35 chars)
-    const rawCustomerName = customerName || (
-        s?.customer?.person
-            ? `${s.customer.person.first_name || ''} ${s.customer.person.last_name || ''}`.trim()
-            : s?.customer?.business_name || 'Consumidor Final'
-    );
-    const derivedCustomerName = rawCustomerName.length > 35
-        ? rawCustomerName.substring(0, 35) + '...'
-        : rawCustomerName;
+    // Formatear número con 2 decimales (igual que blade)
+    const formatMoney = (n: number) => {
+        return `$${n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
 
-    // Calcular IVA total
-    const saleIvas = s?.saleIvas || s?.sale_ivas || [];
-    const totalIva = Array.isArray(saleIvas)
-        ? saleIvas.reduce((acc: number, iva: any) => acc + (Number(iva?.amount) || 0), 0)
-        : 0;
+    // Formatear fecha como dd/mm/yyyy
+    const formatDateShort = (dateString: string | null | undefined) => {
+        if (!dateString) return new Date().toLocaleDateString('es-AR');
+        const d = new Date(dateString);
+        return d.toLocaleDateString('es-AR');
+    };
 
-    // Formato simple sin decimales
-    const formatSimple = (n: number) => {
-        const rounded = Math.round(n);
-        return `$${rounded.toLocaleString('es-AR')}`;
+    // Formatear hora como HH:mm
+    const formatTime = (dateString: string | null | undefined) => {
+        if (!dateString) return new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        const d = new Date(dateString);
+        return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
     };
 
     return (
-        <div className="bg-white p-1 text-[9px] font-sans w-full max-w-[72mm]">
-            {/* Header */}
-            <div className="text-center mb-1">
-                <h2 className="text-[11px] font-bold">{companyName}</h2>
-                {backendAddress && <p className="text-[8px]">{backendAddress}</p>}
+        <div className="bg-white text-[9px] font-sans w-[60mm] max-w-[60mm] ml-[10mm]">
+            {/* Header - igual que blade */}
+            <div className="text-center text-[11px] font-bold uppercase">
+                {companyName}
+            </div>
+            {backendAddress && (
+                <div className="text-center text-[8px]">{backendAddress}</div>
+            )}
+            <div className="text-center text-[8px]">RESPONSABLE INSCRIPTO</div>
+
+            <div className="border-b border-dashed border-black my-[3px]"></div>
+
+            {/* Fecha y Hora en la misma fila - igual que blade */}
+            <div className="flex justify-between text-[9px]">
+                <span className="font-bold">Fecha: {formatDateShort(s?.date)}</span>
+                <span className="font-bold">Hora: {formatTime(s?.date)}</span>
             </div>
 
-            <div className="border-b border-dashed border-black my-1"></div>
+            <div className="border-b border-dashed border-black my-[3px]"></div>
 
-            {/* Número */}
-            <div className="text-center mb-1">
-                <p className="font-bold text-[10px]">N° {s?.receipt_number || s?.id}</p>
-                <p className="text-[8px]">{formatDate(s?.date)}</p>
+            {/* Encabezados de columna - igual que blade */}
+            <div className="flex text-[8px] font-bold mb-[2px]">
+                <span className="w-[15%] text-left">CANT</span>
+                <span className="w-[40%] text-left">P.UNIT</span>
+                <span className="w-[45%] text-right">IMPORTE</span>
             </div>
 
-            <div className="border-b border-dashed border-black my-1"></div>
+            {/* Items - igual que blade: descripción arriba, números abajo */}
+            {s.items && s.items.length > 0 ? (
+                s.items.map((item: SaleItem, index: number) => {
+                    const qty = Number((item as any).quantity) || 0;
+                    const unitPrice = Number((item as any).unit_price) || 0;
+                    const lineTotal = Number((item as any).item_total) || 0;
+                    const description = (item as any).product?.description || 'Item';
 
-            {/* Cliente */}
-            <div className="mb-1 text-[9px]">
-                <span className="font-bold">Cli:</span> {derivedCustomerName}
-            </div>
-
-            <div className="border-b border-dashed border-black my-1"></div>
-
-            {/* Items: Double Line Layout */}
-            <div className="mb-1">
-                {s.items && s.items.length > 0 ? (
-                    s.items.map((item: SaleItem, index: number) => {
-                        const qty = Math.round((item as any).quantity || 0);
-                        const unitPrice = Math.round((item as any).unit_price || ((item as any).item_total / Math.max(1, qty)));
-                        const lineTotal = Math.round((item as any).item_total || 0);
-                        const description = (item as any).description || (item as any).product?.description || 'Producto';
-
-                        return (
-                            <div key={index} className="mb-2">
-                                {/* Line 1: Full Description */}
-                                <p className="font-bold text-[9px]">{description}</p>
-                                {/* Line 2: Qty x UnitPrice = LineTotal */}
-                                <div className="flex justify-between text-[8px] font-mono">
-                                    <span>{qty} x {formatSimple(unitPrice)}</span>
-                                    <span className="font-bold">{formatSimple(lineTotal)}</span>
-                                </div>
+                    return (
+                        <div key={index}>
+                            {/* Descripción del producto */}
+                            <div className="text-[9px] font-bold pt-[3px]">
+                                {description}
                             </div>
-                        );
-                    })
-                ) : (
-                    <p className="text-center text-[8px]">No hay productos</p>
-                )}
-            </div>
+                            {/* Cantidad, Precio Unitario, Importe */}
+                            <div className="flex font-mono text-[9px]">
+                                <span className="w-[15%] text-left">{qty}</span>
+                                <span className="w-[40%] text-left">{formatMoney(unitPrice)}</span>
+                                <span className="w-[45%] text-right font-bold">{formatMoney(lineTotal)}</span>
+                            </div>
+                        </div>
+                    );
+                })
+            ) : (
+                <div className="text-center text-[8px]">No hay productos</div>
+            )}
 
-            <div className="border-b border-dashed border-black my-1"></div>
+            <div className="border-b border-dashed border-black my-[3px]"></div>
 
-            {/* Totales alineados a la derecha */}
-            <div className="text-right text-[9px] font-mono mb-1">
-                <p>Subtotal: {formatSimple(s?.subtotal || 0)}</p>
-                {totalIva > 0 && <p>IVA: {formatSimple(totalIva)}</p>}
+            {/* Totales - igual que blade */}
+            <div className="text-[10px]">
+                <div className="flex justify-end">
+                    <span className="text-right">Subtotal:</span>
+                    <span className="text-right font-mono ml-2">{formatMoney(s?.subtotal || 0)}</span>
+                </div>
                 {(s?.discount_amount || 0) > 0 && (
-                    <p>Desc: -{formatSimple(s?.discount_amount || 0)}</p>
+                    <div className="flex justify-end">
+                        <span className="text-right">Descuento:</span>
+                        <span className="text-right font-mono ml-2">-{formatMoney(s?.discount_amount || 0)}</span>
+                    </div>
                 )}
+                <div className="flex justify-end text-[12px] font-bold pt-[5px]">
+                    <span className="text-right">TOTAL:</span>
+                    <span className="text-right font-mono ml-2">{formatMoney(s?.total || 0)}</span>
+                </div>
             </div>
 
-            <div className="border-b border-dashed border-black my-1"></div>
-
-            {/* Total */}
-            <div className="text-right py-1 my-1">
-                <p className="font-bold text-[12px] font-mono">
-                    Total {formatSimple(s?.total || 0)}
-                </p>
-            </div>
-
-            <div className="border-b border-dashed border-black my-1"></div>
+            <div className="border-b border-dashed border-black my-[3px]"></div>
 
             {/* Footer */}
-            <div className="text-center text-[8px] mt-1">
-                <p>¡Gracias por su compra!</p>
+            <div className="text-center text-[9px] mt-[5px]">
+                ¡Gracias por su compra!
             </div>
         </div>
     );
