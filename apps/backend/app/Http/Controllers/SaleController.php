@@ -201,7 +201,7 @@ class SaleController extends Controller
     {
         try {
             // Debug: Log the incoming request
-            \Log::info('SaleController downloadPdf called', [
+            \Illuminate\Support\Facades\Log::info('SaleController downloadPdf called', [
                 'sale_id' => $id,
                 'query_format' => $request->query('format'),
                 'all_query' => $request->query(),

@@ -863,7 +863,7 @@ class SaleService implements SaleServiceInterface
     public function downloadPdf(int $id, string $format = 'standard')
     {
         // Debug: Log the format parameter received
-        \Log::info('PDF Download requested', [
+        \Illuminate\Support\Facades\Log::info('PDF Download requested', [
             'sale_id' => $id,
             'format_received' => $format,
             'is_thermal' => ($format === 'thermal'),
