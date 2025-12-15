@@ -90,6 +90,10 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
     const [employeeSearch, setEmployeeSearch] = useState('');
     const [showEmployeeOptions, setShowEmployeeOptions] = useState(false);
 
+    // Estados para búsqueda de categoría
+    const [categorySearch, setCategorySearch] = useState('');
+    const [showCategoryOptions, setShowCategoryOptions] = useState(false);
+
     // Fetch categories, employees and payment methods when dialog opens
 
     useEffect(() => {
@@ -108,6 +112,8 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
             setErrors({});
             setEmployeeSearch('');
             setShowEmployeeOptions(false);
+            setCategorySearch('');
+            setShowCategoryOptions(false);
         }
     }, [open, selectedBranchIds]);
 
@@ -282,21 +288,50 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label>Categoría <span className="text-red-500">*</span></Label>
-                            <Select
-                                value={formData.category_id}
-                                onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
-                            >
-                                <SelectTrigger className={errors.category_id ? 'border-red-500' : ''}>
-                                    <SelectValue placeholder="Seleccionar categoría" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {categories.map((cat) => (
-                                        <SelectItem key={cat.id} value={cat.id.toString()}>
-                                            {cat.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div className="relative">
+                                <Input
+                                    value={categorySearch}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        setCategorySearch(v);
+                                        setShowCategoryOptions(true);
+                                        if (!v) {
+                                            setFormData(prev => ({ ...prev, category_id: '' }));
+                                        }
+                                    }}
+                                    onFocus={() => setShowCategoryOptions(true)}
+                                    onBlur={() => setTimeout(() => setShowCategoryOptions(false), 200)}
+                                    placeholder="Buscar categoría..."
+                                    className={errors.category_id ? 'border-red-500' : ''}
+                                />
+                                {showCategoryOptions && categories.filter(cat => {
+                                    const searchLower = categorySearch.toLowerCase();
+                                    return cat.name.toLowerCase().includes(searchLower);
+                                }).length > 0 && (
+                                        <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                                            {categories.filter(cat => {
+                                                const searchLower = categorySearch.toLowerCase();
+                                                return cat.name.toLowerCase().includes(searchLower);
+                                            }).map((cat) => (
+                                                <div
+                                                    key={cat.id}
+                                                    className="p-2 cursor-pointer hover:bg-gray-100"
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setFormData(prev => ({ ...prev, category_id: cat.id.toString() }));
+                                                        setCategorySearch(cat.name);
+                                                        setShowCategoryOptions(false);
+                                                    }}
+                                                >
+                                                    {cat.name}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                            </div>
                             {errors.category_id && <p className="text-sm text-red-500">{errors.category_id}</p>}
                         </div>
 

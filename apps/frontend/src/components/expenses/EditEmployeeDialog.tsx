@@ -109,7 +109,7 @@ export function EditEmployeeDialog({ open, onOpenChange, employee, onSuccess, vi
                 last_name: employee.person?.last_name || '',
                 phone: employee.person?.phone || '',
                 address: employee.person?.address || '',
-                documento: employee.person?.documento || '',
+                documento: employee.person?.documento?.toString() || '',
                 cuit: employee.person?.cuit || '',
                 branch_ids: branchIds,
                 job_title: employee.job_title || '',

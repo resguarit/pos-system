@@ -6,12 +6,34 @@ use App\Interfaces\RepairServiceInterface;
 use App\Models\Repair;
 use App\Models\RepairNote;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class RepairService implements RepairServiceInterface
 {
+    /**
+     * List repairs with pagination
+     */
     public function list(array $filters = []): LengthAwarePaginator
+    {
+        $query = $this->buildQuery($filters);
+        return $query->orderByDesc('id')->paginate($filters['per_page'] ?? 15);
+    }
+
+    /**
+     * List all repairs without pagination (for Kanban view)
+     */
+    public function listAll(array $filters = []): Collection
+    {
+        $query = $this->buildQuery($filters);
+        return $query->orderByDesc('id')->limit(200)->get();
+    }
+
+    /**
+     * Build base query with filters
+     */
+    private function buildQuery(array $filters = [])
     {
         $query = Repair::query()->with(['customer.person', 'branch', 'technician', 'sale']);
 
@@ -19,10 +41,10 @@ class RepairService implements RepairServiceInterface
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('code', 'like', "%$search%")
-                  ->orWhere('device', 'like', "%$search%")
-                  ->orWhereHas('customer.person', function ($q2) use ($search) {
-                      $q2->where(DB::raw("CONCAT(first_name, ' ', last_name)"), 'like', "%$search%");
-                  });
+                    ->orWhere('device', 'like', "%$search%")
+                    ->orWhereHas('customer.person', function ($q2) use ($search) {
+                        $q2->where(DB::raw("CONCAT(first_name, ' ', last_name)"), 'like', "%$search%");
+                    });
             });
         }
 
@@ -50,13 +72,23 @@ class RepairService implements RepairServiceInterface
             $query->whereDate('intake_date', '<=', $filters['to_date']);
         }
 
-        return $query->orderByDesc('id')->paginate($filters['per_page'] ?? 15);
+        // Sorting
+        if (!empty($filters['sort_by'])) {
+            $direction = ($filters['sort_dir'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+            $query->orderBy($filters['sort_by'], $direction);
+        }
+
+        return $query;
     }
 
+    /**
+     * Find a single repair by ID
+     */
     public function find(int $id): ?Repair
     {
         return Repair::with(['customer.person', 'branch', 'technician', 'notes.user', 'sale'])->find($id);
     }
+
 
     public function create(array $data): Repair
     {
@@ -118,7 +150,8 @@ class RepairService implements RepairServiceInterface
     public function stats(array $filters = []): array
     {
         $base = Repair::query();
-        if (!empty($filters['branch_id'])) $base->where('branch_id', $filters['branch_id']);
+        if (!empty($filters['branch_id']))
+            $base->where('branch_id', $filters['branch_id']);
 
         // Apply date range to stats using intake_date only
         if (!empty($filters['from_date'])) {
@@ -139,6 +172,6 @@ class RepairService implements RepairServiceInterface
     private function generateCode(): string
     {
         $nextId = (Repair::max('id') ?? 0) + 1;
-        return 'REP' . str_pad((string)$nextId, 3, '0', STR_PAD_LEFT);
+        return 'REP' . str_pad((string) $nextId, 3, '0', STR_PAD_LEFT);
     }
 }

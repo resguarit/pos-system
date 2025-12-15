@@ -1,0 +1,59 @@
+/* Estilos de impresión para recibos */
+@media print {
+
+    /* Ocultar todo por defecto */
+    body * {
+        visibility: hidden !important;
+    }
+
+    /* Mostrar solo el contenido del recibo */
+    #receipt-preview-content,
+    #receipt-preview-content * {
+        visibility: visible !important;
+    }
+
+    /* Posicionar el contenido del recibo */
+    #receipt-preview-content {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Asegurar que no hay bordes ni sombras */
+    * {
+        box-shadow: none !important;
+        border-color: black !important;
+    }
+
+    /* Forzar colores */
+    html {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+}
+
+/* Modo ticket (80mm) */
+@media print {
+    body.print-thermal {
+        width: 80mm !important;
+    }
+
+    body.print-thermal #receipt-preview-content {
+        max-width: 80mm !important;
+        width: 80mm !important;
+    }
+}
+
+@page {
+    size: A4;
+    margin: 10mm;
+}
+
+body.print-thermal @page {
+    size: 80mm auto;
+    margin: 0;
+}

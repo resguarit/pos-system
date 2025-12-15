@@ -5,10 +5,9 @@ import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { Search, Eye, Pencil, Trash2, RotateCw, Plus, Calendar, DollarSign } from "lucide-react"
+import { Search, Pencil, Trash2, RotateCw, Plus, X, DollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
-import { Link } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
 import { toast } from "sonner"
 import {
@@ -23,6 +22,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { NewExpenseDialog, EditExpenseDialog } from "@/components/expenses"
+import { ExpensesStats } from "@/components/expenses/ExpensesStats"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
+import { format } from "date-fns"
 
 interface Expense {
     id: number;
@@ -50,12 +54,38 @@ interface Expense {
     notes: string | null;
 }
 
+interface Branch {
+    id: number;
+    description: string; // Changed from name to description
+}
+
 export default function ExpensesListPage() {
     const { request, loading } = useApi();
     const { hasPermission } = useAuth();
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [searchTerm, setSearchTerm] = useState("")
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+
+    // Filters
+    const [filters, setFilters] = useState({
+        branch_id: 'all',
+        status: 'all',
+        start_date: '',
+        end_date: ''
+    });
+    const [branches, setBranches] = useState<Branch[]>([]);
+    const [stats, setStats] = useState({ by_category: [], by_month: [] });
+    const [statsLoading, setStatsLoading] = useState(false);
+
+    // Initialize date range with default: first day of current month to today
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+        const today = new Date();
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        return {
+            from: firstDayOfMonth,
+            to: today
+        };
+    });
 
     // Dialog states
     const [newDialogOpen, setNewDialogOpen] = useState(false)
@@ -91,6 +121,36 @@ export default function ExpensesListPage() {
         defaultWidth: 150
     });
 
+    // Load branches
+    useEffect(() => {
+        const loadBranches = async () => {
+            try {
+                const response = await request({ method: 'GET', url: '/branches' });
+                if (response.success) setBranches(response.data);
+            } catch (error) {
+                console.error("Error loading branches", error);
+            }
+        };
+        loadBranches();
+    }, [request]);
+
+    // Update filters when dateRange changes
+    useEffect(() => {
+        if (dateRange?.from) {
+            setFilters(prev => ({
+                ...prev,
+                start_date: format(dateRange.from, 'yyyy-MM-dd'),
+                end_date: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : ''
+            }))
+        } else {
+            setFilters(prev => ({
+                ...prev,
+                start_date: '',
+                end_date: ''
+            }))
+        }
+    }, [dateRange])
+
     // Debounce search
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -106,6 +166,10 @@ export default function ExpensesListPage() {
             if (debouncedSearchTerm.trim()) {
                 params.search = debouncedSearchTerm.trim();
             }
+            if (filters.branch_id !== 'all') params.branch_id = filters.branch_id;
+            if (filters.status !== 'all') params.status = filters.status;
+            if (filters.start_date) params.start_date = filters.start_date;
+            if (filters.end_date) params.end_date = filters.end_date;
 
             const response = await request({
                 method: "GET",
@@ -123,11 +187,35 @@ export default function ExpensesListPage() {
             console.error("Error fetching expenses:", error);
             toast.error("Error al cargar los gastos");
         }
-    }, [request, debouncedSearchTerm]);
+    }, [request, debouncedSearchTerm, filters]);
+
+    const fetchStats = useCallback(async () => {
+        setStatsLoading(true);
+        try {
+            const params: any = {};
+            if (filters.branch_id !== 'all') params.branch_id = filters.branch_id;
+            if (filters.status !== 'all') params.status = filters.status;
+            if (filters.start_date) params.start_date = filters.start_date;
+            if (filters.end_date) params.end_date = filters.end_date;
+
+            const response = await request({ method: 'GET', url: '/expenses/stats', params });
+            if (response.success) {
+                setStats(response.data);
+            }
+        } catch (error) {
+            console.error("Error fetching stats:", error);
+        } finally {
+            setStatsLoading(false);
+        }
+    }, [request, filters]);
 
     useEffect(() => {
         fetchExpenses(currentPage);
     }, [fetchExpenses, currentPage]);
+
+    useEffect(() => {
+        fetchStats();
+    }, [fetchStats]);
 
     const handleEditClick = (expense: Expense) => {
         setSelectedExpense(expense)
@@ -146,6 +234,7 @@ export default function ExpensesListPage() {
             await request({ method: "DELETE", url: `/expenses/${expenseToDelete}` })
             toast.success('Gasto eliminado correctamente')
             fetchExpenses(currentPage);
+            fetchStats();
             setDeleteDialogOpen(false)
             setExpenseToDelete(null)
         } catch (error: any) {
@@ -162,6 +251,7 @@ export default function ExpensesListPage() {
             });
             toast.success('Gasto marcado como pagado');
             fetchExpenses(currentPage);
+            fetchStats();
         } catch (error: any) {
             toast.error(error?.message || 'Error al pagar el gasto');
         }
@@ -169,7 +259,19 @@ export default function ExpensesListPage() {
 
     const handleDialogSuccess = () => {
         fetchExpenses(currentPage);
+        fetchStats();
     }
+
+    const clearFilters = () => {
+        setFilters({
+            branch_id: 'all',
+            status: 'all',
+            start_date: '',
+            end_date: ''
+        });
+        setSearchTerm('');
+        setDateRange(undefined);
+    };
 
     const getStatusBadge = (expense: Expense) => {
         const isOverdue = expense.status === 'pending' && expense.due_date && new Date(expense.due_date) < new Date();
@@ -201,15 +303,6 @@ export default function ExpensesListPage() {
         );
     };
 
-    // Projection calculation (simple client-side for now)
-    const totalPending = expenses
-        .filter(e => e.status === 'pending' || e.status === 'approved')
-        .reduce((sum, e) => sum + Number(e.amount), 0);
-
-    const totalRecurring = expenses
-        .filter(e => e.is_recurring && e.status !== 'cancelled')
-        .reduce((sum, e) => sum + Number(e.amount), 0);
-
     return (
         <div className="h-full w-full flex flex-col space-y-4 p-4 md:p-6">
             <div className="flex items-center justify-between">
@@ -218,7 +311,7 @@ export default function ExpensesListPage() {
                     <p className="text-muted-foreground">Gestión y control de gastos</p>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={() => fetchExpenses(currentPage)} disabled={loading} title="Refrescar">
+                    <Button variant="outline" size="icon" onClick={() => { fetchExpenses(currentPage); fetchStats(); }} disabled={loading} title="Refrescar">
                         <RotateCw className={loading ? "animate-spin h-4 w-4" : "h-4 w-4"} />
                     </Button>
                     {hasPermission('crear_gastos') && (
@@ -230,42 +323,61 @@ export default function ExpensesListPage() {
                 </div>
             </div>
 
-            {/* Proyección de Gastos Cards */}
-            <div className="grid gap-4 md:grid-cols-3">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Pendiente de Pago</CardTitle>
-                        <Calendar className="h-4 w-4 text-amber-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${totalPending.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Gastos pendientes y aprobados</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Gastos Recurrentes</CardTitle>
-                        <RotateCw className="h-4 w-4 text-blue-600" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${totalRecurring.toLocaleString()}</div>
-                        <p className="text-xs text-muted-foreground">Proyección mensual estimada</p>
-                    </CardContent>
-                </Card>
-            </div>
+            {/* Stats Dashboard */}
+            <ExpensesStats stats={stats} loading={statsLoading} />
 
+            {/* Filters Section */}
             <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-                <div className="flex flex-1 items-center space-x-2">
-                    <div className="relative w-full md:w-80">
+                <div className="flex flex-1 items-center space-x-2 overflow-x-auto pb-2 md:pb-0">
+                    <div className="relative w-full md:w-80 shrink-0">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             type="search"
                             placeholder="Buscar gastos..."
-                            className="w-full pl-8"
+                            className="pl-8 w-full"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+                    <Select value={filters.branch_id} onValueChange={(v) => setFilters({ ...filters, branch_id: v })}>
+                        <SelectTrigger className="w-[180px] shrink-0">
+                            <SelectValue placeholder="Sucursal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todas las sucursales</SelectItem>
+                            {branches.map(b => (
+                                <SelectItem key={b.id} value={b.id.toString()}>{b.description}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Select value={filters.status} onValueChange={(v) => setFilters({ ...filters, status: v })}>
+                        <SelectTrigger className="w-[180px] shrink-0">
+                            <SelectValue placeholder="Estado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todos los estados</SelectItem>
+                            <SelectItem value="pending">Pendiente</SelectItem>
+                            <SelectItem value="approved">Aprobado</SelectItem>
+                            <SelectItem value="paid">Pagado</SelectItem>
+                            <SelectItem value="cancelled">Cancelado</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="flex items-center space-x-2 ml-auto">
+                    <div className="w-full md:w-auto">
+                        <DatePickerWithRange
+                            selected={dateRange}
+                            onSelect={setDateRange}
+                            className="w-full md:w-[260px]"
+                            align="end"
+                            side="top"
+                        />
+                    </div>
+                    {(filters.branch_id !== 'all' || filters.status !== 'all' || filters.start_date || searchTerm) && (
+                        <Button variant="ghost" size="icon" onClick={clearFilters} title="Limpiar filtros" className="shrink-0">
+                            <X className="h-4 w-4" />
+                        </Button>
+                    )}
                 </div>
             </div>
 

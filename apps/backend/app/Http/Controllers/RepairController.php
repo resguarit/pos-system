@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use App\Interfaces\RepairServiceInterface;
 use App\Http\Resources\RepairResource;
 use App\Http\Resources\RepairNoteResource;
+use App\Http\Requests\Repairs\StoreRepairRequest;
+use App\Http\Requests\Repairs\UpdateRepairRequest;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class RepairController extends Controller
 {
@@ -14,103 +18,188 @@ class RepairController extends Controller
         $this->middleware('auth:sanctum');
     }
 
-    public function index(Request $request)
+    /**
+     * List repairs with filtering, sorting and pagination
+     */
+    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
     {
-        // Optional query params: from_date, to_date (YYYY-MM-DD) to filter by intake_date
         $data = $this->repairs->list($request->all());
         return RepairResource::collection($data);
     }
 
-    public function show(int $id)
+    /**
+     * Get a single repair with all relations
+     */
+    public function show(int $id): RepairResource|JsonResponse
     {
         $repair = $this->repairs->find($id);
-        if (!$repair) return response()->json(['message' => 'Not found'], 404);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
         return new RepairResource($repair);
     }
 
-    public function store(Request $request)
+    /**
+     * Create a new repair
+     */
+    public function store(StoreRepairRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'customer_id' => 'required|integer|exists:customers,id',
-            'branch_id' => 'required|integer|exists:branches,id',
-            'device' => 'required|string|max:255',
-            'serial_number' => 'nullable|string|max:255',
-            'issue_description' => 'required|string',
-            'priority' => 'required|in:Alta,Media,Baja',
-            'estimated_date' => 'nullable|date',
-            'technician_id' => 'nullable|integer|exists:users,id',
-            'initial_notes' => 'nullable|string',
-            'cost' => 'nullable|numeric',
-        ]);
-
+        $validated = $request->validated();
         $validated['user_id'] = $request->user()->id;
+
         $repair = $this->repairs->create($validated);
-        return (new RepairResource($repair))->response()->setStatusCode(201);
+
+        return (new RepairResource($repair))
+            ->response()
+            ->setStatusCode(201);
     }
 
-    public function update(Request $request, int $id)
+    /**
+     * Update an existing repair
+     */
+    public function update(UpdateRepairRequest $request, int $id): RepairResource|JsonResponse
     {
-        $validated = $request->validate([
-            'device' => 'sometimes|string|max:255',
-            'serial_number' => 'nullable|string|max:255',
-            'issue_description' => 'sometimes|string',
-            'priority' => 'sometimes|in:Alta,Media,Baja',
-            'estimated_date' => 'nullable|date',
-            'technician_id' => 'nullable|integer|exists:users,id',
-            'cost' => 'nullable|numeric',
-            'status' => 'nullable|in:Recibido,En diagnóstico,En reparación,Esperando repuestos,Terminado,Entregado',
-            'sale_id' => 'nullable|integer|exists:sales_header,id',
-        ]);
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
 
-        $repair = $this->repairs->update($id, $validated);
+        $repair = $this->repairs->update($id, $request->validated());
         return new RepairResource($repair);
     }
 
-    public function destroy(int $id)
+    /**
+     * Delete a repair (soft delete)
+     */
+    public function destroy(int $id): JsonResponse
     {
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
         $this->repairs->delete($id);
-        return response()->json(['message' => 'Deleted']);
+        return response()->json(['message' => 'Reparación eliminada']);
     }
 
-    public function updateStatus(Request $request, int $id)
+    /**
+     * Update only the status of a repair
+     */
+    public function updateStatus(Request $request, int $id): RepairResource|JsonResponse
     {
         $validated = $request->validate([
             'status' => 'required|in:Recibido,En diagnóstico,En reparación,Esperando repuestos,Terminado,Entregado',
         ]);
+
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
         $repair = $this->repairs->updateStatus($id, $validated['status']);
         return new RepairResource($repair);
     }
 
-    public function assign(Request $request, int $id)
+    /**
+     * Assign a technician to a repair
+     */
+    public function assign(Request $request, int $id): RepairResource|JsonResponse
     {
         $validated = $request->validate([
             'technician_id' => 'required|integer|exists:users,id',
         ]);
+
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
         $repair = $this->repairs->assignTechnician($id, $validated['technician_id']);
         return new RepairResource($repair);
     }
 
-    public function addNote(Request $request, int $id)
+    /**
+     * Add a note to a repair
+     */
+    public function addNote(Request $request, int $id): JsonResponse
     {
         $validated = $request->validate([
-            'note' => 'required|string',
+            'note' => 'required|string|max:2000',
         ]);
+
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
         $this->repairs->addNote($id, $request->user()->id, $validated['note']);
-        return response()->json(['message' => 'Note added']);
+        return response()->json(['message' => 'Nota agregada']);
     }
 
-    public function stats(Request $request)
+    /**
+     * Get repair statistics
+     */
+    public function stats(Request $request): JsonResponse
     {
-        // Optional query params: from_date, to_date (YYYY-MM-DD)
         $stats = $this->repairs->stats($request->all());
         return response()->json($stats);
     }
 
-    public function options()
+    /**
+     * Get available options for status and priority
+     */
+    public function options(): JsonResponse
     {
         return response()->json([
             'statuses' => ['Recibido', 'En diagnóstico', 'En reparación', 'Esperando repuestos', 'Terminado', 'Entregado'],
             'priorities' => ['Alta', 'Media', 'Baja'],
         ]);
     }
+
+    /**
+     * Generate intake receipt PDF
+     */
+    public function generatePdf(int $id): \Illuminate\Http\Response|JsonResponse
+    {
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
+        $pdf = Pdf::loadView('pdf.repair-intake', [
+            'repair' => $repair,
+            'date' => now()->format('d/m/Y H:i'),
+        ]);
+
+        $filename = "comprobante_reparacion_{$repair->code}.pdf";
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Get all repairs grouped by status (for Kanban view)
+     */
+    public function kanban(Request $request): JsonResponse
+    {
+        $repairs = $this->repairs->listAll($request->all());
+
+        $grouped = [
+            'Recibido' => [],
+            'En diagnóstico' => [],
+            'En reparación' => [],
+            'Esperando repuestos' => [],
+            'Terminado' => [],
+            'Entregado' => [],
+        ];
+
+        foreach ($repairs as $repair) {
+            $status = $repair->status;
+            if (isset($grouped[$status])) {
+                $grouped[$status][] = new RepairResource($repair);
+            }
+        }
+
+        return response()->json($grouped);
+    }
 }
+
