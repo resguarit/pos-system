@@ -58,6 +58,7 @@ echo "\n";
 $ventas = DB::table('sale_items')
     ->join('sales_header', 'sale_items.sale_header_id', '=', 'sales_header.id')
     ->leftJoin('customers', 'sales_header.customer_id', '=', 'customers.id')
+    ->leftJoin('people', 'customers.person_id', '=', 'people.id')
     ->leftJoin('users', 'sales_header.user_id', '=', 'users.id')
     ->where('sale_items.product_id', $producto->id)
     ->whereNull('sales_header.deleted_at')
@@ -68,8 +69,8 @@ $ventas = DB::table('sale_items')
         'sale_items.quantity',
         'sale_items.unit_price',
         'sale_items.item_total',
-        'customers.name as cliente',
-        'users.name as vendedor',
+        DB::raw("CONCAT(COALESCE(people.first_name, ''), ' ', COALESCE(people.last_name, '')) as cliente"),
+        'users.username as vendedor',
         'sales_header.status',
     ])
     ->orderBy('sales_header.date', 'desc')

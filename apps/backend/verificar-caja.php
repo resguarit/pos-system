@@ -49,7 +49,7 @@ if ($param === '--all') {
             ->select([
                 'cash_registers.*',
                 'users.username as usuario',
-                'branches.name as sucursal'
+                'branches.description as sucursal'
             ])
             ->orderBy('opened_at', 'desc')
             ->limit(5)
@@ -86,7 +86,7 @@ function verificarCaja(int $cajaId) {
         ->select([
             'cash_registers.*',
             'users.username as usuario',
-            'branches.name as sucursal'
+            'branches.description as sucursal'
         ])
         ->first();
     
@@ -338,7 +338,7 @@ function verificarTodasLasCajas() {
         ->select([
             'cash_registers.*',
             'users.username as usuario',
-            'branches.name as sucursal'
+            'branches.description as sucursal'
         ])
         ->orderBy('cash_registers.opened_at', 'desc')
         ->get();
