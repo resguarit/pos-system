@@ -228,9 +228,19 @@ class SaleService implements SaleServiceInterface
             $data['date'] = isset($data['date']) ? Carbon::parse($data['date']) : Carbon::now();
 
             // 5.1) Determinar estado inicial basado en tipo de comprobante
-            // Las ventas normales se crean con status 'active'
-            // Los presupuestos también se crean con status 'active' (se distinguen por receipt_type)
-            $data['status'] = 'active';
+            // Ventas normales -> 'active'
+            // Presupuestos (AFIP 016) -> 'pending'
+            try {
+                $receiptTypeForStatus = ReceiptType::find($data['receipt_type_id'] ?? null);
+            } catch (\Throwable $e) {
+                $receiptTypeForStatus = null;
+            }
+
+            if ($receiptTypeForStatus && $receiptTypeForStatus->afip_code === '016') {
+                $data['status'] = 'pending';
+            } else {
+                $data['status'] = 'active';
+            }
 
             // 6) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
             // Usar lockForUpdate dentro de la transacción para evitar race conditions
