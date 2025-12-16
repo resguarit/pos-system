@@ -1252,18 +1252,20 @@ export default function CajaPage() {
 
                 {/* Movimientos recientes de cajas abiertas */}
                 <div className="mt-8">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Movimientos Recientes (Cajas Abiertas)</h4>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Historial de Movimientos</h4>
                   <MovementsTable
-                    movements={getMovementsFromOpenCashRegisters.slice(0, 10)} // Solo los primeros 10 movimientos de cajas abiertas
+                    movements={allMovements}
                     loading={allMovementsLoading}
                     canDeleteMovements={false}
                     isCashPaymentMethod={isCashPaymentMethod}
                     getBranchInfo={getBranchInfo}
                     showBranchColumn={true}
-                    currentPage={1}
-                    lastPage={1}
-                    total={Math.min(getMovementsFromOpenCashRegisters.length, 10)}
-                    onPageChange={() => { }}
+                    currentPage={movementsPage}
+                    lastPage={pagination?.last_page || 1}
+                    total={pagination?.total || 0}
+                    onPageChange={(page: number) => {
+                      setMovementsPage(page)
+                    }}
                     pageLoading={isPageLoading || hookLoading}
                   />
                 </div>

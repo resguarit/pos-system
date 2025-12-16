@@ -22,32 +22,37 @@ interface AllFilters extends DateFilters {
 export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleBranchesCashProps) => {
   const { request } = useApi()
   
-  // Estados para múltiples cajas
   const [multipleCashRegisters, setMultipleCashRegisters] = useState<Record<number, any>>({})
   const [multipleCashRegistersLoading, setMultipleCashRegistersLoading] = useState<Record<number, boolean>>({})
   const [allMovements, setAllMovements] = useState<any[]>([])
   const [allMovementsLoading, setAllMovementsLoading] = useState(false)
   const [consolidatedStats, setConsolidatedStats] = useState<any>({})
 
-    const [pagination, setPagination] = useState<{
+  // Estado de paginación inicializado
+  const [pagination, setPagination] = useState<{
     total: number
     per_page: number
     current_page: number
     last_page: number
     from: number
     to: number
-  } | null>(null)
+  }>({
+    total: 0,
+    per_page: 10,
+    current_page: 1,
+    last_page: 1,
+    from: 0,
+    to: 0
+  })
 
-  // Función para cargar caja de una sucursal específica
+  // Cargar caja de sucursal específica
   const loadCashRegisterForBranch = useCallback(async (branchId: number) => {
     try {
       setMultipleCashRegistersLoading(prev => ({ ...prev, [branchId]: true }))
-      
       const response = await request({
         method: 'GET',
         url: `/cash-registers/current?branch_id=${branchId}`,
       })
-
       const registerData = response.data?.data || response.data
       
       if (registerData && registerData.id) {
@@ -63,11 +68,10 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
     }
   }, [request])
 
-  // Función para cargar datos consolidados de múltiples sucursales
-  const loadMultipleBranchesData = useCallback(async (filters?: AllFilters, page = 1, perPage = 15) => {
-    if (selectedBranchIdsArray.length === 0) {
-      return
-    }
+  // Cargar datos consolidados
+  // NOTA: Cambiamos perPage a 10 por defecto para coincidir con tu API
+  const loadMultipleBranchesData = useCallback(async (filters?: AllFilters, page = 1, perPage = 10) => {
+    if (selectedBranchIdsArray.length === 0) return
     
     try {
       setAllMovementsLoading(true)
@@ -78,29 +82,17 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
         per_page: perPage
       }
       
-      // Agregar filtros si existen
       if (filters) {
         requestParams.filters = {}
-        
         if (filters.date_range) {
           requestParams.filters.date_range = filters.date_range
-          
           if (filters.date_range === 'custom' && filters.custom_dates) {
             requestParams.filters.custom_dates = filters.custom_dates
           }
         }
-        
-        if (filters.search) {
-          requestParams.filters.search = filters.search
-        }
-        
-        if (filters.movement_type) {
-          requestParams.filters.movement_type = filters.movement_type
-        }
-        
-        if (filters.branch) {
-          requestParams.filters.branch = filters.branch
-        }
+        if (filters.search) requestParams.filters.search = filters.search
+        if (filters.movement_type) requestParams.filters.movement_type = filters.movement_type
+        if (filters.branch) requestParams.filters.branch = filters.branch
       }
       
       const response = await request({
@@ -109,25 +101,35 @@ export const useMultipleBranchesCash = ({ selectedBranchIdsArray }: UseMultipleB
         params: requestParams
       })
       
-      const data = response.data
+      // useApi devuelve response.data de Axios: { message: "...", data: { all_movements, pagination, ... } }
+      // Necesitamos acceder a response.data para obtener el contenido real
+      const apiData = response?.data || response
       
-      if (data && data.consolidated_stats) {
-        // Actualizar movimientos consolidados
-        setAllMovements(data.all_movements || [])
-        
-        if (data.pagination) {
-          setPagination(data.pagination)
+      if (apiData) {
+        if (Array.isArray(apiData.all_movements)) {
+          setAllMovements(apiData.all_movements)
+        } else {
+          setAllMovements([])
         }
-        
-        // Actualizar datos de cajas individuales
-        const cashRegistersMap: Record<number, any> = {}
-        data.cash_registers?.forEach((cashRegister: any) => {
-          cashRegistersMap[cashRegister.branch_id] = cashRegister
-        })
-        setMultipleCashRegisters(cashRegistersMap)
-        
-        // Actualizar estadísticas consolidadas
-        setConsolidatedStats(data.consolidated_stats || {})
+
+        // Capturamos la paginación
+        if (apiData.pagination) {
+          setPagination(apiData.pagination)
+        }
+
+        if (Array.isArray(apiData.cash_registers)) {
+          const cashRegistersMap: Record<number, any> = {}
+          apiData.cash_registers.forEach((cashRegister: any) => {
+             if (cashRegister?.branch_id) {
+                cashRegistersMap[cashRegister.branch_id] = cashRegister
+             }
+          })
+          setMultipleCashRegisters(cashRegistersMap)
+        }
+
+        if (apiData.consolidated_stats) {
+          setConsolidatedStats(apiData.consolidated_stats)
+        }
       }
     } catch (error) {
       console.error('Error loading multiple branches data:', error)

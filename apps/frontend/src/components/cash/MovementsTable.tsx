@@ -289,11 +289,11 @@ export const MovementsTable = ({
       </div>
 
       {/* Paginación */}
-      {movements.length > 0 && currentPage && lastPage && total && onPageChange && (
+      {currentPage && lastPage && onPageChange && (
         <Pagination
           currentPage={currentPage}
           lastPage={lastPage}
-          total={total}
+          total={total ?? movements.length}
           itemName="movimientos"
           onPageChange={onPageChange}
           disabled={pageLoading}

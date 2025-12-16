@@ -21,9 +21,13 @@ export default function Pagination({
   disabled = false,
   className,
 }: PaginationProps) {
-  
-  // Temporalmente mostrar siempre si hay al menos 1 elemento para probar
-  if (total === 0) {
+  // Usar valores seguros para evitar problemas con valores nulos o undefined
+  const safeCurrentPage = currentPage ?? 1
+  const safeLastPage = lastPage ?? 1
+  const safeTotal = total ?? 0
+
+  // Solo ocultar si realmente no hay datos y estamos en la página inicial
+  if (safeTotal === 0 && safeCurrentPage === 1 && safeLastPage === 1) {
     return null
   }
 
@@ -32,20 +36,20 @@ export default function Pagination({
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-        disabled={disabled || currentPage === 1}
+        onClick={() => onPageChange(Math.max(1, safeCurrentPage - 1))}
+        disabled={disabled || safeCurrentPage <= 1}
       >
         <ChevronLeftIcon className="h-4 w-4 mr-2" />
         Anterior
       </Button>
       <span className="text-sm text-muted-foreground">
-        Página {currentPage} de {lastPage} ({total} {itemName})
+        Página {safeCurrentPage} de {safeLastPage} ({safeTotal} {itemName})
       </span>
       <Button
         variant="outline"
         size="sm"
-        onClick={() => onPageChange(Math.min(lastPage, currentPage + 1))}
-        disabled={disabled || currentPage === lastPage}
+        onClick={() => onPageChange(Math.min(safeLastPage, safeCurrentPage + 1))}
+        disabled={disabled || safeCurrentPage >= safeLastPage}
       >
         Siguiente
         <ChevronRightIcon className="h-4 w-4 ml-2" />

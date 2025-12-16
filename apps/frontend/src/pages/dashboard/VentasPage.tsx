@@ -68,6 +68,7 @@ export default function VentasPage() {
     client_count: 0,
     average_sale_amount: 0,
   });
+    const [usingServerPagination, setUsingServerPagination] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({
     from: startOfMonth(new Date()),
@@ -121,8 +122,6 @@ export default function VentasPage() {
     pagination: budgetPagination
   } = useBudgets({
     branchIds: budgetBranchIds,
-    status: budgetStatus,
-    fromDate: dateRange.from ? format(dateRange.from, 'yyyy-MM-dd') : undefined,
     toDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
     search: debouncedSearch,
     page: currentBudgetPage,
@@ -233,22 +232,20 @@ export default function VentasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  const fetchSales = async (fromDate?: Date, toDate?: Date, currentPage = 1, search = "") => {
+  const fetchSales = async (fromDate?: Date, toDate?: Date, page = 1, search = "") => {
     try {
-      // Para la primera carga, verificamos si necesitamos paginación del servidor
-      const apiParams: any = {};
+      // Construir parámetros de forma canónica
+      const apiParams: Record<string, any> = {};
 
       if (fromDate && toDate) {
         apiParams.from_date = format(fromDate, "yyyy-MM-dd");
         apiParams.to_date = format(toDate, "yyyy-MM-dd");
       }
 
-      // Filtrar por sucursales seleccionadas
+      // Filtrar por sucursales seleccionadas - siempre como array para consistencia
       if (selectedBranchIds.length > 0) {
-        selectedBranchIds.forEach(id => {
-          if (!apiParams['branch_id[]']) apiParams['branch_id[]'] = [];
-          apiParams['branch_id[]'].push(id);
-        });
+        // Usar 'branch_id[]' para que Laravel reciba un array
+        apiParams['branch_id[]'] = selectedBranchIds.map(id => Number(id));
       }
 
       // Agregar búsqueda al backend
@@ -256,12 +253,9 @@ export default function VentasPage() {
         apiParams.search = search;
       }
 
-      // Solo agregar parámetros de paginación si es la primera carga o si sabemos que hay paginación del servidor
-      if (currentPage === 1 || allSales.length === 0) {
-        apiParams.page = currentPage;
-        apiParams.limit = PAGE_SIZE;
-        apiParams.per_page = PAGE_SIZE; // Probar también per_page
-      }
+      // Siempre incluir parámetros de paginación
+      apiParams.page = page;
+      apiParams.per_page = PAGE_SIZE;
 
       const response = await request({
         method: "GET",
@@ -269,33 +263,49 @@ export default function VentasPage() {
         params: apiParams,
       });
 
-      // Soportar múltiples formatos de respuesta (paginada, array directa, objeto directo)
+      // useApi devuelve response.data de Axios, por lo que "response" ya es el cuerpo deserializado.
+      // Laravel LengthAwarePaginator serializa a: { current_page, data, last_page, per_page, total, ... }
+      // Si el backend devuelve un array plano, response será ese array directamente.
+      
+      // Detectar si es un paginador de Laravel (tiene data como array y total/last_page como números)
+      const isLaravelPaginator = (
+        response &&
+        typeof response === 'object' &&
+        !Array.isArray(response) &&
+        Array.isArray(response.data) &&
+        typeof response.total === 'number' &&
+        typeof response.last_page === 'number'
+      );
+
       let salesData: SaleHeader[] = [];
-      if (Array.isArray(response?.data?.data)) {
-        salesData = response.data.data;
-      } else if (Array.isArray(response?.data)) {
+
+      if (isLaravelPaginator) {
+        // Paginador de Laravel: los datos están en response.data
         salesData = response.data;
       } else if (Array.isArray(response)) {
+        // Array plano
         salesData = response;
-      } else if (response?.data?.data) {
-        salesData = [response.data.data].flat();
+      } else if (Array.isArray(response?.data)) {
+        // Objeto con data como array (pero sin metadatos de paginación)
+        salesData = response.data;
       } else if (response?.data) {
+        // Objeto único
         salesData = [response.data].flat();
       } else if (response) {
         salesData = [response].flat();
       }
 
-      // Verificar si la API devuelve paginación del servidor útil o si necesitamos paginación del cliente
-      const hasServerPagination = (response.total !== undefined || response.data?.total !== undefined) &&
-        (response.last_page > 1 || response.data?.last_page > 1);
+      // Usar paginación del servidor si es un paginador de Laravel válido
+      const hasServerPagination = isLaravelPaginator && response.last_page > 0;
+      setUsingServerPagination(hasServerPagination);
 
       if (hasServerPagination) {
-        // Paginación del servidor (Laravel)
+        // Paginación del servidor (Laravel LengthAwarePaginator)
         const paginationInfo = {
-          total: response.total || response.data?.total || 0,
-          currentPage: response.current_page || response.data?.current_page || 1,
-          lastPage: response.last_page || response.data?.last_page || 1,
-          perPage: response.per_page || response.data?.per_page || PAGE_SIZE,
+          total: response.total,
+          currentPage: response.current_page,
+          lastPage: response.last_page,
+          perPage: response.per_page,
         };
 
         setTotalItems(paginationInfo.total);
@@ -307,7 +317,7 @@ export default function VentasPage() {
 
         // Solo cargar todas las ventas si no las tenemos o si cambiaron las fechas
         let allSalesData = allSales;
-        if (allSales.length === 0 || currentPage === 1) {
+        if (allSales.length === 0 || page === 1) {
           allSalesData = salesData;
           setAllSales(allSalesData);
         }
@@ -315,7 +325,7 @@ export default function VentasPage() {
         // Calcular paginación del cliente
         const totalCount = allSalesData.length;
         const totalPagesCalculated = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-        const safeCurrentPage = Math.min(currentPage, totalPagesCalculated);
+        const safeCurrentPage = Math.min(page, totalPagesCalculated);
         const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
         const endIndex = startIndex + PAGE_SIZE;
         const paginatedSales = allSalesData.slice(startIndex, endIndex);
@@ -927,14 +937,20 @@ export default function VentasPage() {
     if (pageNumber >= 1 && pageNumber <= totalPages && pageNumber !== currentPage && !pageLoading) {
       setCurrentPage(pageNumber);
 
-      // Si tenemos todas las ventas cargadas, hacer paginación del cliente
+      // Si el backend pagina, solicitar la página directamente
+      if (usingServerPagination) {
+        fetchSales(dateRange.from, dateRange.to, pageNumber, searchTerm);
+        return;
+      }
+
+      // Paginación del cliente si tenemos todas las ventas cargadas
       if (allSales.length > 0) {
         const startIndex = (pageNumber - 1) * PAGE_SIZE;
         const endIndex = startIndex + PAGE_SIZE;
         const paginatedSales = allSales.slice(startIndex, endIndex);
         setSales(paginatedSales);
       } else {
-        fetchSales(dateRange.from, dateRange.to, pageNumber);
+        fetchSales(dateRange.from, dateRange.to, pageNumber, searchTerm);
       }
 
     }
