@@ -117,8 +117,6 @@
                 {{ $sale->branch->address }}
             @endif
         </div>
-        <div class="header-info">RESPONSABLE INSCRIPTO</div>
-
         <div class="divider"></div>
 
         <table style="font-size: 9px;">
