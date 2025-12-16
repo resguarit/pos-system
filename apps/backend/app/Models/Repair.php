@@ -19,13 +19,11 @@ class Repair extends Model
         'device',
         'serial_number',
         'issue_description',
-        'diagnosis',
         'priority',
         'status',
         'intake_date',
         'estimated_date',
         'cost',
-        'sale_price',
         'initial_notes',
         'delivered_at',
     ];
@@ -35,9 +33,7 @@ class Repair extends Model
         'estimated_date' => 'date',
         'delivered_at' => 'datetime',
         'cost' => 'decimal:2',
-        'sale_price' => 'decimal:2',
     ];
-
 
     // Relationships
     public function customer()

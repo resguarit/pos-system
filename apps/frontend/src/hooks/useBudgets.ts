@@ -88,7 +88,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
                 setPagination({
                     total: responseData.total || 0,
                     last_page: responseData.last_page || 1,
-                    current_page: responseData.current_page || 1,
+                    current_page: options.page || responseData.current_page || 1,
                     per_page: responseData.per_page || 15
                 })
             } else if (Array.isArray(responseData)) {
@@ -183,8 +183,9 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
         } finally {
             setActionLoading(null)
         }
-    }, [request, fetchBudgets])
+    }, [request, options.branchIds, options.status, options.fromDate, options.toDate, options.search, options.page, options.limit])
 
+    // Ejecutar fetch al montar y cuando cambian los parámetros
     useEffect(() => {
         fetchBudgets()
     }, [fetchBudgets])

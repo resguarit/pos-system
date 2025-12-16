@@ -5,6 +5,7 @@ namespace App\Interfaces;
 use Illuminate\Support\Collection;
 use App\Models\SaleHeader;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 interface SaleServiceInterface
 {
@@ -27,6 +28,6 @@ interface SaleServiceInterface
     // Budget management methods
     public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null): SaleHeader;
     public function deleteBudget(int $budgetId, int $userId): bool;
-    public function getBudgets(Request $request): Collection;
+    public function getBudgets(Request $request): LengthAwarePaginator;
     public function approveBudget(int $id): SaleHeader;
 }

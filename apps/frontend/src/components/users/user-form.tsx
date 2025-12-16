@@ -22,6 +22,7 @@ import { useEntityContext } from "@/context/EntityContext"
 // Utilidades y Iconos
 import { getRoleStyle } from "@/types/roles-styles"
 import { ArrowLeft, Save, Loader2, Eye, EyeOff, UserPlus, Link as LinkIcon } from "lucide-react"
+import features from "@/config/features"
 
 
 // --- Interfaces ---
@@ -474,8 +475,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
           </TabsList>
           <TabsContent value="general" className="space-y-4">
 
-            {/* Sección de Vinculación con Empleado (Solo en creación) */}
-            {!userId && !viewOnly && (
+            {/* Sección de Vinculación con Empleado (Solo en creación y si el módulo de gastos está habilitado) */}
+            {!userId && !viewOnly && features.gastos && (
               <Card className="border-blue-200 bg-blue-50/30 max-w-2xl">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center gap-2">

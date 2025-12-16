@@ -1837,15 +1837,16 @@ class SaleService implements SaleServiceInterface
      * Obtener lista de presupuestos
      * 
      * @param Request $request
-     * @return \Illuminate\Support\Collection
+     * @return LengthAwarePaginator
      */
-    public function getBudgets(Request $request): SupportCollection
+    public function getBudgets(Request $request): LengthAwarePaginator
     {
         // Obtener el tipo de presupuesto (código AFIP 016)
         $budgetReceiptType = ReceiptType::where('afip_code', '016')->first();
 
         if (!$budgetReceiptType) {
-            return collect([]);
+            // Retornar paginador vacío
+            return new LengthAwarePaginator([], 0, 15, 1);
         }
 
         $query = SaleHeader::with([
@@ -1898,9 +1899,17 @@ class SaleService implements SaleServiceInterface
             });
         }
 
-        $budgets = $query->orderByDesc('date')->get();
+        // Paginación
+        $limit = (int) ($request->input('limit', 15));
+        $limit = min($limit, 500); // Limitar a máximo 500 registros por página
+        $page = (int) ($request->input('page', 1));
 
-        return $budgets->map(function ($budget) {
+        $paginated = $query->orderByDesc('date')->paginate($limit, ['*'], 'page', $page);
+
+        $budgets = $paginated->items();
+
+        // Mapear los datos
+        $mappedData = collect($budgets)->map(function ($budget) {
             $customerName = '';
             if ($budget->customer && $budget->customer->person) {
                 $customerName = trim($budget->customer->person->first_name . ' ' . $budget->customer->person->last_name);
@@ -1953,7 +1962,20 @@ class SaleService implements SaleServiceInterface
                     ];
                 }),
             ];
-        });
+        })->toArray();
+
+        // Crear nuevo paginador con los datos mapeados
+        $mappedPaginator = new LengthAwarePaginator(
+            $mappedData,
+            $paginated->total(),
+            $paginated->perPage(),
+            $paginated->currentPage(),
+            [
+                'path' => $paginated->path(),
+            ]
+        );
+
+        return $mappedPaginator;
     }
 
     /**

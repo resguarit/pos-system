@@ -436,7 +436,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [RepairController::class, 'index']);
         Route::get('/stats', [RepairController::class, 'stats']);
         Route::get('/options', [RepairController::class, 'options']);
+        Route::get('/kanban', [RepairController::class, 'kanban']);
         Route::get('/{id}', [RepairController::class, 'show'])->whereNumber('id');
+        Route::get('/{id}/pdf', [RepairController::class, 'generatePdf'])->whereNumber('id');
         Route::post('/', [RepairController::class, 'store']);
         Route::put('/{id}', [RepairController::class, 'update'])->whereNumber('id');
         Route::delete('/{id}', [RepairController::class, 'destroy'])->whereNumber('id');
@@ -516,5 +518,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{expenseCategory}', [ExpenseCategoryController::class, 'update']);
         Route::delete('/{expenseCategory}', [ExpenseCategoryController::class, 'destroy']);
     });
+
+    // Superadmin Routes
+    Route::middleware('superadmin')->prefix('admin')->group(function () {
+        Route::apiResource('plans', \App\Http\Controllers\PlanController::class);
+        Route::apiResource('tenants', \App\Http\Controllers\TenantController::class)->only(['index', 'show', 'update']);
+    });
+
+    // Tenant Subscription Route
+    Route::get('/subscription', [\App\Http\Controllers\TenantController::class, 'mySubscription']);
 
 });

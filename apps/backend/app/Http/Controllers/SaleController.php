@@ -449,11 +449,15 @@ class SaleController extends Controller
     public function budgets(Request $request): JsonResponse
     {
         try {
-            $budgets = $this->saleService->getBudgets($request);
+            $paginated = $this->saleService->getBudgets($request);
 
             return response()->json([
                 'success' => true,
-                'data' => $budgets
+                'data' => $paginated->items(),
+                'total' => $paginated->total(),
+                'current_page' => $paginated->currentPage(),
+                'last_page' => $paginated->lastPage(),
+                'per_page' => $paginated->perPage(),
             ]);
 
         } catch (\Exception $e) {

@@ -126,7 +126,7 @@ export default function VentasPage() {
     toDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
     search: debouncedSearch,
     page: currentBudgetPage,
-    limit: 5
+    limit: 99999
   });
 
   // Wrapper function to refresh sales after converting budget
