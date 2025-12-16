@@ -59,14 +59,12 @@ $ventas = DB::table('sale_items')
     ->join('sales_header', 'sale_items.sale_header_id', '=', 'sales_header.id')
     ->leftJoin('customers', 'sales_header.customer_id', '=', 'customers.id')
     ->leftJoin('users', 'sales_header.user_id', '=', 'users.id')
-    ->leftJoin('receipt_types', 'sales_header.receipt_type_id', '=', 'receipt_types.id')
     ->where('sale_items.product_id', $producto->id)
     ->whereNull('sales_header.deleted_at')
     ->select([
         'sales_header.id as venta_id',
         'sales_header.date',
         'sales_header.receipt_number',
-        'receipt_types.name as tipo_comprobante',
         'sale_items.quantity',
         'sale_items.unit_price',
         'sale_items.item_total',
@@ -127,35 +125,28 @@ echo "\n";
 
 // Detalle de las últimas ventas
 echo "📋 DETALLE DE VENTAS (últimas 50):\n";
-echo str_repeat('-', 100) . "\n";
+echo str_repeat('-', 90) . "\n";
 echo sprintf(
-    "%-6s | %-19s | %-15s | %-8s | %-10s | %-20s | %-10s\n",
-    "ID", "Fecha", "Comprobante", "Cant.", "Total", "Cliente", "Estado"
+    "%-6s | %-19s | %-12s | %-8s | %-10s | %-20s\n",
+    "ID", "Fecha", "Comprobante", "Cant.", "Total", "Cliente"
 );
-echo str_repeat('-', 100) . "\n";
+echo str_repeat('-', 90) . "\n";
 
 $ventasDetalle = $ventas->take(50);
 
 foreach ($ventasDetalle as $venta) {
     $fecha = \Carbon\Carbon::parse($venta->date)->format('d/m/Y H:i');
     $cliente = $venta->cliente ? substr($venta->cliente, 0, 20) : 'Consumidor Final';
-    $comprobante = $venta->tipo_comprobante ?? 'N/A';
-    $estado = match($venta->status) {
-        'completed', 'aprobada' => '✅ Completada',
-        'pending', 'pendiente' => '⏳ Pendiente',
-        'cancelled', 'anulada' => '❌ Anulada',
-        default => $venta->status ?? 'N/A'
-    };
+    $comprobante = $venta->receipt_number ?? 'N/A';
     
     echo sprintf(
-        "%-6s | %-19s | %-15s | %-8s | $%-9s | %-20s | %-10s\n",
+        "%-6s | %-19s | %-12s | %-8s | $%-9s | %-20s\n",
         $venta->venta_id,
         $fecha,
-        substr($comprobante, 0, 15),
+        substr($comprobante, 0, 12),
         number_format($venta->quantity, 2),
         number_format($venta->item_total, 2, ',', '.'),
-        $cliente,
-        $estado
+        $cliente
     );
 }
 

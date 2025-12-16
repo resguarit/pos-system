@@ -48,7 +48,7 @@ if ($param === '--all') {
             ->leftJoin('branches', 'cash_registers.branch_id', '=', 'branches.id')
             ->select([
                 'cash_registers.*',
-                'users.name as usuario',
+                'users.username as usuario',
                 'branches.name as sucursal'
             ])
             ->orderBy('opened_at', 'desc')
@@ -85,7 +85,7 @@ function verificarCaja(int $cajaId) {
         ->where('cash_registers.id', $cajaId)
         ->select([
             'cash_registers.*',
-            'users.name as usuario',
+            'users.username as usuario',
             'branches.name as sucursal'
         ])
         ->first();
@@ -337,7 +337,7 @@ function verificarTodasLasCajas() {
         ->where('cash_registers.cash_difference', '!=', 0)
         ->select([
             'cash_registers.*',
-            'users.name as usuario',
+            'users.username as usuario',
             'branches.name as sucursal'
         ])
         ->orderBy('cash_registers.opened_at', 'desc')
