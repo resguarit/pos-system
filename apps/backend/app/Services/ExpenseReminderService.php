@@ -99,7 +99,15 @@ class ExpenseReminderService
 
         foreach ($reminders as $reminder) {
             try {
-                // Validar que el gasto siga siendo válido y recurrente
+                // Validar que el gasto exista
+                if (!$reminder->expense) {
+                    $reminder->update(['status' => 'dismissed']);
+                    $processed['skipped']++;
+                    Log::warning('Reminder skipped: expense not found', ['reminder_id' => $reminder->id]);
+                    continue;
+                }
+
+                // Validar que el gasto siga siendo recurrente
                 if (!$reminder->expense->is_recurring) {
                     $reminder->update(['status' => 'dismissed']);
                     $processed['skipped']++;
