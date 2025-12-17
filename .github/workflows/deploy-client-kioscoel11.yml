@@ -41,21 +41,19 @@ jobs:
           git reset --hard origin/master
           cd apps/backend
           
-          # Detectar usuario del servidor web
-          WEB_USER="www-data"
-          if id nginx >/dev/null 2>&1; then
-            WEB_USER="nginx"
-          elif id apache >/dev/null 2>&1; then
-            WEB_USER="apache"
+          # Detectar usuario del sitio (CyberCP asigna usuario único por sitio)
+          # Buscar el directorio public_html para obtener el usuario correcto
+          DEPLOY_PATH="${{ secrets.CLIENT_KIOSCOEL11_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}"
+          PUBLIC_HTML=$(echo "$DEPLOY_PATH" | sed 's|/apps/backend.*||')
+          if [ -d "$PUBLIC_HTML" ]; then
+            SITE_USER=$(stat -c '%U' "$PUBLIC_HTML" 2>/dev/null)
+            SITE_GROUP=$(stat -c '%G' "$PUBLIC_HTML" 2>/dev/null)
           fi
           
-          # Detectar usuario del sitio (para CyberPanel/cPanel)
-          SITE_DIR=$(dirname "${{ secrets.CLIENT_KIOSCOEL11_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}")
-          SITE_USER=$(stat -c '%U' "$SITE_DIR" 2>/dev/null || echo "")
-          if [ -n "$SITE_USER" ] && [ "$SITE_USER" != "root" ]; then
-            WEB_USER="$SITE_USER"
-            echo "✅ Usuario del sitio detectado: $WEB_USER"
-          fi
+          # Fallback a www-data si no se detecta usuario
+          WEB_USER="${SITE_USER:-www-data}"
+          WEB_GROUP="${SITE_GROUP:-$WEB_USER}"
+          echo "✅ Usuario del sitio: $WEB_USER:$WEB_GROUP"
           
           # Asegurar permisos de storage y cache antes de cualquier operación
           mkdir -p storage/framework/views
@@ -67,13 +65,15 @@ jobs:
           mkdir -p storage/app/public/system/favicons
           mkdir -p public/images
           
-          # Configurar permisos
-          chmod -R 775 storage bootstrap/cache 2>/dev/null || sudo chmod -R 775 storage bootstrap/cache || true
-          chmod -R 777 storage/framework/views 2>/dev/null || sudo chmod -R 777 storage/framework/views || true
-          chmod -R 777 storage/framework/cache/data 2>/dev/null || sudo chmod -R 777 storage/framework/cache/data || true
-          chmod -R 775 storage/app/public 2>/dev/null || sudo chmod -R 775 storage/app/public || true
-          chmod -R 755 public/images 2>/dev/null || sudo chmod -R 755 public/images || true
-          chown -R $WEB_USER:$WEB_USER storage bootstrap/cache public/images 2>/dev/null || sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache public/images || true
+          # Configurar permisos con el usuario correcto del sitio
+          chown -R $WEB_USER:$WEB_GROUP storage bootstrap/cache public/images 2>/dev/null || sudo chown -R $WEB_USER:$WEB_GROUP storage bootstrap/cache public/images || true
+          find storage -type d -exec chmod 775 {} \; 2>/dev/null || true
+          find storage -type f -exec chmod 664 {} \; 2>/dev/null || true
+          chmod -R 775 bootstrap/cache 2>/dev/null || true
+          chmod -R 755 public/images 2>/dev/null || true
+          
+          # Verificar permisos de escritura
+          sudo -u $WEB_USER sh -c 'echo "[deploy] '"$(date)"'" >> storage/logs/laravel.log' 2>/dev/null && echo "✅ Permisos verificados" || echo "⚠️ Advertencia: test de escritura falló"
           
           composer install --no-dev --optimize-autoloader
           php artisan config:cache
