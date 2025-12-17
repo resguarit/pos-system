@@ -50,6 +50,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PresupuestosPage from "./PresupuestosPage";
 import { useBudgets } from "@/hooks/useBudgets";
+import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus";
 
 // Configuración de paginación
 const PAGE_SIZE = 20; // Tamaño óptimo para producción
@@ -128,9 +129,21 @@ export default function VentasPage() {
     limit: 99999
   });
 
+  // Cash register validation - usando la sucursal seleccionada
+  // Si selectedBranch no está disponible, usar el primer ID de selectedBranchIds
+  const currentBranchId = selectedBranch?.id 
+    ? Number(selectedBranch.id) 
+    : (selectedBranchIds.length > 0 ? Number(selectedBranchIds[0]) : 1);
+
+  // Hook para obtener el estado de la caja
+  const { status: cashRegisterStatus, isOpen: isCashRegisterOpen } = useCashRegisterStatus(currentBranchId);
+  const currentCashRegisterId = isCashRegisterOpen && cashRegisterStatus?.cash_register?.id 
+    ? cashRegisterStatus.cash_register.id 
+    : null;
+
   // Wrapper function to refresh sales after converting budget
-  const handleConvertToSale = async (budgetId: number, receiptTypeId: number, cashRegisterId?: number) => {
-    const result = await convertToSale(budgetId, receiptTypeId, cashRegisterId);
+  const handleConvertToSale = async (budgetId: number, receiptTypeId: number, cashRegisterId?: number, paymentMethodId?: number) => {
+    const result = await convertToSale(budgetId, receiptTypeId, cashRegisterId, paymentMethodId);
     // Refresh sales list after successful conversion
     if (dateRange.from && dateRange.to) {
       await fetchSales(dateRange.from, dateRange.to, currentPage, debouncedSearch);
@@ -138,9 +151,6 @@ export default function VentasPage() {
     }
     return result;
   };
-
-  // Cash register validation - usando la sucursal seleccionada
-  const currentBranchId = selectedBranch?.id ? Number(selectedBranch.id) : 1;
 
   // Configuración de columnas redimensionables
   const columnConfig = [
@@ -1220,6 +1230,7 @@ export default function VentasPage() {
                   loading={loadingBudgets}
                   actionLoading={actionLoadingBudgets}
                   showBranchColumn={selectedBranchIds.length > 1}
+                  cashRegisterId={currentCashRegisterId}
                   onConvert={handleConvertToSale}
                   onDelete={deleteBudget}
                   onApprove={approveBudget}

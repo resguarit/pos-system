@@ -1733,12 +1733,13 @@ class SaleService implements SaleServiceInterface
      * @param int $newReceiptTypeId ID del nuevo tipo de comprobante
      * @param int $userId ID del usuario que convierte
      * @param int|null $cashRegisterId ID de la caja registradora
+     * @param int|null $paymentMethodId ID del método de pago (si se especifica, reemplaza los pagos del presupuesto)
      * @return SaleHeader
      * @throws \Exception
      */
-    public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null): SaleHeader
+    public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null, ?int $paymentMethodId = null): SaleHeader
     {
-        return DB::transaction(function () use ($budgetId, $newReceiptTypeId, $userId, $cashRegisterId) {
+        return DB::transaction(function () use ($budgetId, $newReceiptTypeId, $userId, $cashRegisterId, $paymentMethodId) {
             // Buscar el presupuesto con relaciones necesarias
             $budget = SaleHeader::with(['items.product', 'receiptType', 'customer', 'salePayments'])
                 ->lockForUpdate()
@@ -1760,6 +1761,19 @@ class SaleService implements SaleServiceInterface
                 throw new \Exception('Tipo de comprobante no válido.');
             }
             $this->validateNotBudgetReceiptType($newReceiptType);
+
+            // Validar método de pago si se especifica
+            $paymentMethod = null;
+            if ($paymentMethodId) {
+                $paymentMethod = \App\Models\PaymentMethod::find($paymentMethodId);
+                if (!$paymentMethod) {
+                    throw new \Exception('Método de pago no válido.');
+                }
+                // Si el método de pago afecta la caja, validar que haya una caja abierta
+                if ($paymentMethod->affects_cash && !$cashRegisterId) {
+                    throw new \Exception('Se requiere una caja abierta para el método de pago seleccionado.');
+                }
+            }
 
             // Generar número de comprobante
             $newReceiptNumber = $this->generateNextReceiptNumber($budget->branch_id, $newReceiptTypeId);
@@ -1790,7 +1804,17 @@ class SaleService implements SaleServiceInterface
             // Copiar datos del presupuesto a la venta
             $this->copyBudgetItems($budget, $sale);
             $this->copyBudgetIvas($budget, $sale);
-            $this->copyBudgetPayments($budget, $sale);
+            
+            // Si se especificó un método de pago, crear el pago con ese método
+            // De lo contrario, copiar los pagos del presupuesto
+            if ($paymentMethodId) {
+                $sale->salePayments()->create([
+                    'payment_method_id' => $paymentMethodId,
+                    'amount' => $sale->total,
+                ]);
+            } else {
+                $this->copyBudgetPayments($budget, $sale);
+            }
 
             // Registrar movimientos de caja y cuenta corriente
             if ($cashRegisterId) {
@@ -1804,7 +1828,7 @@ class SaleService implements SaleServiceInterface
             $budget->converted_by = $userId;
             $budget->save();
 
-            return $sale->fresh(['items.product', 'saleIvas', 'receiptType', 'customer', 'branch']);
+            return $sale->fresh(['items.product', 'saleIvas', 'receiptType', 'customer', 'branch', 'salePayments.paymentMethod']);
         });
     }
 

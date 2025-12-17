@@ -13,6 +13,7 @@ import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header'
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
+import type { PaymentMethod } from '@/types/sale'
 
 interface ReceiptType {
     id: number
@@ -20,12 +21,26 @@ interface ReceiptType {
     afip_code?: string
 }
 
+interface CashRegisterCheckResponse {
+    success: boolean
+    is_open: boolean
+    message: string
+    data: {
+        cash_register: {
+            id: number
+            branch_id: number
+            status: string
+        } | null
+    }
+}
+
 interface PresupuestosPageProps {
     budgets: Budget[]
     loading: boolean
     actionLoading: number | null
     showBranchColumn?: boolean
-    onConvert: (budgetId: number, receiptTypeId: number) => Promise<any>
+    cashRegisterId?: number | null
+    onConvert: (budgetId: number, receiptTypeId: number, cashRegisterId?: number, paymentMethodId?: number) => Promise<any>
     onDelete: (budgetId: number) => Promise<any>
     onApprove: (budgetId: number) => Promise<any>
     onViewDetail: (budget: Budget) => void
@@ -36,6 +51,7 @@ export default function PresupuestosPage({
     loading,
     actionLoading,
     showBranchColumn = true,
+    cashRegisterId,
     onConvert,
     onDelete,
     onApprove,
@@ -45,6 +61,7 @@ export default function PresupuestosPage({
     const { request } = useApi()
 
     const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([])
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
 
     // Dialog states
     const [showConvertDialog, setShowConvertDialog] = useState(false)
@@ -52,6 +69,8 @@ export default function PresupuestosPage({
     const [showApproveDialog, setShowApproveDialog] = useState(false)
     const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null)
     const [selectedReceiptTypeId, setSelectedReceiptTypeId] = useState<number | null>(null)
+    const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null)
+    const [convertLoading, setConvertLoading] = useState(false)
 
     const canManageBudgets = hasPermission('gestionar_presupuestos')
 
@@ -104,9 +123,39 @@ export default function PresupuestosPage({
         fetchReceiptTypes()
     }, [request])
 
+    // Fetch available payment methods
+    useEffect(() => {
+        const fetchPaymentMethods = async () => {
+            try {
+                const response = await request({ method: 'GET', url: '/payment-methods?all=true' })
+                const methods = Array.isArray(response) ? response :
+                    Array.isArray(response?.data?.data) ? response.data.data :
+                        Array.isArray(response?.data) ? response.data : []
+
+                // Filter only active payment methods
+                const activeMethods = methods.filter((m: PaymentMethod) => m.is_active !== false)
+                setPaymentMethods(activeMethods)
+                
+                // Set default payment method (Efectivo if available)
+                const efectivo = activeMethods.find((m: PaymentMethod) => m.name.toLowerCase() === 'efectivo')
+                if (efectivo) {
+                    setSelectedPaymentMethodId(efectivo.id)
+                } else if (activeMethods.length > 0) {
+                    setSelectedPaymentMethodId(activeMethods[0].id)
+                }
+            } catch (error) {
+                console.error('Error fetching payment methods:', error)
+            }
+        }
+        fetchPaymentMethods()
+    }, [request])
+
     const handleConvertClick = (budget: Budget) => {
         setSelectedBudget(budget)
         setSelectedReceiptTypeId(receiptTypes[0]?.id || null)
+        // Reset payment method to default (Efectivo)
+        const efectivo = paymentMethods.find((m: PaymentMethod) => m.name.toLowerCase() === 'efectivo')
+        setSelectedPaymentMethodId(efectivo?.id || paymentMethods[0]?.id || null)
         setShowConvertDialog(true)
     }
 
@@ -115,23 +164,89 @@ export default function PresupuestosPage({
         setShowDeleteDialog(true)
     }
 
-    const handleApproveClick = async (budget: Budget) => {
+    const handleApproveClick = (budget: Budget) => {
+        setSelectedBudget(budget)
+        setShowApproveDialog(true)
+    }
+
+    const handleApproveConfirm = async () => {
+        if (!selectedBudget) return
+
         try {
-            await onApprove(budget.id)
+            await onApprove(selectedBudget.id)
+            setShowApproveDialog(false)
+            setSelectedBudget(null)
         } catch (error) {
-            // Error handled in parent
+            // Error is handled in the hook/parent
         }
     }
 
     const handleConvertConfirm = async () => {
-        if (!selectedBudget || !selectedReceiptTypeId) return
+        if (!selectedBudget || !selectedReceiptTypeId || !selectedPaymentMethodId) return
 
-        try {
-            await onConvert(selectedBudget.id, selectedReceiptTypeId)
-            setShowConvertDialog(false)
-            setSelectedBudget(null)
-        } catch (error) {
-            // Error is handled in the hook/parent
+        // Validate cash register for payment methods that affect cash
+        const selectedMethod = paymentMethods.find(m => m.id === selectedPaymentMethodId)
+        
+        if (selectedMethod?.affects_cash) {
+            // Check cash register status for the budget's branch directly
+            const budgetBranchId = selectedBudget.branch_id || selectedBudget.branch?.id
+            
+            if (!budgetBranchId) {
+                toast.error('No se puede determinar la sucursal del presupuesto.')
+                return
+            }
+
+            try {
+                const response: CashRegisterCheckResponse = await request({
+                    method: 'GET',
+                    url: `/cash-registers/check-status?branch_id=${budgetBranchId}`,
+                })
+
+                console.log('[PresupuestosPage] Cash register check for branch', budgetBranchId, ':', response)
+
+                if (!response.is_open || !response.data?.cash_register?.id) {
+                    toast.error('Se requiere una caja abierta para el método de pago seleccionado. Por favor, abra una caja primero.')
+                    return
+                }
+
+                // Use the cash register ID from the response
+                setConvertLoading(true)
+                try {
+                    await onConvert(
+                        selectedBudget.id, 
+                        selectedReceiptTypeId,
+                        response.data.cash_register.id,
+                        selectedPaymentMethodId
+                    )
+                    setShowConvertDialog(false)
+                    setSelectedBudget(null)
+                } catch (error) {
+                    // Error is handled in the hook/parent
+                } finally {
+                    setConvertLoading(false)
+                }
+            } catch (error) {
+                console.error('[PresupuestosPage] Error checking cash register:', error)
+                toast.error('Error al verificar el estado de la caja. Por favor, intente nuevamente.')
+                return
+            }
+        } else {
+            // Payment method doesn't affect cash, proceed without cash register
+            setConvertLoading(true)
+            try {
+                await onConvert(
+                    selectedBudget.id, 
+                    selectedReceiptTypeId,
+                    undefined,
+                    selectedPaymentMethodId
+                )
+                setShowConvertDialog(false)
+                setSelectedBudget(null)
+            } catch (error) {
+                // Error is handled in the hook/parent
+            } finally {
+                setConvertLoading(false)
+            }
         }
     }
 
@@ -319,14 +434,14 @@ export default function PresupuestosPage({
 
             {/* Convert Dialog */}
             <Dialog open={showConvertDialog} onOpenChange={setShowConvertDialog}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Convertir Presupuesto a Venta</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <p className="text-sm text-muted-foreground">
-                            Selecciona el tipo de comprobante para la nueva venta basada en el presupuesto
-                            <strong> #{selectedBudget?.receipt_number}</strong>.
+                            Completa los datos para convertir el presupuesto
+                            <strong> #{selectedBudget?.receipt_number}</strong> a venta.
                         </p>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Tipo de Comprobante</label>
@@ -346,6 +461,36 @@ export default function PresupuestosPage({
                                 </SelectContent>
                             </Select>
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Método de Pago</label>
+                            <Select
+                                value={selectedPaymentMethodId?.toString() || ''}
+                                onValueChange={(value) => setSelectedPaymentMethodId(Number(value))}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar método de pago..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {paymentMethods.map((method) => (
+                                        <SelectItem key={method.id} value={method.id.toString()}>
+                                            {method.name}
+                                            {method.affects_cash && (
+                                                <span className="ml-2 text-xs text-muted-foreground">(Afecta caja)</span>
+                                            )}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* Info if payment method affects cash */}
+                        {selectedPaymentMethodId && paymentMethods.find(m => m.id === selectedPaymentMethodId)?.affects_cash && (
+                            <div className="flex items-center gap-2 p-3 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                <span>Este método de pago requiere una caja abierta. Se verificará al confirmar.</span>
+                            </div>
+                        )}
+
                         {selectedBudget && (
                             <Card className="bg-muted/50">
                                 <CardContent className="pt-4 text-sm">
@@ -362,8 +507,18 @@ export default function PresupuestosPage({
                         )}
                         <div className="flex justify-end gap-2 pt-4">
                             <Button variant="outline" onClick={() => setShowConvertDialog(false)}>Cancelar</Button>
-                            <Button onClick={handleConvertConfirm} disabled={!selectedReceiptTypeId}>
-                                Confirmar Conversión
+                            <Button 
+                                onClick={handleConvertConfirm} 
+                                disabled={!selectedReceiptTypeId || !selectedPaymentMethodId || convertLoading}
+                            >
+                                {convertLoading ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Convirtiendo...
+                                    </>
+                                ) : (
+                                    'Confirmar Conversión'
+                                )}
                             </Button>
                         </div>
                     </div>
@@ -396,22 +551,38 @@ export default function PresupuestosPage({
             <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Confirmar Aprobación</DialogTitle>
+                        <DialogTitle>Aprobar Presupuesto</DialogTitle>
                     </DialogHeader>
-                    <div className="py-4">
-                        <p>¿Estás seguro de que deseas aprobar el presupuesto <strong>#{selectedBudget?.receipt_number}</strong>?</p>
-                        <p className="text-sm text-gray-500 mt-2">El presupuesto pasará a estado "Aprobado" y podrá ser convertido a venta.</p>
+                    <div className="space-y-4 py-4">
+                        <p className="text-sm text-muted-foreground">
+                            ¿Estás seguro de que deseas aprobar el presupuesto
+                            <strong> #{selectedBudget?.receipt_number}</strong>?
+                        </p>
+                        
+                        {selectedBudget && (
+                            <Card className="bg-muted/50">
+                                <CardContent className="pt-4 text-sm">
+                                    <div className="flex justify-between">
+                                        <span>Cliente:</span>
+                                        <span className="font-medium">{selectedBudget.customer === 'N/A' ? '-' : selectedBudget.customer}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Total:</span>
+                                        <span className="font-semibold">{formatCurrency(selectedBudget.total)}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        <p className="text-xs text-muted-foreground">
+                            El presupuesto pasará a estado "Aprobado" y podrá ser convertido a venta.
+                        </p>
                     </div>
                     <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setShowApproveDialog(false)}>Cancelar</Button>
                         <Button
                             className="bg-green-600 hover:bg-green-700 text-white"
-                            onClick={() => {
-                                if (selectedBudget) {
-                                    onApprove(selectedBudget.id)
-                                    setShowApproveDialog(false)
-                                }
-                            }}
+                            onClick={handleApproveConfirm}
                         >
                             Confirmar Aprobación
                         </Button>

@@ -109,7 +109,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
         }
     }, [request, options.branchIds, options.status, options.fromDate, options.toDate, options.search, options.page, options.limit])
 
-    const convertToSale = useCallback(async (budgetId: number, receiptTypeId: number, cashRegisterId?: number) => {
+    const convertToSale = useCallback(async (budgetId: number, receiptTypeId: number, cashRegisterId?: number, paymentMethodId?: number) => {
         setActionLoading(budgetId)
         try {
             const response = await request({
@@ -117,7 +117,8 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
                 url: `/budgets/${budgetId}/convert`,
                 data: {
                     receipt_type_id: receiptTypeId,
-                    cash_register_id: cashRegisterId
+                    cash_register_id: cashRegisterId,
+                    payment_method_id: paymentMethodId
                 }
             })
 
@@ -183,7 +184,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
         } finally {
             setActionLoading(null)
         }
-    }, [request, options.branchIds, options.status, options.fromDate, options.toDate, options.search, options.page, options.limit])
+    }, [request, fetchBudgets])
 
     // Ejecutar fetch al montar y cuando cambian los parámetros
     useEffect(() => {

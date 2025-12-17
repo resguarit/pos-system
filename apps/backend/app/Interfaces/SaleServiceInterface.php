@@ -26,7 +26,7 @@ interface SaleServiceInterface
     public function getSalesHistoryGlobal(Request $request);
 
     // Budget management methods
-    public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null): SaleHeader;
+    public function convertBudgetToSale(int $budgetId, int $newReceiptTypeId, int $userId, ?int $cashRegisterId = null, ?int $paymentMethodId = null): SaleHeader;
     public function deleteBudget(int $budgetId, int $userId): bool;
     public function getBudgets(Request $request): LengthAwarePaginator;
     public function approveBudget(int $id): SaleHeader;

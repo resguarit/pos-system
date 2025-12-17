@@ -378,7 +378,8 @@ class SaleController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'receipt_type_id' => 'required|integer|exists:receipt_type,id',
-                'cash_register_id' => 'nullable|integer|exists:cash_registers,id'
+                'cash_register_id' => 'nullable|integer|exists:cash_registers,id',
+                'payment_method_id' => 'nullable|integer|exists:payment_methods,id'
             ]);
 
             if ($validator->fails()) {
@@ -390,8 +391,9 @@ class SaleController extends Controller
 
             $receiptTypeId = $request->input('receipt_type_id');
             $cashRegisterId = $request->input('cash_register_id');
+            $paymentMethodId = $request->input('payment_method_id');
 
-            $sale = $this->saleService->convertBudgetToSale($id, $receiptTypeId, $userId, $cashRegisterId);
+            $sale = $this->saleService->convertBudgetToSale($id, $receiptTypeId, $userId, $cashRegisterId, $paymentMethodId);
 
             return response()->json([
                 'success' => true,
