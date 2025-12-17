@@ -171,21 +171,24 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   const loadFilters = async () => {
     try {
       const filters = await CurrentAccountService.getMovementFilters(accountId);
+      console.log('Filtros recibidos:', filters);
+      
       setBranchOptions(
-        filters.branches.map(b => ({
+        (filters.branches || []).map(b => ({
           label: b.name,
           value: String(b.id),
           color: b.color
         }))
       );
       setMovementTypeOptions(
-        filters.movement_types.map(t => ({
+        (filters.movement_types || []).map(t => ({
           label: t.name,
           value: t.name
         }))
       );
     } catch (error) {
       console.error('Error loading filters:', error);
+      toast.error('Error al cargar filtros');
     }
   };
 

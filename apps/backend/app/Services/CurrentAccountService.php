@@ -455,14 +455,15 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         CurrentAccount::findOrFail($accountId);
 
         // Obtener solo los tipos de movimiento que realmente se han usado en esta cuenta
-        $movementTypes = CurrentAccountMovement::where('current_account_id', $accountId)
-            ->with('movementType:id,name')
+        $movementTypeIds = CurrentAccountMovement::where('current_account_id', $accountId)
             ->select('movement_type_id')
             ->distinct()
-            ->get()
-            ->pluck('movementType')
-            ->filter()
-            ->sortBy('name')
+            ->pluck('movement_type_id')
+            ->filter();
+
+        $movementTypes = MovementType::whereIn('id', $movementTypeIds)
+            ->orderBy('name')
+            ->get(['id', 'name'])
             ->map(function ($type) {
                 return [
                     'id' => $type->id,
@@ -473,7 +474,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
 
         // Obtener sucursales únicas desde metadata y relaciones
         $branches = CurrentAccountMovement::where('current_account_id', $accountId)
-            ->with('sale.branch:id,description,name,color')
+            ->with('sale.branch:id,description,color')
             ->get()
             ->map(function ($movement) {
                 $metadata = is_array($movement->metadata) ? $movement->metadata : [];
@@ -491,7 +492,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 if ($movement->sale && $movement->sale->branch) {
                     return [
                         'id' => $movement->sale->branch->id,
-                        'name' => $movement->sale->branch->description ?? $movement->sale->branch->name,
+                        'name' => $movement->sale->branch->description,
                         'color' => $movement->sale->branch->color ?? null,
                     ];
                 }
