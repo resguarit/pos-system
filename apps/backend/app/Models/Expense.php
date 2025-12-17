@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Models\ExpenseReminder;
 
 class Expense extends Model
 {
@@ -63,5 +64,10 @@ class Expense extends Model
     public function cashMovement()
     {
         return $this->belongsTo(CashMovement::class);
+    }
+
+    public function reminders()
+    {
+        return $this->hasMany(ExpenseReminder::class);
     }
 }

@@ -39,6 +39,7 @@ use App\Http\Controllers\AfipController;
 use App\Http\Controllers\AfipCertificateController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseReminderController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseCategoryController;
 
@@ -390,6 +391,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Movimientos
         Route::get('/{accountId}/movements', [CurrentAccountController::class, 'movements']);
+        Route::get('/{accountId}/movement-filters', [CurrentAccountController::class, 'movementFilters']);
         Route::post('/movements', [CurrentAccountController::class, 'createMovement']);
         Route::get('/{accountId}/balance', [CurrentAccountController::class, 'balance']);
         Route::get('/{accountId}/pending-sales', [CurrentAccountController::class, 'pendingSales']);
@@ -500,6 +502,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/{expense}', [ExpenseController::class, 'show']);
         Route::put('/{expense}', [ExpenseController::class, 'update']);
         Route::delete('/{expense}', [ExpenseController::class, 'destroy']);
+    });
+
+    // Expense Reminders Module Routes
+    Route::prefix('expense-reminders')->group(function () {
+        Route::get('/', [ExpenseReminderController::class, 'index']);
+        Route::get('/pending', [ExpenseReminderController::class, 'pending']);
+        Route::get('/stats', [ExpenseReminderController::class, 'stats']);
+        Route::get('/{expenseReminder}', [ExpenseReminderController::class, 'show']);
+        Route::post('/{expenseReminder}/dismiss', [ExpenseReminderController::class, 'dismiss']);
     });
 
     Route::prefix('employees')->group(function () {

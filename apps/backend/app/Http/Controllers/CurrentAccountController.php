@@ -332,6 +332,30 @@ class CurrentAccountController extends Controller
     }
 
     /**
+     * Obtener filtros disponibles para movimientos de una cuenta
+     */
+    public function movementFilters(int $accountId): JsonResponse
+    {
+        try {
+            $filters = $this->currentAccountService->getMovementFilters($accountId);
+            
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Filtros obtenidos correctamente',
+                'data' => $filters
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener filtros: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
+    /**
      * Procesar pago en cuenta corriente
      */
     public function processPayment(Request $request, int $accountId): JsonResponse
@@ -653,8 +677,10 @@ class CurrentAccountController extends Controller
         try {
             $account = \App\Models\CurrentAccount::with('customer')->findOrFail($accountId);
             
+            // Incluir todas las ventas EXCEPTO rechazadas
+            // Las ventas anuladas que tengan saldo pendiente también se muestran
             $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                ->where('status', '!=', 'annulled') // Excluir ventas anuladas
+                ->where('status', '!=', 'rejected') // Solo excluir rechazadas
                 ->where(function($query) {
                     $query->whereNull('payment_status')
                           ->orWhereIn('payment_status', ['pending', 'partial']);

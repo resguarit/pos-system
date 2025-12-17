@@ -27,6 +27,7 @@ import { useCurrentAccountActions } from '@/hooks/useCurrentAccountActions';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { PaymentDialog } from './PaymentDialog';
+import { CheckboxMultiSelect, type CheckboxOption } from '@/components/ui/checkbox-multi-select';
 import {
   calculateOutstandingBalance,
   calculateTotalPendingSales,
@@ -53,6 +54,12 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   const perPage = 10;
   const movementsTableRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<number>(0);
+  const [branchFilterUI, setBranchFilterUI] = useState<string[]>([]);
+  const [movementTypeFilterUI, setMovementTypeFilterUI] = useState<string[]>([]);
+  
+  // Opciones de filtros cargadas desde el backend
+  const [branchOptions, setBranchOptions] = useState<CheckboxOption[]>([]);
+  const [movementTypeOptions, setMovementTypeOptions] = useState<CheckboxOption[]>([]);
 
   // Estados para los diálogos
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
@@ -62,6 +69,9 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       { id: 'fecha', defaultWidth: 120, minWidth: 80 },
       { id: 'tipo', defaultWidth: 150, minWidth: 100 },
       { id: 'descripcion', defaultWidth: 300, minWidth: 150 },
+      { id: 'sucursal', defaultWidth: 160, minWidth: 120 },
+      { id: 'usuario', defaultWidth: 160, minWidth: 120 },
+      { id: 'metodo', defaultWidth: 140, minWidth: 100 },
       { id: 'monto', defaultWidth: 150, minWidth: 100 },
       { id: 'balance', defaultWidth: 150, minWidth: 100 },
     ],
@@ -74,6 +84,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   useEffect(() => {
     loadAccountDetails();
     loadPendingSales();
+    loadFilters();
     setCurrentPage(1); // Resetear a página 1 al cambiar de cuenta
     scrollPositionRef.current = 0; // Resetear posición del scroll al cambiar de cuenta
   }, [accountId]);
@@ -154,6 +165,27 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     } catch (error) {
       console.error('Error loading pending sales:', error);
       toast.error('Error al cargar ventas pendientes');
+    }
+  };
+
+  const loadFilters = async () => {
+    try {
+      const filters = await CurrentAccountService.getMovementFilters(accountId);
+      setBranchOptions(
+        filters.branches.map(b => ({
+          label: b.name,
+          value: String(b.id),
+          color: b.color
+        }))
+      );
+      setMovementTypeOptions(
+        filters.movement_types.map(t => ({
+          label: t.name,
+          value: t.name
+        }))
+      );
+    } catch (error) {
+      console.error('Error loading filters:', error);
     }
   };
 
@@ -401,7 +433,28 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
                   <p className="text-muted-foreground">No hay movimientos registrados</p>
                 </div>
               ) : (
-                <div
+                <>
+                  {/* Filtros */}
+                  <div className="flex flex-col md:flex-row md:items-center gap-2 mb-3">
+                    <div className="w-full md:w-72">
+                      <CheckboxMultiSelect
+                        options={branchOptions}
+                        selected={branchFilterUI}
+                        onChange={setBranchFilterUI}
+                        placeholder="Filtrar por sucursal..."
+                      />
+                    </div>
+                    <div className="w-full md:w-72">
+                      <CheckboxMultiSelect
+                        options={movementTypeOptions}
+                        selected={movementTypeFilterUI}
+                        onChange={setMovementTypeFilterUI}
+                        placeholder="Filtrar por tipo..."
+                      />
+                    </div>
+                  </div>
+
+                  <div
                   ref={movementsTableRef}
                   className="overflow-x-auto overflow-y-auto max-h-[600px]"
                   style={{ scrollBehavior: 'auto' }}
@@ -431,6 +484,27 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
                           Descripción
                         </ResizableTableHeader>
                         <ResizableTableHeader
+                          columnId="sucursal"
+                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                        >
+                          Sucursal
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="usuario"
+                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                        >
+                          Usuario
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
+                          columnId="metodo"
+                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                        >
+                          Método de Pago
+                        </ResizableTableHeader>
+                        <ResizableTableHeader
                           columnId="monto"
                           getResizeHandleProps={resizableColumns.getResizeHandleProps}
                           getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
@@ -447,7 +521,20 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {movements.map((movement) => {
+                      {(() => {
+                        const filtered = movements.filter((m) => {
+                          const id = m.branch?.id ?? m.branch_id;
+                          const typeName = m.movement_type?.name || '';
+
+                          const matchesBranch = branchFilterUI.length === 0
+                            || (id ? branchFilterUI.includes(String(id)) : false);
+                          const matchesType = movementTypeFilterUI.length === 0
+                            || movementTypeFilterUI.includes(typeName);
+
+                          return matchesBranch && matchesType;
+                        });
+                        return filtered;
+                      })().map((movement) => {
                         // Usar el balance_after que viene del backend para cada movimiento
                         // El backend ya calcula correctamente el balance después de cada movimiento
                         // Solo hay saldo adeudado (deuda pendiente), así que nunca debe ser negativo
@@ -491,6 +578,38 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
                               {movement.description}
                             </ResizableTableCell>
                             <ResizableTableCell
+                              columnId="sucursal"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                            >
+                              {movement.branch ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs border-2 font-medium"
+                                  style={{
+                                    borderColor: movement.branch.color || '#6b7280',
+                                    color: movement.branch.color || '#6b7280',
+                                    backgroundColor: (movement.branch.color || '#6b7280') + '10'
+                                  }}
+                                >
+                                  {movement.branch.description || movement.branch.name || '—'}
+                                </Badge>
+                              ) : (
+                                '—'
+                              )}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="usuario"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                            >
+                              {movement.user?.name || 'Sistema'}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="metodo"
+                              getColumnCellProps={resizableColumns.getColumnCellProps}
+                            >
+                              {movement.payment_method?.name || '—'}
+                            </ResizableTableCell>
+                            <ResizableTableCell
                               columnId="monto"
                               getColumnCellProps={resizableColumns.getColumnCellProps}
                               className={movement.is_outflow ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
@@ -510,6 +629,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
               {!loadingMovements && movements.length > 0 && (
                 <div className="mt-4">

@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { stockTransferService } from "@/lib/api/stockTransferService"
-import { ArrowRight, Package, Calendar, FileText } from "lucide-react"
+import { ArrowRight, Package, Calendar, FileText, User as UserIcon } from "lucide-react"
 
 interface ViewStockTransferDialogProps {
   open: boolean
@@ -132,6 +132,17 @@ export function ViewStockTransferDialog({
                     {getDestinationBranch()?.description || getDestinationBranch()?.name || "N/A"}
                   </span>
                 </div>
+              </div>
+            </div>
+
+            {/* Requested by */}
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider">Solicitada por</p>
+              <div className="flex items-center gap-2">
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">
+                  {transfer?.user?.name || transfer?.user?.username || 'N/A'}
+                </span>
               </div>
             </div>
 

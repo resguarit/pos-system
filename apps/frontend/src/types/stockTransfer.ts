@@ -21,6 +21,13 @@ export interface StockTransfer {
   status: 'pending' | 'completed' | 'cancelled';
   notes?: string;
   items: StockTransferItem[];
+  user_id?: number;
+  user?: {
+    id: number;
+    name?: string;
+    username?: string;
+    email?: string;
+  };
   sourceBranch?: {
     id: number;
     name: string;

@@ -50,6 +50,45 @@ class CurrentAccountMovementResource extends JsonResource
                     'name' => $this->getUserName(),
                 ]
             ),
+            // Información de sucursal (pago o venta)
+            // Prioridad: sucursal donde se registró el pago (metadata.payment_branch_*),
+            // luego sucursal de la venta asociada
+            'branch_id' => $this->when(true, function () {
+                $metadata = is_array($this->metadata) ? $this->metadata : [];
+                if (!empty($metadata['payment_branch_id'])) {
+                    return (int) $metadata['payment_branch_id'];
+                }
+                return ($this->sale && $this->sale->branch) ? $this->sale->branch->id : null;
+            }),
+            'branch' => $this->when(true, function () {
+                $metadata = is_array($this->metadata) ? $this->metadata : [];
+                if (!empty($metadata['payment_branch_id'])) {
+                    return [
+                        'id' => (int) $metadata['payment_branch_id'],
+                        'description' => $metadata['payment_branch_description'] ?? null,
+                        'color' => $metadata['payment_branch_color'] ?? null,
+                    ];
+                }
+                if ($this->sale && $this->sale->branch) {
+                    return [
+                        'id' => $this->sale->branch->id,
+                        'description' => $this->sale->branch->description ?? null,
+                        'color' => $this->sale->branch->color ?? null,
+                    ];
+                }
+                return null;
+            }),
+            // Información de método de pago
+            'payment_method' => $this->when(true, function () {
+                $metadata = is_array($this->metadata) ? $this->metadata : [];
+                if (!empty($metadata['payment_method_name'])) {
+                    return [
+                        'id' => $metadata['payment_method_id'] ?? null,
+                        'name' => $metadata['payment_method_name'] ?? null,
+                    ];
+                }
+                return null;
+            }),
             'movement_date' => $this->movement_date?->format('Y-m-d H:i:s'),
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),

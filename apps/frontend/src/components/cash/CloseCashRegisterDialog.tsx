@@ -129,10 +129,15 @@ export const CloseCashRegisterDialog = ({
   const calculateDifference = () => {
     if (!closingForm.closing_balance) return 0
     
-    const finalAmount = parseFloat(closingForm.closing_balance) || 0
-    const systemBalance = getSystemBalance()
+    const countedCash = parseFloat(closingForm.closing_balance) || 0
+    const breakdown = calculatePaymentBreakdown()
+     const expectedCashValue = breakdown['Efectivo'] || 0
+     const initialAmount = parseFloat(registerToShow?.initial_amount) || 0
     
-    return finalAmount - systemBalance
+     // El usuario ingresa el efectivo adicional
+     // expectedCashValue ya incluye el inicial
+     // Diferencia = Efectivo Contado - |expectedCashValue|
+     return countedCash - Math.abs(expectedCashValue)
   }
 
   const paymentBreakdown = calculatePaymentBreakdown()

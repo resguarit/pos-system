@@ -127,6 +127,16 @@ export function CurrentAccountList({
     loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter);
   }, [initialSearchTerm, initialStatusFilter, initialBalanceFilter, loadAccounts]);
 
+  // Escuchar evento de pago exitoso para recargar datos
+  useEffect(() => {
+    const handlePaymentSuccess = () => {
+      loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page);
+    };
+
+    window.addEventListener('paymentSuccess', handlePaymentSuccess);
+    return () => window.removeEventListener('paymentSuccess', handlePaymentSuccess);
+  }, [loadAccounts, initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page]);
+
   const handlePageChange = useCallback((newPage: number) => {
     loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter, newPage);
   }, [loadAccounts, initialSearchTerm, initialStatusFilter, initialBalanceFilter]);

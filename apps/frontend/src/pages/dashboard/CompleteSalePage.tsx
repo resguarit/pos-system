@@ -23,6 +23,7 @@ import { formatCurrency, roundToTwoDecimals, extractProductId } from '@/utils/sa
 import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
 import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
+import { DebtAlertDialog } from "@/components/sale/DebtAlertDialog"
 import type { PaymentMethod, ReceiptType, SaleData, SaleHeader } from '@/types/sale'
 import { useAfip } from "@/hooks/useAfip"
 
@@ -32,13 +33,29 @@ export default function CompleteSalePage() {
   const location = useLocation()
   const navigate = useNavigate()
   const { request } = useApi()
-  const { selectedBranch } = useBranch()
+  const { selectedBranch, branches } = useBranch()
   const { user, hasPermission } = useAuth()
-  const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(selectedBranch?.id) || 1)
+  
+  // Obtener datos del carrito y branchId desde location.state
+  const initialCart = (location.state?.cart as CartItem[]) || []
+  const stateBranchId = location.state?.branchId
+  
+  // Usar la sucursal del state si está disponible, sino usar la del contexto
+  const activeBranch = stateBranchId 
+    ? branches.find(b => b.id === stateBranchId) || selectedBranch
+    : selectedBranch
+  
+  // Debug: verificar qué sucursal se está usando
+  console.log('CompleteSalePage - Branch info:', {
+    stateBranchId,
+    activeBranchId: activeBranch?.id,
+    activeBranchName: activeBranch?.description,
+    selectedBranchId: selectedBranch?.id
+  })
+  
+  const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
   const { checkCuitCertificate } = useAfip()
 
-  // Obtener datos del carrito desde location.state
-  const initialCart = (location.state?.cart as CartItem[]) || []
   const [cart, setCart] = useState<CartItem[]>(initialCart)
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -53,6 +70,9 @@ export default function CompleteSalePage() {
   const [completedSale, setCompletedSale] = useState<SaleHeader | null>(null)
   const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('')
   const [globalDiscountValue, setGlobalDiscountValue] = useState<string>('')
+  const [customerBalance, setCustomerBalance] = useState<number | null>(null)
+  const [loadingBalance, setLoadingBalance] = useState(false)
+  const [showDebtDialog, setShowDebtDialog] = useState(false)
 
   // Hook personalizado para búsqueda de clientes
   const {
@@ -136,7 +156,7 @@ export default function CompleteSalePage() {
   useEffect(() => {
     fetchPaymentMethods()
     fetchReceiptTypes()
-  }, [selectedBranch])
+  }, [activeBranch])
 
   const fetchPaymentMethods = useCallback(async () => {
     try {
@@ -161,12 +181,12 @@ export default function CompleteSalePage() {
 
   const fetchReceiptTypes = useCallback(async () => {
     try {
-      const branchCuit = (selectedBranch as any)?.cuit
-      const enabledReceiptTypes = (selectedBranch as any)?.enabled_receipt_types
+      const branchCuit = (activeBranch as any)?.cuit
+      const enabledReceiptTypes = (activeBranch as any)?.enabled_receipt_types
 
       // Debug: mostrar datos de la sucursal
       console.log('Branch data:', {
-        id: selectedBranch?.id,
+        id: activeBranch?.id,
         cuit: branchCuit,
         enabled_receipt_types: enabledReceiptTypes
       })
@@ -261,7 +281,7 @@ export default function CompleteSalePage() {
       setReceiptTypes([])
       toast.error("Error al cargar los tipos de comprobante.")
     }
-  }, [request, selectedBranch])
+  }, [request, activeBranch])
 
   const addPayment = useCallback(() => {
     setPayments(prev => [...prev, { payment_method_id: '', amount: '' }])
@@ -303,7 +323,7 @@ export default function CompleteSalePage() {
   const handleConfirmSale = useCallback(async () => {
     if (isProcessingSale) return
 
-    if (!selectedBranch) {
+    if (!activeBranch) {
       toast.error('Debe seleccionar una sucursal antes de realizar la venta', {
         description: 'Use el selector de sucursal en la parte superior del POS'
       })
@@ -319,7 +339,7 @@ export default function CompleteSalePage() {
         return
       }
 
-      if (!user || !selectedBranch) {
+      if (!user || !activeBranch) {
         toast.error("Error de sesión o sucursal. Recargue la página.")
         setIsProcessingSale(false)
         return
@@ -330,7 +350,7 @@ export default function CompleteSalePage() {
       const argDateString = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
       const saleData: SaleData = {
-        branch_id: Number(selectedBranch.id),
+        branch_id: Number(activeBranch.id),
         customer_id: selectedCustomer?.id || null,
         sale_document_number: (selectedCustomer?.cuit || selectedCustomer?.dni)
           ? String(selectedCustomer?.cuit || selectedCustomer?.dni)
@@ -419,7 +439,7 @@ export default function CompleteSalePage() {
     }
   }, [
     isProcessingSale,
-    selectedBranch,
+    activeBranch,
     validateCashRegisterForOperation,
     user,
     selectedCustomer,
@@ -471,14 +491,39 @@ export default function CompleteSalePage() {
       diff === 0 &&
       allPaymentsValid &&
       currentAccountPaymentValid &&
-      selectedBranch !== null
-  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, selectedBranch])
+      activeBranch !== null
+  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch])
 
   const handleCustomerSelect = useCallback((customer: CustomerOption) => {
     setSelectedCustomer(customer)
     setCustomerSearch(customer.name)
     setShowCustomerOptions(false)
-  }, [setSelectedCustomer, setCustomerSearch, setShowCustomerOptions])
+    
+    // Cargar el saldo del cliente
+    if (customer.id) {
+      setLoadingBalance(true)
+      request({ 
+        method: 'GET', 
+        url: `/customers/${customer.id}/current-account-balance` 
+      })
+        .then((response) => {
+          const balance = response?.balance ?? response?.data?.balance ?? 0
+          setCustomerBalance(balance)
+          
+          // Mostrar alerta si tiene deuda
+          if (balance > 0) {
+            setShowDebtDialog(true)
+          }
+        })
+        .catch((error) => {
+          console.error('Error al cargar saldo del cliente:', error)
+          setCustomerBalance(null)
+        })
+        .finally(() => {
+          setLoadingBalance(false)
+        })
+    }
+  }, [setSelectedCustomer, setCustomerSearch, setShowCustomerOptions, request])
 
   // ... (resto del código)
 
@@ -532,6 +577,8 @@ export default function CompleteSalePage() {
                     customerOptions={customerOptions}
                     showCustomerOptions={showCustomerOptions}
                     selectedCustomer={selectedCustomer}
+                    customerBalance={customerBalance}
+                    loadingBalance={loadingBalance}
                     onSearchChange={setCustomerSearch}
                     onCustomerSelect={handleCustomerSelect}
                     onShowOptionsChange={setShowCustomerOptions}
@@ -697,7 +744,7 @@ export default function CompleteSalePage() {
                   Cancelar
                 </Button>
                 <CashRegisterProtectedButton
-                  branchId={Number(selectedBranch?.id) || 1}
+                  branchId={Number(activeBranch?.id) || 1}
                   operationName="realizar ventas"
                 >
                   <Button
@@ -746,6 +793,15 @@ export default function CompleteSalePage() {
         formatDate={formatDate}
         formatCurrency={formatCurrency}
       />
-    </ProtectedRoute>
+
+      {/* Alerta de deuda */}
+      {selectedCustomer && (
+        <DebtAlertDialog
+          open={showDebtDialog}
+          onOpenChange={setShowDebtDialog}
+          customerId={selectedCustomer.id}
+          debtAmount={customerBalance}
+        />
+      )}    </ProtectedRoute>
   )
 }

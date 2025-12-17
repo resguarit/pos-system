@@ -12,6 +12,13 @@ use Illuminate\Support\Facades\Log;
 
 class ExpenseService
 {
+    protected ExpenseReminderService $expenseReminderService;
+
+    public function __construct(ExpenseReminderService $expenseReminderService)
+    {
+        $this->expenseReminderService = $expenseReminderService;
+    }
+
     public function createExpense(array $data): Expense
     {
         $data['user_id'] = Auth::id();
@@ -22,6 +29,11 @@ class ExpenseService
 
             if ($expense->status === 'paid') {
                 $this->processPayment($expense);
+            }
+
+            // Create reminder if expense is recurring
+            if ($expense->is_recurring && $expense->recurrence_interval) {
+                $this->expenseReminderService->createReminderForExpense($expense);
             }
 
             return $expense;
@@ -43,6 +55,14 @@ class ExpenseService
 
             if ($expense->status === 'paid' && !$expense->cash_movement_id) {
                 $this->processPayment($expense);
+            }
+
+            // Update or create reminder if expense is recurring
+            if ($expense->is_recurring && $expense->recurrence_interval) {
+                // Delete old reminders
+                $expense->reminders()->delete();
+                // Create new reminder with updated settings
+                $this->expenseReminderService->createReminderForExpense($expense);
             }
 
             return $expense;

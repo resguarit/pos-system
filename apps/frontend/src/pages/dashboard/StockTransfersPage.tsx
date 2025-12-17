@@ -18,11 +18,13 @@ const PERMISSIONS = {
 } as const;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { MultiSelect, type Option } from "@/components/ui/multi-select"
 import { NewStockTransferDialog, StockTransferDialog } from "@/components/stock-transfers/new-stock-transfer-dialog"
 import { ViewStockTransferDialog } from "@/components/stock-transfers/view-stock-transfer-dialog"
 import { stockTransferService } from '@/lib/api/stockTransferService'
 import type { StockTransfer } from '@/types/stockTransfer'
 import { toast } from "sonner"
+import { useBranch } from '@/context/BranchContext'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +40,7 @@ export default function StockTransfersPage() {
   const { hasPermission } = usePermissions()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [branchFilterUI, setBranchFilterUI] = useState<string[]>([])
   
   // Permission checks
   const canCreate = hasPermission(PERMISSIONS.CREATE)
@@ -51,6 +54,7 @@ export default function StockTransfersPage() {
     { id: 'source', minWidth: 120, maxWidth: 250, defaultWidth: 180 },
     { id: 'destination', minWidth: 120, maxWidth: 250, defaultWidth: 180 },
     { id: 'items', minWidth: 60, maxWidth: 120, defaultWidth: 80 },
+    { id: 'user', minWidth: 140, maxWidth: 220, defaultWidth: 170 },
     { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
     { id: 'actions', minWidth: 200, maxWidth: 300, defaultWidth: 240 }
   ]
@@ -70,6 +74,8 @@ export default function StockTransfersPage() {
   const [transferToDelete, setTransferToDelete] = useState<number | null>(null)
   const [viewTransferId, setViewTransferId] = useState<number | null>(null)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
+
+  const { selectedBranchIds } = useBranch()
 
   useEffect(() => { loadTransfers() }, [])
 
@@ -162,12 +168,50 @@ export default function StockTransfersPage() {
     return branch?.color || '#6b7280'
   }
 
+  // Extract unique branches from transfers for filter options
+  const getUniqueBranches = (): Option[] => {
+    const branchMap = new Map<number, { id: number; name: string; color: string }>()
+    
+    transfers.forEach(transfer => {
+      const sourceBranch = transfer.source_branch
+      const destBranch = transfer.destination_branch
+      
+      if (sourceBranch?.id) {
+        branchMap.set(sourceBranch.id, {
+          id: sourceBranch.id,
+          name: sourceBranch.description || sourceBranch.name || 'N/A',
+          color: sourceBranch.color || '#6b7280'
+        })
+      }
+      if (destBranch?.id) {
+        branchMap.set(destBranch.id, {
+          id: destBranch.id,
+          name: destBranch.description || destBranch.name || 'N/A',
+          color: destBranch.color || '#6b7280'
+        })
+      }
+    })
+    
+    return Array.from(branchMap.values())
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(branch => ({
+        label: branch.name,
+        value: String(branch.id)
+      }))
+  }
+
+  const branchFilterNumbers = new Set(branchFilterUI.map(Number))
+
   const filteredTransfers = transfers.filter(transfer => {
     const sourceName = getBranchName(transfer, 'source').toLowerCase()
     const destName = getBranchName(transfer, 'destination').toLowerCase()
     const matchesSearch = sourceName.includes(searchTerm.toLowerCase()) || destName.includes(searchTerm.toLowerCase()) || (transfer.id?.toString() || '').includes(searchTerm)
     const matchesStatus = statusFilter === 'all' || (transfer.status || '').toLowerCase() === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesBranchFilter = branchFilterNumbers.size === 0
+      ? true
+      : branchFilterNumbers.has(Number(transfer.source_branch_id)) || branchFilterNumbers.has(Number(transfer.destination_branch_id))
+
+    return matchesSearch && matchesStatus && matchesBranchFilter
   })
 
   const pendingTransfers = transfers.filter(t => isPending(t.status)).length
@@ -223,6 +267,14 @@ export default function StockTransfersPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input type="search" placeholder="Buscar..." className="w-full pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
+        <div className="w-full md:w-48">
+          <MultiSelect
+            options={getUniqueBranches()}
+            selected={branchFilterUI}
+            onChange={setBranchFilterUI}
+            placeholder="Filtrar por sucursal..."
+          />
+        </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Estado" />
@@ -250,6 +302,7 @@ export default function StockTransfersPage() {
                 <ResizableTableHeader columnId="source" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Origen</ResizableTableHeader>
                 <ResizableTableHeader columnId="destination" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Destino</ResizableTableHeader>
                 <ResizableTableHeader columnId="items" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Items</ResizableTableHeader>
+                <ResizableTableHeader columnId="user" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Solicitada por</ResizableTableHeader>
                 <ResizableTableHeader columnId="status" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Estado</ResizableTableHeader>
                 <ResizableTableHeader columnId="actions" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className="text-center">Acciones</ResizableTableHeader>
               </TableRow>
@@ -270,6 +323,9 @@ export default function StockTransfersPage() {
                     </Badge>
                   </ResizableTableCell>
                   <ResizableTableCell columnId="items" getColumnCellProps={getColumnCellProps}>{transfer.items?.length || 0}</ResizableTableCell>
+                  <ResizableTableCell columnId="user" getColumnCellProps={getColumnCellProps}>
+                    {transfer.user?.name || transfer.user?.username || 'N/A'}
+                  </ResizableTableCell>
                   <ResizableTableCell columnId="status" getColumnCellProps={getColumnCellProps}>
                     <Badge variant="outline" className={getStatusBadgeColor(transfer.status)}>{getStatusLabel(transfer.status)}</Badge>
                   </ResizableTableCell>

@@ -16,18 +16,25 @@ class CurrentAccountResource extends JsonResource
     {
         // Calcular total de ventas pendientes (saldo adeudado)
         $currentAccountService = app(\App\Services\CurrentAccountService::class);
-        // Usar una consulta optimizada con sum() en lugar de get()->sum() para mejor rendimiento
+        // Usar pending_amount directamente del modelo SaleHeader
         $totalPendingSales = 0;
         if ($this->customer_id) {
-            // Calcular directamente el total pendiente usando una consulta SQL optimizada
-            $totalPendingSales = \App\Models\SaleHeader::where('customer_id', $this->customer_id)
-                ->where('status', '!=', 'annulled')
+            // Incluir todas las ventas EXCEPTO rechazadas
+            // Las ventas anuladas que tengan saldo pendiente también se incluyen
+            $sales = \App\Models\SaleHeader::where('customer_id', $this->customer_id)
+                ->where('status', '!=', 'rejected') // Solo excluir rechazadas
                 ->where(function($query) {
                     $query->whereNull('payment_status')
                           ->orWhereIn('payment_status', ['pending', 'partial']);
                 })
-                ->selectRaw('COALESCE(SUM(GREATEST(0, total - COALESCE(paid_amount, 0))), 0) as total_pending')
-                ->value('total_pending') ?? 0;
+                ->get();
+            
+            // Sumar el pending_amount de cada venta que tenga saldo pendiente
+            foreach ($sales as $sale) {
+                if ($sale->pending_amount > 0) {
+                    $totalPendingSales += $sale->pending_amount;
+                }
+            }
         }
         
         // El saldo adeudado total es solo las ventas pendientes

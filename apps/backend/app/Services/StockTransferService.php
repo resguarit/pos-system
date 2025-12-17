@@ -56,7 +56,7 @@ class StockTransferService implements StockTransferServiceInterface
 
     public function getAllStockTransfers(Request $request)
     {
-        $query = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product']);
+        $query = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product', 'user']);
 
         // Filter by user's assigned branches
         $userBranchIds = $this->getUserBranchIds();
@@ -96,7 +96,7 @@ class StockTransferService implements StockTransferServiceInterface
 
     public function getStockTransferById($id)
     {
-        $transfer = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product'])->findOrFail($id);
+        $transfer = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product', 'user'])->findOrFail($id);
         
         // Verify user has access to this transfer (through source or destination branch)
         if (!$this->hasAccessToTransfer($transfer)) {
@@ -122,6 +122,7 @@ class StockTransferService implements StockTransferServiceInterface
                 'transfer_date' => $data['transfer_date'] ?? now(),
                 'status' => 'pending',
                 'notes' => $data['notes'] ?? null,
+                'user_id' => auth()->id(),
             ]);
 
             foreach ($data['items'] as $itemData) {
@@ -150,7 +151,7 @@ class StockTransferService implements StockTransferServiceInterface
 
             DB::commit();
 
-            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product']);
+            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product', 'user']);
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Error creando la transferencia de stock: " . $e->getMessage());
@@ -242,7 +243,7 @@ class StockTransferService implements StockTransferServiceInterface
             }
 
             DB::commit();
-            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product']);
+            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product', 'user']);
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;

@@ -79,6 +79,11 @@ interface CurrentAccountServiceInterface
     public function getAccountBalance(int $accountId): float;
 
     /**
+     * Obtener filtros disponibles (tipos de movimiento y sucursales) para una cuenta
+     */
+    public function getMovementFilters(int $accountId): array;
+
+    /**
      * Procesar pago en cuenta corriente
      *
      * @return array{total_amount: float, sales_processed: array<int, array{sale_id:int, receipt_number:string, amount_paid:float, new_status:string}>, account_balance: float}

@@ -151,6 +151,11 @@ export class CurrentAccountService {
     return this.handleResponse(response) as PendingSale[];
   }
 
+  static async getMovementFilters(accountId: number): Promise<{ movement_types: { id: number; name: string }[]; branches: { id: number; name: string; color?: string }[] }> {
+    const response = await api.get(`${this.baseUrl}/${accountId}/movement-filters`);
+    return this.handleResponse(response) as { movement_types: { id: number; name: string }[]; branches: { id: number; name: string; color?: string }[] };
+  }
+
 
   static async processPaymentBySale(accountId: number, data: ProcessPaymentBySaleData): Promise<any> {
     const response = await api.post(`${this.baseUrl}/${accountId}/payments`, data);

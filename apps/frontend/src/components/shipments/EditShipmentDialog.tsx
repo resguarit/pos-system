@@ -509,6 +509,16 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
             />
           </div>
 
+          {/* Ciudad */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Ciudad</label>
+            <Input
+              value={editForm.shipping_city}
+              onChange={(e) => setEditForm(prev => ({ ...prev, shipping_city: e.target.value }))}
+              placeholder="Ciudad"
+            />
+          </div>
+
           {/* Código Postal */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Código Postal</label>

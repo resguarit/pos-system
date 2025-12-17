@@ -112,8 +112,10 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             switch ($filters['balance_filter']) {
                 case 'negative':
                     // Con deuda: tiene ventas pendientes de pago
+                    // Incluir todas las ventas EXCEPTO rechazadas
+                    // Las ventas anuladas que tengan saldo pendiente también se incluyen
                     $query->whereHas('sales', function ($salesQuery) {
-                        $salesQuery->where('status', '!=', 'annulled')
+                        $salesQuery->where('status', '!=', 'rejected')
                             ->where(function ($paymentQuery) {
                                 $paymentQuery->whereNull('payment_status')
                                     ->orWhereIn('payment_status', ['pending', 'partial']);
@@ -306,6 +308,28 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 'movement_date' => $validatedData['movement_date'] ?? now(),
             ];
 
+            // Si viene una caja, inferir sucursal y guardarla en metadata como sucursal del movimiento
+            if (!empty($validatedData['cash_register_id'])) {
+                $cashRegister = \App\Models\CashRegister::with('branch')->find($validatedData['cash_register_id']);
+                if ($cashRegister) {
+                    $branch = $cashRegister->branch ?? \App\Models\Branch::find($cashRegister->branch_id);
+                    $movementData['metadata'] = array_merge((array) ($movementData['metadata'] ?? []), [
+                        'payment_branch_id' => $cashRegister->branch_id,
+                        'payment_branch_description' => $branch->description ?? null,
+                        'payment_branch_color' => $branch->color ?? null,
+                    ]);
+                }
+            }
+
+            // Si viene un método de pago, guardarlo en metadata
+            if (!empty($validatedData['payment_method_id'])) {
+                $paymentMethod = \App\Models\PaymentMethod::find($validatedData['payment_method_id']);
+                $movementData['metadata'] = array_merge((array) ($movementData['metadata'] ?? []), [
+                    'payment_method_id' => $validatedData['payment_method_id'],
+                    'payment_method_name' => $paymentMethod->name ?? null,
+                ]);
+            }
+
             $movement = CurrentAccountMovement::create($movementData);
 
             // Los movimientos manuales (Ajuste en contra, Interés aplicado) actualizan el balance
@@ -376,7 +400,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $query = CurrentAccountMovement::with([
             'movementType',
             'user.person',
-            'sale'
+            'sale.branch'
         ])
             ->where('current_account_id', $accountId);
 
@@ -419,6 +443,70 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     {
         $account = CurrentAccount::findOrFail($accountId);
         return $account->current_balance;
+    }
+
+    /**
+     * Obtener filtros únicos disponibles para una cuenta corriente
+     * Solo devuelve tipos y sucursales que realmente existen en los movimientos de esta cuenta
+     */
+    public function getMovementFilters(int $accountId): array
+    {
+        // Validar que la cuenta existe
+        CurrentAccount::findOrFail($accountId);
+
+        // Obtener solo los tipos de movimiento que realmente se han usado en esta cuenta
+        $movementTypes = CurrentAccountMovement::where('current_account_id', $accountId)
+            ->with('movementType:id,name')
+            ->select('movement_type_id')
+            ->distinct()
+            ->get()
+            ->pluck('movementType')
+            ->filter()
+            ->sortBy('name')
+            ->map(function ($type) {
+                return [
+                    'id' => $type->id,
+                    'name' => $type->name,
+                ];
+            })
+            ->values();
+
+        // Obtener sucursales únicas desde metadata y relaciones
+        $branches = CurrentAccountMovement::where('current_account_id', $accountId)
+            ->with('sale.branch:id,description,name,color')
+            ->get()
+            ->map(function ($movement) {
+                $metadata = is_array($movement->metadata) ? $movement->metadata : [];
+                
+                // Priorizar metadata de pago
+                if (!empty($metadata['payment_branch_id'])) {
+                    return [
+                        'id' => (int) $metadata['payment_branch_id'],
+                        'name' => $metadata['payment_branch_description'] ?? null,
+                        'color' => $metadata['payment_branch_color'] ?? null,
+                    ];
+                }
+                
+                // Usar branch de la venta si existe
+                if ($movement->sale && $movement->sale->branch) {
+                    return [
+                        'id' => $movement->sale->branch->id,
+                        'name' => $movement->sale->branch->description ?? $movement->sale->branch->name,
+                        'color' => $movement->sale->branch->color ?? null,
+                    ];
+                }
+                
+                return null;
+            })
+            ->filter()
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+
+        return [
+            'movement_types' => $movementTypes,
+            'branches' => $branches,
+        ];
     }
 
     /**
@@ -494,6 +582,10 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 $sale->recordPayment($paymentAmount);
 
                 // Crear movimiento en cuenta corriente
+                $paymentMethodName = $paymentMethodId 
+                    ? optional(\App\Models\PaymentMethod::find($paymentMethodId))->name 
+                    : null;
+                
                 $this->createMovement([
                     'current_account_id' => $accountId,
                     'movement_type_id' => $movementType->id,
@@ -502,6 +594,14 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                     'reference' => $sale->receipt_number,
                     'sale_id' => $sale->id,
                     'user_id' => auth()->id(),
+                    // Guardar sucursal y método de pago donde se registró el pago
+                    'metadata' => [
+                        'payment_branch_id' => $selectedBranchId,
+                        'payment_branch_description' => optional(\App\Models\Branch::find($selectedBranchId))->description,
+                        'payment_branch_color' => optional(\App\Models\Branch::find($selectedBranchId))->color,
+                        'payment_method_id' => $paymentMethodId,
+                        'payment_method_name' => $paymentMethodName,
+                    ],
                 ]);
 
                 $totalAmount += $paymentAmount;
@@ -675,16 +775,14 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $activeAccounts = CurrentAccount::active()->count();
         $suspendedAccounts = CurrentAccount::suspended()->count();
         $closedAccounts = CurrentAccount::closed()->count();
-        $atLimitAccounts = 0; // Lo calcularemos más adelante basado en ventas reales
+        $atLimitAccounts = 0;
 
         // Calcular límites de crédito (NULL = infinito)
         $accountsWithLimit = CurrentAccount::whereNotNull('credit_limit')->get();
         $accountsWithInfiniteLimit = CurrentAccount::whereNull('credit_limit')->count();
-
         $totalCreditLimit = $accountsWithLimit->sum('credit_limit');
 
-        // CORRECCIÓN: Calcular deuda REAL basada en ventas pendientes de pago
-        // Esto es lo mismo que usa CurrentAccountResource para la lista
+        // Calcular deuda REAL basada en pending_amount de ventas
         $allAccounts = CurrentAccount::with('customer.person')->get();
         $totalPendingDebt = 0;
         $customersWithDebt = 0;
@@ -692,17 +790,20 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $highestDebtAmount = 0;
 
         foreach ($allAccounts as $account) {
-            // Calcular deuda real desde ventas pendientes (misma lógica que CurrentAccountResource)
             $pendingDebt = 0;
+            
             if ($account->customer_id) {
-                $pendingDebt = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                    ->where('status', '!=', 'annulled')
-                    ->where(function ($query) {
-                        $query->whereNull('payment_status')
-                            ->orWhereIn('payment_status', ['pending', 'partial']);
-                    })
-                    ->selectRaw('COALESCE(SUM(GREATEST(0, total - COALESCE(paid_amount, 0))), 0) as total_pending')
-                    ->value('total_pending') ?? 0;
+                // Usar pending_amount directamente de SaleHeader
+                $sales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
+                    ->whereNull('deleted_at')
+                    ->get();
+
+                foreach ($sales as $sale) {
+                    $pending = $sale->pending_amount;
+                    if ($pending > 0) {
+                        $pendingDebt += $pending;
+                    }
+                }
             }
 
             // Solo contar si hay deuda real
@@ -729,17 +830,18 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             $totalAvailableCredit = CurrentAccount::whereNotNull('credit_limit')
                 ->get()
                 ->sum(function ($account) {
-                    // Calcular deuda real desde ventas pendientes
                     $debt = 0;
                     if ($account->customer_id) {
-                        $debt = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                            ->where('status', '!=', 'annulled')
-                            ->where(function ($query) {
-                                $query->whereNull('payment_status')
-                                    ->orWhereIn('payment_status', ['pending', 'partial']);
-                            })
-                            ->selectRaw('COALESCE(SUM(GREATEST(0, total - COALESCE(paid_amount, 0))), 0) as total_pending')
-                            ->value('total_pending') ?? 0;
+                        $sales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
+                            ->whereNull('deleted_at')
+                            ->get();
+
+                        foreach ($sales as $sale) {
+                            $pending = $sale->pending_amount;
+                            if ($pending > 0) {
+                                $debt += $pending;
+                            }
+                        }
                     }
                     return max(0, $account->credit_limit - $debt);
                 });
@@ -750,10 +852,10 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'active_accounts' => $activeAccounts,
             'suspended_accounts' => $suspendedAccounts,
             'closed_accounts' => $closedAccounts,
-            'overdrawn_accounts' => $customersWithDebt, // Clientes con deuda real
+            'overdrawn_accounts' => $customersWithDebt,
             'at_limit_accounts' => $atLimitAccounts,
             'total_credit_limit' => $hasInfiniteLimit ? null : $totalCreditLimit,
-            'total_current_balance' => $totalPendingDebt, // Total de deuda real basado en ventas pendientes
+            'total_current_balance' => $totalPendingDebt,
             'total_available_credit' => $totalAvailableCredit,
             'average_credit_limit' => $hasInfiniteLimit ? null : ($totalAccounts > 0 ? $totalCreditLimit / $totalAccounts : 0),
             'average_current_balance' => $totalAccounts > 0 ? $totalPendingDebt / $totalAccounts : 0,

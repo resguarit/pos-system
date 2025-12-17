@@ -253,4 +253,48 @@ class CustomerController extends Controller
             ], 500);
         }
     }
+
+    public function getCurrentAccountBalance($id): JsonResponse
+    {
+        try {
+            $customer = $this->customerService->getCustomerById($id);
+            if (!$customer) {
+                return response()->json([
+                    'status' => 404,
+                    'success' => false,
+                    'message' => 'Cliente no encontrado'
+                ], 404);
+            }
+
+            // Calcular el saldo real basado en el atributo pending_amount
+            $sales = \App\Models\SaleHeader::where('customer_id', $id)
+                ->whereNull('deleted_at')
+                ->get();
+
+            $totalDebt = 0;
+            foreach ($sales as $sale) {
+                $pending = $sale->pending_amount;
+                if ($pending > 0) {
+                    $totalDebt += $pending;
+                }
+            }
+
+            $balance = round($totalDebt, 2);
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'balance' => $balance,
+                'has_pending_sales' => $balance > 0,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error al obtener saldo de cuenta corriente: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error al obtener el saldo',
+                'balance' => 0.0,
+            ], 500);
+        }
+    }
 }

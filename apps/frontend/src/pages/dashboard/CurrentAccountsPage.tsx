@@ -105,8 +105,10 @@ export default function CurrentAccountsPage() {
       // Recargar detalles de la cuenta
       loadAccountDetails();
     }
-    // Recargar estadísticas de las tarjetas
+    // Recargar estadísticas de las tarjetas y tabla
     loadStatistics();
+    // Emitir evento para que CurrentAccountList recargue su datos
+    window.dispatchEvent(new CustomEvent('paymentSuccess'));
   };
 
 

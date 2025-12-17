@@ -73,6 +73,17 @@ export interface CurrentAccountMovement {
     id: number;
     name: string;
   };
+  branch_id?: number;
+  branch?: {
+    id: number;
+    description?: string;
+    name?: string;
+    color?: string;
+  };
+  payment_method?: {
+    id?: number | null;
+    name?: string | null;
+  };
   movement_date?: string;
   created_at: string;
   updated_at: string;

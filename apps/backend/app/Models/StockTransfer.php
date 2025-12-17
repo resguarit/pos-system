@@ -19,6 +19,7 @@ class StockTransfer extends Model
         'transfer_date',
         'status',
         'notes',
+        'user_id',
     ];
 
     protected $casts = [
@@ -36,6 +37,11 @@ class StockTransfer extends Model
     public function sourceBranch()
     {
         return $this->belongsTo(Branch::class, 'source_branch_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 
     public function destinationBranch()

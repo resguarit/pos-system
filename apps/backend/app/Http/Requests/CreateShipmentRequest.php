@@ -23,7 +23,7 @@ class CreateShipmentRequest extends FormRequest
             'sale_ids' => 'required|array|min:1',
             'sale_ids.*' => 'required|integer|exists:sales_header,id',
             'shipping_address' => 'required|string|max:255',
-            'shipping_city' => 'required|string|max:255',
+            'shipping_city' => 'nullable|string|max:255',
             'shipping_state' => 'nullable|string|max:255',
             'shipping_postal_code' => 'nullable|string|max:20',
             'shipping_country' => 'nullable|string|max:255',

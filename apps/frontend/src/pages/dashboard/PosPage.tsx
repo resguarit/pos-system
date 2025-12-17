@@ -84,6 +84,20 @@ export default function POSPage() {
   // Función para cambiar sucursal desde el POS
   const handleBranchChange = (branchId: string) => {
     if (!branchId) return;
+    
+    // Si hay productos en el carrito, advertir al usuario
+    if (cart.length > 0) {
+      const confirmChange = window.confirm(
+        'Al cambiar de sucursal se vaciará el carrito actual. ¿Deseas continuar?'
+      );
+      if (!confirmChange) {
+        return;
+      }
+      // Limpiar el carrito
+      setCart([]);
+      clearCartFromStorage();
+    }
+    
     setSelectedBranchIds([branchId]);
     toast.success('Sucursal cambiada', {
       description: `Ahora trabajas en ${branches.find(b => b.id.toString() === branchId)?.description || 'la sucursal seleccionada'}`
@@ -327,11 +341,9 @@ export default function POSPage() {
 
   // Reaccionar a cambios de sucursal: stocks, productos, métodos de pago y tipos de comprobante si corresponde
   useEffect(() => {
-    // Al cambiar de sucursal, refrescar stocks y otros catálogos si dependen de sucursal
+    // Al cambiar de sucursal, refrescar stocks y productos
     fetchStocks()
-    // Si el pricing/productos dependen de sucursal, descomentar:
-    // fetchProducts()
-    // fetchPaymentMethods()
+    fetchProducts()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBranch?.id, selectionChangeToken])
 
@@ -647,7 +659,7 @@ export default function POSPage() {
         </div>
 
         <Button className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" size="sm" disabled={cart.length === 0} onClick={() => {
-          navigate("/dashboard/pos/completar-venta", { state: { cart } })
+          navigate("/dashboard/pos/completar-venta", { state: { cart, branchId: selectedBranch?.id } })
           if (isMobile) setCartSheetOpen(false)
         }}>
           Completar Venta
@@ -676,9 +688,7 @@ export default function POSPage() {
                 <SelectValue placeholder="Seleccionar sucursal" />
               </SelectTrigger>
               <SelectContent>
-                {branches?.filter(branch =>
-                  selectedBranchIds.length === 0 || selectedBranchIds.includes(branch.id.toString())
-                ).map((branch) => (
+                {branches?.map((branch) => (
                   <SelectItem key={branch.id} value={branch.id.toString()}>
                     <div className="flex items-center gap-2">
                       {branch.color && (
