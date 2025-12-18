@@ -103,6 +103,28 @@ export const useCashRegisterStatus = (branchId: number = 1) => {
     }
   }, [branchId, request])
 
+  /**
+   * Check cash register for a specific branch and return the cash register ID if open
+   * @param checkBranchId - Branch ID to check
+   * @returns Cash register ID if open, null otherwise
+   */
+  const getCashRegisterIdForBranch = useCallback(async (checkBranchId: number): Promise<number | null> => {
+    try {
+      const response: CashRegisterStatusResponse = await request({
+        method: 'GET',
+        url: `/cash-registers/check-status?branch_id=${checkBranchId}`,
+      })
+
+      if (response.is_open && response.data?.cash_register?.id) {
+        return response.data.cash_register.id
+      }
+      return null
+    } catch (error) {
+      console.error('Error getting cash register for branch:', checkBranchId, error)
+      return null
+    }
+  }, [request])
+
   const validateCashRegisterForOperation = useCallback(async (operationName: string = 'esta operación'): Promise<boolean> => {
     const isOpen = await checkCashRegisterStatus(false)
     
@@ -155,6 +177,7 @@ export const useCashRegisterStatus = (branchId: number = 1) => {
     lastCheck,
     isOpen: status?.is_open || false,
     checkCashRegisterStatus,
+    getCashRegisterIdForBranch,
     validateCashRegisterForOperation,
     requireCashRegisterOpen,
     refreshStatus: () => checkCashRegisterStatus(true)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { type Budget } from '@/hooks/useBudgets'
 import useApi from '@/hooks/useApi'
+import { useCashRegisterStatus } from '@/hooks/useCashRegisterStatus'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/table'
@@ -19,19 +20,6 @@ interface ReceiptType {
     id: number
     name: string
     afip_code?: string
-}
-
-interface CashRegisterCheckResponse {
-    success: boolean
-    is_open: boolean
-    message: string
-    data: {
-        cash_register: {
-            id: number
-            branch_id: number
-            status: string
-        } | null
-    }
 }
 
 interface PresupuestosPageProps {
@@ -59,6 +47,7 @@ export default function PresupuestosPage({
 }: PresupuestosPageProps) {
     const { hasPermission } = useAuth()
     const { request } = useApi()
+    const { getCashRegisterIdForBranch } = useCashRegisterStatus()
 
     const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([])
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
@@ -184,69 +173,43 @@ export default function PresupuestosPage({
     const handleConvertConfirm = async () => {
         if (!selectedBudget || !selectedReceiptTypeId || !selectedPaymentMethodId) return
 
-        // Validate cash register for payment methods that affect cash
         const selectedMethod = paymentMethods.find(m => m.id === selectedPaymentMethodId)
+        let cashRegisterIdToUse: number | undefined = undefined
         
+        // Validate and get cash register if payment method affects cash
         if (selectedMethod?.affects_cash) {
-            // Check cash register status for the budget's branch directly
-            const budgetBranchId = selectedBudget.branch_id || selectedBudget.branch?.id
+            const budgetBranchId = selectedBudget.branch_id
             
             if (!budgetBranchId) {
                 toast.error('No se puede determinar la sucursal del presupuesto.')
                 return
             }
 
-            try {
-                const response: CashRegisterCheckResponse = await request({
-                    method: 'GET',
-                    url: `/cash-registers/check-status?branch_id=${budgetBranchId}`,
-                })
-
-                console.log('[PresupuestosPage] Cash register check for branch', budgetBranchId, ':', response)
-
-                if (!response.is_open || !response.data?.cash_register?.id) {
-                    toast.error('Se requiere una caja abierta para el método de pago seleccionado. Por favor, abra una caja primero.')
-                    return
-                }
-
-                // Use the cash register ID from the response
-                setConvertLoading(true)
-                try {
-                    await onConvert(
-                        selectedBudget.id, 
-                        selectedReceiptTypeId,
-                        response.data.cash_register.id,
-                        selectedPaymentMethodId
-                    )
-                    setShowConvertDialog(false)
-                    setSelectedBudget(null)
-                } catch (error) {
-                    // Error is handled in the hook/parent
-                } finally {
-                    setConvertLoading(false)
-                }
-            } catch (error) {
-                console.error('[PresupuestosPage] Error checking cash register:', error)
-                toast.error('Error al verificar el estado de la caja. Por favor, intente nuevamente.')
+            const cashRegisterId = await getCashRegisterIdForBranch(budgetBranchId)
+            
+            if (!cashRegisterId) {
+                toast.error('Se requiere una caja abierta para el método de pago seleccionado. Por favor, abra una caja primero.')
                 return
             }
-        } else {
-            // Payment method doesn't affect cash, proceed without cash register
-            setConvertLoading(true)
-            try {
-                await onConvert(
-                    selectedBudget.id, 
-                    selectedReceiptTypeId,
-                    undefined,
-                    selectedPaymentMethodId
-                )
-                setShowConvertDialog(false)
-                setSelectedBudget(null)
-            } catch (error) {
-                // Error is handled in the hook/parent
-            } finally {
-                setConvertLoading(false)
-            }
+
+            cashRegisterIdToUse = cashRegisterId
+        }
+
+        // Proceed with conversion
+        setConvertLoading(true)
+        try {
+            await onConvert(
+                selectedBudget.id, 
+                selectedReceiptTypeId,
+                cashRegisterIdToUse,
+                selectedPaymentMethodId
+            )
+            setShowConvertDialog(false)
+            setSelectedBudget(null)
+        } catch (error) {
+            // Error is handled in the hook/parent
+        } finally {
+            setConvertLoading(false)
         }
     }
 
@@ -443,6 +406,19 @@ export default function PresupuestosPage({
                             Completa los datos para convertir el presupuesto
                             <strong> #{selectedBudget?.receipt_number}</strong> a venta.
                         </p>
+
+                        {/* Info about branch/cash register that will be affected */}
+                        {selectedBudget && (
+                            <div className="p-3 text-sm bg-slate-50 border border-slate-200 rounded-md">
+                                <div className="flex items-center gap-2 text-slate-700">
+                                    <FileText className="h-4 w-4 flex-shrink-0" />
+                                    <span>
+                                        Sucursal: <strong>{selectedBudget.branch || 'N/A'}</strong>
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Tipo de Comprobante</label>
                             <Select
@@ -487,7 +463,9 @@ export default function PresupuestosPage({
                         {selectedPaymentMethodId && paymentMethods.find(m => m.id === selectedPaymentMethodId)?.affects_cash && (
                             <div className="flex items-center gap-2 p-3 text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md">
                                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                                <span>Este método de pago requiere una caja abierta. Se verificará al confirmar.</span>
+                                <span>
+                                    Este pago se registrará en la caja de <strong>{selectedBudget?.branch || 'la sucursal'}</strong>.
+                                </span>
                             </div>
                         )}
 
