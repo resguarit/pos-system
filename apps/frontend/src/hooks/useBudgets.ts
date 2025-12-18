@@ -123,7 +123,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             })
 
             if (response?.success) {
-                toast.success('Presupuesto convertido a venta exitosamente')
+                // No mostrar toast aquí, se muestra en el componente
                 await fetchBudgets() // Refrescar lista
                 return response.data
             } else {
@@ -131,7 +131,21 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             }
         } catch (error: any) {
             console.error('Error converting budget:', error)
-            toast.error(error?.message || 'Error al convertir presupuesto')
+            
+            // Mejorar el manejo de mensajes de error
+            let errorMessage = 'Error al convertir presupuesto'
+            
+            if (error?.response?.data?.message) {
+                errorMessage = error.response.data.message
+            } else if (error?.response?.data?.errors) {
+                // Si hay errores de validación, mostrar el primero
+                const firstError = Object.values(error.response.data.errors)[0]
+                errorMessage = Array.isArray(firstError) ? firstError[0] : firstError
+            } else if (error?.message) {
+                errorMessage = error.message
+            }
+            
+            toast.error(errorMessage, { duration: 5000 })
             throw error
         } finally {
             setActionLoading(null)

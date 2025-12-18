@@ -135,3 +135,33 @@ export const extractProductId = (item: CartItem): number => {
   return parsedId
 }
 
+/**
+ * Calcula el estado del pago basado en el total y el monto pagado
+ * @param total Monto total de la venta
+ * @param paid Monto pagado
+ * @returns { status: 'pending' | 'exact' | 'change', amount: number }
+ */
+export const calculatePaymentStatus = (total: number, paid: number) => {
+  const roundedTotal = roundToTwoDecimals(total)
+  const roundedPaid = roundToTwoDecimals(paid)
+  const diff = roundToTwoDecimals(roundedTotal - roundedPaid)
+
+  if (diff > 0) {
+    return { status: 'pending' as const, amount: diff }
+  } else if (diff < 0) {
+    return { status: 'change' as const, amount: roundToTwoDecimals(Math.abs(diff)) }
+  } else {
+    return { status: 'exact' as const, amount: 0 }
+  }
+}
+
+/**
+ * Valida si el pago es suficiente
+ * @param total Monto total
+ * @param paid Monto pagado
+ * @returns true si el pago es exacto o hay cambio
+ */
+export const isPaymentSufficient = (total: number, paid: number): boolean => {
+  const status = calculatePaymentStatus(total, paid)
+  return status.status !== 'pending'
+}

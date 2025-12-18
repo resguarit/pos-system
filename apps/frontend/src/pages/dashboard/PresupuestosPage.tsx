@@ -61,6 +61,10 @@ export default function PresupuestosPage({
     const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null)
     const [convertLoading, setConvertLoading] = useState(false)
 
+    // Validation states
+    const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+    const [isCheckingCashRegister, setIsCheckingCashRegister] = useState(false)
+
     const canManageBudgets = hasPermission('gestionar_presupuestos')
 
     // Resizable columns configuration matching Sales table
@@ -145,6 +149,8 @@ export default function PresupuestosPage({
         // Reset payment method to default (Efectivo)
         const efectivo = paymentMethods.find((m: PaymentMethod) => m.name.toLowerCase() === 'efectivo')
         setSelectedPaymentMethodId(efectivo?.id || paymentMethods[0]?.id || null)
+        setValidationErrors({})
+        setIsCheckingCashRegister(false)
         setShowConvertDialog(true)
     }
 
@@ -170,25 +176,67 @@ export default function PresupuestosPage({
         }
     }
 
+    const validateConversion = (): boolean => {
+        const errors: Record<string, string> = {}
+
+        if (!selectedBudget) {
+            errors.general = 'No hay presupuesto seleccionado'
+            setValidationErrors(errors)
+            return false
+        }
+
+        if (!selectedReceiptTypeId) {
+            errors.receiptType = 'Debe seleccionar un tipo de comprobante'
+        }
+
+        if (!selectedPaymentMethodId) {
+            errors.paymentMethod = 'Debe seleccionar un método de pago'
+        }
+
+        if (selectedBudget.total <= 0) {
+            errors.general = 'El presupuesto no tiene un monto válido'
+        }
+
+        if (!selectedBudget.items_count || selectedBudget.items_count === 0) {
+            errors.general = 'El presupuesto no tiene productos'
+        }
+
+        setValidationErrors(errors)
+        return Object.keys(errors).length === 0
+    }
+
     const handleConvertConfirm = async () => {
-        if (!selectedBudget || !selectedReceiptTypeId || !selectedPaymentMethodId) return
+        // Clear previous validation errors
+        setValidationErrors({})
+
+        // Validate all required fields
+        if (!validateConversion()) {
+            const firstError = Object.values(validationErrors)[0]
+            if (firstError) toast.error(firstError)
+            return
+        }
 
         const selectedMethod = paymentMethods.find(m => m.id === selectedPaymentMethodId)
         let cashRegisterIdToUse: number | undefined = undefined
         
         // Validate and get cash register if payment method affects cash
         if (selectedMethod?.affects_cash) {
-            const budgetBranchId = selectedBudget.branch_id
+            const budgetBranchId = selectedBudget!.branch_id
             
             if (!budgetBranchId) {
                 toast.error('No se puede determinar la sucursal del presupuesto.')
                 return
             }
 
+            setIsCheckingCashRegister(true)
             const cashRegisterId = await getCashRegisterIdForBranch(budgetBranchId)
+            setIsCheckingCashRegister(false)
             
             if (!cashRegisterId) {
-                toast.error('Se requiere una caja abierta para el método de pago seleccionado. Por favor, abra una caja primero.')
+                toast.error(
+                    `No hay una caja abierta en ${selectedBudget!.branch}. Por favor, abra una caja antes de realizar esta operación.`,
+                    { duration: 5000 }
+                )
                 return
             }
 
@@ -199,13 +247,15 @@ export default function PresupuestosPage({
         setConvertLoading(true)
         try {
             await onConvert(
-                selectedBudget.id, 
-                selectedReceiptTypeId,
+                selectedBudget!.id, 
+                selectedReceiptTypeId!,
                 cashRegisterIdToUse,
-                selectedPaymentMethodId
+                selectedPaymentMethodId!
             )
             setShowConvertDialog(false)
             setSelectedBudget(null)
+            setValidationErrors({})
+            toast.success('Presupuesto convertido a venta exitosamente')
         } catch (error) {
             // Error is handled in the hook/parent
         } finally {
@@ -420,43 +470,81 @@ export default function PresupuestosPage({
                         )}
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Tipo de Comprobante</label>
+                            <label className="text-sm font-medium">
+                                Tipo de Comprobante <span className="text-red-500">*</span>
+                            </label>
                             <Select
                                 value={selectedReceiptTypeId?.toString() || ''}
-                                onValueChange={(value) => setSelectedReceiptTypeId(Number(value))}
+                                onValueChange={(value) => {
+                                    setSelectedReceiptTypeId(Number(value))
+                                    setValidationErrors(prev => {
+                                        const { receiptType, ...rest } = prev
+                                        return rest
+                                    })
+                                }}
+                                disabled={convertLoading || isCheckingCashRegister}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger className={validationErrors.receiptType ? 'border-red-500' : ''}>
                                     <SelectValue placeholder="Seleccionar tipo..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {receiptTypes.map((rt) => (
-                                        <SelectItem key={rt.id} value={rt.id.toString()}>
-                                            {rt.name}
-                                        </SelectItem>
-                                    ))}
+                                    {receiptTypes.length === 0 ? (
+                                        <div className="p-2 text-sm text-muted-foreground text-center">
+                                            No hay tipos de comprobante disponibles
+                                        </div>
+                                    ) : (
+                                        receiptTypes.map((rt) => (
+                                            <SelectItem key={rt.id} value={rt.id.toString()}>
+                                                {rt.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
+                            {validationErrors.receiptType && (
+                                <p className="text-xs text-red-500">{validationErrors.receiptType}</p>
+                            )}
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Método de Pago</label>
+                            <label className="text-sm font-medium">
+                                Método de Pago <span className="text-red-500">*</span>
+                            </label>
                             <Select
                                 value={selectedPaymentMethodId?.toString() || ''}
-                                onValueChange={(value) => setSelectedPaymentMethodId(Number(value))}
+                                onValueChange={(value) => {
+                                    setSelectedPaymentMethodId(Number(value))
+                                    setValidationErrors(prev => {
+                                        const { paymentMethod, ...rest } = prev
+                                        return rest
+                                    })
+                                }}
+                                disabled={convertLoading || isCheckingCashRegister}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger className={validationErrors.paymentMethod ? 'border-red-500' : ''}>
                                     <SelectValue placeholder="Seleccionar método de pago..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {paymentMethods.map((method) => (
-                                        <SelectItem key={method.id} value={method.id.toString()}>
-                                            {method.name}
-                                            {method.affects_cash && (
-                                                <span className="ml-2 text-xs text-muted-foreground">(Afecta caja)</span>
-                                            )}
-                                        </SelectItem>
-                                    ))}
+                                    {paymentMethods.length === 0 ? (
+                                        <div className="p-2 text-sm text-muted-foreground text-center">
+                                            No hay métodos de pago disponibles
+                                        </div>
+                                    ) : (
+                                        paymentMethods.map((method) => (
+                                            <SelectItem key={method.id} value={method.id.toString()}>
+                                                <div className="flex items-center gap-2">
+                                                    {method.name}
+                                                    {method.affects_cash && (
+                                                        <span className="text-xs text-muted-foreground">(Afecta caja)</span>
+                                                    )}
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
+                            {validationErrors.paymentMethod && (
+                                <p className="text-xs text-red-500">{validationErrors.paymentMethod}</p>
+                            )}
                         </div>
 
                         {/* Info if payment method affects cash */}
@@ -483,19 +571,48 @@ export default function PresupuestosPage({
                                 </CardContent>
                             </Card>
                         )}
+                        {/* Error general de validación */}
+                        {validationErrors.general && (
+                            <div className="flex items-center gap-2 p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md">
+                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                <span>{validationErrors.general}</span>
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-2 pt-4">
-                            <Button variant="outline" onClick={() => setShowConvertDialog(false)}>Cancelar</Button>
+                            <Button 
+                                variant="outline" 
+                                onClick={() => setShowConvertDialog(false)}
+                                disabled={convertLoading || isCheckingCashRegister}
+                            >
+                                Cancelar
+                            </Button>
                             <Button 
                                 onClick={handleConvertConfirm} 
-                                disabled={!selectedReceiptTypeId || !selectedPaymentMethodId || convertLoading}
+                                disabled={
+                                    !selectedReceiptTypeId || 
+                                    !selectedPaymentMethodId || 
+                                    convertLoading || 
+                                    isCheckingCashRegister ||
+                                    receiptTypes.length === 0 ||
+                                    paymentMethods.length === 0
+                                }
                             >
-                                {convertLoading ? (
+                                {isCheckingCashRegister ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Verificando caja...
+                                    </>
+                                ) : convertLoading ? (
                                     <>
                                         <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                         Convirtiendo...
                                     </>
                                 ) : (
-                                    'Confirmar Conversión'
+                                    <>
+                                        <Check className="h-4 w-4 mr-2" />
+                                        Confirmar Conversión
+                                    </>
                                 )}
                             </Button>
                         </div>

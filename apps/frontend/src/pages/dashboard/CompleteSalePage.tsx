@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import useApi from "@/hooks/useApi"
 import { useBranch } from "@/context/BranchContext"
@@ -73,6 +74,8 @@ export default function CompleteSalePage() {
   const [customerBalance, setCustomerBalance] = useState<number | null>(null)
   const [loadingBalance, setLoadingBalance] = useState(false)
   const [showDebtDialog, setShowDebtDialog] = useState(false)
+  const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false)
+  const [pendingChangeAmount, setPendingChangeAmount] = useState(0)
 
   // Hook personalizado para búsqueda de clientes
   const {
@@ -94,50 +97,32 @@ export default function CompleteSalePage() {
   const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = useSaleTotals(cart, globalDiscount)
 
   // Calcular descuento total de métodos de pago
+  // Calcular descuento total de métodos de pago
+  // IMPORTANTE: El descuento se aplica SOLO sobre el monto ingresado en cada método
+  // No se aplica descuento si el monto no está ingresado
   const totalPaymentDiscount = useMemo(() => {
-    let discountSum = 0
-    let paidSoFar = 0 // Monto NETO pagado hasta ahora
-    let grossPaidSoFar = 0 // Monto BRUTO (deuda) cubierto hasta ahora
+    let totalDiscount = 0
 
-    payments.forEach((p) => {
+    // Procesar cada método de pago
+    payments.forEach(p => {
       const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
       const discountPercentage = (method?.discount_percentage || 0)
-      const discountRate = discountPercentage / 100
-
-      if (p.amount && p.amount !== '') {
-        // Si hay monto ingresado, usamos lógica "Gross Up"
-        // Ejemplo: Pago $90 con 10% desc.
-        // Valor cubierto = 90 / (1 - 0.10) = 100
-        // Descuento = 100 - 90 = 10
-        const amount = parseFloat(p.amount) || 0
-
-        if (discountRate > 0 && discountRate < 1) {
-          const grossValue = amount / (1 - discountRate)
-          const discount = grossValue - amount
-          discountSum += discount
-          grossPaidSoFar += grossValue
-        } else {
-          grossPaidSoFar += amount
-        }
-        paidSoFar += amount
-
-      } else if (p.payment_method_id && discountPercentage > 0) {
-        // Vista previa: Calculamos descuento sobre el saldo pendiente BRUTO
-        // Saldo pendiente bruto = Total Original - Lo que ya cubrimos (con descuentos incluidos)
-        const pendingGross = total - grossPaidSoFar
-
-        if (pendingGross > 0) {
-          // El descuento será simplemente Porcentaje * Pendiente
-          // Ejemplo: Debo $100. 10% desc. Descuento $10. A pagar $90.
-          discountSum += pendingGross * discountRate
-          // Asumimos que este pago cubrirá el resto para que no se duplique en siguientes loops
-          grossPaidSoFar += pendingGross
-        }
+      
+      // Solo aplicar descuento si:
+      // 1. El método está seleccionado
+      // 2. El método tiene descuento
+      // 3. Hay monto ingresado y es mayor a 0
+      if (p.payment_method_id && discountPercentage > 0 && p.amount && parseFloat(p.amount) > 0) {
+        const amount = parseFloat(p.amount)
+        const discountRate = discountPercentage / 100
+        // Descuento simple: Monto × Porcentaje
+        const discount = amount * discountRate
+        totalDiscount += discount
       }
     })
 
-    return discountSum
-  }, [payments, paymentMethods, total])
+    return totalDiscount
+  }, [payments, paymentMethods])
 
   // Total final después de aplicar descuentos de métodos de pago  
   const finalTotal = useMemo(() => {
@@ -320,7 +305,8 @@ export default function CompleteSalePage() {
     return customer.business_name || 'Cliente'
   }, [])
 
-  const handleConfirmSale = useCallback(async () => {
+  // Procesar la venta - DEBE estar definido ANTES de handleConfirmSale
+  const processSale = useCallback(async () => {
     if (isProcessingSale) return
 
     if (!activeBranch) {
@@ -377,10 +363,22 @@ export default function CompleteSalePage() {
               : {}),
           }
         }),
-        payments: payments.map(p => ({
-          payment_method_id: parseInt(p.payment_method_id),
-          amount: parseFloat(p.amount || '0') || 0,
-        })),
+        payments: payments.map((p, idx) => {
+          // Si hay cambio (diff < 0), ajustar el ÚLTIMO método de pago (que debería ser efectivo)
+          const isLastPayment = idx === payments.length - 1
+          if (isLastPayment && diff < 0) {
+            // El monto que realmente necesitamos es: monto pagado + diff (que es negativo)
+            const adjustedAmount = parseFloat(p.amount || '0') + diff
+            return {
+              payment_method_id: parseInt(p.payment_method_id),
+              amount: roundToTwoDecimals(Math.max(0, adjustedAmount)), // Nunca enviar negativo
+            }
+          }
+          return {
+            payment_method_id: parseInt(p.payment_method_id),
+            amount: parseFloat(p.amount || '0') || 0,
+          }
+        }),
       }
 
       const saleResponse = await request({ url: '/pos/sales', method: 'POST', data: saleData })
@@ -457,6 +455,62 @@ export default function CompleteSalePage() {
     navigate,
   ])
 
+  // Calcular monto pendiente explícitamente - DEBE estar ANTES de hasChange
+  const pendingAmount = useMemo(() => {
+    const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
+    return roundToTwoDecimals(finalTotal - paid)
+  }, [finalTotal, payments])
+
+  const diff = useMemo(() => pendingAmount, [pendingAmount])
+
+  // Definir hasChange y changeAmount basado en diff
+  const hasChange = useMemo(() => diff < 0, [diff])
+  const changeAmount = useMemo(() => roundToTwoDecimals(Math.abs(diff)), [diff])
+
+  // Detectar si HAY AL MENOS UN método de pago en Efectivo
+  const hasCashPayment = useMemo(() => {
+    return payments.some(p => {
+      if (!p.payment_method_id) return false
+      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
+      return paymentMethod?.name?.toLowerCase().includes('efectivo') || 
+             paymentMethod?.name?.toLowerCase().includes('cash')
+    })
+  }, [payments, paymentMethods])
+
+  const handleConfirmSale = useCallback(async () => {
+    if (isProcessingSale) return
+
+    // Validación: Si no es exacto, verificar el tipo de pago
+    if (diff !== 0) {
+      // Si hay cambio (pagó más)
+      if (hasChange) {
+        // Solo permitir cambio si hay un método de Efectivo
+        if (!hasCashPayment) {
+          toast.error('Monto no coincide', {
+            description: 'Para métodos de pago diferentes a efectivo, el monto debe ser exacto. Por favor ajusta el monto a pagar.',
+            duration: 5000,
+          })
+          return
+        }
+        // Si es efectivo, mostrar diálogo de confirmación de cambio
+        setPendingChangeAmount(changeAmount)
+        setShowChangeConfirmDialog(true)
+        return
+      }
+      // Si hay falta de pago (no debería pasar por validación canConfirm, pero validamos por seguridad)
+      if (diff > 0) {
+        toast.error('Pago incompleto', {
+          description: `Falta ${formatCurrency(diff)} para completar el pago.`,
+          duration: 5000,
+        })
+        return
+      }
+    }
+
+    // Proceder con la venta
+    await processSale()
+  }, [isProcessingSale, hasChange, changeAmount, processSale, diff, hasCashPayment, finalTotal])
+
   // Validaciones
   const allPaymentsValid = useMemo(() => {
     return payments
@@ -477,22 +531,45 @@ export default function CompleteSalePage() {
     return payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
   }, [payments])
 
-  // Calcular monto pendiente explícitamente
-  const pendingAmount = useMemo(() => {
-    const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
-    return roundToTwoDecimals(finalTotal - paid)
-  }, [finalTotal, payments])
-
-  const diff = useMemo(() => pendingAmount, [pendingAmount])
-
   const canConfirm = useMemo(() => {
-    return cart.length > 0 &&
-      receiptTypeId !== undefined &&
-      diff === 0 &&
-      allPaymentsValid &&
-      currentAccountPaymentValid &&
-      activeBranch !== null
-  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch])
+    // Validación básica
+    if (cart.length === 0 || receiptTypeId === undefined || activeBranch === null) {
+      return false
+    }
+    
+    // Validar pagos
+    if (!allPaymentsValid || !currentAccountPaymentValid) {
+      return false
+    }
+    
+    // Si el pago es exacto, permitir
+    if (diff === 0) {
+      return true
+    }
+    
+    // Si hay cambio (diff < 0)
+    if (diff < 0) {
+      // Solo permitir si hay método de Efectivo
+      return hasCashPayment
+    }
+    
+    // Si hay falta de pago (diff > 0), no permitir
+    return false
+  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment])
+
+  const confirmDisabledReason = useMemo(() => {
+    if (cart.length === 0) return 'El carrito está vacío'
+    if (receiptTypeId === undefined) return 'Debe seleccionar un tipo de comprobante'
+    if (diff > 0) return `Falta ${formatCurrency(diff)} para completar el pago`
+    if (!allPaymentsValid) return 'Debe completar todos los métodos de pago'
+    if (!currentAccountPaymentValid) return 'Debe seleccionar un cliente para usar Cuenta Corriente'
+    if (activeBranch === null) return 'Debe seleccionar una sucursal'
+    if (diff < 0 && !hasCashPayment) {
+      const mainPaymentMethod = paymentMethods.find(pm => pm.id.toString() === payments[0]?.payment_method_id)
+      return `${mainPaymentMethod?.name || 'Este método de pago'} requiere monto exacto. No se permite cambio.`
+    }
+    return ''
+  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment, paymentMethods, payments])
 
   const handleCustomerSelect = useCallback((customer: CustomerOption) => {
     setSelectedCustomer(customer)
@@ -647,6 +724,7 @@ export default function CompleteSalePage() {
                     onUpdatePayment={updatePayment}
                     hasCurrentAccountPayment={hasCurrentAccountPayment}
                     hasSelectedCustomer={selectedCustomer !== null}
+                    isMainPaymentCash={hasCashPayment}
                   />
                 </div>
               </div>
@@ -793,6 +871,72 @@ export default function CompleteSalePage() {
         formatDate={formatDate}
         formatCurrency={formatCurrency}
       />
+
+      {/* Diálogo de confirmación de cambio */}
+      <Dialog open={showChangeConfirmDialog} onOpenChange={setShowChangeConfirmDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg flex items-center gap-2">
+              💰 Confirmar Cambio a Entregar
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {/* Amount Display */}
+            <div className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-300 rounded-lg shadow-sm">
+              <p className="text-center text-sm text-blue-700 font-medium mb-3">Cambio a Entregar al Cliente</p>
+              <p className="text-center text-4xl font-bold text-blue-600">{formatCurrency(pendingChangeAmount)}</p>
+            </div>
+            
+            {/* Instructions */}
+            <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm font-semibold text-amber-900">⚠️ Antes de continuar:</p>
+              <ul className="text-xs text-amber-800 space-y-1.5 ml-4">
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 font-bold">✓</span>
+                  <span>Verifica que el monto mostrado sea correcto</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 font-bold">✓</span>
+                  <span>Prepara el cambio en efectivo</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-amber-600 font-bold">✓</span>
+                  <span>Entrega el cambio al cliente</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowChangeConfirmDialog(false)}
+                disabled={isProcessingSale}
+                className="flex-1"
+              >
+                Volver a Revisar
+              </Button>
+              <Button
+                onClick={async () => {
+                  setShowChangeConfirmDialog(false)
+                  await processSale()
+                }}
+                disabled={isProcessingSale}
+                className="flex-1 bg-green-600 hover:bg-green-700"
+              >
+                {isProcessingSale ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  '✓ Confirmar Venta'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Alerta de deuda */}
       {selectedCustomer && (

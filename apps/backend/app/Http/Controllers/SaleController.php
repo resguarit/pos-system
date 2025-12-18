@@ -376,15 +376,23 @@ class SaleController extends Controller
                 ], 401);
             }
 
+            // Validaciones mejoradas con mensajes personalizados
             $validator = Validator::make($request->all(), [
                 'receipt_type_id' => 'required|integer|exists:receipt_type,id',
                 'cash_register_id' => 'nullable|integer|exists:cash_registers,id',
-                'payment_method_id' => 'nullable|integer|exists:payment_methods,id'
+                'payment_method_id' => 'required|integer|exists:payment_methods,id'
+            ], [
+                'receipt_type_id.required' => 'El tipo de comprobante es obligatorio',
+                'receipt_type_id.exists' => 'El tipo de comprobante seleccionado no existe',
+                'payment_method_id.required' => 'El método de pago es obligatorio',
+                'payment_method_id.exists' => 'El método de pago seleccionado no existe',
+                'cash_register_id.exists' => 'La caja registradora especificada no existe'
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
+                    'message' => 'Datos de conversión inválidos',
                     'errors' => $validator->errors()
                 ], 422);
             }
@@ -392,6 +400,29 @@ class SaleController extends Controller
             $receiptTypeId = $request->input('receipt_type_id');
             $cashRegisterId = $request->input('cash_register_id');
             $paymentMethodId = $request->input('payment_method_id');
+
+            // Validación adicional: verificar que el presupuesto existe y tiene items
+            $budget = Sale::find($id);
+            if (!$budget) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El presupuesto no existe'
+                ], 404);
+            }
+
+            if ($budget->items()->count() === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El presupuesto no tiene productos. No se puede convertir a venta.'
+                ], 422);
+            }
+
+            if ($budget->total <= 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El presupuesto tiene un total inválido. No se puede convertir a venta.'
+                ], 422);
+            }
 
             $sale = $this->saleService->convertBudgetToSale($id, $receiptTypeId, $userId, $cashRegisterId, $paymentMethodId);
 
@@ -401,11 +432,22 @@ class SaleController extends Controller
                 'message' => 'Presupuesto convertido a venta exitosamente'
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage()
-            ], 400);
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Error converting budget to sale', [
+                'budget_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al convertir el presupuesto: ' . $e->getMessage()
+            ], 500);
         }
     }
 

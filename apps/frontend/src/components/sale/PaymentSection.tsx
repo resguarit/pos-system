@@ -1,10 +1,9 @@
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AlertTriangle, Trash2, Percent } from "lucide-react"
+import { Trash2, Percent } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { formatCurrency, roundToTwoDecimals } from '@/utils/sale-calculations'
+import { formatCurrency, roundToTwoDecimals, calculatePaymentStatus } from '@/utils/sale-calculations'
 import type { PaymentMethod } from '@/types/sale'
 
 interface Payment {
@@ -22,6 +21,7 @@ interface PaymentSectionProps {
   onUpdatePayment: (index: number, field: string, value: string) => void
   hasCurrentAccountPayment: boolean
   hasSelectedCustomer: boolean
+  isMainPaymentCash?: boolean
 }
 
 export function PaymentSection({
@@ -34,20 +34,23 @@ export function PaymentSection({
   onUpdatePayment,
   hasCurrentAccountPayment,
   hasSelectedCustomer,
+  isMainPaymentCash = false,
 }: PaymentSectionProps) {
   const paid = payments.reduce((sum, p) => {
     return sum + (parseFloat(p.amount || '0') || 0)
   }, 0)
 
-
   const diff = pendingAmount !== undefined ? pendingAmount : roundToTwoDecimals(total - paid)
+  const paymentStatus = calculatePaymentStatus(total, paid)
+  const hasPending = paymentStatus.status === 'pending'
+  const hasChange = paymentStatus.status === 'change'
+  const isPaid = paymentStatus.status === 'exact'
 
   return (
     <div className="space-y-4">
       <div className="space-y-4">
         {payments.map((payment, idx) => {
           const selectedMethod = paymentMethods.find(pm => pm.id.toString() === payment.payment_method_id)
-
 
           return (
             <div key={idx} className="space-y-2">
@@ -82,7 +85,8 @@ export function PaymentSection({
                   placeholder="Monto"
                   value={payment.amount}
                   onChange={e => onUpdatePayment(idx, 'amount', e.target.value)}
-                  className="w-32"
+                  className="w-32 [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  style={{ MozAppearance: 'textfield' }}
                 />
                 {payments.length > 1 && (
                   <Button variant="ghost" size="icon" onClick={() => onRemovePayment(idx)}>
@@ -90,7 +94,6 @@ export function PaymentSection({
                   </Button>
                 )}
               </div>
-
             </div>
           )
         })}
@@ -99,13 +102,22 @@ export function PaymentSection({
         </Button>
       </div>
 
-
-
-      <div className="flex justify-between text-base">
-        <span>Falta:</span>
-        <span className={diff > 0 ? 'text-red-600 font-bold' : 'text-green-600 font-bold'}>
-          {formatCurrency(Math.max(0, diff))}
-        </span>
+      {/* Payment Status Section */}
+      <div className="space-y-2 border-t pt-4">
+        <div className="flex justify-between text-base">
+          <span className="font-medium">Estado del Pago:</span>
+          {hasPending ? (
+            <span className="text-red-600 font-bold">Falta {formatCurrency(diff)}</span>
+          ) : isPaid ? (
+            <span className="text-green-600 font-bold">✓ Pagado Completo</span>
+          ) : hasChange && !isMainPaymentCash ? (
+            <span className="text-orange-600 font-bold">Monto no coincide</span>
+          ) : hasChange && isMainPaymentCash ? (
+            <span className="text-blue-600 font-bold">Cambio: {formatCurrency(paymentStatus.amount)}</span>
+          ) : (
+            <span className="text-gray-600 font-bold">—</span>
+          )}
+        </div>
       </div>
 
       {hasCurrentAccountPayment && !hasSelectedCustomer && (
