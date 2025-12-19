@@ -12,11 +12,11 @@ export const roundToTwoDecimals = (n: number): number => {
  */
 export const formatCurrency = (amount: number | null | undefined, currency: string = 'ARS'): string => {
   const v = Number(amount || 0)
-  const currencyFormatter = new Intl.NumberFormat('es-AR', { 
-    style: 'currency', 
-    currency: 'ARS', 
-    minimumFractionDigits: 2, 
-    maximumFractionDigits: 2 
+  const currencyFormatter = new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
   })
 
   if (currency === 'USD') {
@@ -64,7 +64,7 @@ export const calculateSaleTotals = (
         itemDiscountOnBase = discountValue / (1 + ivaRate)
       }
     }
-    
+
     itemDiscountOnBase = Math.max(0, Math.min(itemDiscountOnBase, baseWithoutIva))
     const netBase = baseWithoutIva - itemDiscountOnBase
     return { item, netBase }
@@ -96,7 +96,7 @@ export const calculateSaleTotals = (
 
   // 4. Calcular total final
   const total = Math.max(0, roundToTwoDecimals(subtotalWithIva - globalDiscountAmount))
-  
+
   const totalItemDiscount = prepared.reduce((sum, p, i) => {
     const originalBase = roundToTwoDecimals((cart[i].price || 0) * (cart[i].quantity || 0))
     return sum + Math.max(0, originalBase - p.netBase)
@@ -118,7 +118,7 @@ export const extractProductId = (item: CartItem): number => {
   if (item.product_id && !isNaN(item.product_id)) {
     return item.product_id
   }
-  
+
   if (item.id.startsWith('combo-')) {
     const parts = item.id.split('-')
     if (parts.length >= 3) {
@@ -126,12 +126,12 @@ export const extractProductId = (item: CartItem): number => {
     }
     return parseInt(parts[parts.length - 1])
   }
-  
+
   const parsedId = parseInt(item.id)
   if (isNaN(parsedId) || parsedId <= 0) {
     throw new Error(`Invalid product_id for item ${item.id}`)
   }
-  
+
   return parsedId
 }
 
@@ -164,4 +164,73 @@ export const calculatePaymentStatus = (total: number, paid: number) => {
 export const isPaymentSufficient = (total: number, paid: number): boolean => {
   const status = calculatePaymentStatus(total, paid)
   return status.status !== 'pending'
+}
+
+/**
+ * Interface simplificada para el cálculo de descuentos
+ */
+export interface DiscountablePayment {
+  payment_method_id: string | number
+  amount: string
+}
+
+export interface DiscountableMethod {
+  id: string | number
+  discount_percentage?: number
+}
+
+/**
+ * Calcula el descuento total por métodos de pago
+ * Reglas:
+ * 1. Sumar descuentos de montos explícitos
+ * 2. Si queda saldo pdte y hay métodos "abiertos" (sin monto), aplicar el mejor descuento al remanente
+ */
+export const calculatePaymentDiscount = (
+  total: number,
+  payments: DiscountablePayment[],
+  methods: DiscountableMethod[]
+): number => {
+  let totalDiscount = 0
+  let explicitPaid = 0
+
+  // 1. Calcular descuentos de montos explícitos
+  payments.forEach(p => {
+    // Si no tiene monto, es un método "abierto", lo ignoramos en este paso
+    const amountVal = parseFloat(p.amount || '0')
+    if (amountVal <= 0) return
+
+    const method = methods.find(m => m.id.toString() === p.payment_method_id?.toString())
+    if (method && (method.discount_percentage || 0) > 0) {
+      const discountAmount = amountVal * (method.discount_percentage! / 100)
+      totalDiscount += discountAmount
+    }
+    explicitPaid += amountVal
+  })
+
+  // 2. Calcular remanente para métodos abiertos
+  // El total sobre el que calculamos el remanente es el (Total Original - Descuentos ya aplicados por items/global)
+  // Pero ojo: el descuento de pago reduce el total a pagar.
+  // La lógica de "cuánto falta pagar" depende de: Total - (Pagado + Descuento).
+  // Ecuación: Remanente = Total - ExplicitPaid. 
+  // Ese Remanente se cubrirá con el método abierto. El descuento se aplica sobre ese remanente.
+
+  const remainder = Math.max(0, total - explicitPaid)
+
+  if (remainder > 0) {
+    // Buscar si hay algún método "abierto" (sin monto definido o monto 0)
+    // que tenga descuento. Usamos el mejor descuento disponible entre los métodos abiertos.
+    const openMethodsWithDiscount = payments
+      .filter(p => !parseFloat(p.amount || '0')) // Sin monto o 0
+      .map(p => methods.find(m => m.id.toString() === p.payment_method_id?.toString()))
+      .filter(m => m && (m.discount_percentage || 0) > 0)
+
+    if (openMethodsWithDiscount.length > 0) {
+      // Tomamos el mayor porcentaje de descuento de los métodos abiertos
+      const maxRate = Math.max(...openMethodsWithDiscount.map(m => m!.discount_percentage!))
+      const discountForRemainder = remainder * (maxRate / 100)
+      totalDiscount += discountForRemainder
+    }
+  }
+
+  return roundToTwoDecimals(totalDiscount)
 }

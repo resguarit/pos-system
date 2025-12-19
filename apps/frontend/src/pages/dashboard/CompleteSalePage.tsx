@@ -20,7 +20,8 @@ import type { CartItem } from "@/types/combo"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useSaleTotals } from "@/hooks/useSaleTotals"
 import { useCustomerSearch, type CustomerOption } from "@/hooks/useCustomerSearch"
-import { formatCurrency, roundToTwoDecimals, extractProductId } from '@/utils/sale-calculations'
+import { formatCurrency, roundToTwoDecimals, extractProductId, calculatePaymentDiscount } from '@/utils/sale-calculations'
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
 import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
@@ -36,16 +37,16 @@ export default function CompleteSalePage() {
   const { request } = useApi()
   const { selectedBranch, branches } = useBranch()
   const { user, hasPermission } = useAuth()
-  
+
   // Obtener datos del carrito y branchId desde location.state
   const initialCart = (location.state?.cart as CartItem[]) || []
   const stateBranchId = location.state?.branchId
-  
+
   // Usar la sucursal del state si está disponible, sino usar la del contexto
-  const activeBranch = stateBranchId 
+  const activeBranch = stateBranchId
     ? branches.find(b => b.id === stateBranchId) || selectedBranch
     : selectedBranch
-  
+
   // Debug: verificar qué sucursal se está usando
   console.log('CompleteSalePage - Branch info:', {
     stateBranchId,
@@ -53,7 +54,7 @@ export default function CompleteSalePage() {
     activeBranchName: activeBranch?.description,
     selectedBranchId: selectedBranch?.id
   })
-  
+
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
   const { checkCuitCertificate } = useAfip()
 
@@ -77,6 +78,7 @@ export default function CompleteSalePage() {
   const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false)
   const [pendingChangeAmount, setPendingChangeAmount] = useState(0)
 
+
   // Hook personalizado para búsqueda de clientes
   const {
     selectedCustomer,
@@ -96,33 +98,19 @@ export default function CompleteSalePage() {
 
   const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = useSaleTotals(cart, globalDiscount)
 
-  // Calcular descuento total de métodos de pago
-  // Calcular descuento total de métodos de pago
-  // IMPORTANTE: El descuento se aplica SOLO sobre el monto ingresado en cada método
-  // No se aplica descuento si el monto no está ingresado
-  const totalPaymentDiscount = useMemo(() => {
-    let totalDiscount = 0
+  // Estado para el descuento de pago (congelado hasta que se cambie método o agregue fila)
+  const [totalPaymentDiscount, setTotalPaymentDiscount] = useState(0)
 
-    // Procesar cada método de pago
-    payments.forEach(p => {
-      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      const discountPercentage = (method?.discount_percentage || 0)
-      
-      // Solo aplicar descuento si:
-      // 1. El método está seleccionado
-      // 2. El método tiene descuento
-      // 3. Hay monto ingresado y es mayor a 0
-      if (p.payment_method_id && discountPercentage > 0 && p.amount && parseFloat(p.amount) > 0) {
-        const amount = parseFloat(p.amount)
-        const discountRate = discountPercentage / 100
-        // Descuento simple: Monto × Porcentaje
-        const discount = amount * discountRate
-        totalDiscount += discount
-      }
-    })
+  // Recalcular el descuento con una lista de pagos específica
+  const recalculateDiscount = useCallback((currentPayments: typeof payments) => {
+    const newVal = calculatePaymentDiscount(total, currentPayments, paymentMethods)
+    setTotalPaymentDiscount(newVal)
+  }, [total, paymentMethods])
 
-    return totalDiscount
-  }, [payments, paymentMethods])
+  // Si cambia el total base (por ítems o d. global), actualizar el descuento de pago
+  useEffect(() => {
+    recalculateDiscount(payments)
+  }, [total, recalculateDiscount])
 
   // Total final después de aplicar descuentos de métodos de pago  
   const finalTotal = useMemo(() => {
@@ -269,16 +257,35 @@ export default function CompleteSalePage() {
   }, [request, activeBranch])
 
   const addPayment = useCallback(() => {
-    setPayments(prev => [...prev, { payment_method_id: '', amount: '' }])
-  }, [])
+    setPayments(prev => {
+      const newPayments = [...prev, { payment_method_id: '', amount: '' }]
+      // Al agregar pago, recalculamos descuento sobre la nueva estructura
+      recalculateDiscount(newPayments)
+      return newPayments
+    })
+  }, [recalculateDiscount])
 
   const removePayment = useCallback((idx: number) => {
-    setPayments(prev => prev.filter((_, i) => i !== idx))
-  }, [])
+    setPayments(prev => {
+      const newPayments = prev.filter((_, i) => i !== idx)
+      // Al quitar pago, recalculamos
+      recalculateDiscount(newPayments)
+      return newPayments
+    })
+  }, [recalculateDiscount])
 
   const updatePayment = useCallback((idx: number, field: string, value: string) => {
-    setPayments(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p))
-  }, [])
+    setPayments(prev => {
+      const updated = prev.map((p, i) => i === idx ? { ...p, [field]: value } : p)
+
+      // SOLO recalcular si cambia el MÉTODO DE PAGO
+      // Si cambia el monto, NO recalculamos (para evitar saltos en la UI)
+      if (field === 'payment_method_id') {
+        recalculateDiscount(updated)
+      }
+      return updated
+    })
+  }, [recalculateDiscount])
 
 
   const formatDate = useCallback((dateString: string | null | undefined): string => {
@@ -456,10 +463,13 @@ export default function CompleteSalePage() {
   ])
 
   // Calcular monto pendiente explícitamente - DEBE estar ANTES de hasChange
+  // Calcular monto pendiente explícitamente - DEBE estar ANTES de hasChange
+  // Usamos debounce de 2 segundos para evitar que el 'Falta' salte mientras se escribe
+  const debouncedPayments = useDebouncedValue(payments, 2000)
   const pendingAmount = useMemo(() => {
-    const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
+    const paid = debouncedPayments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
     return roundToTwoDecimals(finalTotal - paid)
-  }, [finalTotal, payments])
+  }, [finalTotal, debouncedPayments])
 
   const diff = useMemo(() => pendingAmount, [pendingAmount])
 
@@ -472,8 +482,8 @@ export default function CompleteSalePage() {
     return payments.some(p => {
       if (!p.payment_method_id) return false
       const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      return paymentMethod?.name?.toLowerCase().includes('efectivo') || 
-             paymentMethod?.name?.toLowerCase().includes('cash')
+      return paymentMethod?.name?.toLowerCase().includes('efectivo') ||
+        paymentMethod?.name?.toLowerCase().includes('cash')
     })
   }, [payments, paymentMethods])
 
@@ -536,23 +546,23 @@ export default function CompleteSalePage() {
     if (cart.length === 0 || receiptTypeId === undefined || activeBranch === null) {
       return false
     }
-    
+
     // Validar pagos
     if (!allPaymentsValid || !currentAccountPaymentValid) {
       return false
     }
-    
+
     // Si el pago es exacto, permitir
     if (diff === 0) {
       return true
     }
-    
+
     // Si hay cambio (diff < 0)
     if (diff < 0) {
       // Solo permitir si hay método de Efectivo
       return hasCashPayment
     }
-    
+
     // Si hay falta de pago (diff > 0), no permitir
     return false
   }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment])
@@ -575,18 +585,18 @@ export default function CompleteSalePage() {
     setSelectedCustomer(customer)
     setCustomerSearch(customer.name)
     setShowCustomerOptions(false)
-    
+
     // Cargar el saldo del cliente
     if (customer.id) {
       setLoadingBalance(true)
-      request({ 
-        method: 'GET', 
-        url: `/customers/${customer.id}/current-account-balance` 
+      request({
+        method: 'GET',
+        url: `/customers/${customer.id}/current-account-balance`
       })
         .then((response) => {
           const balance = response?.balance ?? response?.data?.balance ?? 0
           setCustomerBalance(balance)
-          
+
           // Mostrar alerta si tiene deuda
           if (balance > 0) {
             setShowDebtDialog(true)
@@ -886,7 +896,7 @@ export default function CompleteSalePage() {
               <p className="text-center text-sm text-blue-700 font-medium mb-3">Cambio a Entregar al Cliente</p>
               <p className="text-center text-4xl font-bold text-blue-600">{formatCurrency(pendingChangeAmount)}</p>
             </div>
-            
+
             {/* Instructions */}
             <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
               <p className="text-sm font-semibold text-amber-900">⚠️ Antes de continuar:</p>
