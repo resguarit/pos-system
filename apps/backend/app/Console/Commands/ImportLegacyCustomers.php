@@ -15,7 +15,7 @@ class ImportLegacyCustomers extends Command
      *
      * @var string
      */
-    protected $signature = 'import:legacy-customers {file : Ruta absoluta al archivo SQL del sistema viejo} {--dry-run : Ejecuta sin insertar registros}';
+    protected $signature = 'import:legacy-customers {file : Ruta absoluta al archivo SQL del sistema viejo} {--dry-run : Ejecuta sin insertar registros} {--fresh : Borra TODOS los clientes existentes antes de importar}';
 
     /**
      * The console command description.
@@ -31,10 +31,33 @@ class ImportLegacyCustomers extends Command
     {
         $filePath = $this->argument('file');
         $dryRun = $this->option('dry-run');
+        $fresh = $this->option('fresh');
 
         if (!file_exists($filePath)) {
             $this->error("El archivo no existe: {$filePath}");
             return 1;
+        }
+
+        if ($fresh && !$dryRun) {
+            if ($this->confirm('¿Está seguro que desea BORRAR TODOS los clientes existentes antes de importar?', true)) {
+                $this->info('Limpiando base de datos de clientes...');
+
+                // Desactivar checks de claves foráneas para permitir truncate/delete
+                DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+
+                try {
+                    Customer::truncate();
+                    // Solo borramos personas que sean clientes para no borrar usuarios del sistema
+                    Person::where('person_type', 'customer')->delete();
+
+                    $this->info('Base de datos limpiada.');
+                } catch (\Exception $e) {
+                    $this->error('Error al limpiar base de datos: ' . $e->getMessage());
+                    return 1;
+                } finally {
+                    DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+                }
+            }
         }
 
         $this->info("Leyendo archivo: {$filePath}");
