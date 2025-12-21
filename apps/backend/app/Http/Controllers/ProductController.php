@@ -21,13 +21,35 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
-        $forAdmin = $request->query('for_admin', false);
-        
-        if ($forAdmin) {
-            return response()->json($this->productService->getAllProductsForAdmin());
+        $perPage = $request->query('per_page', 50);
+
+        // Extract filters
+        $filters = [
+            'search' => $request->query('search'),
+            'category_ids' => $request->query('category_ids'), // Expecting array or comma-separated? usually array in Laravel query string: category_ids[]=1
+            'supplier_ids' => $request->query('supplier_ids'),
+            'branch_ids' => $request->query('branch_ids'),     // array
+            'stock_status' => $request->query('stock_status')  // array
+        ];
+
+        // Handle comma-separated strings if passed that way (common in some frontends)
+        if (is_string($filters['category_ids'])) {
+            $filters['category_ids'] = explode(',', $filters['category_ids']);
         }
-        
-        return response()->json($this->productService->getAllProducts());
+        if (is_string($filters['supplier_ids'])) {
+            $filters['supplier_ids'] = explode(',', $filters['supplier_ids']);
+        }
+        if (is_string($filters['branch_ids'])) {
+            $filters['branch_ids'] = explode(',', $filters['branch_ids']);
+        }
+        if (is_string($filters['stock_status'])) {
+            $filters['stock_status'] = explode(',', $filters['stock_status']);
+        }
+
+        // If for_admin is passed, we might want to ensure we return everything or specific structure, 
+        // but getPaginatedProducts handles the eager loading needed for admin view.
+
+        return response()->json($this->productService->getPaginatedProducts($filters, $perPage));
     }
 
     public function store(Request $request)
@@ -101,23 +123,23 @@ class ProductController extends Controller
     {
         try {
             $product = Product::findOrFail($id);
-            
+
             $product->delete();
-            
+
             Log::info('Producto eliminado lógicamente', [
                 'product_id' => $id,
                 'product_description' => $product->description,
                 'deleted_at' => now()
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Producto eliminado correctamente'
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('Error eliminando producto: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al eliminar el producto',
@@ -141,7 +163,7 @@ class ProductController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error en actualización masiva de precios: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar precios masivamente',
@@ -177,7 +199,7 @@ class ProductController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error en actualización masiva por categoría: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al actualizar precios por categoría',
@@ -195,7 +217,7 @@ class ProductController extends Controller
             ]);
 
             $categoryIds = $request->input('category_ids');
-            
+
             $products = Product::with(['category'])
                 ->whereIn('category_id', $categoryIds)
                 ->orderBy('category_id')
@@ -210,7 +232,7 @@ class ProductController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error obteniendo productos por categorías: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al obtener productos por categorías',
@@ -226,45 +248,45 @@ class ProductController extends Controller
             $branchIds = $request->query('branch_ids', []);
             $includeInactive = $request->query('include_inactive', false);
             $includeOutOfStock = $request->query('include_out_of_stock', false);
-            
+
             Log::info('Export Price List - Parámetros recibidos:', [
                 'category_ids' => $categoryIds,
                 'branch_ids' => $branchIds,
                 'include_inactive' => $includeInactive,
                 'include_out_of_stock' => $includeOutOfStock
             ]);
-            
+
             $query = Product::with(['category']);
-            
+
             if (!$includeInactive) {
                 $query->where('status', true);
             }
-            
+
             if (!empty($categoryIds)) {
                 $query->whereIn('category_id', $categoryIds);
             }
-            
+
             if (!empty($branchIds)) {
-                $query->whereHas('stocks', function($q) use ($branchIds, $includeOutOfStock) {
+                $query->whereHas('stocks', function ($q) use ($branchIds, $includeOutOfStock) {
                     $q->whereIn('branch_id', $branchIds);
                     if (!$includeOutOfStock) {
                         $q->where('current_stock', '>', 0);
                     }
                 });
             } elseif (!$includeOutOfStock) {
-                $query->whereHas('stocks', function($q) {
+                $query->whereHas('stocks', function ($q) {
                     $q->where('current_stock', '>', 0);
                 });
             }
-            
+
             $products = $query->orderBy('category_id')
                 ->orderBy('description')
                 ->get();
-            
+
             Log::info('Export Price List - Productos encontrados:', [
                 'total_products' => $products->count()
             ]);
-            
+
             foreach ($products->take(5) as $product) {
                 Log::info('Producto debug:', [
                     'id' => $product->id,
@@ -274,7 +296,7 @@ class ProductController extends Controller
                     'category_name' => $product->category ? $product->category->name : 'NULL'
                 ]);
             }
-            
+
             $productsByCategory = $products->groupBy(function ($product) {
                 if ($product->category && $product->category->name) {
                     return $product->category->name;
@@ -282,25 +304,25 @@ class ProductController extends Controller
                     return 'Sin Categoría';
                 }
             });
-            
+
             Log::info('Export Price List - Categorías encontradas:', [
                 'categories' => $productsByCategory->keys()->toArray(),
                 'products_per_category' => $productsByCategory->map(function ($products) {
                     return $products->count();
                 })->toArray()
             ]);
-            
+
             $pdf = Pdf::loadView('price-list-pdf', [
                 'productsByCategory' => $productsByCategory,
                 'currency' => 'ARS',
                 'showImages' => false,
                 'exportDate' => now()->format('d/m/Y H:i'),
             ])->setPaper('a4', 'portrait');
-            
+
             $filename = 'lista-precios-' . now()->format('Y-m-d') . '.pdf';
-            
+
             return $pdf->stream($filename);
-            
+
         } catch (\Exception $e) {
             Log::error('Error generando lista de precios: ' . $e->getMessage());
             return response()->json([
@@ -314,13 +336,13 @@ class ProductController extends Controller
     {
         try {
             $validatedData = $this->validateSearchRequest($request);
-            
+
             $query = $this->buildSearchQuery($validatedData);
-            
+
             $products = $this->executeSearch($query, $validatedData);
-            
+
             return $this->formatSearchResponse($products);
-            
+
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->handleValidationError($e);
         } catch (\Exception $e) {
@@ -400,8 +422,15 @@ class ProductController extends Controller
         $query = Product::query()
             ->with(['category:id,name', 'supplier:id,name'])
             ->select([
-                'id', 'description', 'code', 'unit_price', 'currency', 
-                'sale_price', 'category_id', 'supplier_id', 'status'
+                'id',
+                'description',
+                'code',
+                'unit_price',
+                'currency',
+                'sale_price',
+                'category_id',
+                'supplier_id',
+                'status'
             ])
             ->where('status', true);
 
@@ -418,9 +447,9 @@ class ProductController extends Controller
     {
         if (!empty($filters['search'])) {
             $search = $filters['search'];
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('code', 'LIKE', "%{$search}%")
-                  ->orWhere('description', 'LIKE', "%{$search}%");
+                    ->orWhere('description', 'LIKE', "%{$search}%");
             });
         }
     }
@@ -449,7 +478,7 @@ class ProductController extends Controller
     private function applyBranchFilter($query, array $filters): void
     {
         if (!empty($filters['branch_id'])) {
-            $query->whereHas('stocks', function($q) use ($filters) {
+            $query->whereHas('stocks', function ($q) use ($filters) {
                 $q->where('branch_id', $filters['branch_id']);
             });
         }
@@ -570,7 +599,7 @@ class ProductController extends Controller
 
         foreach ($products as $product) {
             $newPrice = $this->calculateNewPrice($product->unit_price, $updateType, $value);
-            
+
             $product->update(['unit_price' => $newPrice]);
             $updatedCount++;
         }

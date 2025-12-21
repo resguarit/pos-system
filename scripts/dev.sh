@@ -29,6 +29,23 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Load Node.js environment (for nvm, asdf, homebrew, etc.)
+load_node_env() {
+    # Try to load nvm
+    if [ -s "$HOME/.nvm/nvm.sh" ]; then
+        export NVM_DIR="$HOME/.nvm"
+        source "$NVM_DIR/nvm.sh"
+    fi
+    
+    # Try to load asdf
+    if [ -f "$HOME/.asdf/asdf.sh" ]; then
+        source "$HOME/.asdf/asdf.sh"
+    fi
+    
+    # Add common Node.js paths
+    export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+}
+
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -38,8 +55,12 @@ command_exists() {
 check_dependencies() {
     print_status "Checking dependencies..."
     
+    # Load Node.js environment first
+    load_node_env
+    
     if ! command_exists node; then
-        print_error "Node.js is not installed"
+        print_error "Node.js is not installed or not in PATH"
+        print_error "Please install Node.js from https://nodejs.org/ or via nvm/asdf"
         exit 1
     fi
     
@@ -59,6 +80,8 @@ check_dependencies() {
     fi
     
     print_success "All dependencies are installed"
+    print_status "Node.js version: $(node -v)"
+    print_status "npm version: $(npm -v)"
 }
 
 # Install all dependencies

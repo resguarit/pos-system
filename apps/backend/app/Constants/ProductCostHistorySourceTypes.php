@@ -12,6 +12,7 @@ class ProductCostHistorySourceTypes
     public const BULK_UPDATE = 'bulk_update';
     public const BULK_UPDATE_BY_CATEGORY = 'bulk_update_by_category';
     public const BULK_UPDATE_BY_SUPPLIER = 'bulk_update_by_supplier';
+    public const IMPORT = 'import';
 
     /**
      * Obtiene todos los tipos de origen válidos
@@ -26,6 +27,7 @@ class ProductCostHistorySourceTypes
             self::BULK_UPDATE,
             self::BULK_UPDATE_BY_CATEGORY,
             self::BULK_UPDATE_BY_SUPPLIER,
+            self::IMPORT,
         ];
     }
 
@@ -57,7 +59,9 @@ class ProductCostHistorySourceTypes
             self::MANUAL => 'Actualización Manual',
             self::BULK_UPDATE => 'Actualización Masiva',
             self::BULK_UPDATE_BY_CATEGORY => 'Actualización por Categoría',
+
             self::BULK_UPDATE_BY_SUPPLIER => 'Actualización por Proveedor',
+            self::IMPORT => 'Importación / Carga Inicial',
         ];
 
         return $labels[$sourceType] ?? 'Desconocido';

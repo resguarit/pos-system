@@ -36,7 +36,15 @@ export default function InventarioPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [products, setProducts] = useState<Product[]>([])
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+  // filteredProducts removed, server side filtering used
+  const [paginationMeta, setPaginationMeta] = useState({
+    current_page: 1,
+    last_page: 1,
+    per_page: 10,
+    total: 0,
+    from: 0,
+    to: 0
+  })
   const [branches, setBranches] = useState<Branch[]>([])
   const [categories, setCategories] = useState<ProductCategoryType[]>([])
   const [parentCategories, setParentCategories] = useState<ProductCategoryType[]>([])
@@ -81,87 +89,74 @@ export default function InventarioPage() {
     defaultWidth: 150
   });
 
-  const fetchStocksForProducts = useCallback(async (productsList: Product[], signal?: AbortSignal) => {
-    try {
-      const allStocksResponse = await request({
-        method: "GET",
-        url: "/stocks",
-        signal,
-      });
-
-      let allStocks: Stock[] = [];
-      const payload = (allStocksResponse as any)?.data ?? allStocksResponse;
-      const array = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.data)
-          ? payload.data
-          : Array.isArray((allStocksResponse as any)?.data?.data)
-            ? (allStocksResponse as any).data.data
-            : [];
-
-      if (Array.isArray(array)) {
-        allStocks = array.map((s: any) => ({
-          ...s,
-          id: Number(s.id),
-          product_id: Number(s.product_id),
-          branch_id: Number(s.branch_id),
-          current_stock: Number(s.current_stock || 0),
-          min_stock: Number(s.min_stock || 0),
-          max_stock: Number(s.max_stock || 0),
-        }));
-      } else {
-        console.error("Formato de respuesta de stocks inesperado:", allStocksResponse);
-      }
-
-      const updatedProducts = productsList.map((product) => {
-        const productStocks = allStocks.filter((stock) => stock.product_id === product.id);
-        const stocksWithBranch: Stock[] = productStocks.map((stock) => {
-          const branchInfo = branches.find((b) => String(b.id) === String(stock.branch_id));
-          return {
-            ...stock,
-            branch: branchInfo,
-          };
-        });
-        return {
-          ...product,
-          stocks: stocksWithBranch,
-        };
-      });
-
-      setProducts(updatedProducts);
-      dispatch({ type: "SET_ENTITIES", entityType: "products", entities: updatedProducts });
-    } catch (err: any) {
-      // Aun si falla el stock, mostramos los productos
-      setProducts(productsList);
-      dispatch({ type: "SET_ENTITIES", entityType: "products", entities: productsList });
-    }
-  }, [request, dispatch, branches]);
+  // Removed fetchStocksForProducts as backend now includes stocks
 
   const fetchProducts = useCallback(async (signal?: AbortSignal) => {
     try {
-      const data = await request({
+      // Build query params
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      params.set('per_page', String(perPage))
+
+      if (searchQuery) params.set('search', searchQuery)
+
+      if (selectedBranches.length > 0 && selectedBranches[0] !== 'all') {
+        selectedBranches.forEach(id => params.append('branch_ids[]', id))
+      }
+
+      if (selectedCategories.length > 0) {
+        selectedCategories.forEach(id => params.append('category_ids[]', id))
+      }
+
+      if (selectedStockStatuses.length > 0) {
+        selectedStockStatuses.forEach(status => params.append('stock_status[]', status))
+      }
+
+      // for_admin is no longer strictly needed for pagination but kept if backend uses it for other logic, 
+      // primarily we rely on the new pagination structure.
+      // params.set('for_admin', 'true') 
+
+      const response = await request({
         method: "GET",
-        url: "/products?include=category,supplier,measure,iva&for_admin=true",
+        url: `/products?${params.toString()}`,
         signal,
       });
 
-      const productList = Array.isArray(data?.data?.data) ? data.data.data :
-        Array.isArray(data?.data) ? data.data :
-          Array.isArray(data) ? data : [];
+      // Handle paginated response
+      if (response && response.data) {
+        // Laravel paginate returns: { current_page, data, first_page_url, from, last_page, last_page_url, links, next_page_url, path, per_page, prev_page_url, to, total }
+        // Our Axios wrapper might return response.data direct if interceptor handles it, or response directly.
+        // Based on useApi implementation usually response is the data.
+        // Let's assume standard Laravel pagination JSON structure.
 
-      if (productList.length > 0) {
-        await fetchStocksForProducts(productList, signal);
-      } else {
-        setProducts([]);
-        dispatch({ type: "SET_ENTITIES", entityType: "products", entities: [] });
+        const pData = (response.data && response.data.current_page) ? response.data : response;
+
+        if (pData.data && Array.isArray(pData.data)) {
+          setProducts(pData.data)
+          setPaginationMeta({
+            current_page: pData.current_page,
+            last_page: pData.last_page,
+            per_page: pData.per_page,
+            total: pData.total,
+            from: pData.from,
+            to: pData.to
+          })
+        } else if (Array.isArray(pData)) {
+          // Fallback if backend returns flat array (shouldn't happen with new controller)
+          setProducts(pData)
+          setPaginationMeta(prev => ({ ...prev, total: pData.length }))
+        }
       }
     } catch (err: any) {
-      setProducts([]);
-      dispatch({ type: "SET_ENTITIES", entityType: "products", entities: [] });
+      if (err.name === 'AbortError' || err.message === 'canceled') return;
+      console.error("Error al cargar productos:", err)
+      setProducts([])
     }
-  }, [request, dispatch, fetchStocksForProducts]);
+  }, [request, page, perPage, searchQuery, selectedBranches, selectedCategories, selectedStockStatuses]);
 
   const refreshData = useCallback(() => {
+    // If we are on page > 1 and refresh, we might want to stay on page or go to 1. 
+    // Usually stay.
     const controller = new AbortController();
     fetchProducts(controller.signal);
     return () => controller.abort();
@@ -169,22 +164,8 @@ export default function InventarioPage() {
 
   useExchangeRateUpdates(refreshData);
 
-  const paginate = <T,>(items: T[]) => {
-    const total = items.length
-    const totalPages = Math.max(1, Math.ceil(total / perPage))
-    const currentPage = Math.min(page, totalPages)
-    const startIndex = (currentPage - 1) * perPage
-    const endIndex = startIndex + perPage
-    const view = items.slice(startIndex, endIndex)
-    return {
-      total,
-      totalPages,
-      currentPage,
-      items: view,
-      start: total === 0 ? 0 : startIndex + 1,
-      end: Math.min(endIndex, total),
-    }
-  }
+  // Client-side paginate function removed
+
 
   const handleGoToPage = (next: number, maxPages: number) => {
     const valid = Math.max(1, Math.min(next, maxPages))
@@ -328,79 +309,30 @@ export default function InventarioPage() {
   }, [initialDataLoaded, fetchProducts])
 
   useEffect(() => {
-    applyFilters(products)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [products, selectedBranches, selectedCategories, selectedStockStatuses, searchQuery])
+    // Debounce search and filter changes could be good, but for now simple effect
+    const controller = new AbortController()
+    const signal = controller.signal
 
+    if (initialDataLoaded) {
+      fetchProducts(signal)
+    }
+
+    return () => {
+      controller.abort()
+    }
+  }, [initialDataLoaded, fetchProducts])
+
+  // Reset page when filters change (except page itself)
   useEffect(() => {
     if (!initialDataLoaded) return
     setPage(1)
-    const sp = new URLSearchParams(searchParams)
-    sp.set('page', '1')
-    sp.set('per_page', String(perPage))
-    setSearchParams(sp, { replace: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBranches, selectedCategories, selectedStockStatuses, searchQuery, perBranchView])
 
-  const applyFilters = (productList: Product[]) => {
-    let filtered = [...productList]
+  // Remove client-side applyFilters logic
 
-    if (selectedBranches.length > 0) {
-      filtered = filtered.filter((product) => {
-        if (!product.stocks || !Array.isArray(product.stocks)) {
-          return false
-        }
 
-        const hasMatchingBranch = product.stocks.some((stock) => {
-          const matches = selectedBranches.includes(String(stock.branch_id))
-          return matches
-        })
+  // applyFilters logic removed
 
-        return hasMatchingBranch
-      })
-    }
-
-    if (selectedCategories.length > 0) {
-      const getAllCategoryIds = (selectedCategoryIds: string[]): string[] => {
-        const allIds = new Set<string>(selectedCategoryIds)
-        selectedCategoryIds.forEach(categoryId => {
-          categories.forEach(category => {
-            if (String(category.parent_id) === categoryId) {
-              allIds.add(String(category.id))
-            }
-          })
-        })
-        return Array.from(allIds)
-      }
-      const allCategoryIds = getAllCategoryIds(selectedCategories)
-      filtered = filtered.filter((product) => allCategoryIds.includes(String(product.category_id)))
-    }
-
-    if (selectedStockStatuses.length > 0) {
-      filtered = filtered.filter((product) => {
-        const stockStatus = getStockStatus(product)
-        const label = stockStatus.label
-        return (
-          (selectedStockStatuses.includes('in-stock') && label === 'Disponible') ||
-          (selectedStockStatuses.includes('low-stock') && label === 'Stock bajo') ||
-          (selectedStockStatuses.includes('out-of-stock') && label === 'Agotado')
-        )
-      })
-    }
-
-    if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter((product) => {
-        return (
-          product.description?.toLowerCase().includes(query) ||
-          String(product.code).toLowerCase().includes(query) ||
-          product.category?.name?.toLowerCase().includes(query)
-        )
-      })
-    }
-
-    setFilteredProducts(filtered)
-  }
 
   const handleEditClick = (product: Product) => {
     if (product) {
@@ -667,34 +599,11 @@ export default function InventarioPage() {
   }
 
   const getFilteredRows = (): Row[] => {
-    let rows = buildFlattenRows()
-
-    if (selectedCategories.length > 0) {
-      rows = rows.filter((r) => selectedCategories.includes(String(r.product.category_id)))
-    }
-
-    if (selectedStockStatuses.length > 0) {
-      rows = rows.filter((r) => {
-        const s = getRowStockStatus(r.stock)
-        const label = s.label
-        return (
-          (selectedStockStatuses.includes('in-stock') && label === 'Disponible') ||
-          (selectedStockStatuses.includes('low-stock') && label === 'Stock bajo') ||
-          (selectedStockStatuses.includes('out-of-stock') && label === 'Agotado')
-        )
-      })
-    }
-
-    if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase()
-      rows = rows.filter((r) => (
-        r.product.description?.toLowerCase().includes(query) ||
-        String(r.product.code).toLowerCase().includes(query) ||
-        r.product.category?.name?.toLowerCase().includes(query) ||
-        r.branchName?.toLowerCase().includes(query)
-      ))
-    }
-    return rows
+    // Server side filtered rows are just 'products' now
+    // But we still need to flatten them for the view if needed.
+    // However, the original logic flattened based on `filteredProducts`.
+    // Now `products` IS the filtered list (page).
+    return buildFlattenRows()
   }
 
   const togglePerBranchView = () => {
@@ -873,8 +782,9 @@ export default function InventarioPage() {
               {perBranchView ? (
                 (() => {
                   const rows = getFilteredRows()
-                  const paged = paginate(rows)
-                  return paged.total > 0 ? (
+                  // Server-side pagination means 'rows' is already the current page View
+                  const hasData = rows.length > 0
+                  return hasData ? (
                     <div className="relative h-full overflow-y-auto">
                       <Table ref={tableRef} className="w-full">
                         <TableHeader className="bg-muted/50 sticky top-0 z-10">
@@ -965,7 +875,7 @@ export default function InventarioPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody className="bg-background">
-                          {paged.items.map((row) => {
+                          {rows.map((row) => {
                             const stock = row.stock
                             const stockStatus = getRowStockStatus(stock)
                             const p = row.product
@@ -1089,15 +999,15 @@ export default function InventarioPage() {
                       </Table>
                       <div className="flex items-center justify-between p-3 border-t bg-muted/30">
                         <Pagination
-                          currentPage={paged.currentPage}
-                          lastPage={paged.totalPages}
-                          total={paged.total}
+                          currentPage={page}
+                          lastPage={paginationMeta.last_page}
+                          total={paginationMeta.total}
                           itemName="productos"
-                          onPageChange={(page) => handleGoToPage(page, paged.totalPages)}
+                          onPageChange={(page) => handleGoToPage(page, paginationMeta.last_page)}
                           disabled={false}
                         />
                       </div>
-                    </div>
+                    </div >
                   ) : (
                     <div className="flex h-full items-center justify-center"><p className="text-center text-muted-foreground">No hay productos disponibles con los filtros seleccionados</p></div>
                   )
@@ -1194,8 +1104,8 @@ export default function InventarioPage() {
                     </TableHeader>
                     <TableBody className="bg-background">
                       {(() => {
-                        const paged = paginate(filteredProducts)
-                        return paged.items.map((product) => {
+                        // products is already the current page
+                        return products.map((product) => {
                           const stockStatus = getStockStatus(product)
                           const stock = getProductStock(product)
                           return (
@@ -1330,7 +1240,6 @@ export default function InventarioPage() {
                     </TableBody>
                   </Table>
                   {(() => {
-                    const paged = paginate(filteredProducts)
                     return (
                       <div className="flex items-center justify-between p-3 border-t bg-muted/30">
                         <div className="flex items-center gap-3">
@@ -1340,11 +1249,11 @@ export default function InventarioPage() {
                         </div>
                         <div>
                           <Pagination
-                            currentPage={paged.currentPage}
-                            lastPage={paged.totalPages}
-                            total={paged.total}
+                            currentPage={page}
+                            lastPage={paginationMeta.last_page}
+                            total={paginationMeta.total}
                             itemName="productos"
-                            onPageChange={(page) => handleGoToPage(page, paged.totalPages)}
+                            onPageChange={(page) => handleGoToPage(page, paginationMeta.last_page)}
                             disabled={false}
                           />
                         </div>
@@ -1353,32 +1262,38 @@ export default function InventarioPage() {
                   })()}
                 </div>
               )}
-            </div>
+            </div >
           )}
 
-          {selectedProduct && (
-            <EditProductDialog
-              open={editDialogOpen}
-              onOpenChange={setEditDialogOpen}
-              product={selectedProduct}
-              onProductUpdated={refreshData}
-            />
-          )}
-          {viewDialogOpen && selectedProduct && (
-            <ViewProductDialog
-              open={viewDialogOpen}
-              onOpenChange={setViewDialogOpen}
-              product={selectedProduct}
-            />
-          )}
-          {deleteDialogOpen && selectedProduct && (
-            <DeleteProductDialog
-              open={deleteDialogOpen}
-              onOpenChange={setDeleteDialogOpen}
-              product={selectedProduct}
-              onProductDeleted={refreshData}
-            />
-          )}
+          {
+            selectedProduct && (
+              <EditProductDialog
+                open={editDialogOpen}
+                onOpenChange={setEditDialogOpen}
+                product={selectedProduct}
+                onProductUpdated={refreshData}
+              />
+            )
+          }
+          {
+            viewDialogOpen && selectedProduct && (
+              <ViewProductDialog
+                open={viewDialogOpen}
+                onOpenChange={setViewDialogOpen}
+                product={selectedProduct}
+              />
+            )
+          }
+          {
+            deleteDialogOpen && selectedProduct && (
+              <DeleteProductDialog
+                open={deleteDialogOpen}
+                onOpenChange={setDeleteDialogOpen}
+                product={selectedProduct}
+                onProductDeleted={refreshData}
+              />
+            )
+          }
           <ExportPriceListDialog
             open={exportDialogOpen}
             onOpenChange={setExportDialogOpen}
@@ -1388,8 +1303,8 @@ export default function InventarioPage() {
             onOpenChange={setAdvancedBulkUpdateDialogOpen}
             onSuccess={refreshData}
           />
-        </div>
-      </BranchRequiredWrapper>
-    </ProtectedRoute>
+        </div >
+      </BranchRequiredWrapper >
+    </ProtectedRoute >
   )
 }

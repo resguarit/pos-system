@@ -25,14 +25,14 @@ class ProductService implements ProductServiceInterface
     {
         try {
             $pricingService = app(\App\Services\PricingService::class);
-            
+
             // Obtener el IVA rate como decimal
             $ivaRate = null;
             if ($product->iva_id) {
                 $iva = \App\Models\Iva::find($product->iva_id);
                 $ivaRate = $iva ? $iva->rate / 100 : null;
             }
-            
+
             // Calcular el nuevo precio de venta usando el markup actual
             $newSalePrice = $pricingService->calculateSalePrice(
                 (float) $product->unit_price,
@@ -40,7 +40,7 @@ class ProductService implements ProductServiceInterface
                 (float) $product->markup,
                 $ivaRate
             );
-            
+
             // Actualizar solo el sale_price sin disparar eventos adicionales
             $product->setAttribute('sale_price', $newSalePrice);
             $product->saveQuietly(); // Usar saveQuietly para evitar loops
@@ -80,6 +80,140 @@ class ProductService implements ProductServiceInterface
         }
     }
 
+    public function getPaginatedProducts(array $filters, int $perPage = 50)
+    {
+        try {
+            $query = Product::with(['measure', 'category', 'iva', 'supplier'])
+                ->where('status', true); // Default to active products, can be overridden by filter if needed
+
+            // --- Apply Filters ---
+
+            // 1. Search (Code, Description, Category)
+            if (!empty($filters['search'])) {
+                $search = $filters['search'];
+                $query->where(function ($q) use ($search) {
+                    $q->where('code', 'LIKE', "%{$search}%")
+                        ->orWhere('description', 'LIKE', "%{$search}%")
+                        ->orWhereHas('category', function ($catQ) use ($search) {
+                            $catQ->where('name', 'LIKE', "%{$search}%");
+                        });
+                });
+            }
+
+            // 2. Categories
+            if (!empty($filters['category_ids'])) {
+                $query->whereIn('category_id', $filters['category_ids']);
+            }
+
+            // 3. Suppliers (if needed, though not explicitly requested in plan, good to have)
+            if (!empty($filters['supplier_ids'])) {
+                $query->whereIn('supplier_id', $filters['supplier_ids']);
+            }
+
+            // 4. Branches (Filter stocks relation AND filter products by existence in branch if strict)
+            // Logic: Users usually want to see products available in selected branch.
+            // Also, we need to filter the EAGER LOADED stocks to only show relevant ones in the UI.
+            $branchIds = $filters['branch_ids'] ?? [];
+
+            if (!empty($branchIds)) {
+                $query->with([
+                    'stocks' => function ($q) use ($branchIds) {
+                        $q->whereIn('branch_id', $branchIds);
+                    }
+                ]);
+
+                // Optional: Hide products that have NO stock record in the selected branch at all?
+                // Usually we just show them with 0 stock. 
+                // But we can use whereHas to ensure they are linked to the branch if that's the business rule.
+                // For now, we just filter the relation so the UI calculates correctly.
+
+            } else {
+                $query->with('stocks');
+            }
+
+            // 5. Stock Status (Complex)
+            // 'in-stock', 'low-stock', 'out-of-stock'
+            if (!empty($filters['stock_status'])) {
+                // We need to calculate aggregate stock for the context (selected branches or all)
+                // and then filter by it.
+                // Using subqueries to avoid groupBy issues with pagination.
+
+                $query->where(function ($q) use ($filters, $branchIds) {
+                    $statuses = $filters['stock_status'];
+
+                    // Helper to build the stock sum subquery
+                    $buildStockSumQuery = function ($column) use ($branchIds) {
+                        return DB::table('stocks')
+                            ->selectRaw("COALESCE(SUM($column), 0)")
+                            ->whereColumn('stocks.product_id', 'products.id')
+                            ->when(!empty($branchIds), function ($sq) use ($branchIds) {
+                                $sq->whereIn('branch_id', $branchIds);
+                            });
+                    };
+
+                    foreach ($statuses as $status) {
+                        $q->orWhere(function ($subQ) use ($status, $buildStockSumQuery) {
+                            $currentStockSql = $buildStockSumQuery('current_stock')->toSql();
+                            $minStockSql = $buildStockSumQuery('min_stock')->toSql();
+                            // We need to bind parameters if branchIds are used, but toSql() doesn't include bindings.
+                            // Laravel's whereRaw handles bindings if passed.
+                            // However, mixing subqueries with bindings in whereRaw is tricky.
+                            // Let's use cleaner whereRaw with the subquery string logic carefully?
+                            // Actually, Laravel 8/9+ supports filter via `where(function($q) { ... })` effectively.
+                            // Let's use `whereRaw` with subqueries directly injected if possible, or `whereHas` logic.
+
+                            // Alternative: Recalculate logic. 
+                            // Out of Stock: SUM(current) <= 0
+                            // Low Stock: SUM(current) > 0 AND SUM(current) <= SUM(min)
+                            // In Stock: SUM(current) > SUM(min)
+
+                            // To do this safely with bindings, we can use `whereRaw`.
+                            // But getting the bindings right for the subquery inside whereRaw is hard.
+                            // Simplified approach: Add select subqueries and use `having`? No, having breaks pagination count.
+
+                            // Let's use `whereExists` or logic that doesn't require aggregate comparison in the WHERE directly if possible? No.
+
+                            // Best approach for Laravel: use `whereRaw` with robust subquery generation.
+
+                            $bindings = [];
+                            if (!empty($branchIds)) {
+                                // Add bindings for both current and min subqueries if needed
+                                // But since we are inside a loop, it's messy.
+                            }
+
+                            // Let's try to construct the SQL string for the subquery.
+                            $branchCondition = "";
+                            if (!empty($branchIds)) {
+                                $ids = implode(',', array_map('intval', $branchIds));
+                                $branchCondition = "AND branch_id IN ($ids)";
+                            }
+
+                            $sumCurrent = "(SELECT COALESCE(SUM(current_stock), 0) FROM stocks WHERE stocks.product_id = products.id $branchCondition)";
+                            $sumMin = "(SELECT COALESCE(SUM(min_stock), 0) FROM stocks WHERE stocks.product_id = products.id $branchCondition)";
+
+                            if ($status === 'out-of-stock') {
+                                $subQ->whereRaw("$sumCurrent <= 0");
+                            } elseif ($status === 'low-stock') {
+                                $subQ->whereRaw("$sumCurrent > 0 AND $sumCurrent <= $sumMin");
+                            } elseif ($status === 'in-stock') {
+                                $subQ->whereRaw("$sumCurrent > $sumMin");
+                            }
+                        });
+                    }
+                });
+            }
+
+            return $query->paginate($perPage);
+
+        } catch (Exception $e) {
+            Log::error('Error fetching paginated products: ' . $e->getMessage(), [
+                'filters' => $filters,
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+    }
+
     public function createProduct(array $data)
     {
         // Validar y corregir markup negativo antes de crear
@@ -87,10 +221,10 @@ class ProductService implements ProductServiceInterface
             Log::warning("ProductService::createProduct - Markup negativo detectado: {$data['markup']}, corrigiendo a 0");
             $data['markup'] = 0.0;
         }
-        
+
         // Crear el producto
         $product = Product::create($data);
-        
+
         // Crear stock automáticamente
         if (isset($data['branch_ids']) && is_array($data['branch_ids']) && !empty($data['branch_ids'])) {
             // Crear stock en sucursales específicas
@@ -110,7 +244,7 @@ class ProductService implements ProductServiceInterface
             // Crear stock en una sola sucursal (compatibilidad)
             $branchId = $data['branch_id'];
             unset($data['branch_id']); // Remover del array para no guardarlo en el producto
-            
+
             Stock::create([
                 'product_id' => $product->id,
                 'branch_id' => $branchId,
@@ -131,7 +265,24 @@ class ProductService implements ProductServiceInterface
                 ]);
             }
         }
-        
+
+        // Registrar historial de costo inicial
+        if (isset($data['unit_price'])) {
+            try {
+                $costHistoryService = app(ProductCostHistoryService::class);
+                $costHistoryService->recordCostChange(
+                    $product,
+                    (float) $data['unit_price'],
+                    ProductCostHistorySourceTypes::IMPORT,
+                    null,
+                    'Costo inicial'
+                );
+            } catch (Exception $e) {
+                Log::error("Error registrando historial de costo inicial para producto {$product->id}: " . $e->getMessage());
+                // No lanzar excepción para no interrumpir la creación
+            }
+        }
+
         return $product;
     }
 
@@ -146,7 +297,7 @@ class ProductService implements ProductServiceInterface
         Log::info('ProductService::updateProduct - Product ID: ' . $id);
         Log::info('ProductService::updateProduct - Data recibida: ', $data);
         Log::info('ProductService::updateProduct - Skip Cost History: ' . ($skipCostHistory ? 'true' : 'false'));
-        
+
         // Logging específico para status y web
         if (array_key_exists('status', $data)) {
             Log::info('ProductService::updateProduct - Status recibido: ' . var_export($data['status'], true) . ' (tipo: ' . gettype($data['status']) . ')');
@@ -154,16 +305,16 @@ class ProductService implements ProductServiceInterface
         if (array_key_exists('web', $data)) {
             Log::info('ProductService::updateProduct - Web recibido: ' . var_export($data['web'], true) . ' (tipo: ' . gettype($data['web']) . ')');
         }
-        
+
         $product = Product::findOrFail($id);
-        
+
         // Guardar el costo anterior antes de actualizar
         $previousCost = $product->unit_price;
-        $costChanged = isset($data['unit_price']) && (float)$previousCost !== (float)$data['unit_price'];
-        
+        $costChanged = isset($data['unit_price']) && (float) $previousCost !== (float) $data['unit_price'];
+
         // Log valores actuales antes de actualizar
         Log::info('ProductService::updateProduct - Valores actuales - Status: ' . var_export($product->status, true) . ', Web: ' . var_export($product->web, true));
-        
+
         // Separar los datos de stock de los datos del producto
         $stockData = [];
         if (isset($data['min_stock'])) {
@@ -176,47 +327,47 @@ class ProductService implements ProductServiceInterface
             unset($data['max_stock']);
             Log::info('ProductService::updateProduct - max_stock extraído: ' . $stockData['max_stock']);
         }
-        
+
         Log::info('ProductService::updateProduct - stockData final: ', $stockData);
-        
+
         // Validar y corregir markup negativo antes de guardar
         if (isset($data['markup']) && $data['markup'] < 0) {
             Log::warning("ProductService::updateProduct - Markup negativo detectado: {$data['markup']}, corrigiendo a 0");
             $data['markup'] = 0.0;
         }
-        
+
         // Actualizar los campos del producto
         foreach ($data as $key => $value) {
             $oldValue = $product->$key ?? null;
-            
+
             // Validar markup antes de asignar
             if ($key === 'markup' && $value < 0) {
                 Log::warning("ProductService::updateProduct - Markup negativo detectado en campo: {$value}, corrigiendo a 0");
                 $value = 0.0;
             }
-            
+
             $product->$key = $value;
-            
+
             // Log específico para status y web
             if ($key === 'status' || $key === 'web') {
                 Log::info("ProductService::updateProduct - Campo '$key' actualizado de " . var_export($oldValue, true) . " a " . var_export($value, true));
             }
         }
         $product->save();
-        
+
         // Log valores después de guardar
         $product->refresh();
         Log::info('ProductService::updateProduct - Valores después de guardar - Status: ' . var_export($product->status, true) . ', Web: ' . var_export($product->web, true));
-        
+
         // Actualizar o crear stocks en todas las sucursales
         if (!empty($stockData)) {
             Log::info('ProductService::updateProduct - Iniciando actualización de stocks...');
             $branches = Branch::all();
             Log::info('ProductService::updateProduct - Sucursales encontradas: ' . $branches->count());
-            
+
             foreach ($branches as $branch) {
                 Log::info('ProductService::updateProduct - Procesando sucursal: ' . $branch->id);
-                
+
                 $stock = Stock::firstOrCreate(
                     [
                         'product_id' => $product->id,
@@ -228,8 +379,8 @@ class ProductService implements ProductServiceInterface
                         'max_stock' => $stockData['max_stock'] ?? 0
                     ]
                 );
-                
-                
+
+
                 // Si ya existe, actualizar solo los campos min/max
                 if (!$stock->wasRecentlyCreated) {
                     $needsUpdate = false;
@@ -245,7 +396,7 @@ class ProductService implements ProductServiceInterface
                         $needsUpdate = true;
                         Log::info('ProductService::updateProduct - max_stock actualizado de ' . $oldMax . ' a ' . $stockData['max_stock']);
                     }
-                    
+
                     if ($needsUpdate) {
                         $stock->save();
                         Log::info('ProductService::updateProduct - Stock guardado exitosamente');
@@ -256,21 +407,21 @@ class ProductService implements ProductServiceInterface
                     Log::info('ProductService::updateProduct - Stock recién creado, no necesita actualización adicional');
                 }
             }
-            
+
             Log::info("Updated stocks for product {$product->id}: " . json_encode($stockData));
         } else {
             Log::info('ProductService::updateProduct - NO HAY DATOS DE STOCK PARA ACTUALIZAR');
         }
-        
+
         $product->refresh();
-        
+
         // Registrar historial de costo si cambió y no se debe omitir
         if ($costChanged && isset($data['unit_price']) && !$skipCostHistory) {
             try {
                 $costHistoryService = app(ProductCostHistoryService::class);
                 $costHistoryService->recordCostChange(
                     $product,
-                    (float)$data['unit_price'],
+                    (float) $data['unit_price'],
                     ProductCostHistorySourceTypes::MANUAL,
                     null,
                     'Actualización manual del costo',
@@ -283,10 +434,10 @@ class ProductService implements ProductServiceInterface
         } elseif ($costChanged && $skipCostHistory) {
             Log::info("Historial de costo omitido para producto {$product->id} (skipCostHistory=true)");
         }
-        
+
         Log::info("Product after update: " . json_encode($product->toArray()));
         Log::info('ProductService::updateProduct - FIN');
-        
+
         return $product;
     }
 
@@ -333,21 +484,21 @@ class ProductService implements ProductServiceInterface
                 try {
                     $product = Product::findOrFail($update['id']);
                     $oldPrice = $product->unit_price;
-                    
+
                     // Actualizar el precio unitario
                     $product->update([
                         'unit_price' => $update['unit_price']
                     ]);
-                    
+
                     // Recalcular el precio de venta
                     $this->recalculateSalePrice($product);
-                    
+
                     // Registrar historial de costo
                     try {
                         $costHistoryService = app(ProductCostHistoryService::class);
                         $costHistoryService->recordCostChange(
                             $product,
-                            (float)$update['unit_price'],
+                            (float) $update['unit_price'],
                             ProductCostHistorySourceTypes::BULK_UPDATE,
                             null,
                             'Actualización masiva de precios',
@@ -372,7 +523,7 @@ class ProductService implements ProductServiceInterface
                         'product_id' => $update['id'],
                         'error' => $e->getMessage()
                     ];
-                    
+
                     Log::error('Failed bulk price update', [
                         'product_id' => $update['id'],
                         'error' => $e->getMessage()
@@ -401,21 +552,21 @@ class ProductService implements ProductServiceInterface
             foreach ($products as $product) {
                 $oldPrice = $product->unit_price;
                 $newPrice = $this->calculateNewPrice($oldPrice, $updateType, $value);
-                
+
                 // Actualizar el precio unitario
                 $product->update([
                     'unit_price' => $newPrice
                 ]);
-                
+
                 // Recalcular el precio de venta
                 $this->recalculateSalePrice($product);
-                
+
                 // Registrar historial de costo
                 try {
                     $costHistoryService = app(ProductCostHistoryService::class);
                     $costHistoryService->recordCostChange(
                         $product,
-                        (float)$newPrice,
+                        (float) $newPrice,
                         ProductCostHistorySourceTypes::BULK_UPDATE_BY_CATEGORY,
                         null,
                         "Actualización masiva por categoría: {$updateType} {$value}",
@@ -459,19 +610,19 @@ class ProductService implements ProductServiceInterface
             foreach ($products as $product) {
                 $oldPrice = $product->unit_price;
                 $newPrice = $this->calculateNewPrice($oldPrice, $updateType, $value);
-                
+
                 // Actualizar el precio unitario
                 $product->update(['unit_price' => $newPrice]);
-                
+
                 // Recalcular el precio de venta
                 $this->recalculateSalePrice($product);
-                
+
                 // Registrar historial de costo
                 try {
                     $costHistoryService = app(ProductCostHistoryService::class);
                     $costHistoryService->recordCostChange(
                         $product,
-                        (float)$newPrice,
+                        (float) $newPrice,
                         ProductCostHistorySourceTypes::BULK_UPDATE_BY_SUPPLIER,
                         null,
                         "Actualización masiva por proveedor: {$updateType} {$value}",
@@ -480,7 +631,7 @@ class ProductService implements ProductServiceInterface
                 } catch (Exception $e) {
                     Log::error("Error registrando historial de costo en bulk update por proveedor para producto {$product->id}: " . $e->getMessage());
                 }
-                
+
                 $updatedCount++;
             }
 
