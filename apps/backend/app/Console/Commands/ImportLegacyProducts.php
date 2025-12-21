@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\Stock;
 use App\Models\Branch;
+use App\Services\ProductService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -29,6 +30,14 @@ class ImportLegacyProducts extends Command
      */
     protected $description = 'Importa productos desde un archivo SQL exportado del sistema anterior.';
 
+    protected $productService;
+
+    public function __construct(ProductService $productService)
+    {
+        parent::__construct();
+        $this->productService = $productService;
+    }
+
     /**
      * Execute the console command.
      */
@@ -47,22 +56,30 @@ class ImportLegacyProducts extends Command
             if ($this->confirm('¿Está seguro que desea BORRAR TODOS los productos existentes?', true)) {
                 $this->info('Limpiando base de datos de productos...');
 
+                Schema::disableForeignKeyConstraints();
                 Product::truncate();
+                // También truncar tablas relacionadas si es necesario, 
+                // pero ProductService se encargará de crear nuevas.
+                // Stock se borra en cascada si está configurado, sino:
+                \App\Models\Stock::truncate();
+                Schema::enableForeignKeyConstraints();
 
                 $this->info('Base de datos limpiada.');
             }
         }
 
         // Asegurar dependencias por defecto
+        // Como no tenés categorías, creamos una "General" por defecto.
         $defaultMeasure = Measure::firstOrCreate(['name' => 'Unidad']);
         $defaultCategory = Category::firstOrCreate(['name' => 'General'], ['description' => 'Categoría por defecto importada']);
-        $defaultIva = Iva::where('rate', 21)->first(); // Asumimos 21 como default seguro
+        $defaultIva = Iva::where('rate', 21)->first();
 
         if (!$defaultIva) {
             $defaultIva = Iva::firstOrCreate(['rate' => 21.00]);
         }
 
         // Obtener todas las sucursales activas para crear stock
+        // ProductService se encargará de esto, pero mantenemos el warning si no hay sucursales
         $activeBranches = Branch::where('status', 1)->get();
         if ($activeBranches->isEmpty()) {
             $this->warn("No hay sucursales activas encontradas. Los productos se crearán sin stock asociado.");
@@ -114,22 +131,23 @@ class ImportLegacyProducts extends Command
                 // $match[7] pp_porcentajeUnidades (Markup legacy)
                 // $match[8] pp_precio_finalUnidades (Sale Price)
 
-                $active = trim($match[1]) === 'S'; // 'S' es activo, 'N' inactivo
+                $active = trim($match[1]) === 'S';
                 $supplierId = (int) $match[2];
                 $code = trim($match[3]);
                 $description = trim($match[4]);
                 $cost = (float) $match[5];
                 $salePrice = (float) $match[8];
 
-                // Verificar si existe el proveedor con ese ID
+                // Verificar si existe el proveedor
                 if (!Supplier::find($supplierId)) {
-                    // Si no existe con ese ID, lo ponemos a null o al default si quisiéramos
-                    // Por ahora lo dejamos en null para que no falle la FK si no existe, 
-                    // aunque la FK suele ser estricta. Verificamos:
-                    // La migración de productos define supplier_id como foreignId->constrained. Si el ID no existe, fallará.
-                    // Opcion: Asignar a un proveedor "Desconocido" o saltar.
-                    // Asumiremos que el usuario ya corrió el importador de proveedores.
-                    // Si falla, mostramos error específico.
+                    // Si no existe, seteamos a null para que intente pasar (o fallará si es requerido estricto)
+                    // Pero ProductService valida 'exists:suppliers,id', así que fallará si pasamos un ID inválido.
+                    // Solución: Si no existe, pasamos null (si nullable) o el ID de un proveedor 'Desconocido'.
+                    // Asumiremos que el usuario quiere que falle o se salte si no hay proveedor, 
+                    // PERO para evitar paradas constantes, intentamos usar null si la validación lo permite.
+                    // ProductController valida: 'supplier_id' => 'required|integer'. O sea, es requerido.
+                    // Entonces, si no existe, fallará.
+                    // Vamos a permitir que falle y loguear el error.
                 }
 
                 $markup = 0;
@@ -139,89 +157,43 @@ class ImportLegacyProducts extends Command
 
                 if (!$dryRun) {
                     try {
-                        $product = Product::updateOrCreate(
-                            ['code' => $code],
-                            [
-                                'description' => $description,
-                                'measure_id' => $defaultMeasure->id,
-                                'unit_price' => $cost,
-                                'currency' => 'ARS', // Default
-                                'markup' => $markup,
-                                'sale_price' => $salePrice, // El mutator/observer se encargará del resto si es necesario, pero guardamos el hardcodeado
-                                'category_id' => $defaultCategory->id,
-                                'iva_id' => $defaultIva->id,
-                                'supplier_id' => $supplierId, // Puede fallar si no existe
-                                'status' => $active ? 1 : 0,
-                                'web' => false,
-                                'observaciones' => 'Importado de sistema anterior',
-                                'image_id' => null
-                            ]
-                        );
+                        // Preparar datos para ProductService
+                        $data = [
+                            'code' => $code,
+                            'description' => $description,
+                            'measure_id' => $defaultMeasure->id,
+                            'unit_price' => $cost,
+                            'currency' => 'ARS',
+                            'markup' => $markup,
+                            'sale_price' => $salePrice,
+                            'category_id' => $defaultCategory->id,
+                            'iva_id' => $defaultIva->id,
+                            'supplier_id' => $supplierId,
+                            'status' => $active,
+                            'web' => false,
+                            'observaciones' => 'Importado de sistema anterior',
+                            'image_id' => null,
+                            // Stock defaults
+                            'min_stock' => 1,
+                            'max_stock' => 100
+                        ];
 
-                        // Crear Stock para cada sucursal activa
-                        foreach ($activeBranches as $branch) {
-                            Stock::firstOrCreate(
-                                [
-                                    'product_id' => $product->id,
-                                    'branch_id' => $branch->id,
-                                ],
-                                [
-                                    'current_stock' => 0,
-                                    'min_stock' => 1,   // Default pedido por usuario
-                                    'max_stock' => 100, // Default pedido por usuario
-                                ]
-                            );
+                        // Verificar existencia para update vs create
+                        $existingProduct = Product::where('code', $code)->first();
+
+                        if ($existingProduct) {
+                            $this->productService->updateProduct($existingProduct->id, $data);
+                        } else {
+                            $this->productService->createProduct($data);
                         }
 
                         $inserted++;
+
                     } catch (\Exception $e) {
-                        // Fallback para supplier inexistente: intentar poner supplier_id null si la tabla lo permite
-                        // Revisé la migración y NO dice ->nullable() explícitamente en la definición original,
-                        // PERO hay una migración `2025_09_26_104150_make_measure_id_and_supplier_id_nullable_in_products_table.php`
-                        // Así que debería permitir null.
-
+                        // Manejo específico si falla por proveedor no encontrado
                         if (str_contains($e->getMessage(), 'supplier_id')) {
-                            try {
-                                $product = Product::updateOrCreate(
-                                    ['code' => $code],
-                                    [
-                                        'description' => $description,
-                                        'measure_id' => $defaultMeasure->id,
-                                        'unit_price' => $cost,
-                                        'currency' => 'ARS',
-                                        'markup' => $markup,
-                                        'sale_price' => $salePrice,
-                                        'category_id' => $defaultCategory->id,
-                                        'iva_id' => $defaultIva->id,
-                                        'supplier_id' => null, // Intento sin proveedor
-                                        'status' => $active ? 1 : 0,
-                                        'web' => false,
-                                        'observaciones' => 'Importado de sistema anterior (Proveedor no encontrado ID: ' . $supplierId . ')',
-                                    ]
-                                );
-
-                                // Crear Stock para cada sucursal activa
-                                foreach ($activeBranches as $branch) {
-                                    Stock::firstOrCreate(
-                                        [
-                                            'product_id' => $product->id,
-                                            'branch_id' => $branch->id,
-                                        ],
-                                        [
-                                            'current_stock' => 0,
-                                            'min_stock' => 1,
-                                            'max_stock' => 100,
-                                        ]
-                                    );
-                                }
-                                $inserted++;
-                                // Loguear warning pero contar como insertado
-                                $this->warn("Producto {$code} importado sin proveedor (ID {$supplierId} no existe).");
-                                continue;
-                            } catch (\Exception $ex) {
-                                $errors++;
-                                $this->error("Error al importar {$code}: " . $ex->getMessage());
-                            }
+                            $this->warn("Skipping {$code}: Supplier ID {$supplierId} not found/invalid.");
+                            $errors++;
                         } else {
                             $errors++;
                             $this->error("Error al importar {$code}: " . $e->getMessage());
