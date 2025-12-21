@@ -18,41 +18,49 @@ class ShipmentStageSeeder extends Seeder
                 'name' => 'Preparación',
                 'description' => 'Envío en preparación',
                 'order' => 1,
-                'color' => '#fbbf24',
-                'icon' => 'package',
                 'is_active' => true,
-                'is_initial' => true,
-                'is_final' => false,
+                'config' => [
+                    'color' => '#fbbf24',
+                    'icon' => 'package',
+                    'is_initial' => true,
+                    'is_final' => false,
+                ],
             ],
             [
                 'name' => 'En Ruta',
                 'description' => 'Envío en camino',
                 'order' => 2,
-                'color' => '#3b82f6',
-                'icon' => 'truck',
                 'is_active' => true,
-                'is_initial' => false,
-                'is_final' => false,
+                'config' => [
+                    'color' => '#3b82f6',
+                    'icon' => 'truck',
+                    'is_initial' => false,
+                    'is_final' => false,
+                ],
             ],
             [
                 'name' => 'Entregado',
                 'description' => 'Envío entregado',
                 'order' => 3,
-                'color' => '#10b981',
-                'icon' => 'check-circle',
                 'is_active' => true,
-                'is_initial' => false,
-                'is_final' => true,
+                'config' => [
+                    'color' => '#10b981',
+                    'icon' => 'check-circle',
+                    'is_initial' => false,
+                    'is_final' => true,
+                ],
             ],
             [
                 'name' => 'Cancelado',
                 'description' => 'Envío cancelado',
                 'order' => 4,
-                'color' => '#ef4444',
-                'icon' => 'x-circle',
                 'is_active' => true,
-                'is_initial' => false,
-                'is_final' => true,
+                'config' => [
+                    'color' => '#ef4444',
+                    'icon' => 'x-circle',
+                    'is_initial' => false,
+                    'is_final' => true,
+                ],
             ],
         ];
 
@@ -68,3 +76,4 @@ class ShipmentStageSeeder extends Seeder
         }
     }
 }
+
