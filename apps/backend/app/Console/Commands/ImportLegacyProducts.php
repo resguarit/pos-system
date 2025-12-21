@@ -7,6 +7,8 @@ use App\Models\Iva;
 use App\Models\Measure;
 use App\Models\Product;
 use App\Models\Supplier;
+use App\Models\Stock;
+use App\Models\Branch;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -60,7 +62,14 @@ class ImportLegacyProducts extends Command
             $defaultIva = Iva::firstOrCreate(['rate' => 21.00]);
         }
 
+        // Obtener todas las sucursales activas para crear stock
+        $activeBranches = Branch::where('status', 1)->get();
+        if ($activeBranches->isEmpty()) {
+            $this->warn("No hay sucursales activas encontradas. Los productos se crearán sin stock asociado.");
+        }
+
         $this->info("Usando defaults: Medida ID {$defaultMeasure->id}, Categoría ID {$defaultCategory->id}, IVA ID {$defaultIva->id}");
+        $this->info("Sucursales para stock: " . $activeBranches->count());
 
         $this->info("Leyendo archivo: {$filePath}");
         $content = file_get_contents($filePath);
@@ -130,7 +139,7 @@ class ImportLegacyProducts extends Command
 
                 if (!$dryRun) {
                     try {
-                        Product::updateOrCreate(
+                        $product = Product::updateOrCreate(
                             ['code' => $code],
                             [
                                 'description' => $description,
@@ -148,6 +157,22 @@ class ImportLegacyProducts extends Command
                                 'image_id' => null
                             ]
                         );
+
+                        // Crear Stock para cada sucursal activa
+                        foreach ($activeBranches as $branch) {
+                            Stock::firstOrCreate(
+                                [
+                                    'product_id' => $product->id,
+                                    'branch_id' => $branch->id,
+                                ],
+                                [
+                                    'current_stock' => 0,
+                                    'min_stock' => 1,   // Default pedido por usuario
+                                    'max_stock' => 100, // Default pedido por usuario
+                                ]
+                            );
+                        }
+
                         $inserted++;
                     } catch (\Exception $e) {
                         // Fallback para supplier inexistente: intentar poner supplier_id null si la tabla lo permite
@@ -157,7 +182,7 @@ class ImportLegacyProducts extends Command
 
                         if (str_contains($e->getMessage(), 'supplier_id')) {
                             try {
-                                Product::updateOrCreate(
+                                $product = Product::updateOrCreate(
                                     ['code' => $code],
                                     [
                                         'description' => $description,
@@ -174,6 +199,21 @@ class ImportLegacyProducts extends Command
                                         'observaciones' => 'Importado de sistema anterior (Proveedor no encontrado ID: ' . $supplierId . ')',
                                     ]
                                 );
+
+                                // Crear Stock para cada sucursal activa
+                                foreach ($activeBranches as $branch) {
+                                    Stock::firstOrCreate(
+                                        [
+                                            'product_id' => $product->id,
+                                            'branch_id' => $branch->id,
+                                        ],
+                                        [
+                                            'current_stock' => 0,
+                                            'min_stock' => 1,
+                                            'max_stock' => 100,
+                                        ]
+                                    );
+                                }
                                 $inserted++;
                                 // Loguear warning pero contar como insertado
                                 $this->warn("Producto {$code} importado sin proveedor (ID {$supplierId} no existe).");
