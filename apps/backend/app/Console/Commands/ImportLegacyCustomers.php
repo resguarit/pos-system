@@ -7,6 +7,7 @@ use App\Models\Person;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Interfaces\CustomerServiceInterface;
 
 class ImportLegacyCustomers extends Command
 {
@@ -23,6 +24,14 @@ class ImportLegacyCustomers extends Command
      * @var string
      */
     protected $description = 'Importa clientes desde un archivo SQL exportado del sistema anterior (formato Query_Result)';
+
+    protected $customerService;
+
+    public function __construct(CustomerServiceInterface $customerService)
+    {
+        parent::__construct();
+        $this->customerService = $customerService;
+    }
 
     /**
      * Execute the console command.
@@ -169,28 +178,35 @@ class ImportLegacyCustomers extends Command
         // Lógica de separación de nombre
         $parts = explode(' ', $fullName);
         $firstName = $fullName;
-        $lastName = ''; // Default to empty string instead of null because database column is NOT NULL
+        $lastName = '';
 
         if (count($parts) > 1) {
             $firstName = array_shift($parts); // Primera palabra
             $lastName = implode(' ', $parts); // Resto de las palabras
         }
 
-        // Crear persona
-        $person = Person::create([
+        // Preparar datos para el servicio
+        // Usamos el CustomerService para asegurar que se creen las cuentas corrientes
+        // y se ejecute cualquier otra lógica de negocio asociada.
+        $data = [
             'first_name' => $firstName,
             'last_name' => $lastName,
-            'documento' => empty($dni) ? null : $dni,
-            'phone' => empty($phone) ? null : $phone,
-            'person_type' => 'customer',
-            // Default required IDs if they don't have defaults in DB (checked migration: they are nullable)
-        ]);
-
-        // Crear cliente asociado
-        Customer::create([
-            'person_id' => $person->id,
+            'documento' => $dni,
+            'phone' => $phone,
+            'email' => null,
             'active' => true,
             'notes' => 'Importado de sistema anterior',
-        ]);
+            // Valores por defecto que el servicio espera o manejará
+            'cuit' => null,
+            'address' => null,
+            'city' => null,
+            'state' => null,
+            'postal_code' => null,
+            'fiscal_condition_id' => 1, // Consumidor Final por defecto
+            'person_type_id' => 1,      // Persona Física por defecto
+            'credit_limit' => null,     // Infinito
+        ];
+
+        $this->customerService->createCustomer($data);
     }
 }
