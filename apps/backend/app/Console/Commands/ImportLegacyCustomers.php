@@ -91,7 +91,9 @@ class ImportLegacyCustomers extends Command
                         $inserted++;
                     } catch (\Exception $e) {
                         $errors++;
-                        // Opcional: Loguear error específico si es necesario
+                        // Log error to console to debug
+                        $this->error("Error al importar {$rawName}: " . $e->getMessage());
+
                     }
                 } else {
                     // Solo incrementamos contador si pasaría la validación básica
@@ -133,10 +135,18 @@ class ImportLegacyCustomers extends Command
 
     private function createCustomer($fullName, $dni, $phone)
     {
+        // Sanitize DNI to numbers only
+        if ($dni) {
+            $dni = preg_replace('/[^0-9]/', '', $dni);
+            // If DNI becomes empty after sanitization (e.g. was just dashes), make it null
+            if ($dni === '')
+                $dni = null;
+        }
+
         // Lógica de separación de nombre
         $parts = explode(' ', $fullName);
         $firstName = $fullName;
-        $lastName = null;
+        $lastName = ''; // Default to empty string instead of null because database column is NOT NULL
 
         if (count($parts) > 1) {
             $firstName = array_shift($parts); // Primera palabra
@@ -150,7 +160,7 @@ class ImportLegacyCustomers extends Command
             'documento' => empty($dni) ? null : $dni,
             'phone' => empty($phone) ? null : $phone,
             'person_type' => 'customer',
-            // Valores por defecto requeridos por el modelo si los hubiera
+            // Default required IDs if they don't have defaults in DB (checked migration: they are nullable)
         ]);
 
         // Crear cliente asociado
