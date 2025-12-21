@@ -17,7 +17,7 @@ class AdminPermissionsSeeder extends Seeder
     {
         // Buscar el usuario admin
         $adminUser = User::where('email', 'admin@example.com')->first();
-        
+
         if (!$adminUser) {
             if ($this->command) {
                 $this->command->warn("⚠️  Usuario admin no encontrado. Ejecute UserSeeder primero.");
@@ -27,13 +27,18 @@ class AdminPermissionsSeeder extends Seeder
 
         // Buscar o crear el rol Admin
         $adminRole = Role::firstOrCreate(['name' => 'Admin']);
-        
+
         // Asignar el rol Admin al usuario admin
         $adminUser->update(['role_id' => $adminRole->id]);
 
-        // Obtener todos los permisos
-        $allPermissions = Permission::all();
-        
+        // Permisos que NO debe tener el Admin
+        $excludedPermissions = [
+            'solo_crear_presupuestos', // Este permiso es solo para usuarios que NO pueden facturar
+        ];
+
+        // Obtener todos los permisos EXCEPTO los excluidos
+        $allPermissions = Permission::whereNotIn('name', $excludedPermissions)->get();
+
         if ($allPermissions->isEmpty()) {
             if ($this->command) {
                 $this->command->warn("⚠️  No hay permisos disponibles. Ejecute PermissionSeeder primero.");
@@ -41,7 +46,7 @@ class AdminPermissionsSeeder extends Seeder
             return;
         }
 
-        // Asignar todos los permisos al rol Admin
+        // Asignar todos los permisos (menos los excluidos) al rol Admin
         $adminRole->permissions()->sync($allPermissions->pluck('id'));
 
         // Asignar todas las sucursales al admin

@@ -41,6 +41,7 @@ class ProductionSeeder extends Seeder
             RoleSeeder::class,                  // Roles básicos del sistema
             PermissionSeeder::class,            // Permisos del sistema
             ShipmentPermissionSeeder::class,    // Permisos de envíos
+            ShipmentStageSeeder::class,         // Estados de envío (Preparación, En Ruta, etc.)
             PermissionRoleSeeder::class,        // Asignación de permisos a roles
         ]);
 

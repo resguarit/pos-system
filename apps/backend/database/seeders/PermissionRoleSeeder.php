@@ -9,17 +9,24 @@ use App\Models\Permission;
 class PermissionRoleSeeder extends Seeder
 {
     /**
-     * Asigna todos los permisos solo al rol Admin.
+     * Asigna todos los permisos al rol Admin, excepto los permisos que no debe tener.
      * Los demás roles deben configurarse manualmente desde la interfaz.
      */
     public function run(): void
     {
-        $admin = Role::where('name', 'Admin')->first();
+        // Buscar el rol Admin (puede estar como 'Admin' o 'Administrador')
+        $admin = Role::whereIn('name', ['Admin', 'Administrador'])->first();
 
-        // Solo Admin: Todos los permisos
         if ($admin) {
-            $allPermissions = Permission::all();
-            $admin->permissions()->sync($allPermissions->pluck('id'));
+            // Permisos que NO debe tener el Admin
+            $excludedPermissions = [
+                'solo_crear_presupuestos', // Este permiso es solo para usuarios que NO pueden facturar
+            ];
+
+            // Obtener todos los permisos EXCEPTO los excluidos
+            $permissions = Permission::whereNotIn('name', $excludedPermissions)->get();
+
+            $admin->permissions()->sync($permissions->pluck('id'));
         }
     }
 }
