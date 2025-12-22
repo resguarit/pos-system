@@ -126,11 +126,15 @@ class ProductController extends Controller
 
             $product->delete();
 
-            Log::info('Producto eliminado lógicamente', [
-                'product_id' => $id,
-                'product_description' => $product->description,
-                'deleted_at' => now()
-            ]);
+            try {
+                Log::info('Producto eliminado lógicamente', [
+                    'product_id' => $id,
+                    'product_description' => $product->description,
+                    'deleted_at' => now()
+                ]);
+            } catch (\Exception $e) {
+                // Ignore logging error
+            }
 
             return response()->json([
                 'success' => true,
@@ -138,7 +142,11 @@ class ProductController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error eliminando producto: ' . $e->getMessage());
+            try {
+                Log::error('Error eliminando producto: ' . $e->getMessage());
+            } catch (\Exception $ex) {
+                // Ignore logging error
+            }
 
             return response()->json([
                 'success' => false,
@@ -162,7 +170,11 @@ class ProductController extends Controller
             return response()->json($result);
 
         } catch (\Exception $e) {
-            Log::error('Error en actualización masiva de precios: ' . $e->getMessage());
+            try {
+                Log::error('Error en actualización masiva de precios: ' . $e->getMessage());
+            } catch (\Exception $ex) {
+                // Ignore logging error
+            }
 
             return response()->json([
                 'success' => false,
@@ -198,7 +210,11 @@ class ProductController extends Controller
             return response()->json($result);
 
         } catch (\Exception $e) {
-            Log::error('Error en actualización masiva por categoría: ' . $e->getMessage());
+            try {
+                Log::error('Error en actualización masiva por categoría: ' . $e->getMessage());
+            } catch (\Exception $ex) {
+                // Ignore logging error
+            }
 
             return response()->json([
                 'success' => false,
@@ -231,7 +247,11 @@ class ProductController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error obteniendo productos por categorías: ' . $e->getMessage());
+            try {
+                Log::error('Error obteniendo productos por categorías: ' . $e->getMessage());
+            } catch (\Exception $ex) {
+                // Ignore logging error
+            }
 
             return response()->json([
                 'success' => false,
@@ -324,7 +344,11 @@ class ProductController extends Controller
             return $pdf->stream($filename);
 
         } catch (\Exception $e) {
-            Log::error('Error generando lista de precios: ' . $e->getMessage());
+            try {
+                Log::error('Error generando lista de precios: ' . $e->getMessage());
+            } catch (\Exception $ex) {
+                // Ignore logging error
+            }
             return response()->json([
                 'message' => 'Error generando lista de precios',
                 'error' => $e->getMessage()

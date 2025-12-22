@@ -298,81 +298,50 @@ class ProductService implements ProductServiceInterface
 
     public function updateProduct($id, array $data, bool $skipCostHistory = false)
     {
-        Log::info('ProductService::updateProduct - INICIO');
-        Log::info('ProductService::updateProduct - Product ID: ' . $id);
-        Log::info('ProductService::updateProduct - Data recibida: ', $data);
-        Log::info('ProductService::updateProduct - Skip Cost History: ' . ($skipCostHistory ? 'true' : 'false'));
-
-        // Logging específico para status y web
-        if (array_key_exists('status', $data)) {
-            Log::info('ProductService::updateProduct - Status recibido: ' . var_export($data['status'], true) . ' (tipo: ' . gettype($data['status']) . ')');
-        }
-        if (array_key_exists('web', $data)) {
-            Log::info('ProductService::updateProduct - Web recibido: ' . var_export($data['web'], true) . ' (tipo: ' . gettype($data['web']) . ')');
-        }
-
         $product = Product::findOrFail($id);
 
         // Guardar el costo anterior antes de actualizar
         $previousCost = $product->unit_price;
         $costChanged = isset($data['unit_price']) && (float) $previousCost !== (float) $data['unit_price'];
 
-        // Log valores actuales antes de actualizar
-        Log::info('ProductService::updateProduct - Valores actuales - Status: ' . var_export($product->status, true) . ', Web: ' . var_export($product->web, true));
-
         // Separar los datos de stock de los datos del producto
         $stockData = [];
         if (isset($data['min_stock'])) {
             $stockData['min_stock'] = $data['min_stock'];
             unset($data['min_stock']);
-            Log::info('ProductService::updateProduct - min_stock extraído: ' . $stockData['min_stock']);
         }
         if (isset($data['max_stock'])) {
             $stockData['max_stock'] = $data['max_stock'];
             unset($data['max_stock']);
-            Log::info('ProductService::updateProduct - max_stock extraído: ' . $stockData['max_stock']);
         }
-
-        Log::info('ProductService::updateProduct - stockData final: ', $stockData);
 
         // Validar y corregir markup negativo antes de guardar
         if (isset($data['markup']) && $data['markup'] < 0) {
-            Log::warning("ProductService::updateProduct - Markup negativo detectado: {$data['markup']}, corrigiendo a 0");
+            try {
+                Log::warning("ProductService::updateProduct - Markup negativo detectado: {$data['markup']}, corrigiendo a 0");
+            } catch (\Exception $e) {
+            }
             $data['markup'] = 0.0;
         }
 
         // Actualizar los campos del producto
         foreach ($data as $key => $value) {
-            $oldValue = $product->$key ?? null;
-
             // Validar markup antes de asignar
             if ($key === 'markup' && $value < 0) {
-                Log::warning("ProductService::updateProduct - Markup negativo detectado en campo: {$value}, corrigiendo a 0");
+                try {
+                    Log::warning("ProductService::updateProduct - Markup negativo detectado en campo: {$value}, corrigiendo a 0");
+                } catch (\Exception $e) {
+                }
                 $value = 0.0;
             }
-
             $product->$key = $value;
-
-            // Log específico para status y web
-            if ($key === 'status' || $key === 'web') {
-                Log::info("ProductService::updateProduct - Campo '$key' actualizado de " . var_export($oldValue, true) . " a " . var_export($value, true));
-            }
         }
         $product->save();
 
-        // Log valores después de guardar
-        $product->refresh();
-        Log::info('ProductService::updateProduct - Valores después de guardar - Status: ' . var_export($product->status, true) . ', Web: ' . var_export($product->web, true));
-
         // Actualizar o crear stocks en todas las sucursales
         if (!empty($stockData)) {
-            Log::info('ProductService::updateProduct - Iniciando actualización de stocks...');
             $branches = Branch::all();
-            Log::info('ProductService::updateProduct - Sucursales encontradas: ' . $branches->count());
-
             foreach ($branches as $branch) {
-                Log::info('ProductService::updateProduct - Procesando sucursal: ' . $branch->id);
-
                 $stock = Stock::firstOrCreate(
                     [
                         'product_id' => $product->id,
@@ -385,37 +354,23 @@ class ProductService implements ProductServiceInterface
                     ]
                 );
 
-
                 // Si ya existe, actualizar solo los campos min/max
                 if (!$stock->wasRecentlyCreated) {
                     $needsUpdate = false;
                     if (array_key_exists('min_stock', $stockData)) {
-                        $oldMin = $stock->min_stock;
                         $stock->min_stock = $stockData['min_stock'];
                         $needsUpdate = true;
-                        Log::info('ProductService::updateProduct - min_stock actualizado de ' . $oldMin . ' a ' . $stockData['min_stock']);
                     }
                     if (array_key_exists('max_stock', $stockData)) {
-                        $oldMax = $stock->max_stock;
                         $stock->max_stock = $stockData['max_stock'];
                         $needsUpdate = true;
-                        Log::info('ProductService::updateProduct - max_stock actualizado de ' . $oldMax . ' a ' . $stockData['max_stock']);
                     }
 
                     if ($needsUpdate) {
                         $stock->save();
-                        Log::info('ProductService::updateProduct - Stock guardado exitosamente');
-                    } else {
-                        Log::info('ProductService::updateProduct - No hay cambios de stock para guardar');
                     }
-                } else {
-                    Log::info('ProductService::updateProduct - Stock recién creado, no necesita actualización adicional');
                 }
             }
-
-            Log::info("Updated stocks for product {$product->id}: " . json_encode($stockData));
-        } else {
-            Log::info('ProductService::updateProduct - NO HAY DATOS DE STOCK PARA ACTUALIZAR');
         }
 
         $product->refresh();
@@ -430,18 +385,15 @@ class ProductService implements ProductServiceInterface
                     ProductCostHistorySourceTypes::MANUAL,
                     null,
                     'Actualización manual del costo',
-                    $previousCost // Pasar el costo anterior explícitamente
+                    $previousCost
                 );
-            } catch (Exception $e) {
-                Log::error("Error registrando historial de costo para producto {$product->id}: " . $e->getMessage());
-                // No lanzar excepción para no interrumpir la actualización del producto
+            } catch (\Exception $e) {
+                try {
+                    Log::error("Error registrando historial de costo para producto {$product->id}: " . $e->getMessage());
+                } catch (\Exception $logEx) {
+                }
             }
-        } elseif ($costChanged && $skipCostHistory) {
-            Log::info("Historial de costo omitido para producto {$product->id} (skipCostHistory=true)");
         }
-
-        Log::info("Product after update: " . json_encode($product->toArray()));
-        Log::info('ProductService::updateProduct - FIN');
 
         return $product;
     }
