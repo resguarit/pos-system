@@ -33,7 +33,7 @@ type UseRepairsReturn = {
     repairs: Repair[];
     stats: RepairStats;
     kanbanData: KanbanColumn[];
-    options: { statuses: RepairStatus[]; priorities: RepairPriority[] };
+    options: { statuses: RepairStatus[]; priorities: RepairPriority[]; insurers: { id: number; name: string }[] };
 
     // Loading states
     loading: boolean;
@@ -101,9 +101,12 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         filtersRef.current = filters;
     }, [filters]);
 
+    const [insurers, setInsurers] = useState<{ id: number; name: string }[]>([]);
+
     const repairsOptions = {
         statuses: REPAIR_STATUSES,
         priorities: REPAIR_PRIORITIES,
+        insurers,
     };
 
     // Build query params from filters
@@ -115,6 +118,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         if (f.status && f.status !== "all") params.status = f.status;
         if (f.priority && f.priority !== "all") params.priority = f.priority;
         if (f.technician_id) params.technician_id = f.technician_id;
+        if (f.insurer_id) params.insurer_id = f.insurer_id;
         if (f.from_date) params.from_date = f.from_date;
         if (f.to_date) params.to_date = f.to_date;
         if (f.sort_by) {
@@ -214,6 +218,20 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
             }
         },
         [request, buildParams]
+    );
+
+    // Fetch insurers
+    const fetchInsurers = useCallback(
+        async (signal?: AbortSignal) => {
+            try {
+                const resp = await request({ method: "GET", url: "/insurers", signal });
+                const data = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []);
+                setInsurers(data as { id: number; name: string }[]);
+            } catch (err) {
+                console.error("Error fetching insurers", err);
+            }
+        },
+        [request]
     );
 
     // Create repair
@@ -354,7 +372,8 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
     const refresh = useCallback(() => {
         fetchRepairs();
         fetchStats();
-    }, [fetchRepairs, fetchStats]);
+        fetchInsurers();
+    }, [fetchRepairs, fetchStats, fetchInsurers]);
 
     // Auto-fetch on mount and when dependencies change
     useEffect(() => {
@@ -363,9 +382,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         const controller = new AbortController();
         fetchRepairs(controller.signal);
         fetchStats(controller.signal);
+        fetchInsurers(controller.signal);
 
         return () => controller.abort();
-    }, [autoFetch, fetchRepairs, fetchStats, selectionChangeToken]);
+    }, [autoFetch, fetchRepairs, fetchStats, fetchInsurers, selectionChangeToken]);
 
     // Debounced search
     useEffect(() => {

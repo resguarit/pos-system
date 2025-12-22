@@ -64,6 +64,10 @@ class RepairService implements RepairServiceInterface
             $query->where('branch_id', $filters['branch_id']);
         }
 
+        if (!empty($filters['insurer_id'])) {
+            $query->where('insurer_id', $filters['insurer_id']);
+        }
+
         // Date range: intake_date (from_date/to_date)
         if (!empty($filters['from_date'])) {
             $query->whereDate('intake_date', '>=', $filters['from_date']);

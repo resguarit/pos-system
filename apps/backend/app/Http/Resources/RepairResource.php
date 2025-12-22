@@ -19,7 +19,7 @@ class RepairResource extends JsonResource
             'code' => $this->code,
             'customer' => [
                 'id' => $this->customer?->id,
-                'name' => $this->customer?->person ? ($this->customer->person->first_name . ' ' . $this->customer->person->last_name) : null,
+                'name' => $this->customer?->person ? trim($this->customer->person->first_name . ' ' . $this->customer->person->last_name) : null,
                 'phone' => $this->customer?->phone,
                 'email' => $this->customer?->email,
             ],
@@ -29,12 +29,12 @@ class RepairResource extends JsonResource
             ],
             'category' => [
                 'id' => $this->category?->id,
-                'name' => $this->category?->description,
+                'name' => $this->category?->name,
                 'description' => $this->category?->description,
             ],
             'technician' => [
                 'id' => $this->technician?->id,
-                'name' => $this->technician?->person ? ($this->technician->person->first_name . ' ' . $this->technician->person->last_name) : ($this->technician?->username ?? null),
+                'name' => $this->technician?->person ? trim($this->technician->person->first_name . ' ' . $this->technician->person->last_name) : ($this->technician?->username ?? null),
             ],
             'device' => $this->device,
             'serial_number' => $this->serial_number,

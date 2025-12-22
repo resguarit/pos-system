@@ -86,6 +86,7 @@ export type RepairFilters = {
   to_date?: string;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
+  insurer_id?: number;
 };
 
 export type RepairStats = {

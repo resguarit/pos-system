@@ -369,6 +369,27 @@ export default function ReparacionesPage() {
                                 ))}
                             </SelectContent>
                         </Select>
+                        <Select
+                            value={filters.insurer_id ? filters.insurer_id.toString() : "all"}
+                            onValueChange={(v) =>
+                                setFilters((f) => ({
+                                    ...f,
+                                    insurer_id: v === "all" ? undefined : parseInt(v),
+                                }))
+                            }
+                        >
+                            <SelectTrigger className="w-[200px]">
+                                <SelectValue placeholder="Aseguradora" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas las aseguradoras</SelectItem>
+                                {options.insurers && options.insurers.map((insurer) => (
+                                    <SelectItem key={insurer.id} value={insurer.id.toString()}>
+                                        {insurer.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <DatePickerWithRange
                         selected={dateRange}

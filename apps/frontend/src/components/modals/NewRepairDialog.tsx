@@ -17,7 +17,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import useApi from "@/hooks/useApi";
 import { RepairPriority, RepairStatus } from "@/types/repairs";
@@ -122,7 +122,11 @@ export default function NewRepairDialog({
     // Insurers (for siniestros)
     const [insurers, setInsurers] = useState<InsurerOption[]>([]);
 
-    // Reset form when dialog closes
+    // Inline Insurer Creation State
+    const [isCreatingInsurer, setIsCreatingInsurer] = useState(false);
+    const [newInsurerName, setNewInsurerName] = useState("");
+
+    // Reset when dialog closes
     useEffect(() => {
         if (!open) {
             setForm(defaultForm);
@@ -131,6 +135,8 @@ export default function NewRepairDialog({
             setTechnicianSearch("");
             setCustomerOptions([]);
             setTechnicianOptions([]);
+            setIsCreatingInsurer(false);
+            setNewInsurerName("");
         }
     }, [open]);
 
@@ -419,6 +425,135 @@ export default function NewRepairDialog({
                                 </div>
                             </div>
 
+                            {/* Siniestro Toggle & Details */}
+                            <div className="flex items-center gap-2 py-2 border-t border-b border-gray-100">
+                                <input
+                                    type="checkbox"
+                                    id="is_siniestro"
+                                    checked={form.is_siniestro}
+                                    onChange={(e) => setForm((f) => ({
+                                        ...f,
+                                        is_siniestro: e.target.checked,
+                                        // Reset siniestro fields when toggling off
+                                        ...(e.target.checked ? {} : {
+                                            insurer_id: null,
+                                            siniestro_number: "",
+                                            insured_customer_id: null,
+                                        }),
+                                    }))}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                />
+                                <Label>¿Es un siniestro?</Label>
+                            </div>
+
+                            {form.is_siniestro && (
+                                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-100 mb-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Aseguradora *</Label>
+                                            <div className="flex gap-2">
+                                                {isCreatingInsurer ? (
+                                                    <>
+                                                        <Input
+                                                            value={newInsurerName}
+                                                            onChange={(e) => setNewInsurerName(e.target.value)}
+                                                            placeholder="Nombre de nueva aseguradora"
+                                                            className="flex-1"
+                                                            autoFocus
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            size="icon"
+                                                            variant="default"
+                                                            className="bg-green-600 hover:bg-green-700"
+                                                            onClick={async () => {
+                                                                if (!newInsurerName.trim()) return;
+                                                                try {
+                                                                    const resp = await request({
+                                                                        method: "POST",
+                                                                        url: "/insurers",
+                                                                        data: { name: newInsurerName.trim() },
+                                                                    });
+                                                                    if (resp?.data?.id) {
+                                                                        setInsurers((prev) => [...prev, { id: resp.data.id, name: resp.data.name }]);
+                                                                        setForm((f) => ({ ...f, insurer_id: resp.data.id }));
+                                                                        setIsCreatingInsurer(false);
+                                                                        setNewInsurerName("");
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error("Error creating insurer:", error);
+                                                                }
+                                                            }}
+                                                            title="Guardar aseguradora"
+                                                        >
+                                                            <Check className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            onClick={() => {
+                                                                setIsCreatingInsurer(false);
+                                                                setNewInsurerName("");
+                                                            }}
+                                                            title="Cancelar"
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Select
+                                                            value={form.insurer_id ? form.insurer_id.toString() : ""}
+                                                            onValueChange={(v) => setForm((f) => ({ ...f, insurer_id: v ? parseInt(v) : null }))}
+                                                        >
+                                                            <SelectTrigger className="flex-1">
+                                                                <SelectValue placeholder="Seleccionar o crear nueva..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {insurers.map((ins) => (
+                                                                    <SelectItem key={ins.id} value={ins.id.toString()}>
+                                                                        {ins.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                                {insurers.length === 0 && (
+                                                                    <div className="p-2 text-sm text-gray-500">
+                                                                        No hay aseguradoras. Usá el botón + para crear una.
+                                                                    </div>
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Button
+                                                            type="button"
+                                                            size="icon"
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                setIsCreatingInsurer(true);
+                                                                setNewInsurerName("");
+                                                            }}
+                                                            title="Agregar nueva aseguradora"
+                                                        >
+                                                            <Plus className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Número de Siniestro</Label>
+                                            <Input
+                                                placeholder="Ej: 12345-2024"
+                                                value={form.siniestro_number}
+                                                onChange={(e) => setForm((f) => ({ ...f, siniestro_number: e.target.value }))}
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-blue-600">
+                                        El cliente seleccionado arriba será registrado como el asegurado del siniestro.
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Device and Serial */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
@@ -486,96 +621,7 @@ export default function NewRepairDialog({
                                 )}
                             </div>
 
-                            {/* Siniestro Toggle */}
-                            <div className="flex items-center gap-2 py-2 border-t border-b border-gray-100">
-                                <input
-                                    type="checkbox"
-                                    id="is_siniestro"
-                                    checked={form.is_siniestro}
-                                    onChange={(e) => setForm((f) => ({
-                                        ...f,
-                                        is_siniestro: e.target.checked,
-                                        // Reset siniestro fields when toggling off
-                                        ...(e.target.checked ? {} : {
-                                            insurer_id: null,
-                                            siniestro_number: "",
-                                            insured_customer_id: null,
-                                        }),
-                                    }))}
-                                    className="h-4 w-4 rounded border-gray-300"
-                                />
-                                <Label>¿Es un siniestro?</Label>
-                            </div>
 
-                            {/* Siniestro Details - Only show when is_siniestro is true */}
-                            {form.is_siniestro && (
-                                <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label>Aseguradora *</Label>
-                                            <div className="flex gap-2">
-                                                <Select
-                                                    value={form.insurer_id ? form.insurer_id.toString() : ""}
-                                                    onValueChange={(v) => setForm((f) => ({ ...f, insurer_id: v ? parseInt(v) : null }))}
-                                                >
-                                                    <SelectTrigger className="flex-1">
-                                                        <SelectValue placeholder="Seleccionar o crear nueva..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {insurers.map((ins) => (
-                                                            <SelectItem key={ins.id} value={ins.id.toString()}>
-                                                                {ins.name}
-                                                            </SelectItem>
-                                                        ))}
-                                                        {insurers.length === 0 && (
-                                                            <div className="p-2 text-sm text-gray-500">
-                                                                No hay aseguradoras. Usá el botón + para crear una.
-                                                            </div>
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="outline"
-                                                    onClick={async () => {
-                                                        const name = prompt("Nombre de la aseguradora:");
-                                                        if (name && name.trim()) {
-                                                            try {
-                                                                const resp = await request({
-                                                                    method: "POST",
-                                                                    url: "/insurers",
-                                                                    data: { name: name.trim() },
-                                                                });
-                                                                if (resp?.data?.id) {
-                                                                    setInsurers((prev) => [...prev, { id: resp.data.id, name: resp.data.name }]);
-                                                                    setForm((f) => ({ ...f, insurer_id: resp.data.id }));
-                                                                }
-                                                            } catch (error) {
-                                                                console.error("Error creating insurer:", error);
-                                                            }
-                                                        }
-                                                    }}
-                                                    title="Agregar aseguradora"
-                                                >
-                                                    <Plus className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>Número de Siniestro</Label>
-                                            <Input
-                                                placeholder="Ej: 12345-2024"
-                                                value={form.siniestro_number}
-                                                onChange={(e) => setForm((f) => ({ ...f, siniestro_number: e.target.value }))}
-                                            />
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-blue-600">
-                                        El cliente seleccionado arriba será registrado como el asegurado del siniestro.
-                                    </p>
-                                </div>
-                            )}
 
                             {/* Diagnosis */}
                             <div className="space-y-2">
