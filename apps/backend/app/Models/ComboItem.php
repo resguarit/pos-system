@@ -5,16 +5,27 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class ComboItem extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'combo_id',
         'product_id',
         'quantity',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->useLogName('combo_item')
+            ->logOnlyDirty();
+    }
 
     protected $casts = [
         'quantity' => 'integer',

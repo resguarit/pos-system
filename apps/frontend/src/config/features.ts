@@ -5,7 +5,7 @@ const defaultFeatures = {
 
   categorias: true,
   combos: true,
-  repairs: false,
+  repairs: true,
 
   analisisventas: false,
   caja: true,
@@ -13,6 +13,7 @@ const defaultFeatures = {
 
   configuracionSistema: true,
   cuentasCorrientes: true,
+  services: true,
 
   historialVentas: true,
   inventario: true,

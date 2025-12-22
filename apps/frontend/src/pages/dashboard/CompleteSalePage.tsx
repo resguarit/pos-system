@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -22,14 +21,17 @@ import { useSaleTotals } from "@/hooks/useSaleTotals"
 import { useCustomerSearch, type CustomerOption } from "@/hooks/useCustomerSearch"
 import { formatCurrency, roundToTwoDecimals, extractProductId, calculatePaymentDiscount } from '@/utils/sale-calculations'
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { useSaleValidation } from '@/hooks/useSaleValidation'
 import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
+import { SaleItemsTable } from "@/components/sale/SaleItemsTable"
 import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
 import { DebtAlertDialog } from "@/components/sale/DebtAlertDialog"
 import type { PaymentMethod, ReceiptType, SaleData, SaleHeader } from '@/types/sale'
 import { useAfip } from "@/hooks/useAfip"
-
-const CART_STORAGE_KEY = 'pos_cart'
+import type { ApiResponse } from "@/types/api"
+import { clearCartStorage } from "@/utils/cart-storage"
+import { useCartContext } from "@/context/CartContext"
 
 export default function CompleteSalePage() {
   const location = useLocation()
@@ -37,9 +39,7 @@ export default function CompleteSalePage() {
   const { request } = useApi()
   const { selectedBranch, branches } = useBranch()
   const { user, hasPermission } = useAuth()
-
-  // Obtener datos del carrito y branchId desde location.state
-  const initialCart = (location.state?.cart as CartItem[]) || []
+  // Obtener branchId desde location.state
   const stateBranchId = location.state?.branchId
 
   // Usar la sucursal del state si está disponible, sino usar la del contexto
@@ -58,7 +58,15 @@ export default function CompleteSalePage() {
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
   const { checkCuitCertificate } = useAfip()
 
-  const [cart, setCart] = useState<CartItem[]>(initialCart)
+  const { cart, setCart, clearCart } = useCartContext()
+
+  // Sync cart from location state if provided
+  useEffect(() => {
+    const passedCart = (location.state?.cart as CartItem[]) || []
+    if (passedCart.length > 0) {
+      setCart(passedCart)
+    }
+  }, [location.state]) // Depend only on location state changes
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([])
@@ -119,11 +127,13 @@ export default function CompleteSalePage() {
 
   // Si no hay carrito, redirigir al POS
   useEffect(() => {
-    if (initialCart.length === 0) {
+    const passedCart = (location.state?.cart as CartItem[]) || []
+    // Only redirect if both context cart and passed cart are empty
+    if (cart.length === 0 && passedCart.length === 0) {
       toast.error("No hay productos en el carrito")
       navigate("/dashboard/pos")
     }
-  }, [initialCart.length, navigate])
+  }, [cart.length, navigate, location.state])
 
   // Cargar métodos de pago y tipos de comprobante
   useEffect(() => {
@@ -402,17 +412,23 @@ export default function CompleteSalePage() {
         toast.success('¡Venta realizada con éxito!')
       }
 
+
+
       try {
-        const saleId = (saleResponse as any)?.id || (saleResponse as any)?.data?.id
+        const saleResponseData = saleResponse as ApiResponse<SaleHeader> | SaleHeader
+        // Handle both wrapped and unwrapped responses (just in case backend varies)
+        const saleId = 'id' in saleResponseData ? saleResponseData.id : saleResponseData.data?.id
+
         if (saleId) {
           const saleDetails = await request({
             method: 'GET',
             url: `/sales/${saleId}?include=items,customer,receipt_type,saleFiscalCondition,branch,saleIvas`
           })
-          const normalizedSale = (saleDetails as any)?.data ?? saleDetails
-          setCompletedSale(normalizedSale)
 
-          localStorage.removeItem(CART_STORAGE_KEY)
+          const normalizedSale = (saleDetails as ApiResponse<SaleHeader>).data ?? saleDetails
+          setCompletedSale(normalizedSale as SaleHeader)
+
+          clearCartStorage()
           navigate("/dashboard/pos", { state: { completedSale: normalizedSale } })
           return
         }
@@ -420,20 +436,22 @@ export default function CompleteSalePage() {
         console.error('Error al obtener detalles de la venta:', err)
       }
 
-      localStorage.removeItem(CART_STORAGE_KEY)
+      clearCartStorage()
       navigate("/dashboard/pos")
 
 
     } catch (err: any) {
       console.error("Error del backend:", err?.response?.data)
-      const errors = err?.response?.data?.errors
+      const errorData = err?.response?.data as ApiResponse
+      const errors = errorData?.errors
       let errorMessage = 'Ocurrió un error inesperado.'
+
       if (errors) {
         errorMessage = Object.keys(errors).map(key => {
           return `${key}: ${errors[key].join(', ')}`
         }).join('; ')
-      } else if (err?.response?.data?.message) {
-        errorMessage = err.response.data.message
+      } else if (errorData?.message) {
+        errorMessage = errorData.message
       }
       toast.error('Error al procesar la venta', {
         description: errorMessage,
@@ -473,20 +491,25 @@ export default function CompleteSalePage() {
 
   const diff = useMemo(() => pendingAmount, [pendingAmount])
 
-  // Definir hasChange y changeAmount basado en diff
-  const hasChange = useMemo(() => diff < 0, [diff])
-  const changeAmount = useMemo(() => roundToTwoDecimals(Math.abs(diff)), [diff])
+  // useSaleValidation hook
+  const {
+    hasCashPayment,
+    hasChange,
+    changeAmount,
+    hasCurrentAccountPayment,
+    canConfirm,
+    confirmDisabledReason
+  } = useSaleValidation({
+    cart,
+    receiptTypeId,
+    diff,
+    payments,
+    paymentMethods,
+    activeBranch,
+    selectedCustomer
+  })
 
-  // Detectar si HAY AL MENOS UN método de pago en Efectivo
-  const hasCashPayment = useMemo(() => {
-    return payments.some(p => {
-      if (!p.payment_method_id) return false
-      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      return paymentMethod?.name?.toLowerCase().includes('efectivo') ||
-        paymentMethod?.name?.toLowerCase().includes('cash')
-    })
-  }, [payments, paymentMethods])
-
+  // Re-implement handleConfirmSale using valdiation logic
   const handleConfirmSale = useCallback(async () => {
     if (isProcessingSale) return
 
@@ -519,67 +542,7 @@ export default function CompleteSalePage() {
 
     // Proceder con la venta
     await processSale()
-  }, [isProcessingSale, hasChange, changeAmount, processSale, diff, hasCashPayment, finalTotal])
-
-  // Validaciones
-  const allPaymentsValid = useMemo(() => {
-    return payments
-      .filter(p => p.amount && parseFloat(p.amount || '0') > 0)
-      .every(p => p.payment_method_id)
-  }, [payments])
-
-  const hasCurrentAccountPayment = useMemo(() => {
-    return payments.some(p => {
-      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      return paymentMethod && paymentMethod.name === 'Cuenta Corriente' && parseFloat(p.amount || '0') > 0
-    })
-  }, [payments, paymentMethods])
-
-  const currentAccountPaymentValid = !hasCurrentAccountPayment || selectedCustomer !== null
-
-  const paid = useMemo(() => {
-    return payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
-  }, [payments])
-
-  const canConfirm = useMemo(() => {
-    // Validación básica
-    if (cart.length === 0 || receiptTypeId === undefined || activeBranch === null) {
-      return false
-    }
-
-    // Validar pagos
-    if (!allPaymentsValid || !currentAccountPaymentValid) {
-      return false
-    }
-
-    // Si el pago es exacto, permitir
-    if (diff === 0) {
-      return true
-    }
-
-    // Si hay cambio (diff < 0)
-    if (diff < 0) {
-      // Solo permitir si hay método de Efectivo
-      return hasCashPayment
-    }
-
-    // Si hay falta de pago (diff > 0), no permitir
-    return false
-  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment])
-
-  const confirmDisabledReason = useMemo(() => {
-    if (cart.length === 0) return 'El carrito está vacío'
-    if (receiptTypeId === undefined) return 'Debe seleccionar un tipo de comprobante'
-    if (diff > 0) return `Falta ${formatCurrency(diff)} para completar el pago`
-    if (!allPaymentsValid) return 'Debe completar todos los métodos de pago'
-    if (!currentAccountPaymentValid) return 'Debe seleccionar un cliente para usar Cuenta Corriente'
-    if (activeBranch === null) return 'Debe seleccionar una sucursal'
-    if (diff < 0 && !hasCashPayment) {
-      const mainPaymentMethod = paymentMethods.find(pm => pm.id.toString() === payments[0]?.payment_method_id)
-      return `${mainPaymentMethod?.name || 'Este método de pago'} requiere monto exacto. No se permite cambio.`
-    }
-    return ''
-  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment, paymentMethods, payments])
+  }, [isProcessingSale, hasChange, changeAmount, processSale, diff, hasCashPayment])
 
   const handleCustomerSelect = useCallback((customer: CustomerOption) => {
     setSelectedCustomer(customer)
@@ -632,7 +595,7 @@ export default function CompleteSalePage() {
     toast.success("Cliente agregado y seleccionado")
   }, [setSelectedCustomer, setCustomerSearch])
 
-  if (initialCart.length === 0) {
+  if (cart.length === 0) {
     return null
   }
 
@@ -745,86 +708,17 @@ export default function CompleteSalePage() {
                   El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos por ítem se aplican antes del IVA, el descuento global se aplica sobre el total con IVA. Cálculo con hasta 2 decimales.
                 </p>
 
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Producto</TableHead>
-                        <TableHead className="text-center">Cant.</TableHead>
-                        <TableHead className="text-right">P. Unit (sin IVA)</TableHead>
-                        <TableHead className="text-right">Subt. (sin IVA)</TableHead>
-                        <TableHead className="text-right">Desc. (importe)</TableHead>
-                        <TableHead className="text-right">IVA</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                        <TableHead className="text-right">Desc. Tipo</TableHead>
-                        <TableHead className="text-right">Desc. Valor</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {cart.map((item, idx) => {
-                        const base = roundToTwoDecimals((item.price || 0) * item.quantity)
-                        const itemDiscRaw = item.discount_type === 'percent'
-                          ? roundToTwoDecimals(base * ((item.discount_value || 0) / 100))
-                          : roundToTwoDecimals(Number(item.discount_value || 0))
-                        const safeDisc = Math.max(0, Math.min(itemDiscRaw, base))
-                        const net = roundToTwoDecimals(base - safeDisc)
-                        const iva = roundToTwoDecimals(net * ((item.iva_rate || 0) / 100))
-                        const tot = roundToTwoDecimals(net + iva)
-                        return (
-                          <TableRow key={item.id}>
-                            <TableCell>{item.name}</TableCell>
-                            <TableCell className="text-center">{item.quantity}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(base)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(safeDisc)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(iva)}</TableCell>
-                            <TableCell className="text-right">{formatCurrency(tot)}</TableCell>
-                            <TableCell className="text-right">
-                              <Select
-                                value={item.discount_type || ''}
-                                onValueChange={(v) => {
-                                  setCart((prev) => prev.map((ci, i) =>
-                                    i === idx
-                                      ? { ...ci, discount_type: v as 'percent' | 'amount', discount_value: ci.discount_value ?? 0 }
-                                      : ci
-                                  ))
-                                }}
-                                disabled={!hasPermission('aplicar_descuentos')}
-                              >
-                                <SelectTrigger className="w-[130px]">
-                                  <SelectValue placeholder="Tipo" />
-                                </SelectTrigger>
-                                <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                                  <SelectItem value="percent">% Porcentaje</SelectItem>
-                                  <SelectItem value="amount">$ Monto</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Input
-                                className="w-[120px] ml-auto"
-                                type="number"
-                                min={0}
-                                step={0.01}
-                                placeholder={item.discount_type === 'percent' ? '0.00' : '0.00'}
-                                value={item.discount_value?.toString() || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setCart((prev) => prev.map((ci, i) =>
-                                    i === idx
-                                      ? { ...ci, discount_value: val === '' ? undefined : Number(val) }
-                                      : ci
-                                  ))
-                                }}
-                                disabled={!hasPermission('aplicar_descuentos')}
-                              />
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                <SaleItemsTable
+                  cart={cart}
+                  hasPermission={hasPermission}
+                  onUpdateItem={(idx, changes) => {
+                    setCart((prev) => prev.map((ci, i) =>
+                      i === idx
+                        ? { ...ci, ...changes }
+                        : ci
+                    ))
+                  }}
+                />
               </div>
 
               <div className="flex justify-end gap-4 pt-4 border-t">
@@ -839,6 +733,7 @@ export default function CompleteSalePage() {
                     className="cursor-pointer"
                     onClick={handleConfirmSale}
                     disabled={!canConfirm || isProcessingSale}
+                    title={!canConfirm ? confirmDisabledReason : undefined}
                   >
                     {isProcessingSale ? (
                       <>

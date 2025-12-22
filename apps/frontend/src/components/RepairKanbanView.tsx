@@ -50,10 +50,16 @@ const STATUS_CONFIG: Record<RepairStatus, {
         borderColor: "border-yellow-200",
         icon: <AlertTriangle className="h-4 w-4" />,
     },
-    "En reparación": {
+    "Reparación Interna": {
         color: "text-orange-700",
         bgColor: "bg-orange-50",
         borderColor: "border-orange-200",
+        icon: <Wrench className="h-4 w-4" />,
+    },
+    "Reparación Externa": {
+        color: "text-cyan-700",
+        bgColor: "bg-cyan-50",
+        borderColor: "border-cyan-200",
         icon: <Wrench className="h-4 w-4" />,
     },
     "Esperando repuestos": {
@@ -107,7 +113,7 @@ function RepairCard({
     const priorityConfig = PRIORITY_CONFIG[repair.priority];
 
     return (
-        <Card className="mb-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
+        <Card className="mb-3 last:mb-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer group">
             <CardContent className="p-3">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-2">
@@ -195,9 +201,9 @@ function RepairCard({
                         <span className="text-gray-400 italic">Sin técnico</span>
                     )}
 
-                    {repair.cost && (
+                    {repair.sale_price && (
                         <span className="font-medium text-gray-700">
-                            ${repair.cost.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                            ${repair.sale_price.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
                         </span>
                     )}
                 </div>
@@ -245,12 +251,12 @@ function KanbanColumnComponent({
     return (
         <div
             className={cn(
-                "flex-shrink-0 w-72 rounded-lg border",
+                "flex-shrink-0 w-72 rounded-lg border flex flex-col",
                 config.bgColor,
                 config.borderColor
             )}
         >
-            <CardHeader className="py-3 px-4">
+            <CardHeader className="py-3 px-4 flex-shrink-0">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <span className={config.color}>{config.icon}</span>
@@ -263,24 +269,26 @@ function KanbanColumnComponent({
                     </Badge>
                 </div>
             </CardHeader>
-            <ScrollArea className="h-[calc(100vh-320px)] px-3 pb-3">
+            <div className="px-3 pb-3 flex-1 overflow-auto" style={{ minHeight: 0 }}>
                 {column.items.length === 0 ? (
                     <div className="text-center py-8 text-sm text-muted-foreground">
                         Sin reparaciones
                     </div>
                 ) : (
-                    column.items.map((repair) => (
-                        <RepairCard
-                            key={repair.id}
-                            repair={repair}
-                            onView={() => onView(repair)}
-                            onEdit={() => onEdit(repair)}
-                            onStatusChange={(status) => onStatusChange(repair.id, status)}
-                            onDownloadPdf={() => onDownloadPdf(repair)}
-                        />
-                    ))
+                    <>
+                        {column.items.map((repair) => (
+                            <RepairCard
+                                key={repair.id}
+                                repair={repair}
+                                onView={() => onView(repair)}
+                                onEdit={() => onEdit(repair)}
+                                onStatusChange={(status) => onStatusChange(repair.id, status)}
+                                onDownloadPdf={() => onDownloadPdf(repair)}
+                            />
+                        ))}
+                    </>
                 )}
-            </ScrollArea>
+            </div>
         </div>
     );
 }
@@ -307,7 +315,7 @@ export default function RepairKanbanView({
     }
 
     return (
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 overflow-x-auto pb-4 items-start">
             {columns.map((column) => (
                 <KanbanColumnComponent
                     key={column.id}

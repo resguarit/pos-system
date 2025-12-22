@@ -13,6 +13,7 @@ import { ExchangeRateProvider } from "@/context/ExchangeRateContext"
 import { CashRegisterProvider } from "@/context/CashRegisterContext"
 import { SystemConfigProvider } from "@/context/SystemConfigContext"
 import EnterSubmitProvider from "@/components/enter-submit-provider"
+import { CartProvider } from "@/context/CartContext"
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -25,9 +26,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <ExchangeRateProvider>
                   <CashRegisterProvider>
                     <SystemConfigProvider>
-                      <App />
-                      <Toaster />
-                      <EnterSubmitProvider />
+                      <CartProvider>
+                        <App />
+                        <Toaster />
+                        <EnterSubmitProvider />
+                      </CartProvider>
                     </SystemConfigProvider>
                   </CashRegisterProvider>
                 </ExchangeRateProvider>

@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class ShipmentRoleAttributeVisibility extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $table = 'shipment_role_attribute_visibility';
 
@@ -18,6 +21,14 @@ class ShipmentRoleAttributeVisibility extends Model
         'attribute',
         'visible',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->useLogName('shipment_role_attribute_visibility')
+            ->logOnlyDirty();
+    }
 
     protected $casts = [
         'visible' => 'boolean',

@@ -14,7 +14,8 @@ import type {
 const REPAIR_STATUSES: RepairStatus[] = [
     "Recibido",
     "En diagnóstico",
-    "En reparación",
+    "Reparación Interna",
+    "Reparación Externa",
     "Esperando repuestos",
     "Terminado",
     "Entregado",

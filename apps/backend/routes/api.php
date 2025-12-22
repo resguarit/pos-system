@@ -28,6 +28,7 @@ use App\Http\Controllers\CashMovementController;
 use App\Http\Controllers\CurrentAccountController;
 use App\Http\Controllers\MovementTypeController;
 use App\Http\Controllers\RepairController; // Added
+use App\Http\Controllers\ClientServiceController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\ExchangeRateController; // **SOLUCIÓN BUG #2**
 use App\Http\Controllers\SaleAnnulmentController;
@@ -275,6 +276,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/{id}', [CustomerController::class, 'update']);
         Route::delete('/{id}', [CustomerController::class, 'destroy']);
         Route::get('/{id}/sales', [CustomerController::class, 'getCustomerSalesWithSummary']);
+
+        // Services routes linked to customers
+        Route::prefix('{customerId}/services')->group(function () {
+            Route::get('/', [ClientServiceController::class, 'index']);
+            Route::post('/', [ClientServiceController::class, 'store']);
+        });
+    });
+
+    Route::prefix('client-services')->group(function () {
+        // General access if needed, or mostly via customer
+        Route::get('/', [ClientServiceController::class, 'index']);
+        Route::get('/{id}', [ClientServiceController::class, 'show']);
+        Route::put('/{id}', [ClientServiceController::class, 'update']);
+        Route::delete('/{id}', [ClientServiceController::class, 'destroy']);
+        Route::post('/{id}/renew', [ClientServiceController::class, 'renew']);
+        Route::get('/{id}/payments', [ClientServiceController::class, 'payments']);
     });
 
     Route::prefix('document-types')->group(function () {
@@ -447,6 +464,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/{id}/status', [RepairController::class, 'updateStatus'])->whereNumber('id');
         Route::patch('/{id}/assign', [RepairController::class, 'assign'])->whereNumber('id');
         Route::post('/{id}/notes', [RepairController::class, 'addNote'])->whereNumber('id');
+    });
+
+    // Insurers (Aseguradoras) Routes
+    Route::prefix('insurers')->group(function () {
+        Route::get('/', [\App\Http\Controllers\InsurerController::class, 'index']);
+        Route::post('/', [\App\Http\Controllers\InsurerController::class, 'store']);
+        Route::get('/{insurer}', [\App\Http\Controllers\InsurerController::class, 'show']);
+        Route::put('/{insurer}', [\App\Http\Controllers\InsurerController::class, 'update']);
+        Route::delete('/{insurer}', [\App\Http\Controllers\InsurerController::class, 'destroy']);
     });
 
     // Combos Routes

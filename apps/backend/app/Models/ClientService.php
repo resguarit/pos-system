@@ -1,0 +1,39 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class ClientService extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'customer_id',
+        'name',
+        'description',
+        'amount',
+        'billing_cycle',
+        'start_date',
+        'next_due_date',
+        'status'
+    ];
+
+    protected $casts = [
+        'start_date' => 'date',
+        'next_due_date' => 'date',
+        'amount' => 'decimal:2',
+    ];
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(ClientServicePayment::class);
+    }
+}

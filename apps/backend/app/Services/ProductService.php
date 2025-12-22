@@ -131,7 +131,12 @@ class ProductService implements ProductServiceInterface
                 $query->with('stocks');
             }
 
-            // 5. Stock Status (Complex)
+            // 5. Currency
+            if (!empty($filters['currency'])) {
+                $query->where('currency', $filters['currency']);
+            }
+
+            // 6. Stock Status (Complex)
             // 'in-stock', 'low-stock', 'out-of-stock'
             if (!empty($filters['stock_status'])) {
                 // We need to calculate aggregate stock for the context (selected branches or all)
@@ -201,6 +206,13 @@ class ProductService implements ProductServiceInterface
                         });
                     }
                 });
+            }
+
+            // Ordering
+            if (!empty($filters['search'])) {
+                $query->orderBy('description', 'asc');
+            } else {
+                $query->orderBy('created_at', 'desc');
             }
 
             return $query->paginate($perPage);

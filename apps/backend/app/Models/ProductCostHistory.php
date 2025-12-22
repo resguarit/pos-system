@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class ProductCostHistory extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'product_id',
@@ -20,6 +23,14 @@ class ProductCostHistory extends Model
         'notes',
         'user_id',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->useLogName('product_cost_history')
+            ->logOnlyDirty();
+    }
 
     protected $casts = [
         'previous_cost' => 'decimal:2',
@@ -59,7 +70,7 @@ class ProductCostHistory extends Model
     /**
      * Obtener el cambio absoluto
      */
-    public function getAbsoluteChangeAttribute(): float
+    public function getAbsoluteChangeAttribute(): ?float
     {
         if ($this->previous_cost === null) {
             return $this->new_cost;

@@ -184,7 +184,7 @@ class CustomerController extends Controller
             ], 404);
         }
 
-        $sales = SaleHeader::with(['items.product', 'branch', 'paymentType', 'receiptType']) // Added 'receiptType'
+        $sales = SaleHeader::with(['items.product', 'branch', 'paymentType', 'receiptType', 'salePayments.paymentMethod']) // Added 'receiptType'
                             ->where('customer_id', $id)
                             ->orderBy('date', 'desc')
                             ->get();
@@ -212,7 +212,7 @@ class CustomerController extends Controller
         $fromDate = $request->query('from_date');
         $toDate = $request->query('to_date');
 
-        $salesQuery = SaleHeader::with(['items.product', 'branch', 'paymentType', 'receiptType'])
+        $salesQuery = SaleHeader::with(['items.product', 'branch', 'paymentType', 'receiptType', 'salePayments.paymentMethod'])
             ->where('customer_id', $id);
 
         if ($fromDate) {

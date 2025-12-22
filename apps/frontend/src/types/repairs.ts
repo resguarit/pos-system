@@ -8,6 +8,8 @@ export type Repair = {
     email?: string | null;
   };
   branch?: { id: number; description?: string | null };
+  category?: { id: number; name?: string | null };
+  category_id?: number | null;
   technician?: { id: number; name: string | null };
   device: string;
   serial_number?: string | null;
@@ -24,8 +26,29 @@ export type Repair = {
   sale_id?: number | null;
   sale?: { id: number; receipt_number?: string | null };
   notes?: RepairNote[];
+  // Siniestro (Insurance Claim) fields
+  is_siniestro?: boolean;
+  siniestro_number?: string | null;
+  insurer?: { id: number; name: string | null };
+  insurer_id?: number | null;
+  insured_customer?: {
+    id: number;
+    name: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
+  insured_customer_id?: number | null;
   created_at?: string;
   updated_at?: string;
+};
+
+export type Insurer = {
+  id: number;
+  name: string;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  notes?: string | null;
+  active?: boolean;
 };
 
 export type RepairNote = {
@@ -38,7 +61,8 @@ export type RepairNote = {
 export const RepairStatus = {
   Recibido: "Recibido",
   "En diagnóstico": "En diagnóstico",
-  "En reparación": "En reparación",
+  "Reparación Interna": "Reparación Interna",
+  "Reparación Externa": "Reparación Externa",
   "Esperando repuestos": "Esperando repuestos",
   Terminado: "Terminado",
   Entregado: "Entregado",

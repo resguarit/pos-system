@@ -59,7 +59,8 @@ import { format } from "date-fns";
 const STATUS_BADGE_COLORS: Record<RepairStatus, string> = {
     Recibido: "bg-blue-50 text-blue-700 hover:bg-blue-50",
     "En diagnóstico": "bg-yellow-50 text-yellow-700 hover:bg-yellow-50",
-    "En reparación": "bg-orange-50 text-orange-700 hover:bg-orange-50",
+    "Reparación Interna": "bg-orange-50 text-orange-700 hover:bg-orange-50",
+    "Reparación Externa": "bg-cyan-50 text-cyan-700 hover:bg-cyan-50",
     "Esperando repuestos": "bg-purple-50 text-purple-700 hover:bg-purple-50",
     Terminado: "bg-green-50 text-green-700 hover:bg-green-50",
     Entregado: "bg-gray-50 text-gray-700 hover:bg-gray-50",
@@ -106,7 +107,7 @@ export default function ReparacionesPage() {
         { id: "status", minWidth: 120, maxWidth: 180, defaultWidth: 150 },
         { id: "priority", minWidth: 80, maxWidth: 120, defaultWidth: 100 },
         { id: "cost", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
-        { id: "sale", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
+        { id: "sale_price", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: "actions", minWidth: 180, maxWidth: 250, defaultWidth: 200 },
     ];
 
@@ -433,11 +434,11 @@ export default function ReparacionesPage() {
                                                     Costo
                                                 </ResizableTableHeader>
                                                 <ResizableTableHeader
-                                                    columnId="sale"
+                                                    columnId="sale_price"
                                                     getResizeHandleProps={getResizeHandleProps}
                                                     getColumnHeaderProps={getColumnHeaderProps}
                                                 >
-                                                    Venta
+                                                    Precio Venta
                                                 </ResizableTableHeader>
                                                 <ResizableTableHeader
                                                     columnId="actions"
@@ -501,10 +502,10 @@ export default function ReparacionesPage() {
                                                         {formatCurrency(rep.cost)}
                                                     </ResizableTableCell>
                                                     <ResizableTableCell
-                                                        columnId="sale"
+                                                        columnId="sale_price"
                                                         getColumnCellProps={getColumnCellProps}
                                                     >
-                                                        {rep.sale?.receipt_number || rep.sale_id || "-"}
+                                                        {formatCurrency(rep.sale_price)}
                                                     </ResizableTableCell>
                                                     <ResizableTableCell
                                                         columnId="actions"

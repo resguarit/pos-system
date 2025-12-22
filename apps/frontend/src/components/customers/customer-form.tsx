@@ -16,6 +16,7 @@ import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import ClientServicesList from "./client-services-list"
 
 interface Customer {
   id: number
@@ -388,6 +389,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                 <TabsList>
                   <TabsTrigger value="personal">Información Personal</TabsTrigger>
                   <TabsTrigger value="fiscal">Información Fiscal</TabsTrigger>
+                  {customerId && <TabsTrigger value="services">Servicios</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="personal" className="space-y-4">
@@ -578,6 +580,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {/* ... existing fiscal content ... */}
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="cuit">CUIT/CUIL</Label>
@@ -666,8 +669,16 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                     </CardContent>
                   </Card>
                 </TabsContent>
+
+                {/* New Services Tab - Only visible if customer exists (editing or viewing) */}
+                {customerId && (
+                  <TabsContent value="services" className="space-y-4">
+                    <ClientServicesList customerId={customerId} viewOnly={viewOnly} />
+                  </TabsContent>
+                )}
               </Tabs>
             </form>
+
           )}
         </div>
       </div>

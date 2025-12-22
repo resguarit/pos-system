@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class SaleItem extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'sale_header_id',
@@ -24,6 +27,14 @@ class SaleItem extends Model
         'item_iva',
         'item_total',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->useLogName('sale_item')
+            ->logOnlyDirty();
+    }
 
     protected $casts = [
         'quantity' => 'decimal:3',
@@ -76,7 +87,7 @@ class SaleItem extends Model
         if ($this->isCombo()) {
             return $this->combo->name;
         }
-        
+
         return $this->product->description ?? 'Producto eliminado';
     }
 }

@@ -7,9 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Storage;
 
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
+
 class AfipCertificate extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'cuit',
@@ -23,6 +27,14 @@ class AfipCertificate extends Model
         'has_private_key',
         'notes',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->useLogName('afip_certificate')
+            ->logOnlyDirty();
+    }
 
     protected $casts = [
         'valid_from' => 'date',
@@ -71,14 +83,14 @@ class AfipCertificate extends Model
     {
         $this->has_certificate = file_exists($this->certificate_path);
         $this->has_private_key = file_exists($this->private_key_path);
-        
+
         // Try to extract validity dates from certificate
         if ($this->has_certificate) {
             $this->extractCertificateDates();
         }
-        
+
         $this->save();
-        
+
         return $this;
     }
 
@@ -90,7 +102,7 @@ class AfipCertificate extends Model
         try {
             $certContent = file_get_contents($this->certificate_path);
             $certInfo = openssl_x509_parse($certContent);
-            
+
             if ($certInfo) {
                 if (isset($certInfo['validFrom_time_t'])) {
                     $this->valid_from = date('Y-m-d', $certInfo['validFrom_time_t']);
@@ -112,15 +124,15 @@ class AfipCertificate extends Model
         if (!$this->active) {
             return false;
         }
-        
+
         if (!$this->has_certificate || !$this->has_private_key) {
             return false;
         }
-        
+
         if ($this->valid_to && $this->valid_to->isPast()) {
             return false;
         }
-        
+
         return true;
     }
 
@@ -132,7 +144,7 @@ class AfipCertificate extends Model
         if (!$this->valid_to) {
             return false;
         }
-        
+
         return $this->valid_to->diffInDays(now()) <= $days;
     }
 
@@ -154,7 +166,7 @@ class AfipCertificate extends Model
             ->where('has_private_key', true)
             ->where(function ($q) {
                 $q->whereNull('valid_to')
-                  ->orWhere('valid_to', '>=', now());
+                    ->orWhere('valid_to', '>=', now());
             });
     }
 
@@ -183,7 +195,7 @@ class AfipCertificate extends Model
         if ($this->alias) {
             return $this->alias;
         }
-        
+
         return $this->razon_social ?: $this->formatted_cuit;
     }
 
@@ -192,9 +204,9 @@ class AfipCertificate extends Model
      */
     public function getFormattedCuitAttribute(): string
     {
-        return substr($this->cuit, 0, 2) . '-' . 
-               substr($this->cuit, 2, 8) . '-' . 
-               substr($this->cuit, 10, 1);
+        return substr($this->cuit, 0, 2) . '-' .
+            substr($this->cuit, 2, 8) . '-' .
+            substr($this->cuit, 10, 1);
     }
 
     /**
@@ -203,11 +215,11 @@ class AfipCertificate extends Model
     public function ensureDirectoryExists(): bool
     {
         $path = $this->certificate_directory;
-        
+
         if (!is_dir($path)) {
             return mkdir($path, 0700, true);
         }
-        
+
         return true;
     }
 
@@ -217,16 +229,16 @@ class AfipCertificate extends Model
     public function storeCertificate(string $content): bool
     {
         $this->ensureDirectoryExists();
-        
+
         $result = file_put_contents($this->certificate_path, $content);
-        
+
         if ($result !== false) {
             $this->has_certificate = true;
             $this->extractCertificateDates();
             $this->save();
             return true;
         }
-        
+
         return false;
     }
 
@@ -236,16 +248,16 @@ class AfipCertificate extends Model
     public function storePrivateKey(string $content): bool
     {
         $this->ensureDirectoryExists();
-        
+
         $result = file_put_contents($this->private_key_path, $content);
         chmod($this->private_key_path, 0600); // Secure permissions
-        
+
         if ($result !== false) {
             $this->has_private_key = true;
             $this->save();
             return true;
         }
-        
+
         return false;
     }
 }

@@ -17,6 +17,7 @@ class UpdateRepairRequest extends FormRequest
         return [
             'customer_id' => ['sometimes', 'integer', 'exists:customers,id'],
             'branch_id' => ['sometimes', 'integer', 'exists:branches,id'],
+            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
             'device' => ['sometimes', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255'],
             'issue_description' => ['sometimes', 'string', 'max:2000'],
@@ -46,6 +47,7 @@ class UpdateRepairRequest extends FormRequest
         return [
             'customer_id.exists' => 'El cliente seleccionado no existe.',
             'branch_id.exists' => 'La sucursal seleccionada no existe.',
+            'category_id.exists' => 'La categoría seleccionada no existe.',
             'device.max' => 'El nombre del equipo no debe superar los 255 caracteres.',
             'serial_number.max' => 'El número de serie no debe superar los 255 caracteres.',
             'issue_description.max' => 'La descripción del problema no debe superar los 2000 caracteres.',

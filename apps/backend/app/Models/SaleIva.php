@@ -4,10 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class SaleIva extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $table = 'sale_ivas'; // Especificar nombre de tabla si no sigue convención
 
@@ -17,6 +20,14 @@ class SaleIva extends Model
         'base_amount',
         'iva_amount',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->useLogName('sale_iva')
+            ->logOnlyDirty();
+    }
 
     protected $casts = [
         'base_amount' => 'decimal:3',

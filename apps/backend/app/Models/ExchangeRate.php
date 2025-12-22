@@ -5,10 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use App\Traits\LogsActivityWithContext;
 
 class ExchangeRate extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity, LogsActivityWithContext;
 
     protected $fillable = [
         'from_currency',
@@ -17,6 +20,14 @@ class ExchangeRate extends Model
         'is_active',
         'effective_date',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->useLogName('exchange_rate')
+            ->logOnlyDirty();
+    }
 
     protected $casts = [
         'rate' => 'decimal:4',
@@ -53,7 +64,7 @@ class ExchangeRate extends Model
         }
 
         $rate = self::getCurrentRate($fromCurrency, $toCurrency);
-        
+
         if ($rate === null) {
             throw new \Exception("No exchange rate found for {$fromCurrency} to {$toCurrency}");
         }

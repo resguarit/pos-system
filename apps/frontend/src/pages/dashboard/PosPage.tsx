@@ -84,7 +84,7 @@ export default function POSPage() {
   // Función para cambiar sucursal desde el POS
   const handleBranchChange = (branchId: string) => {
     if (!branchId) return;
-    
+
     // Si hay productos en el carrito, advertir al usuario
     if (cart.length > 0) {
       const confirmChange = window.confirm(
@@ -97,7 +97,7 @@ export default function POSPage() {
       setCart([]);
       clearCartFromStorage();
     }
-    
+
     setSelectedBranchIds([branchId]);
     toast.success('Sucursal cambiada', {
       description: `Ahora trabajas en ${branches.find(b => b.id.toString() === branchId)?.description || 'la sucursal seleccionada'}`
@@ -586,49 +586,51 @@ export default function POSPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {cart.map((item, index) => {
-                  return (
-                    <TableRow key={`${item.id}-${index}`}>
-                      <TableCell className="font-medium py-1 sm:py-2">
-                        <div className="text-xs sm:text-sm truncate">{item.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatCurrency(item.sale_price)} c/u
-                          {item.discount_type && (item.discount_value ?? 0) > 0 && (
-                            <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
-                          )}
-                          {item.is_from_combo && (
-                            <div className="text-xs text-blue-600 mt-1">
-                              <Package className="h-3 w-3 inline mr-1" />
-                              De combo: {item.combo_name}
-                              {item.combo_discount_applied && item.combo_discount_applied > 0 && (
-                                <span className="ml-1 text-green-600">
-                                  (Descuento: {formatCurrency(item.combo_discount_applied)})
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="py-1 sm:py-2">
-                        <div className="flex items-center justify-center">
-                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                            <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
+                <TableBody>
+                  {cart.map((item, index) => {
+                    return (
+                      <TableRow key={`${item.id}-${index}`}>
+                        <TableCell className="font-medium py-1 sm:py-2">
+                          <div className="text-xs sm:text-sm truncate">{item.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatCurrency(item.sale_price)} c/u
+                            {item.discount_type && (item.discount_value ?? 0) > 0 && (
+                              <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
+                            )}
+                            {item.is_from_combo && (
+                              <div className="text-xs text-blue-600 mt-1">
+                                <Package className="h-3 w-3 inline mr-1" />
+                                De combo: {item.combo_name}
+                                {item.combo_discount_applied && item.combo_discount_applied > 0 && (
+                                  <span className="ml-1 text-green-600">
+                                    (Descuento: {formatCurrency(item.combo_discount_applied)})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-1 sm:py-2">
+                          <div className="flex items-center justify-center">
+                            <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                              <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
+                            </Button>
+                            <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
+                            <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                              <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price * item.quantity)}</TableCell>
+                        <TableCell className="py-1 sm:py-2">
+                          <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
+                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
-                          <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
-                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                            <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price * item.quantity)}</TableCell>
-                      <TableCell className="py-1 sm:py-2">
-                        <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
-                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
               </TableBody>
             </Table>
           </div>

@@ -20,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
     User,
@@ -34,6 +34,7 @@ import {
     FileText,
     Clock,
     Loader2,
+    Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Repair, RepairNote, RepairPriority, RepairStatus } from "@/types/repairs";
@@ -43,11 +44,13 @@ import useApi from "@/hooks/useApi";
 
 type CustomerOption = { id: number; name: string };
 type UserOption = { id: number; name: string };
+type CategoryOption = { id: number; name: string };
 
 const STATUS_COLORS: Record<RepairStatus, string> = {
     Recibido: "bg-blue-100 text-blue-800 border-blue-200",
     "En diagnóstico": "bg-yellow-100 text-yellow-800 border-yellow-200",
-    "En reparación": "bg-orange-100 text-orange-800 border-orange-200",
+    "Reparación Interna": "bg-orange-100 text-orange-800 border-orange-200",
+    "Reparación Externa": "bg-cyan-100 text-cyan-800 border-cyan-200",
     "Esperando repuestos": "bg-purple-100 text-purple-800 border-purple-200",
     Terminado: "bg-green-100 text-green-800 border-green-200",
     Entregado: "bg-gray-100 text-gray-800 border-gray-200",
@@ -110,7 +113,8 @@ export default function RepairDetailDialogV2({
         statuses: [
             "Recibido",
             "En diagnóstico",
-            "En reparación",
+            "Reparación Interna",
+            "Reparación Externa",
             "Esperando repuestos",
             "Terminado",
             "Entregado",
@@ -119,7 +123,7 @@ export default function RepairDetailDialogV2({
     },
 }: RepairDetailDialogV2Props) {
     const { request } = useApi();
-    const [editData, setEditData] = useState<Partial<Repair> & { customer_id?: number; technician_id?: number }>({});
+    const [editData, setEditData] = useState<Partial<Repair> & { customer_id?: number; technician_id?: number; category_id?: number }>({});
     const [saving, setSaving] = useState(false);
     const [newNote, setNewNote] = useState("");
     const [stagedNotes, setStagedNotes] = useState<string[]>([]);
@@ -134,11 +138,15 @@ export default function RepairDetailDialogV2({
     const [technicianOptions, setTechnicianOptions] = useState<UserOption[]>([]);
     const [showTechnicianOptions, setShowTechnicianOptions] = useState(false);
 
-    // Fetch customers and technicians when entering edit mode
+    // Categories
+    const [categories, setCategories] = useState<CategoryOption[]>([]);
+
+    // Fetch customers, technicians and categories when entering edit mode
     useEffect(() => {
         if (editMode) {
             fetchCustomers();
             fetchTechnicians();
+            fetchCategories();
         }
     }, [editMode]);
 
@@ -182,6 +190,20 @@ export default function RepairDetailDialogV2({
         }
     };
 
+    const fetchCategories = async () => {
+        try {
+            const resp = await request({
+                method: "GET",
+                url: "/categories/for-selector",
+            });
+            if (resp && resp.success && Array.isArray(resp.data)) {
+                setCategories(resp.data);
+            }
+        } catch (error) {
+            console.error("Error fetching categories:", error);
+        }
+    };
+
     // Initialize edit data when entering edit mode
     useEffect(() => {
         if (editMode && repair) {
@@ -196,6 +218,7 @@ export default function RepairDetailDialogV2({
                 sale_price: repair.sale_price,
                 customer_id: repair.customer?.id,
                 technician_id: repair.technician?.id,
+                category_id: repair.category?.id || repair.category_id,
                 estimated_date: repair.estimated_date,
             });
             setCustomerSearch(repair.customer?.name || "");
@@ -248,6 +271,11 @@ export default function RepairDetailDialogV2({
                                     >
                                         {repair.priority}
                                     </Badge>
+                                    {repair.category && (
+                                        <Badge variant="secondary" className="text-xs">
+                                            {repair.category.name}
+                                        </Badge>
+                                    )}
                                 </>
                             )}
                         </DialogTitle>
@@ -279,7 +307,7 @@ export default function RepairDetailDialogV2({
                             </TabsTrigger>
                         </TabsList>
 
-                        <ScrollArea className="flex-1 mt-4">
+                        <div className="flex-1 mt-4 overflow-y-auto pr-4">
                             {/* Details Tab */}
                             <TabsContent value="details" className="space-y-4 m-0">
                                 {editMode ? (
@@ -417,6 +445,29 @@ export default function RepairDetailDialogV2({
                                             </div>
                                         </div>
 
+                                        {/* Category */}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="category">Categoría</Label>
+                                            <Select
+                                                value={editData.category_id ? editData.category_id.toString() : "empty"}
+                                                onValueChange={(v) =>
+                                                    setEditData((d) => ({ ...d, category_id: v === "empty" ? undefined : parseInt(v) }))
+                                                }
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar categoría" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="empty">Sin categoría</SelectItem>
+                                                    {categories.map((c) => (
+                                                        <SelectItem key={c.id} value={c.id.toString()}>
+                                                            {c.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
                                         {/* Issue Description */}
                                         <div className="space-y-2">
                                             <Label>Descripción del Problema *</Label>
@@ -532,6 +583,41 @@ export default function RepairDetailDialogV2({
                                             </CardContent>
                                         </Card>
 
+                                        {/* Siniestro Info Card - Only show when is_siniestro is true */}
+                                        {repair.is_siniestro && (
+                                            <Card className="border-blue-200 bg-blue-50/50">
+                                                <CardHeader className="py-3">
+                                                    <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-700">
+                                                        <FileText className="h-4 w-4" />
+                                                        Siniestro
+                                                    </CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="py-2 grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <Label className="text-xs text-muted-foreground">Aseguradora</Label>
+                                                        <p className="text-sm font-medium">
+                                                            {repair.insurer?.name || "Sin aseguradora"}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-xs text-muted-foreground">Nº de Siniestro</Label>
+                                                        <p className="text-sm font-medium">
+                                                            {repair.siniestro_number || "-"}
+                                                        </p>
+                                                    </div>
+                                                    {repair.insured_customer && repair.insured_customer.id !== repair.customer?.id && (
+                                                        <div className="col-span-2">
+                                                            <Label className="text-xs text-muted-foreground">Asegurado</Label>
+                                                            <p className="text-sm">
+                                                                {repair.insured_customer.name}
+                                                                {repair.insured_customer.phone && ` • ${repair.insured_customer.phone}`}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </CardContent>
+                                            </Card>
+                                        )}
+
                                         {/* Device & Issue */}
                                         <Card>
                                             <CardHeader className="py-3">
@@ -545,6 +631,14 @@ export default function RepairDetailDialogV2({
                                                     <div>
                                                         <Label className="text-xs text-muted-foreground">Equipo</Label>
                                                         <p className="text-sm font-medium">{repair.device}</p>
+                                                        {repair.category && (
+                                                            <div className="mt-1">
+                                                                <Badge variant="outline" className="text-xs font-normal">
+                                                                    <Tag className="h-3 w-3 mr-1" />
+                                                                    {repair.category.description}
+                                                                </Badge>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div>
                                                         <Label className="text-xs text-muted-foreground">
@@ -807,7 +901,7 @@ export default function RepairDetailDialogV2({
                                     ) : null}
                                 </div>
                             </TabsContent>
-                        </ScrollArea>
+                        </div>
                     </Tabs>
                 ) : (
                     <div className="py-6 text-center text-muted-foreground">Sin datos</div>

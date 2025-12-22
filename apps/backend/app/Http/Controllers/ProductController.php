@@ -29,7 +29,8 @@ class ProductController extends Controller
             'category_ids' => $request->query('category_ids'), // Expecting array or comma-separated? usually array in Laravel query string: category_ids[]=1
             'supplier_ids' => $request->query('supplier_ids'),
             'branch_ids' => $request->query('branch_ids'),     // array
-            'stock_status' => $request->query('stock_status')  // array
+            'stock_status' => $request->query('stock_status'),  // array
+            'currency' => $request->query('currency')
         ];
 
         // Handle comma-separated strings if passed that way (common in some frontends)

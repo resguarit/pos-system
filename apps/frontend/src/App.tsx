@@ -56,6 +56,7 @@ import StockTransfersPage from '@/pages/dashboard/StockTransfersPage'
 import ExpensesListPage from '@/pages/dashboard/expenses/ExpensesListPage'
 import EmployeesPage from '@/pages/dashboard/expenses/EmployeesPage'
 import ExpenseCategoriesPage from '@/pages/dashboard/expenses/ExpenseCategoriesPage'
+import ServicesPage from '@/pages/dashboard/ServicesPage'
 import features from '@/config/features'
 
 
@@ -128,6 +129,7 @@ function App() {
           {features.gastos && <Route path="gastos" element={<ProtectedRoute permissions={['ver_gastos']}><ExpensesListPage /></ProtectedRoute>} />}
           {features.gastos && <Route path="gastos/empleados" element={<ProtectedRoute permissions={['ver_empleados']}><EmployeesPage /></ProtectedRoute>} />}
           {features.gastos && <Route path="gastos/categorias" element={<ProtectedRoute permissions={['ver_categorias_gastos']}><ExpenseCategoriesPage /></ProtectedRoute>} />}
+          {features.services && <Route path="servicios" element={<ProtectedRoute permissions={['ver_clientes']}><ServicesPage /></ProtectedRoute>} />}
         </Route>
 
         {/* Redirección por defecto */}

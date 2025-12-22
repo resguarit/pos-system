@@ -35,7 +35,7 @@ class RepairService implements RepairServiceInterface
      */
     private function buildQuery(array $filters = [])
     {
-        $query = Repair::query()->with(['customer.person', 'branch', 'technician', 'sale']);
+        $query = Repair::query()->with(['customer.person', 'branch', 'category', 'technician.person', 'sale', 'insurer', 'insuredCustomer.person']);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -86,7 +86,7 @@ class RepairService implements RepairServiceInterface
      */
     public function find(int $id): ?Repair
     {
-        return Repair::with(['customer.person', 'branch', 'technician', 'notes.user', 'sale'])->find($id);
+        return Repair::with(['customer.person', 'branch', 'category', 'technician.person', 'notes.user.person', 'sale', 'insurer', 'insuredCustomer.person'])->find($id);
     }
 
 
@@ -162,7 +162,7 @@ class RepairService implements RepairServiceInterface
         }
 
         $total = (clone $base)->count();
-        $enProceso = (clone $base)->whereIn('status', ['En diagnóstico', 'En reparación', 'Esperando repuestos'])->count();
+        $enProceso = (clone $base)->whereIn('status', ['En diagnóstico', 'Reparación Interna', 'Reparación Externa', 'Esperando repuestos'])->count();
         $terminadas = (clone $base)->where('status', 'Terminado')->count();
         $entregadas = (clone $base)->where('status', 'Entregado')->count();
 

@@ -20,7 +20,7 @@ class RepairNoteResource extends JsonResource
             'user' => $this->whenLoaded('user', function () {
                 return [
                     'id' => $this->user?->id,
-                    'name' => $this->user?->name,
+                    'name' => $this->user?->person ? ($this->user->person->first_name . ' ' . $this->user->person->last_name) : ($this->user?->username ?? null),
                 ];
             }),
             'created_at' => $this->created_at?->toDateTimeString(),

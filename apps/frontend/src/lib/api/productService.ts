@@ -16,9 +16,9 @@ export interface Product {
   currency?: string;
 }
 
-export const getProducts = async (): Promise<Product[]> => {
+export const getProducts = async (params: any = {}): Promise<any> => {
   try {
-    const response = await api.get('/products');
+    const response = await api.get('/products', { params });
     // Manejar la estructura de respuesta de la API
     return response.data.data || response.data;
   } catch (error) {

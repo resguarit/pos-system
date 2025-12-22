@@ -231,10 +231,24 @@ export function AppSidebar({ className }: { className?: string }) {
       ],
     },
     {
+      title: "Servicio Técnico",
+      url: "#",
+      icon: Wrench,
+      isActive: pathname.startsWith("/dashboard/reparaciones"),
+      items: [
+        {
+          title: "Reparaciones",
+          url: "/dashboard/reparaciones",
+          icon: ClipboardList,
+          visible: features.repairs && hasPermission('ver_reparaciones'),
+        },
+      ],
+    },
+    {
       title: "Gestión",
       url: "#",
       icon: Briefcase,
-      isActive: pathname.startsWith("/dashboard/sucursales") || pathname.startsWith("/dashboard/usuarios") || pathname.startsWith("/dashboard/roles") || pathname.startsWith("/dashboard/auditorias") || pathname.startsWith("/dashboard/reparaciones"),
+      isActive: pathname.startsWith("/dashboard/sucursales") || pathname.startsWith("/dashboard/usuarios") || pathname.startsWith("/dashboard/roles") || pathname.startsWith("/dashboard/auditorias"),
       items: [
         {
           title: "Sucursales",
@@ -260,12 +274,7 @@ export function AppSidebar({ className }: { className?: string }) {
           icon: FileText,
           visible: features.auditorias && hasPermission('ver_auditorias'),
         },
-        {
-          title: "Reparaciones",
-          url: "/dashboard/reparaciones",
-          icon: Wrench,
-          visible: features.repairs && hasPermission('ver_reparaciones'),
-        },
+
       ],
     },
   ]
@@ -356,15 +365,13 @@ export function AppSidebar({ className }: { className?: string }) {
                 if (visibleItems.length === 0) return null
 
                 return (
-                  <Collapsible
-                    key={group.title}
-                    asChild
-                    defaultOpen={group.isActive}
-                    className="group/collapsible"
-                    disabled={!open}
-                  >
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild disabled={!open}>
+                  <SidebarMenuItem key={group.title}>
+                    <Collapsible
+                      defaultOpen={group.isActive}
+                      className="group/collapsible"
+                      disabled={!open}
+                    >
+                      <CollapsibleTrigger asChild>
                         <SidebarMenuButton tooltip={group.title} isActive={group.isActive}>
                           {group.icon && <group.icon className="h-4 w-4" />}
                           <span>{group.title}</span>
@@ -385,8 +392,8 @@ export function AppSidebar({ className }: { className?: string }) {
                           ))}
                         </SidebarMenuSub>
                       </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </Collapsible>
+                    </Collapsible>
+                  </SidebarMenuItem>
                 )
               })}
 

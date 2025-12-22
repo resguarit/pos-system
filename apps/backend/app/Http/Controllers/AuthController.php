@@ -42,6 +42,9 @@ class AuthController extends Controller
             // Actualizar last_login_at
             $user->update(['last_login_at' => now()]);
 
+            // Registrar auditoría de login
+            User::logLogin($user);
+
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
@@ -90,6 +93,14 @@ class AuthController extends Controller
     {
         // Eliminar el token actual del usuario
         $request->user()->currentAccessToken()->delete();
+
+        // Registrar auditoría de logout
+        if ($request->user()) {
+            activity('logout')
+                ->causedBy($request->user())
+                ->performedOn($request->user())
+                ->log('logout');
+        }
 
         return response()->json([
             'message' => 'Logout exitoso'

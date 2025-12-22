@@ -88,7 +88,7 @@ class RepairController extends Controller
     public function updateStatus(Request $request, int $id): RepairResource|JsonResponse
     {
         $validated = $request->validate([
-            'status' => 'required|in:Recibido,En diagnóstico,En reparación,Esperando repuestos,Terminado,Entregado',
+            'status' => 'required|in:Recibido,En diagnóstico,Reparación Interna,Reparación Externa,Esperando repuestos,Terminado,Entregado',
         ]);
 
         $repair = $this->repairs->find($id);
@@ -150,9 +150,15 @@ class RepairController extends Controller
      */
     public function options(): JsonResponse
     {
+        $insurers = \App\Models\Insurer::query()
+            ->where('active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         return response()->json([
-            'statuses' => ['Recibido', 'En diagnóstico', 'En reparación', 'Esperando repuestos', 'Terminado', 'Entregado'],
+            'statuses' => ['Recibido', 'En diagnóstico', 'Reparación Interna', 'Reparación Externa', 'Esperando repuestos', 'Terminado', 'Entregado'],
             'priorities' => ['Alta', 'Media', 'Baja'],
+            'insurers' => $insurers,
         ]);
     }
 
@@ -186,7 +192,8 @@ class RepairController extends Controller
         $grouped = [
             'Recibido' => [],
             'En diagnóstico' => [],
-            'En reparación' => [],
+            'Reparación Interna' => [],
+            'Reparación Externa' => [],
             'Esperando repuestos' => [],
             'Terminado' => [],
             'Entregado' => [],

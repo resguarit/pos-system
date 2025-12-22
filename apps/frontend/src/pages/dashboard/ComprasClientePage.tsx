@@ -17,7 +17,7 @@ import { useBranch } from "@/context/BranchContext";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
 import { type SaleHeader } from "@/types/sale";
-import { ArrowLeft, Download, Search, Filter, Eye, /*Receipt*/ } from "lucide-react";
+import { ArrowLeft, Download, Search, Filter, Eye, Receipt, DollarSign, Coins, TrendingUp } from "lucide-react";
 import type { DateRange } from "@/components/ui/date-range-picker";
 import {
   receiptTypeColors,
@@ -270,13 +270,6 @@ export default function CustomerPurchasesPage() {
     setIsDetailOpen(true)
   }
 
-  /*
-  const handleViewReceipt = (sale: SaleHeader) => {
-    setSelectedSale(sale)
-    setIsReceiptOpen(true)
-  }
-  */
-
   const handleDownloadPdf = async (sale: SaleHeader) => {
     if (!sale || !sale.id) {
       alert("No se puede descargar el PDF: ID de venta faltante.");
@@ -341,6 +334,7 @@ export default function CustomerPurchasesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total de Comprobantes</CardTitle>
+            <Receipt className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalPurchases}</div>
@@ -350,6 +344,7 @@ export default function CustomerPurchasesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Monto Total</CardTitle>
+            <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.totalAmount)}</div>
@@ -359,6 +354,7 @@ export default function CustomerPurchasesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total IVA</CardTitle>
+            <Coins className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.totalIva)}</div>
@@ -368,6 +364,7 @@ export default function CustomerPurchasesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Promedio por Compra</CardTitle>
+            <TrendingUp className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatCurrency(stats.averagePurchase)}</div>

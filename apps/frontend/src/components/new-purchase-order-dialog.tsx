@@ -60,7 +60,8 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
 
   const [selectedCurrency, setSelectedCurrency] = useState<'ARS' | 'USD' | ''>(''); // Nueva estado para moneda
 
-  const [items, setItems] = useState<PurchaseOrderItem[]>([]);
+  // Extended item type for display purposes
+  const [items, setItems] = useState<(PurchaseOrderItem & { product?: Product })[]>([]);
   const [newItem, setNewItem] = useState({
     product_id: '',
     quantity: '',
@@ -130,15 +131,13 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [suppliersData, branchesData, productsData, paymentMethodsData] = await Promise.all([
+        const [suppliersData, branchesData, paymentMethodsData] = await Promise.all([
           api.get('/suppliers?per_page=10000').then(res => res.data.data || res.data), // Obtener todos los proveedores
           getBranches(),
-          getProducts(),
           paymentMethodService.getAll()
         ]);
         setSuppliers(suppliersData as unknown as Supplier[]);
         setBranches(branchesData as unknown as Branch[]);
-        setProducts(productsData as unknown as Product[]);
         setPaymentMethods(paymentMethodsData as unknown as PaymentMethod[]);
       } catch (err) {
         // Error loading data
@@ -150,20 +149,51 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
     }
   }, [open]);
 
+  // Server-side search effect
   useEffect(() => {
-    if (productSearch && selectedCurrency) {
-      const filtered = products.filter(product =>
-        // Filtrar por búsqueda de texto
-        ((typeof product.description === "string" && product.description.toLowerCase().includes(productSearch.toLowerCase())) ||
-          (typeof product.code === "string" && product.code.toLowerCase().includes(productSearch.toLowerCase()))) &&
-        // Filtrar por moneda seleccionada
-        (product.currency || 'ARS') === selectedCurrency
-      );
-      setFilteredProducts(filtered);
-    } else {
-      setFilteredProducts([]);
-    }
-  }, [productSearch, products, selectedCurrency]);
+    const searchProducts = async () => {
+      if (selectedCurrency) {
+        setLoading(true);
+        try {
+          const params: any = {
+            per_page: 20,
+            currency: selectedCurrency
+          };
+
+          if (productSearch && productSearch.length > 2) {
+            params.search = productSearch;
+          }
+
+          // Only search if we have a search term OR if we just want initial suggestions for the currency
+          // But to avoid loading too much, let's require at least 1 char or just load first 20
+
+          const results = await getProducts(params);
+          // If results is paginated object
+          const productsArray = results.data || results;
+          setFilteredProducts(Array.isArray(productsArray) ? productsArray : []);
+
+          // Also update the 'products' state which acts as a cache for the current view
+          setProducts(Array.isArray(productsArray) ? productsArray : []);
+
+        } catch (e) {
+          console.error("Error searching products", e);
+          setFilteredProducts([]);
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        setFilteredProducts([]);
+        setProducts([]);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      searchProducts();
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+
+  }, [productSearch, selectedCurrency]);
 
   useEffect(() => {
     const loadLowStock = async () => {
@@ -265,10 +295,11 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         }
       } else {
         // Si el producto no existe, agrégalo a la lista
-        const itemToAdd: PurchaseOrderItem = {
+        const itemToAdd: PurchaseOrderItem & { product?: Product } = {
           product_id: newProductId,
           quantity: newQuantity,
           purchase_price: newPurchasePrice,
+          product: selectedProduct // Store product details for display
         };
         setItems([...items, itemToAdd]);
       }
@@ -307,8 +338,13 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
   };
 
   const getProductName = (productId: number) => {
+    // Try to find in items first (extended property)
+    const item = items.find(i => i.product_id === productId);
+    if (item && item.product) return item.product.description;
+
+    // Fallback to products list (search results)
     const product = products.find(p => p.id === productId);
-    return product ? product.description : 'Producto no encontrado';
+    return product ? product.description : 'Producto #' + productId;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -326,7 +362,9 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         currency: selectedCurrency as 'ARS' | 'USD',
         order_date: format(form.order_date, 'yyyy-MM-dd'),
         notes: form.notes || '',
-        items: items,
+        notes: form.notes || '',
+        items: items.map(({ product, ...rest }) => rest), // Remove extra 'product' prop
+        payment_method_id: parseInt(selectedPaymentMethod),
         payment_method_id: parseInt(selectedPaymentMethod),
         affects_cash_register: affectsCashRegister,
       });
