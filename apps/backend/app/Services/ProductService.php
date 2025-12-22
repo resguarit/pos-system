@@ -275,11 +275,16 @@ class ProductService implements ProductServiceInterface
                     (float) $data['unit_price'],
                     ProductCostHistorySourceTypes::IMPORT,
                     null,
-                    'Costo inicial'
+                    'Costo inicial',
+                    0 // Previous cost explicitly 0 for initial creation
                 );
             } catch (Exception $e) {
-                Log::error("Error registrando historial de costo inicial para producto {$product->id}: " . $e->getMessage());
-                // No lanzar excepción para no interrumpir la creación
+                // Try to log, but don't crash if logging fails (e.g. permission denied)
+                try {
+                    Log::error("Error registrando historial de costo inicial para producto {$product->id}: " . $e->getMessage());
+                } catch (Exception $logEx) {
+                    // Silently ignore logging failures to ensure product creation succeeds
+                }
             }
         }
 
