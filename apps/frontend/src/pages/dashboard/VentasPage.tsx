@@ -66,10 +66,11 @@ export default function VentasPage() {
     total_amount: 0,
     total_iva: 0,
     budget_count: 0,
+    converted_budget_count: 0,
     client_count: 0,
     average_sale_amount: 0,
   });
-    const [usingServerPagination, setUsingServerPagination] = useState(false);
+  const [usingServerPagination, setUsingServerPagination] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>({
     from: startOfMonth(new Date()),
@@ -131,14 +132,14 @@ export default function VentasPage() {
 
   // Cash register validation - usando la sucursal seleccionada
   // Si selectedBranch no está disponible, usar el primer ID de selectedBranchIds
-  const currentBranchId = selectedBranch?.id 
-    ? Number(selectedBranch.id) 
+  const currentBranchId = selectedBranch?.id
+    ? Number(selectedBranch.id)
     : (selectedBranchIds.length > 0 ? Number(selectedBranchIds[0]) : 1);
 
   // Hook para obtener el estado de la caja
   const { status: cashRegisterStatus, isOpen: isCashRegisterOpen } = useCashRegisterStatus(currentBranchId);
-  const currentCashRegisterId = isCashRegisterOpen && cashRegisterStatus?.cash_register?.id 
-    ? cashRegisterStatus.cash_register.id 
+  const currentCashRegisterId = isCashRegisterOpen && cashRegisterStatus?.cash_register?.id
+    ? cashRegisterStatus.cash_register.id
     : null;
 
   // Wrapper function to refresh sales after converting budget
@@ -276,7 +277,7 @@ export default function VentasPage() {
       // useApi devuelve response.data de Axios, por lo que "response" ya es el cuerpo deserializado.
       // Laravel LengthAwarePaginator serializa a: { current_page, data, last_page, per_page, total, ... }
       // Si el backend devuelve un array plano, response será ese array directamente.
-      
+
       // Detectar si es un paginador de Laravel (tiene data como array y total/last_page como números)
       const isLaravelPaginator = (
         response &&
@@ -390,6 +391,7 @@ export default function VentasPage() {
         total_amount: statsData.grand_total_amount ?? 0,
         total_iva: statsData.grand_total_iva ?? 0,
         budget_count: statsData.budget_count ?? 0,
+        converted_budget_count: statsData.converted_budget_count ?? 0,
         client_count: statsData.client_count ?? 0,
         average_sale_amount: statsData.average_sale_amount ?? (statsData.sales_count > 0 ? statsData.grand_total_amount / statsData.sales_count : 0),
       });
@@ -403,6 +405,7 @@ export default function VentasPage() {
         total_amount: 0,
         total_iva: 0,
         budget_count: 0,
+        converted_budget_count: 0,
         client_count: 0,
         average_sale_amount: 0,
       });
@@ -1103,10 +1106,19 @@ export default function VentasPage() {
                 <FileText className="h-4 w-4 text-indigo-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.budget_count.toLocaleString("es-AR")}</div>
-                <p className="text-xs text-muted-foreground">
-                  Cantidad de presupuestos emitidos
-                </p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold">{stats.budget_count.toLocaleString("es-AR")}</span>
+                  <span className="text-sm text-muted-foreground">emitidos</span>
+                </div>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-lg font-semibold text-green-600">{stats.converted_budget_count.toLocaleString("es-AR")}</span>
+                  <span className="text-xs text-muted-foreground">convertidos a venta</span>
+                </div>
+                {stats.budget_count > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Tasa de conversión: {((stats.converted_budget_count / stats.budget_count) * 100).toFixed(1)}%
+                  </p>
+                )}
               </CardContent>
             </Card>
             <Card>

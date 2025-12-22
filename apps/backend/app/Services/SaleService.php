@@ -1226,6 +1226,11 @@ class SaleService implements SaleServiceInterface
         $budget_count = $allSalesInPeriod->filter(function ($sale) {
             return $this->isBudgetSale($sale);
         })->count();
+
+        $converted_budget_count = $allSalesInPeriod->filter(function ($sale) {
+            return $this->isBudgetSale($sale) && $sale->converted_to_sale_id !== null;
+        })->count();
+
         $client_count = $allSalesInPeriod->whereNotNull('customer_id')->pluck('customer_id')->unique()->count();
 
         return [
@@ -1234,6 +1239,7 @@ class SaleService implements SaleServiceInterface
             'grand_total_iva' => (float) $grand_total_iva,
             'average_sale_amount' => $average_sale_amount,
             'budget_count' => $budget_count,
+            'converted_budget_count' => $converted_budget_count,
             'client_count' => $client_count,
         ];
     }
@@ -1804,7 +1810,7 @@ class SaleService implements SaleServiceInterface
             // Copiar datos del presupuesto a la venta
             $this->copyBudgetItems($budget, $sale);
             $this->copyBudgetIvas($budget, $sale);
-            
+
             // Si se especificó un método de pago, crear el pago con ese método
             // De lo contrario, copiar los pagos del presupuesto
             if ($paymentMethodId) {
