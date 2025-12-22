@@ -402,7 +402,7 @@ class SaleController extends Controller
             $paymentMethodId = $request->input('payment_method_id');
 
             // Validación adicional: verificar que el presupuesto existe y tiene items
-            $budget = Sale::find($id);
+            $budget = \App\Models\SaleHeader::find($id);
             if (!$budget) {
                 return response()->json([
                     'success' => false,
