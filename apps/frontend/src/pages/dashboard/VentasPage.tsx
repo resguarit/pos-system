@@ -1106,19 +1106,13 @@ export default function VentasPage() {
                 <FileText className="h-4 w-4 text-indigo-600" />
               </CardHeader>
               <CardContent>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold">{stats.budget_count.toLocaleString("es-AR")}</span>
-                  <span className="text-sm text-muted-foreground">emitidos</span>
+                <div className="text-2xl font-bold">
+                  {stats.budget_count.toLocaleString("es-AR")}
+                  <span className="text-green-600 text-lg ml-2">({stats.converted_budget_count})</span>
                 </div>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-lg font-semibold text-green-600">{stats.converted_budget_count.toLocaleString("es-AR")}</span>
-                  <span className="text-xs text-muted-foreground">convertidos a venta</span>
-                </div>
-                {stats.budget_count > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Tasa de conversión: {((stats.converted_budget_count / stats.budget_count) * 100).toFixed(1)}%
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  Emitidos (convertidos)
+                </p>
               </CardContent>
             </Card>
             <Card>
