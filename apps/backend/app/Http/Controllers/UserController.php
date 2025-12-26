@@ -469,20 +469,57 @@ class UserController extends Controller
 
             $allSales = $query->get();
 
-            // Filtrar presupuestos y ventas anuladas para estadísticas financieras
-            $financialSales = $allSales->filter(function ($sale) {
-                return !($sale->receiptType && $sale->receiptType->afip_code === '016') &&
+            // 1. Estadísticas básicas (Ventas Directas)
+            // Excluir presupuestos (016) y anuladas
+            $directSales = $allSales->filter(function ($sale) {
+                return $sale->receiptType && $sale->receiptType->afip_code !== '016' &&
                     $sale->status !== 'annulled';
             });
 
-            // Estadísticas básicas
-            $totalSales = $financialSales->count();
-            $totalAmount = $financialSales->sum('total');
-            $totalIva = $financialSales->sum('total_iva_amount');
-            $averageSaleAmount = $totalSales > 0 ? $totalAmount / $totalSales : 0;
+            // 2. Ventas Indirectas (Presupuestos de este usuario que se convirtieron en ventas de OTRO usuario)
+            // Buscamos ventas donde:
+            // - converted_from_budget_id pertenezca a un presupuesto creado por ESTE usuario
+            // - user_id de la venta sea DIFERENTE a este usuario (para no contar doble si se convirtió a sí mismo)
+            // - status no sea anulado
+            $indirectSales = \App\Models\SaleHeader::where('status', '!=', 'annulled')
+                ->where('user_id', '!=', $id) // Venta asignada a otro
+                ->whereHas('convertedFromBudget', function ($q) use ($id) {
+                    $q->where('user_id', $id); // Presupuesto original de este usuario
+                })
+                ->get();
 
-            // Estadísticas por tipo de comprobante
-            $salesByReceiptType = $financialSales->groupBy('receipt_type_id')
+            // 3. Presupuestos (Total creados)
+            $allBudgets = $allSales->filter(function ($sale) {
+                return $sale->receiptType && $sale->receiptType->afip_code === '016';
+            });
+
+            // 4. Presupuestos Pendientes (No convertidos)
+            // Asumimos que si converted_to_sale_id es null, es pendiente
+            // IMPORTANTE: Asegurarse de que el modelo tenga 'converted_to_sale_id'
+            $pendingBudgets = $allBudgets->filter(function ($budget) {
+                return empty($budget->converted_to_sale_id);
+            });
+
+            // 5. Presupuestos Convertidos (Creados por este usuario)
+            $convertedBudgets = $allBudgets->filter(function ($budget) {
+                return !empty($budget->converted_to_sale_id);
+            });
+
+
+            // --- Cálculos de Totales ---
+
+            // Total Comisionable = Ventas Directas + Ventas Indirectas
+            $commissionableSalesCount = $directSales->count() + $indirectSales->count();
+            $commissionableAmount = $directSales->sum('total') + $indirectSales->sum('total');
+
+            // Total "Gestión" (Lo que el Dashboard mostraba antes como Total Amount + Budget Amount)
+            // Ahora lo refinamos: Ventas Totales (Directas + Indirectas) + Presupuestos Pendientes
+            // (Los presupuestos convertidos YA son ventas, así que no los sumamos de nuevo para no duplicar)
+            $managementTotalAmount = $commissionableAmount + $pendingBudgets->sum('total');
+
+
+            // Estadísticas por tipo de comprobante (Solo Ventas Directas para mantener consistencia visual histórica)
+            $salesByReceiptType = $directSales->groupBy('receipt_type_id')
                 ->map(function ($group) {
                     $receiptType = $group->first()->receiptType;
                     return [
@@ -493,8 +530,8 @@ class UserController extends Controller
                     ];
                 })->values();
 
-            // Estadísticas por sucursal
-            $salesByBranch = $financialSales->groupBy('branch_id')
+            // Estadísticas por sucursal (Directas)
+            $salesByBranch = $directSales->groupBy('branch_id')
                 ->map(function ($group) {
                     $branch = $group->first()->branch;
                     return [
@@ -506,37 +543,24 @@ class UserController extends Controller
                     ];
                 })->values();
 
-            // Estadísticas por período (últimos 30 días)
-            $last30Days = $financialSales->filter(function ($sale) {
+            // Period Stats (Last 30 days - Direct Sales)
+            $last30Days = $directSales->filter(function ($sale) {
                 return $sale->date >= Carbon::now()->subDays(30);
             });
-
             $last30DaysStats = [
                 'count' => $last30Days->count(),
                 'total_amount' => $last30Days->sum('total'),
                 'average_amount' => $last30Days->count() > 0 ? $last30Days->sum('total') / $last30Days->count() : 0,
             ];
 
-            // Estadísticas por período (últimos 7 días)
-            $last7Days = $financialSales->filter(function ($sale) {
+            // Period Stats (Last 7 days - Direct Sales)
+            $last7Days = $directSales->filter(function ($sale) {
                 return $sale->date >= Carbon::now()->subDays(7);
             });
-
             $last7DaysStats = [
                 'count' => $last7Days->count(),
                 'total_amount' => $last7Days->sum('total'),
                 'average_amount' => $last7Days->count() > 0 ? $last7Days->sum('total') / $last7Days->count() : 0,
-            ];
-
-            // Estadísticas de presupuestos
-            $budgetSales = $allSales->filter(function ($sale) {
-                return $sale->receiptType && $sale->receiptType->afip_code === '016';
-            });
-
-            $budgetStats = [
-                'count' => $budgetSales->count(),
-                'total_amount' => $budgetSales->sum('total'),
-                'average_amount' => $budgetSales->count() > 0 ? $budgetSales->sum('total') / $budgetSales->count() : 0,
             ];
 
             return response()->json([
@@ -551,12 +575,30 @@ class UserController extends Controller
                         'username' => $user->username,
                     ],
                     'summary' => [
-                        'total_sales' => $totalSales,
-                        'total_amount' => (float) $totalAmount,
-                        'total_iva' => (float) $totalIva,
-                        'average_sale_amount' => (float) $averageSaleAmount,
-                        'budget_count' => $budgetStats['count'],
-                        'budget_total_amount' => (float) $budgetStats['total_amount'],
+                        // Totales Directos
+                        'total_sales' => $directSales->count(),
+                        'total_amount' => (float) $directSales->sum('total'),
+                        'total_iva' => (float) $directSales->sum('total_iva_amount'),
+                        'average_sale_amount' => $directSales->count() > 0 ? (float) ($directSales->sum('total') / $directSales->count()) : 0,
+
+                        // Presupuestos
+                        'budget_count' => $allBudgets->count(), // Total histórica
+                        'budget_total_amount' => (float) $allBudgets->sum('total'),
+
+                        // Desglose Presupuestos
+                        'pending_budget_count' => $pendingBudgets->count(),
+                        'pending_budget_amount' => (float) $pendingBudgets->sum('total'),
+                        'converted_budget_count' => $convertedBudgets->count(),
+                        'converted_budget_amount' => (float) $convertedBudgets->sum('total'),
+
+                        // Totales Comisionables (Directas + Indirectas)
+                        'indirect_sales_count' => $indirectSales->count(),
+                        'indirect_sales_amount' => (float) $indirectSales->sum('total'),
+                        'commissionable_amount' => (float) $commissionableAmount,
+                        'commissionable_count' => $commissionableSalesCount,
+
+                        // Gestión Total (Sin duplicados: Comisionable + Pendientes)
+                        'management_total_amount' => (float) $managementTotalAmount,
                     ],
                     'period_stats' => [
                         'last_7_days' => [

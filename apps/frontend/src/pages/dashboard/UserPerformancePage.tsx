@@ -50,8 +50,22 @@ interface SalesStatistics {
   total_amount: number;
   total_iva_amount: number;
   average_sale_amount: number;
+
+  // Budgets
   budget_count: number;
   budget_total_amount: number;
+  pending_budget_count: number;
+  pending_budget_amount: number;
+  converted_budget_count: number;
+  converted_budget_amount: number;
+
+  // New fields for refined logic
+  indirect_sales_count: number;
+  indirect_sales_amount: number;
+  commissionable_amount: number;
+  commissionable_count: number;
+  management_total_amount: number;
+
   by_receipt_type: Array<{
     receipt_type: string;
     count: number;
@@ -296,8 +310,20 @@ export default function UserPerformancePage() {
           total_amount: Number(apiData.summary?.total_amount || 0),
           total_iva_amount: Number(apiData.summary?.total_iva || 0),
           average_sale_amount: Number(apiData.summary?.average_sale_amount || 0),
+
           budget_count: Number(apiData.summary?.budget_count || 0),
           budget_total_amount: Number(apiData.summary?.budget_total_amount || 0),
+          pending_budget_count: Number(apiData.summary?.pending_budget_count || 0),
+          pending_budget_amount: Number(apiData.summary?.pending_budget_amount || 0),
+          converted_budget_count: Number(apiData.summary?.converted_budget_count || 0),
+          converted_budget_amount: Number(apiData.summary?.converted_budget_amount || 0),
+
+          indirect_sales_count: Number(apiData.summary?.indirect_sales_count || 0),
+          indirect_sales_amount: Number(apiData.summary?.indirect_sales_amount || 0),
+          commissionable_amount: Number(apiData.summary?.commissionable_amount || 0),
+          commissionable_count: Number(apiData.summary?.commissionable_count || 0),
+          management_total_amount: Number(apiData.summary?.management_total_amount || 0),
+
           last_7_days: {
             sales_count: Number(apiData.period_stats?.last_7_days?.count || 0),
             total_amount: Number(apiData.period_stats?.last_7_days?.total_amount || 0)
@@ -649,14 +675,19 @@ export default function UserPerformancePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Ventas (+Presupu.)</CardTitle>
+              <CardTitle className="text-sm font-medium">Ventas Totales</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{(statistics?.total_sales || 0) + (statistics?.budget_count || 0)}</div>
+              <div className="text-2xl font-bold">{(statistics?.commissionable_count || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                {statistics?.total_sales || 0} ventas y {statistics?.budget_count || 0} presupuestos
+                {statistics?.total_sales || 0} directas + {statistics?.indirect_sales_count || 0} indirectas
               </p>
+              {statistics?.pending_budget_count! > 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  + {statistics?.pending_budget_count} presupuestos pendientes
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -665,9 +696,12 @@ export default function UserPerformancePage() {
               <DollarSign className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency((statistics?.total_amount || 0) + (statistics?.budget_total_amount || 0))}</div>
+              <div className="text-2xl font-bold">{formatCurrency(statistics?.management_total_amount || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                Incluye ventas y presupuestos
+                Ventas: {formatCurrency(statistics?.commissionable_amount || 0)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Pendientes: {formatCurrency(statistics?.pending_budget_amount || 0)}
               </p>
             </CardContent>
           </Card>
@@ -679,12 +713,12 @@ export default function UserPerformancePage() {
             <CardContent>
               <div className="text-2xl font-bold">
                 {formatCurrency(
-                  ((statistics?.total_amount || 0) + (statistics?.budget_total_amount || 0)) /
-                  (((statistics?.total_sales || 0) + (statistics?.budget_count || 0)) || 1)
+                  (statistics?.commissionable_amount || 0) /
+                  ((statistics?.commissionable_count || 0) || 1)
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Global (Ventas + Presupuestos)
+                Sobre ventas realizadas
               </p>
             </CardContent>
           </Card>
@@ -694,10 +728,15 @@ export default function UserPerformancePage() {
               <Award className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(calculateCommission((statistics?.total_amount || 0) + (statistics?.budget_total_amount || 0), commissionPercentage / 100))}</div>
+              <div className="text-2xl font-bold">{formatCurrency(calculateCommission(statistics?.commissionable_amount || 0, commissionPercentage / 100))}</div>
               <p className="text-xs text-muted-foreground">
-                Al {commissionPercentage}% de comisión
+                {commissionPercentage}% sobre ${formatCurrency(statistics?.commissionable_amount || 0)}
               </p>
+              {statistics?.indirect_sales_amount! > 0 && (
+                <p className="text-xs text-green-600 mt-1">
+                  (Incluye {formatCurrency(statistics?.indirect_sales_amount || 0)} de indirectas)
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
