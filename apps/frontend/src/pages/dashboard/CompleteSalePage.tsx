@@ -550,14 +550,41 @@ export default function CompleteSalePage() {
     setShowCustomerOptions(false)
 
     // Cargar el saldo del cliente
+    // Cargar el saldo del cliente
     if (customer.id) {
       setLoadingBalance(true)
       request({
         method: 'GET',
-        url: `/customers/${customer.id}/current-account-balance`
+        url: `/current-accounts/customer/${customer.id}`
       })
         .then((response) => {
-          const balance = response?.balance ?? response?.data?.balance ?? 0
+          // El endpoint retorna { data: CurrentAccount } o similar
+          // Verificamos si response tiene la propiedad data o balance directo
+          console.log('API Response:', response)
+
+          let balance = 0
+
+          let accountData = response?.data || response
+
+          // Manejo robusto de anidamiento extra "data.data"
+          if (accountData?.data && typeof accountData.data === 'object') {
+            accountData = accountData.data
+          }
+
+          console.log('Processed Account Data:', accountData)
+
+          // Priorizamos total_pending_debt que representa la deuda real por ventas
+          if (accountData) {
+            if (accountData.total_pending_debt !== undefined && accountData.total_pending_debt !== null) {
+              balance = Number(accountData.total_pending_debt)
+            } else {
+              // Fallback a current_balance, manejando strings numéricos
+              balance = Number(accountData.current_balance || accountData.balance || 0)
+            }
+          }
+
+          console.log('Calculated Balance:', balance)
+
           setCustomerBalance(balance)
 
           // Mostrar alerta si tiene deuda
@@ -567,7 +594,12 @@ export default function CompleteSalePage() {
         })
         .catch((error) => {
           console.error('Error al cargar saldo del cliente:', error)
-          setCustomerBalance(null)
+          // Si el error es 404 (no existe cuenta corriente), el saldo es 0
+          if (error?.response?.status === 404) {
+            setCustomerBalance(0)
+          } else {
+            setCustomerBalance(null)
+          }
         })
         .finally(() => {
           setLoadingBalance(false)

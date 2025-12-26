@@ -14,6 +14,7 @@ import api from "@/lib/api"
 import { toast } from 'sonner'
 import type { PendingSale } from '@/types/currentAccount'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { usePermissions } from "@/hooks/usePermissions"
 
 interface DebtAlertDialogProps {
   open: boolean
@@ -39,14 +40,18 @@ export function DebtAlertDialog({
   debtAmount,
   onPaymentSuccess,
 }: DebtAlertDialogProps) {
+  const { hasPermission } = usePermissions()
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
+
+  const [currentAccount, setCurrentAccount] = useState<any>(null)
 
   // Cargar ventas pendientes
   useEffect(() => {
     if (!open || !customerId) {
       setPendingSales([])
+      setCurrentAccount(null)
       return
     }
 
@@ -57,18 +62,19 @@ export function DebtAlertDialog({
         const accountResponse = await api.get(
           `/current-accounts?customer_id=${customerId}&per_page=1`
         )
-        
+
         if (!accountResponse.data.data || accountResponse.data.data.length === 0) {
           return
         }
 
         const account = accountResponse.data.data[0]
-        
+        setCurrentAccount(account)
+
         // Obtener ventas pendientes
         const salesResponse = await api.get(
           `/current-accounts/${account.id}/pending-sales`
         )
-        
+
         setPendingSales(salesResponse.data.data || [])
       } catch (error) {
         console.error('Error loading pending sales:', error)
@@ -86,8 +92,28 @@ export function DebtAlertDialog({
   }
 
   const handleGoToAccounts = () => {
-    // Abrir en nueva pestaña
-    window.open('/dashboard/clientes', '_blank')
+    // Abrir en nueva pestaña filtrando por el nombre del cliente
+    let filterValue = ''
+
+    if (currentAccount?.customer?.person) {
+      const { first_name, last_name, documento, cuit } = currentAccount.customer.person
+      // Priorizar nombre completo para que sea más legible en el buscador
+      if (first_name && last_name) {
+        filterValue = `${first_name} ${last_name}`
+      } else if (first_name) {
+        filterValue = first_name
+      } else {
+        // Fallback a documentos
+        filterValue = documento || cuit || ''
+      }
+    }
+
+    // Si tenemos valor de filtro, lo usamos
+    const url = filterValue
+      ? `/dashboard/cuentas-corrientes?filter=${encodeURIComponent(filterValue)}`
+      : '/dashboard/cuentas-corrientes'
+
+    window.open(url, '_blank')
   }
 
   return (
@@ -178,17 +204,19 @@ export function DebtAlertDialog({
         </div>
 
         <DialogFooter className="flex gap-2 justify-end">
-          <Button
-            variant="outline"
-            onClick={handleGoToAccounts}
-            className="flex items-center gap-2"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Ir a Cuentas Corrientes
-          </Button>
+          {hasPermission('gestionar_cuentas_corrientes') && (
+            <Button
+              variant="outline"
+              onClick={handleGoToAccounts}
+              className="flex items-center gap-2"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Ir a Cuentas Corrientes
+            </Button>
+          )}
           <Button
             onClick={handleContinueSale}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             Continuar con Venta
           </Button>
