@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ProductFormProps {
   product?: Product;
@@ -69,6 +70,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
   const [salePrice, setSalePrice] = useState<number | null>(null);
   const [salePriceARS, setSalePriceARS] = useState<number | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number>(1000); // Default USD to ARS rate
+  const { hasPermission } = useAuth();
 
   // Helper functions to convert between UI format and backend format
   const statusToString = (status: boolean): string => status ? "active" : "inactive";
@@ -96,11 +98,17 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       web: false,
       observaciones: "",
     },
+    // We intentionally don't validate unit_price here if hidden, but react-hook-form handles hidden inputs by default unless we unregister them.
+    // However, since we conditionally render them, they are unregistered.
+    // We need to make sure the backend handles missing unit_price/markup if appropriate, OR set defaults.
+    shouldUnregister: true, // Important for conditional fields
   });
 
   const unitPrice = watch("unit_price");
   const markup = watch("markup");
   const currency = watch("currency");
+  const ivaId = watch("iva_id");
+  const selectedIva = ivas.find((i) => i.id === ivaId);
 
   // Función para cargar subcategorías por categoría padre
   const fetchSubcategories = async (parentId: string) => {
@@ -272,6 +280,12 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     }
   };
 
+  const canSeePrices = hasPermission('ver_precio_unitario') ||
+    hasPermission('crear_productos') ||
+    hasPermission('editar_productos') ||
+    hasPermission('crear_ordenes_compra') ||
+    hasPermission('editar_ordenes_compra');
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
@@ -433,49 +447,53 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="unit_price">
-            Unit Price* {currency === 'USD' ? '(USD)' : '(ARS)'}
-          </Label>
-          <Input
-            id="unit_price"
-            type="number"
-            step="0.01"
-            {...register("unit_price", {
-              required: "Unit price is required",
-              valueAsNumber: true,
-              min: { value: 0, message: "Price must be positive" }
-            })}
-            placeholder="0.00"
-          />
-          {errors.unit_price && (
-            <p className="text-sm text-red-500">{errors.unit_price.message}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="markup">Markup (%) *</Label>
-          <div className="relative">
+        {canSeePrices && (
+          <div className="space-y-2">
+            <Label htmlFor="unit_price">
+              Unit Price* {currency === 'USD' ? '(USD)' : '(ARS)'}
+            </Label>
             <Input
-              id="markup"
+              id="unit_price"
               type="number"
               step="0.01"
-              {...register("markup", {
-                required: "Markup is required",
+              {...register("unit_price", {
+                required: "Unit price is required",
                 valueAsNumber: true,
-                min: { value: 0, message: "Markup must be positive" }
+                min: { value: 0, message: "Price must be positive" }
               })}
               placeholder="0.00"
-              className="pr-8"
             />
-            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-              <span className="text-gray-500 text-sm">%</span>
-            </div>
+            {errors.unit_price && (
+              <p className="text-sm text-red-500">{errors.unit_price.message}</p>
+            )}
           </div>
-          {errors.markup && (
-            <p className="text-sm text-red-500">{errors.markup.message}</p>
-          )}
-        </div>
+        )}
+
+        {canSeePrices && (
+          <div className="space-y-2">
+            <Label htmlFor="markup">Markup (%) *</Label>
+            <div className="relative">
+              <Input
+                id="markup"
+                type="number"
+                step="0.01"
+                {...register("markup", {
+                  required: "Markup is required",
+                  valueAsNumber: true,
+                  min: { value: 0, message: "Markup must be positive" }
+                })}
+                placeholder="0.00"
+                className="pr-8"
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <span className="text-gray-500 text-sm">%</span>
+              </div>
+            </div>
+            {errors.markup && (
+              <p className="text-sm text-red-500">{errors.markup.message}</p>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="sale_price">

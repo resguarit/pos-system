@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import paymentMethodService from '@/lib/api/paymentMethodService';
 import type { PaymentMethod } from '@/lib/api/paymentMethodService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Supplier { id: number; name: string; contact_name?: string }
 interface Branch { id: number; description: string; color?: string }
@@ -41,6 +42,7 @@ interface EditablePurchaseOrderItem {
 }
 
 export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId, onSaved }: EditPurchaseOrderDialogProps) {
+  const { hasPermission } = useAuth();
   const [form, setForm] = useState({
     supplier_id: '',
     branch_id: '',
@@ -77,9 +79,9 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
     const loadData = async () => {
       try {
         const [suppliersData, branchesData, productsData, order, paymentMethodsData] = await Promise.all([
-          api.get('/suppliers?per_page=10000').then(res => res.data.data || res.data), // Obtener todos los proveedores
+          api.get('/suppliers?per_page=10000000').then(res => res.data.data || res.data), // Obtener todos los proveedores
           getBranches(),
-          getProducts(),
+          getProducts({ per_page: 10000000 }),
           purchaseOrderService.getById(purchaseOrderId),
           paymentMethodService.getAll(),
         ])
@@ -90,7 +92,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         setForm({
           supplier_id: String((order as any).supplier_id ?? (order as any).supplier?.id ?? ''),
           branch_id: String((order as any).branch_id ?? (order as any).branch?.id ?? ''),
-          order_date: (order as any).order_date ? new Date((order as any).order_date) : (order as any).created_at ? new Date((order as any).created_at) : new Date(),
+          order_date: (order as any).order_date ? new Date((order as any).order_date) : ((order as any).created_at ? new Date((order as any).created_at) : new Date()),
           notes: (order as any).notes || '',
         })
         setSelectedPaymentMethod(String((order as any).payment_method_id ?? (order as any).payment_method?.id ?? ''));
@@ -237,6 +239,10 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   const updateItemField = (index: number, field: 'quantity' | 'purchase_price', value: number | string) => {
     setItems(prev => prev.map((it, i) => i === index ? { ...it, [field]: value } : it))
   }
+
+  const canSeePrices = hasPermission('ver_precio_unitario') ||
+    hasPermission('crear_ordenes_compra') ||
+    hasPermission('editar_ordenes_compra');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -414,7 +420,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
 
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Productos</h3>
-            <div className="grid grid-cols-4 gap-4 p-4 border rounded-lg">
+            <div className={cn("grid gap-4 p-4 border rounded-lg", canSeePrices ? "grid-cols-4" : "grid-cols-3")}>
               <div className="space-y-2">
                 <Label>Producto *</Label>
                 <div className="relative">
@@ -449,7 +455,10 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                         <div key={p.id} className="p-2 hover:bg-gray-100 cursor-pointer" onClick={() => selectProduct(p)}>
                           <div className="font-medium">{p.description}</div>
                           <div className="text-sm text-gray-500">Código: {p.code}</div>
-                          <div className="text-sm text-blue-600">Precio actual: ${Number(p.unit_price).toFixed(2)}</div>
+                          <div className="text-sm text-gray-500">Código: {p.code}</div>
+                          {canSeePrices && (
+                            <div className="text-sm text-blue-600">Precio actual: ${Number(p.unit_price).toFixed(2)}</div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -460,26 +469,28 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                 <Label>Cantidad *</Label>
                 <Input type="number" min="1" value={newItem.quantity} onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })} onKeyDown={handleInputKeyDown} disabled={isReadOnly} />
               </div>
-              <div className="space-y-2">
-                <Label>
-                  Precio de Compra *
-                  {newItem.product_id && (
-                    <span className="text-muted-foreground ml-1">
-                      ({getProductCurrency(Number(newItem.product_id))})
-                    </span>
-                  )}
-                </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder={`0.00 ${newItem.product_id ? getProductCurrency(Number(newItem.product_id)) : ''}`}
-                  value={newItem.purchase_price}
-                  onChange={(e) => setNewItem({ ...newItem, purchase_price: e.target.value })}
-                  onKeyDown={handleInputKeyDown}
-                  disabled={isReadOnly}
-                />
-              </div>
+              {canSeePrices && (
+                <div className="space-y-2">
+                  <Label>
+                    Precio de Compra *
+                    {newItem.product_id && (
+                      <span className="text-muted-foreground ml-1">
+                        ({getProductCurrency(Number(newItem.product_id))})
+                      </span>
+                    )}
+                  </Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder={`0.00 ${newItem.product_id ? getProductCurrency(Number(newItem.product_id)) : ''}`}
+                    value={newItem.purchase_price}
+                    onChange={(e) => setNewItem({ ...newItem, purchase_price: e.target.value })}
+                    onKeyDown={handleInputKeyDown}
+                    disabled={isReadOnly}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>&nbsp;</Label>
                 <Button type="button" onClick={addItem} className="w-full" disabled={isReadOnly}><Plus className="h-4 w-4 mr-2" />Agregar</Button>
@@ -492,8 +503,8 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                     <TableRow>
                       <TableHead>Producto</TableHead>
                       <TableHead>Cantidad</TableHead>
-                      <TableHead>Precio Unit.</TableHead>
-                      <TableHead>Subtotal</TableHead>
+                      {canSeePrices && <TableHead>Precio Unit.</TableHead>}
+                      {canSeePrices && <TableHead>Subtotal</TableHead>}
                       <TableHead>Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -534,52 +545,16 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                               />
                             )}
                           </TableCell>
-                          <TableCell>
-                            {isReadOnly ? (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="relative inline-block cursor-help">
-                                      <span className={isPriceChanged ? "bg-orange-50 px-2 py-1 rounded border border-orange-200" : ""}>
-                                        ${Number(item.purchase_price).toFixed(2)} {getProductCurrency(item.product_id)}
-                                      </span>
-                                      {isPriceChanged && (
-                                        <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
-                                      )}
-                                    </div>
-                                  </TooltipTrigger>
-                                  {isPriceChanged && (
-                                    <TooltipContent side="top" className="max-w-xs">
-                                      <div className="space-y-1">
-                                        <div className="font-semibold text-orange-600">Precio Tentativo</div>
-                                        <div className="text-sm">Precio actual: ${currentPrice.toFixed(2)}</div>
-                                        <div className="text-sm">Precio orden: ${Number(orderPrice).toFixed(2)}</div>
-                                        <div className="text-xs text-muted-foreground">Se aplicará al completar la orden</div>
-                                      </div>
-                                    </TooltipContent>
-                                  )}
-                                </Tooltip>
-                              </TooltipProvider>
-                            ) : (
-                              <div className="flex items-center gap-2">
+                          {canSeePrices && (
+                            <TableCell>
+                              {isReadOnly ? (
                                 <TooltipProvider>
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <div className="relative flex-1">
-                                        <Input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
-                                          value={item.purchase_price}
-                                          onChange={(e) => {
-                                            const val = e.target.value
-                                            // Permitir vacío o números positivos
-                                            if (val === '' || (!isNaN(Number(val)) && Number(val) >= 0)) {
-                                              updateItemField(index, 'purchase_price', val === '' ? '' : val)
-                                            }
-                                          }}
-                                          className={isPriceChanged ? "border-orange-300 bg-orange-50" : ""}
-                                        />
+                                      <div className="relative inline-block cursor-help">
+                                        <span className={isPriceChanged ? "bg-orange-50 px-2 py-1 rounded border border-orange-200" : ""}>
+                                          ${Number(item.purchase_price).toFixed(2)} {getProductCurrency(item.product_id)}
+                                        </span>
                                         {isPriceChanged && (
                                           <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
                                         )}
@@ -597,13 +572,53 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                                     )}
                                   </Tooltip>
                                 </TooltipProvider>
-                                <span className="text-sm text-muted-foreground">
-                                  {getProductCurrency(item.product_id)}
-                                </span>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>${(Number(item.quantity || 0) * Number(item.purchase_price || 0)).toFixed(2)} {getProductCurrency(item.product_id)}</TableCell>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="relative flex-1">
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={item.purchase_price}
+                                            onChange={(e) => {
+                                              const val = e.target.value
+                                              // Permitir vacío o números positivos
+                                              if (val === '' || (!isNaN(Number(val)) && Number(val) >= 0)) {
+                                                updateItemField(index, 'purchase_price', val === '' ? '' : val)
+                                              }
+                                            }}
+                                            className={isPriceChanged ? "border-orange-300 bg-orange-50" : ""}
+                                          />
+                                          {isPriceChanged && (
+                                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
+                                          )}
+                                        </div>
+                                      </TooltipTrigger>
+                                      {isPriceChanged && (
+                                        <TooltipContent side="top" className="max-w-xs">
+                                          <div className="space-y-1">
+                                            <div className="font-semibold text-orange-600">Precio Tentativo</div>
+                                            <div className="text-sm">Precio actual: ${currentPrice.toFixed(2)}</div>
+                                            <div className="text-sm">Precio orden: ${Number(orderPrice).toFixed(2)}</div>
+                                            <div className="text-xs text-muted-foreground">Se aplicará al completar la orden</div>
+                                          </div>
+                                        </TooltipContent>
+                                      )}
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                  <span className="text-sm text-muted-foreground">
+                                    {getProductCurrency(item.product_id)}
+                                  </span>
+                                </div>
+                              )}
+                            </TableCell>
+                          )}
+                          {canSeePrices && (
+                            <TableCell>${(Number(item.quantity || 0) * Number(item.purchase_price || 0)).toFixed(2)} {getProductCurrency(item.product_id)}</TableCell>
+                          )}
                           <TableCell>
                             <Button type="button" variant="outline" size="sm" onClick={() => removeItem(index)} disabled={isReadOnly}>
                               <Trash2 className="h-4 w-4" />
@@ -612,7 +627,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                         </TableRow>
                       );
                     })}
-                    {items.length > 0 && (
+                    {items.length > 0 && canSeePrices && (
                       <TableRow>
                         <TableCell colSpan={3} className="text-right font-semibold">
                           Total:
@@ -639,4 +654,5 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
       </DialogContent>
     </Dialog>
   )
+
 }

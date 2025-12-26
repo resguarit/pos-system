@@ -10,6 +10,7 @@ import { getPurchaseOrderById, openPurchaseOrderPdf } from "@/lib/api/purchaseOr
 import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/hooks/useAuth"
 
 interface ViewPurchaseOrderDialogProps {
   open: boolean
@@ -18,9 +19,20 @@ interface ViewPurchaseOrderDialogProps {
 }
 
 export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }: ViewPurchaseOrderDialogProps) {
+  const { hasPermission } = useAuth()
+  const canSeePrices = hasPermission('ver_precio_unitario') ||
+    hasPermission('crear_ordenes_compra') ||
+    hasPermission('editar_ordenes_compra');
   const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrder | null>(null)
   const [loading, setLoading] = useState(false)
-  const [showPrices, setShowPrices] = useState(true)
+  const [showPrices, setShowPrices] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setShowPrices(canSeePrices)
+    }
+  }, [open, canSeePrices])
+
   // Debug: mostrar el ID recibido y el resultado
   useEffect(() => {
     if (open && purchaseOrderId) {
@@ -73,11 +85,11 @@ export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }:
     }
   }
 
-    const calculateTotal = () => {
+  const calculateTotal = () => {
     if (!purchaseOrder?.items) return 0;
     return purchaseOrder.items.reduce((acc, item) => acc + (item.quantity * item.purchase_price), 0);
   };
-  
+
   const getProductCurrency = (item: any) => {
     return item.product?.currency || 'ARS';
   };
@@ -133,10 +145,14 @@ export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }:
 
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Checkbox id="showPrices" checked={showPrices} onCheckedChange={(v) => setShowPrices(Boolean(v))} />
-            <label htmlFor="showPrices" className="text-sm">Mostrar precios y totales</label>
+            {canSeePrices && (
+              <>
+                <Checkbox id="showPrices" checked={showPrices} onCheckedChange={(v) => setShowPrices(Boolean(v))} />
+                <label htmlFor="showPrices" className="text-sm">Mostrar precios y totales</label>
+              </>
+            )}
           </div>
-          <Button variant="outline" size="sm" onClick={() => openPurchaseOrderPdf(purchaseOrder.id!, { showPrices })}>
+          <Button variant="outline" size="sm" onClick={() => openPurchaseOrderPdf(purchaseOrder.id!, { showPrices: showPrices && canSeePrices })}>
             <Printer className="h-4 w-4 mr-2" /> Imprimir PDF
           </Button>
         </div>
@@ -213,21 +229,19 @@ export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }:
                   Esta orden {(purchaseOrder as any).affects_cash_register !== false ? 'SÍ impacta' : 'NO impacta'} en el saldo de la caja registradora
                 </p>
               </div>
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 ${
-                (purchaseOrder as any).affects_cash_register !== false
-                  ? "bg-green-50 border-green-300" 
-                  : "bg-orange-50 border-orange-300"
-              }`}>
+              <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 ${(purchaseOrder as any).affects_cash_register !== false
+                ? "bg-green-50 border-green-300"
+                : "bg-orange-50 border-orange-300"
+                }`}>
                 {(purchaseOrder as any).affects_cash_register !== false ? (
                   <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
                 ) : (
                   <AlertCircle className="h-6 w-6 text-orange-600 flex-shrink-0" />
                 )}
-                <span className={`font-semibold text-base ${
-                  (purchaseOrder as any).affects_cash_register !== false
-                    ? "text-green-700" 
-                    : "text-orange-700"
-                }`}>
+                <span className={`font-semibold text-base ${(purchaseOrder as any).affects_cash_register !== false
+                  ? "text-green-700"
+                  : "text-orange-700"
+                  }`}>
                   {(purchaseOrder as any).affects_cash_register !== false ? "SÍ afecta" : "NO afecta"}
                 </span>
               </div>
@@ -284,7 +298,7 @@ export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }:
               <Package className="h-4 w-4" />
               Productos ({purchaseOrder.items?.length || 0} items)
             </h3>
-            
+
             <div className="rounded-md border">
               <Table>
                 <TableHeader>

@@ -8,6 +8,8 @@ import useApi from "@/hooks/useApi"
 import { toast } from "sonner"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
+import { useAuth } from "@/hooks/useAuth"
+
 interface ProductCostHistoryDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -32,6 +34,12 @@ const getSourceTypeBadgeVariant = (sourceType: string | null): "default" | "seco
 }
 
 export function ProductCostHistoryDialog({ open, onOpenChange, product }: ProductCostHistoryDialogProps) {
+  const { hasPermission } = useAuth()
+  const canSeePrices = hasPermission('ver_precio_unitario') ||
+    hasPermission('crear_productos') ||
+    hasPermission('editar_productos') ||
+    hasPermission('crear_ordenes_compra') ||
+    hasPermission('editar_ordenes_compra');
   const { request, loading } = useApi()
   const [history, setHistory] = useState<ProductCostHistory[]>([])
   const [productInfo, setProductInfo] = useState<{
@@ -42,6 +50,7 @@ export function ProductCostHistoryDialog({ open, onOpenChange, product }: Produc
     currency: 'USD' | 'ARS'
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
 
   const fetchHistory = useCallback(async () => {
     if (!product) return
@@ -135,7 +144,17 @@ export function ProductCostHistoryDialog({ open, onOpenChange, product }: Produc
           </DialogTitle>
         </DialogHeader>
 
-        {loading ? (
+        {!canSeePrices ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
+            <AlertCircle className="h-12 w-12 text-destructive opacity-20" />
+            <div className="space-y-2">
+              <h3 className="font-semibold text-lg">Acceso Restringido</h3>
+              <p className="text-muted-foreground max-w-sm">
+                No tienes permisos para ver el historial de costos de los productos.
+              </p>
+            </div>
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>

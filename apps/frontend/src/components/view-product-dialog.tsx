@@ -25,6 +25,11 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
   const { branches } = useBranch();
   const { hasPermission } = useAuth();
   const { request, loading: loadingHistory } = useApi();
+  const canSeePrices = hasPermission('ver_precio_unitario') ||
+    hasPermission('crear_productos') ||
+    hasPermission('editar_productos') ||
+    hasPermission('crear_ordenes_compra') ||
+    hasPermission('editar_ordenes_compra');
   const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
   const [costHistory, setCostHistory] = useState<ProductCostHistory[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -222,10 +227,12 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
               <div className="flex-shrink-0 px-6 pt-4">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="details">Detalles</TabsTrigger>
-                  <TabsTrigger value="history" className="flex items-center gap-2">
-                    <History className="h-4 w-4" />
-                    Historial de Costos
-                  </TabsTrigger>
+                  {canSeePrices && (
+                    <TabsTrigger value="history" className="flex items-center gap-2">
+                      <History className="h-4 w-4" />
+                      Historial de Costos
+                    </TabsTrigger>
+                  )}
                 </TabsList>
               </div>
 
@@ -255,14 +262,18 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                     <span className="font-medium text-right">IVA:</span>
                     <span className="col-span-3">{product.iva?.rate ? `${product.iva.rate}%` : '0%'}</span>
                   </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <span className="font-medium text-right">Precio Unitario:</span>
-                    <span className="col-span-3">${Number.parseFloat(product.unit_price).toFixed(2)} {product.currency}</span>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <span className="font-medium text-right">Markup (%):</span>
-                    <span className="col-span-3">{formatMarkup(product.markup)}%</span>
-                  </div>
+                  {canSeePrices && (
+                    <>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <span className="font-medium text-right">Precio Unitario:</span>
+                        <span className="col-span-3">${Number.parseFloat(product.unit_price).toFixed(2)} {product.currency}</span>
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                        <span className="font-medium text-right">Markup (%):</span>
+                        <span className="col-span-3">{formatMarkup(product.markup)}%</span>
+                      </div>
+                    </>
+                  )}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Precio Venta:</span>
                     <span className="col-span-3">${Number.parseFloat(product.sale_price.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS</span>
@@ -328,240 +339,243 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                 </div>
               </TabsContent>
 
-              <TabsContent value="history" className="flex-1 min-h-0 overflow-y-auto px-6 py-4 mt-0" style={{ maxHeight: 'calc(90vh - 180px)' }}>
-                <div className="space-y-4">
-                  {loadingHistory ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                  ) : historyError ? (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{historyError}</AlertDescription>
-                    </Alert>
-                  ) : costHistory.length > 0 ? (
-                    <>
-                      <div className="bg-muted/50 p-4 rounded-lg">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <span className="text-sm font-medium text-muted-foreground">Costo Actual:</span>
-                            <p className="font-semibold text-lg">
-                              {formatCurrency(Number.parseFloat(product.unit_price), product.currency || 'ARS')}
-                            </p>
-                          </div>
-                          <div>
-                            <span className="text-sm font-medium text-muted-foreground">Total de Cambios:</span>
-                            <p className="font-semibold">{costHistory.length}</p>
+              {canSeePrices && (
+                <TabsContent value="history" className="flex-1 min-h-0 overflow-y-auto px-6 py-4 mt-0" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+                  <div className="space-y-4">
+                    {loadingHistory ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      </div>
+                    ) : historyError ? (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{historyError}</AlertDescription>
+                      </Alert>
+                    ) : costHistory.length > 0 ? (
+                      <>
+                        <div className="bg-muted/50 p-4 rounded-lg">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <span className="text-sm font-medium text-muted-foreground">Costo Actual:</span>
+                              <p className="font-semibold text-lg">
+                                {formatCurrency(Number.parseFloat(product.unit_price), product.currency || 'ARS')}
+                              </p>
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium text-muted-foreground">Total de Cambios:</span>
+                              <p className="font-semibold">{costHistory.length}</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Gráfico de evolución de costos */}
-                      {chartData.length > 0 && (
-                        <Card className="w-full">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-lg">Evolución del Costo</CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="h-[300px] w-full">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <LineChart
-                                  data={chartData}
-                                  margin={{ top: 5, right: 20, left: 10, bottom: 60 }}
-                                >
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                                  <XAxis
-                                    dataKey="fecha"
-                                    stroke="#888888"
-                                    fontSize={11}
-                                    tickLine={false}
-                                    angle={-45}
-                                    textAnchor="end"
-                                    height={80}
-                                    interval={0}
-                                  />
-                                  <YAxis
-                                    stroke="#888888"
-                                    fontSize={12}
-                                    tickLine={false}
-                                    tickFormatter={(value) => {
-                                      const currency = product.currency || 'ARS';
-                                      return new Intl.NumberFormat('es-AR', {
-                                        style: 'currency',
-                                        currency: currency,
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0,
-                                      }).format(value);
-                                    }}
-                                  />
-                                  <Tooltip
-                                    formatter={(value: number) => [
-                                      formatCurrency(value, product.currency || 'ARS'),
-                                      'Costo'
-                                    ]}
-                                    labelStyle={{ color: "#374151", fontWeight: 600 }}
-                                    contentStyle={{
-                                      backgroundColor: "white",
-                                      border: "1px solid #e5e7eb",
-                                      borderRadius: "6px",
-                                      fontSize: "12px",
-                                      padding: "8px"
-                                    }}
-                                  />
-                                  <Line
-                                    type="monotone"
-                                    dataKey="costo"
-                                    stroke="#2563eb"
-                                    strokeWidth={2}
-                                    dot={{ r: 5, fill: "#2563eb", strokeWidth: 2, stroke: "#fff" }}
-                                    activeDot={{ r: 7, strokeWidth: 2, stroke: "#2563eb", fill: "#fff" }}
-                                    name="Costo"
-                                  />
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                      <div className="border rounded-md overflow-x-auto overflow-y-auto w-full" style={{ maxHeight: '300px' }}>
-                        <Table ref={historyTableRef} className="relative">
-                          <TableHeader>
-                            <TableRow>
-                              <ResizableTableHeader
-                                columnId="fecha"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Fecha
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="costo_anterior"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Costo Anterior
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="costo_nuevo"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Costo Nuevo
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="cambio"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Cambio
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="origen"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Origen
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="usuario"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Usuario
-                              </ResizableTableHeader>
-                              <ResizableTableHeader
-                                columnId="notas"
-                                getResizeHandleProps={getResizeHandleProps}
-                                getColumnHeaderProps={getColumnHeaderProps}
-                              >
-                                Notas
-                              </ResizableTableHeader>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {costHistory.map((item) => (
-                              <TableRow key={item.id}>
-                                <ResizableTableCell
+                        {/* Gráfico de evolución de costos */}
+                        {chartData.length > 0 && (
+                          <Card className="w-full">
+                            <CardHeader className="pb-3">
+                              <CardTitle className="text-lg">Evolución del Costo</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="h-[300px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart
+                                    data={chartData}
+                                    margin={{ top: 5, right: 20, left: 10, bottom: 60 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                    <XAxis
+                                      dataKey="fecha"
+                                      stroke="#888888"
+                                      fontSize={11}
+                                      tickLine={false}
+                                      angle={-45}
+                                      textAnchor="end"
+                                      height={80}
+                                      interval={0}
+                                    />
+                                    <YAxis
+                                      stroke="#888888"
+                                      fontSize={12}
+                                      tickLine={false}
+                                      tickFormatter={(value) => {
+                                        const currency = product.currency || 'ARS';
+                                        return new Intl.NumberFormat('es-AR', {
+                                          style: 'currency',
+                                          currency: currency,
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: 0,
+                                        }).format(value);
+                                      }}
+                                    />
+                                    <Tooltip
+                                      formatter={(value: number) => [
+                                        formatCurrency(value, product.currency || 'ARS'),
+                                        'Costo'
+                                      ]}
+                                      labelStyle={{ color: "#374151", fontWeight: 600 }}
+                                      contentStyle={{
+                                        backgroundColor: "white",
+                                        border: "1px solid #e5e7eb",
+                                        borderRadius: "6px",
+                                        fontSize: "12px",
+                                        padding: "8px"
+                                      }}
+                                    />
+                                    <Line
+                                      type="monotone"
+                                      dataKey="costo"
+                                      stroke="#2563eb"
+                                      strokeWidth={2}
+                                      dot={{ r: 5, fill: "#2563eb", strokeWidth: 2, stroke: "#fff" }}
+                                      activeDot={{ r: 7, strokeWidth: 2, stroke: "#2563eb", fill: "#fff" }}
+                                      name="Costo"
+                                    />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                        <div className="border rounded-md overflow-x-auto overflow-y-auto w-full" style={{ maxHeight: '300px' }}>
+                          <Table ref={historyTableRef} className="relative">
+                            <TableHeader>
+                              <TableRow>
+                                <ResizableTableHeader
                                   columnId="fecha"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className="whitespace-nowrap"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
                                 >
-                                  {formatDate(item.created_at)}
-                                </ResizableTableCell>
-                                <ResizableTableCell
+                                  Fecha
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
                                   columnId="costo_anterior"
-                                  getColumnCellProps={getColumnCellProps}
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
                                 >
-                                  {item.previous_cost !== null
-                                    ? formatCurrency(item.previous_cost, item.currency)
-                                    : '-'}
-                                </ResizableTableCell>
-                                <ResizableTableCell
+                                  Costo Anterior
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
                                   columnId="costo_nuevo"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className="font-semibold"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
                                 >
-                                  {formatCurrency(item.new_cost, item.currency)}
-                                </ResizableTableCell>
-                                <ResizableTableCell
+                                  Costo Nuevo
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
                                   columnId="cambio"
-                                  getColumnCellProps={getColumnCellProps}
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
                                 >
-                                  <div className="flex items-center gap-2">
-                                    {getChangeIcon(item.percentage_change)}
-                                    <span className={getChangeColor(item.percentage_change)}>
-                                      {item.percentage_change !== null && item.percentage_change !== undefined
-                                        ? `${item.percentage_change > 0 ? '+' : ''}${item.percentage_change.toFixed(2)}%`
-                                        : '-'}
-                                    </span>
-                                  </div>
-                                </ResizableTableCell>
-                                <ResizableTableCell
+                                  Cambio
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
                                   columnId="origen"
-                                  getColumnCellProps={getColumnCellProps}
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
                                 >
-                                  <Badge variant="outline">
-                                    {getSourceTypeLabel(item.source_type)}
-                                  </Badge>
-                                  {item.source_id && item.source_type === 'purchase_order' && (
-                                    <span className="text-xs text-muted-foreground ml-1">
-                                      #{item.source_id}
-                                    </span>
-                                  )}
-                                </ResizableTableCell>
-                                <ResizableTableCell
+                                  Origen
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
                                   columnId="usuario"
-                                  getColumnCellProps={getColumnCellProps}
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
                                 >
-                                  {item.user
-                                    ? `${item.user.person?.first_name || ''} ${item.user.person?.last_name || ''}`.trim() || item.user.email
-                                    : '-'}
-                                </ResizableTableCell>
-                                <ResizableTableCell
+                                  Usuario
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
                                   columnId="notas"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className="truncate"
-                                  title={item.notes || ''}
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
                                 >
-                                  {item.notes || '-'}
-                                </ResizableTableCell>
+                                  Notas
+                                </ResizableTableHeader>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {costHistory.map((item) => (
+                                <TableRow key={item.id}>
+                                  <ResizableTableCell
+                                    columnId="fecha"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className="whitespace-nowrap"
+                                  >
+                                    {formatDate(item.created_at)}
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="costo_anterior"
+                                    getColumnCellProps={getColumnCellProps}
+                                  >
+                                    {item.previous_cost !== null
+                                      ? formatCurrency(item.previous_cost, item.currency)
+                                      : '-'}
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="costo_nuevo"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className="font-semibold"
+                                  >
+                                    {formatCurrency(item.new_cost, item.currency)}
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="cambio"
+                                    getColumnCellProps={getColumnCellProps}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      {getChangeIcon(item.percentage_change)}
+                                      <span className={getChangeColor(item.percentage_change)}>
+                                        {item.percentage_change !== null && item.percentage_change !== undefined
+                                          ? `${item.percentage_change > 0 ? '+' : ''}${item.percentage_change.toFixed(2)}%`
+                                          : '-'}
+                                      </span>
+                                    </div>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="origen"
+                                    getColumnCellProps={getColumnCellProps}
+                                  >
+                                    <Badge variant="outline">
+                                      {getSourceTypeLabel(item.source_type)}
+                                    </Badge>
+                                    {item.source_id && item.source_type === 'purchase_order' && (
+                                      <span className="text-xs text-muted-foreground ml-1">
+                                        #{item.source_id}
+                                      </span>
+                                    )}
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="usuario"
+                                    getColumnCellProps={getColumnCellProps}
+                                  >
+                                    {item.user
+                                      ? `${item.user.person?.first_name || ''} ${item.user.person?.last_name || ''}`.trim() || item.user.email
+                                      : '-'}
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="notas"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className="truncate"
+                                    title={item.notes || ''}
+                                  >
+                                    {item.notes || '-'}
+                                  </ResizableTableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        No hay historial de costos disponible para este producto
                       </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      No hay historial de costos disponible para este producto
-                    </div>
-                  )}
-                </div>
-              </TabsContent>
+                    )}
+                  </div>
+                </TabsContent>
+              )}
             </Tabs>
+
           </div>
         )}
       </DialogContent>
-    </Dialog>
+    </Dialog >
   )
 }
