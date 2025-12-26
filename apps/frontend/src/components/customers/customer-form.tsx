@@ -256,9 +256,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       errors.push("El nombre es obligatorio")
     }
 
-    if (!formData.last_name?.trim()) {
-      errors.push("El apellido es obligatorio")
-    }
+
 
     if (errors.length > 0) {
       toast.error("Campos obligatorios faltantes", {
@@ -329,12 +327,26 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       }
     } catch (err: any) {
       console.error("Error al procesar la solicitud:", err)
-      const errorMessage =
-        err?.response?.data?.message ||
-        (customerId ? "No se pudo actualizar el cliente" : "No se pudo crear el cliente")
-      toast.error(customerId ? "Error al actualizar" : "Error al crear", {
-        description: errorMessage,
-      })
+
+      // Handle Laravel validation errors (422 status)
+      if (err?.response?.data?.errors) {
+        const validationErrors = err.response.data.errors;
+        // Get first error message from each field
+        const errorMessages = Object.values(validationErrors)
+          .map((fieldErrors: any) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
+          .join('\n');
+
+        toast.error("Error de validación", {
+          description: errorMessages,
+        })
+      } else {
+        const errorMessage =
+          err?.response?.data?.message ||
+          (customerId ? "No se pudo actualizar el cliente" : "No se pudo crear el cliente")
+        toast.error(customerId ? "Error al actualizar" : "Error al crear", {
+          description: errorMessage,
+        })
+      }
     } finally {
       setIsLoading(false)
     }
@@ -404,7 +416,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="first_name">
-                            Nombre <span className="text-red-500">*</span>
+                            Nombre (o Razón Social) <span className="text-red-500">*</span>
                           </Label>
                           <div className="relative">
                             <Input
@@ -426,7 +438,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="last_name">
-                            Apellido <span className="text-red-500">*</span>
+                            Apellido
                           </Label>
                           <div className="relative">
                             <Input

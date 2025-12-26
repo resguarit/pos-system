@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react" 
+import { useState, useEffect, useCallback } from "react"
 import { useEntityContext } from "@/context/EntityContext"
 import { useAuth } from "@/hooks/useAuth"
 import { Input } from "@/components/ui/input"
@@ -65,7 +65,7 @@ export default function ClientesPage() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [customerToDelete, setCustomerToDelete] = useState<number | null>(null)
-  
+
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
@@ -105,12 +105,12 @@ export default function ClientesPage() {
 
     return () => clearTimeout(timer);
   }, [searchTerm]);
-  
+
   const fetchCustomers = useCallback(async (page = 1, signal?: AbortSignal) => {
     try {
       // Para la primera carga o cuando no tenemos datos en caché
       const shouldFetchFromAPI = page === 1 || allCustomers.length === 0;
-      
+
       if (shouldFetchFromAPI) {
         const params: any = {};
 
@@ -120,20 +120,20 @@ export default function ClientesPage() {
         }
 
 
-        const response = await request({ 
-          method: "GET", 
+        const response = await request({
+          method: "GET",
           url: "/customers",
           params,
-          signal 
+          signal
         });
-        
+
         if (response && response.success) {
           const customersData = Array.isArray(response.data) ? response.data : response.data?.data || []
-          
+
           // Verificar si la API tiene paginación del servidor útil
-          const hasServerPagination = (response.total !== undefined || response.data?.total !== undefined) && 
-                                     (response.last_page > 1 || response.data?.last_page > 1);
-          
+          const hasServerPagination = (response.total !== undefined || response.data?.total !== undefined) &&
+            (response.last_page > 1 || response.data?.last_page > 1);
+
           if (hasServerPagination) {
             // Usar paginación del servidor
             setCustomers(customersData);
@@ -143,7 +143,7 @@ export default function ClientesPage() {
           } else {
             // Usar paginación del cliente
             setAllCustomers(customersData);
-            
+
             // Calcular paginación del cliente
             const totalCount = customersData.length;
             const totalPagesCalculated = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -151,19 +151,19 @@ export default function ClientesPage() {
             const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
             const endIndex = startIndex + PAGE_SIZE;
             const paginatedCustomers = customersData.slice(startIndex, endIndex);
-            
+
             setCustomers(paginatedCustomers);
             setTotalItems(totalCount);
             setCurrentPage(safeCurrentPage);
             setTotalPages(totalPagesCalculated);
           }
-          
+
           // Actualizar el context con todos los clientes (no paginados)
           const allCustomersForContext = hasServerPagination ? customersData : customersData;
-          dispatch({ 
-            type: 'SET_ENTITIES', 
-            entityType: 'customers', 
-            entities: allCustomersForContext 
+          dispatch({
+            type: 'SET_ENTITIES',
+            entityType: 'customers',
+            entities: allCustomersForContext
           });
         }
       } else {
@@ -174,7 +174,7 @@ export default function ClientesPage() {
         const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
         const endIndex = startIndex + PAGE_SIZE;
         const paginatedCustomers = allCustomers.slice(startIndex, endIndex);
-        
+
         setCustomers(paginatedCustomers);
         setCurrentPage(safeCurrentPage);
         setTotalPages(totalPagesCalculated);
@@ -205,12 +205,12 @@ export default function ClientesPage() {
 
   const confirmDelete = async () => {
     if (!customerToDelete) return
-    
+
     if (!hasPermission('eliminar_clientes')) {
       toast.error('No tienes permisos para eliminar clientes');
       return;
     }
-    
+
     try {
       await request({ method: "DELETE", url: `/customers/${customerToDelete}` })
       setCustomers(customers.filter((customer) => customer.id !== customerToDelete))
@@ -259,10 +259,10 @@ export default function ClientesPage() {
         <div className="flex flex-1 items-center space-x-2">
           <div className="relative w-full md:w-80">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              type="search" 
-              placeholder="Buscar clientes..." 
-              className="w-full pl-8" 
+            <Input
+              type="search"
+              placeholder="Buscar clientes..."
+              className="w-full pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -340,8 +340,8 @@ export default function ClientesPage() {
                           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
                             {customer.person.first_name ? customer.person.first_name[0] : "C"}
                           </div>
-                          <span className="truncate" title={`${customer.person.first_name} ${customer.person.last_name}`}>
-                            {`${customer.person.first_name} ${customer.person.last_name}`}
+                          <span className="truncate" title={[customer.person.first_name, customer.person.last_name].filter(Boolean).join(" ")}>
+                            {[customer.person.first_name, customer.person.last_name].filter(Boolean).join(" ")}
                           </span>
                         </div>
                       </ResizableTableCell>
@@ -376,7 +376,7 @@ export default function ClientesPage() {
                           <Badge variant="outline" className="bg-green-50 text-green-700 hover:bg-green-50 hover:text-green-700">
                             Activo
                           </Badge>
-                        ) : ( 
+                        ) : (
                           <Badge variant="outline" className="bg-red-50 text-red-700 hover:bg-red-50 hover:text-red-700">
                             Inactivo
                           </Badge>
@@ -398,21 +398,21 @@ export default function ClientesPage() {
                           {hasPermission('editar_clientes') && (
                             <Button variant="ghost" size="icon" title="Editar" className="hover:text-orange-700 hover:bg-orange-50">
                               <Link to={`/dashboard/clientes/${customer.id}/editar`}>
-                              <Pencil className="h-4 w-4 text-orange-600 group-hover:text-orange-700" />
-                            </Link>
+                                <Pencil className="h-4 w-4 text-orange-600 group-hover:text-orange-700" />
+                              </Link>
                             </Button>
                           )}
                           {hasPermission('ver_clientes') && hasPermission('ver_ventas') && (
-                             <Button variant="ghost" size="icon" title="Historial de Compras" className="hover:bg-purple-100 group">
+                            <Button variant="ghost" size="icon" title="Historial de Compras" className="hover:bg-purple-100 group">
                               <Link to={`/dashboard/clientes/${customer.id}/compras`}>
-                              <BarChart2 className="h-4 w-4 text-purple-600 group-hover:text-purple-700" />
+                                <BarChart2 className="h-4 w-4 text-purple-600 group-hover:text-purple-700" />
                               </Link>
                             </Button>
                           )}
                           {hasPermission('gestionar_cuentas_corrientes') && (
-                             <Button variant="ghost" size="icon" title="Cuenta Corriente" className="hover:bg-green-100 group">
-                              <Link to={`/dashboard/cuentas-corrientes?filter=${encodeURIComponent(customer.person.first_name + ' ' + customer.person.last_name)}`}>
-                              <Wallet className="h-4 w-4 text-green-600 group-hover:text-green-700" />
+                            <Button variant="ghost" size="icon" title="Cuenta Corriente" className="hover:bg-green-100 group">
+                              <Link to={`/dashboard/cuentas-corrientes?filter=${encodeURIComponent([customer.person.first_name, customer.person.last_name].filter(Boolean).join(' '))}`}>
+                                <Wallet className="h-4 w-4 text-green-600 group-hover:text-green-700" />
                               </Link>
                             </Button>
                           )}
@@ -450,15 +450,15 @@ export default function ClientesPage() {
         className="mt-4 mb-6"
       />
 
-      <EditCustomerDialog 
-        open={editDialogOpen} 
-        onOpenChange={setEditDialogOpen} 
-        customer={{ 
-          id: 0, 
+      <EditCustomerDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        customer={{
+          id: 0,
           name: '', // <- nombre vacío para fallback
-          email: '', 
+          email: '',
           phone: '' // <- teléfono vacío para fallback
-        }} 
+        }}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

@@ -32,8 +32,10 @@ interface CashRegisterOptimized {
   cash_difference?: number
   payment_method_totals: Record<string, number>
   status: string
-  today_income?: number
-  today_expenses?: number
+  total_income?: number
+  total_expenses?: number
+  today_income?: number // Deprecated: usar total_income
+  today_expenses?: number // Deprecated: usar total_expenses
 }
 
 interface UseCashRegisterOptimizedReturn {
@@ -54,10 +56,10 @@ export default function useCashRegisterOptimized(branchId: number | null): UseCa
 
   const isCashPaymentMethod = (methodName: string): boolean => {
     if (!paymentMethods) return false
-    
+
     const cashKeywords = paymentMethods.keywords.cash
     const normalizedName = methodName.toLowerCase()
-    
+
     return cashKeywords.some(keyword => normalizedName.includes(keyword))
   }
 
@@ -72,7 +74,7 @@ export default function useCashRegisterOptimized(branchId: number | null): UseCa
         method: 'GET',
         url: `/cash-registers/current-optimized?branch_id=${branchId}`
       })
-      
+
       if (response && response.data) {
         setCurrentCashRegister(response.data)
       } else {
@@ -90,7 +92,7 @@ export default function useCashRegisterOptimized(branchId: number | null): UseCa
         method: 'GET',
         url: '/cash-registers/payment-methods-optimized'
       })
-      
+
       if (response && response.data) {
         setPaymentMethods(response.data)
       }
@@ -116,11 +118,11 @@ export default function useCashRegisterOptimized(branchId: number | null): UseCa
   // Cargar cash register cuando cambie branchId
   useEffect(() => {
     if (!branchId) return
-    
+
     // Limpiar estado inmediatamente cuando cambia branchId
     setCurrentCashRegister(null)
     setError(null)
-    
+
     const fetchData = async () => {
       setLoading(true)
       await fetchCurrentCashRegister()

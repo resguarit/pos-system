@@ -21,6 +21,8 @@ class CashRegister extends Model
         'closed_at',
         'initial_amount',
         'final_amount',
+        'total_income',
+        'total_expenses',
         'expected_cash_balance',
         'cash_difference',
         'payment_method_totals',
@@ -33,6 +35,8 @@ class CashRegister extends Model
         'closed_at' => 'datetime',
         'initial_amount' => 'decimal:2',
         'final_amount' => 'decimal:2',
+        'total_income' => 'decimal:2',
+        'total_expenses' => 'decimal:2',
         'expected_cash_balance' => 'decimal:2',
         'cash_difference' => 'decimal:2',
         'payment_method_totals' => 'array',
@@ -62,7 +66,7 @@ class CashRegister extends Model
                 WHEN movement_types.operation_type = "entrada" THEN cash_movements.amount 
                 WHEN movement_types.operation_type = "salida" THEN -cash_movements.amount 
                 ELSE 0 END'));
-        
+
         return $this->initial_amount + $totalMovements;
     }
 
@@ -74,7 +78,7 @@ class CashRegister extends Model
     {
         // Obtener métodos de pago que son efectivo
         $cashPaymentMethods = $this->getCashPaymentMethods();
-        
+
         // Calcular movimientos que afectan el efectivo físico de la caja
         $cashMovements = $this->cashMovements()
             ->join('movement_types', 'cash_movements.movement_type_id', '=', 'movement_types.id')
@@ -85,22 +89,22 @@ class CashRegister extends Model
                 return $query->where(function ($q) use ($cashPaymentMethods) {
                     // Para ENTRADAS: solo incluir si el método de pago es efectivo
                     $q->where('movement_types.operation_type', 'entrada')
-                      ->when($cashPaymentMethods->isNotEmpty(), function ($subQuery) use ($cashPaymentMethods) {
-                          return $subQuery->where(function ($subQ) use ($cashPaymentMethods) {
-                              $subQ->whereIn('cash_movements.payment_method_id', $cashPaymentMethods->pluck('id'))
-                                   ->orWhereNull('cash_movements.payment_method_id');
-                          });
-                      });
+                        ->when($cashPaymentMethods->isNotEmpty(), function ($subQuery) use ($cashPaymentMethods) {
+                        return $subQuery->where(function ($subQ) use ($cashPaymentMethods) {
+                            $subQ->whereIn('cash_movements.payment_method_id', $cashPaymentMethods->pluck('id'))
+                                ->orWhereNull('cash_movements.payment_method_id');
+                        });
+                    });
                 })->orWhere(function ($q) use ($cashPaymentMethods) {
                     // Para SALIDAS: solo incluir si el método de pago es efectivo
                     // porque solo estos afectan el efectivo físico de la caja
                     $q->where('movement_types.operation_type', 'salida')
-                      ->when($cashPaymentMethods->isNotEmpty(), function ($subQuery) use ($cashPaymentMethods) {
-                          return $subQuery->where(function ($subQ) use ($cashPaymentMethods) {
-                              $subQ->whereIn('cash_movements.payment_method_id', $cashPaymentMethods->pluck('id'))
-                                   ->orWhereNull('cash_movements.payment_method_id');
-                          });
-                      });
+                        ->when($cashPaymentMethods->isNotEmpty(), function ($subQuery) use ($cashPaymentMethods) {
+                        return $subQuery->where(function ($subQ) use ($cashPaymentMethods) {
+                            $subQ->whereIn('cash_movements.payment_method_id', $cashPaymentMethods->pluck('id'))
+                                ->orWhereNull('cash_movements.payment_method_id');
+                        });
+                    });
                 });
             })
             ->sum(DB::raw('CASE 
@@ -159,7 +163,7 @@ class CashRegister extends Model
     {
         // Palabras clave para identificar métodos de pago en efectivo
         $cashKeywords = ['efectivo', 'cash', 'contado'];
-        
+
         return \App\Models\PaymentMethod::where('is_active', true)
             ->where(function ($query) use ($cashKeywords) {
                 foreach ($cashKeywords as $keyword) {
@@ -190,20 +194,20 @@ class CashRegister extends Model
         // Obtener métodos de pago que son efectivo (usar la misma lógica que calculateExpectedCashBalance)
         $cashPaymentMethods = $this->getCashPaymentMethods();
         $cashPaymentMethodIds = $cashPaymentMethods->pluck('id')->toArray();
-        
+
         // Iteramos sobre cada movimiento para hacer los cálculos
         foreach ($movements as $movement) {
             // CRÍTICO: Solo procesar movimientos que afectan el balance
             if (!$movement->affects_balance) {
                 continue; // Saltar movimientos informativos
             }
-            
+
             // Excluir movimientos automáticos del sistema (igual que calculateExpectedCashBalance)
             $movementTypeName = $movement->movementType->name ?? '';
             if (in_array($movementTypeName, ['Apertura automática', 'Cierre automático', 'Ajuste del sistema'])) {
                 continue;
             }
-            
+
             // Determinamos si el monto es positivo (ingreso) o negativo (egreso)
             // basándonos en el operation_type del MovementType.
             $amount = ($movement->movementType->operation_type === 'entrada')
@@ -221,7 +225,7 @@ class CashRegister extends Model
 
             // Sumamos (o restamos) el monto al total del método de pago correspondiente
             $paymentTotals[$paymentMethodName] += $amount;
-            
+
             // Si el método de pago es efectivo (usar la misma lógica que calculateExpectedCashBalance)
             // Verificar por ID (más confiable) o por nombre si no hay ID
             $isCashPayment = false;
@@ -234,21 +238,50 @@ class CashRegister extends Model
                 // Si payment_method_id es null, considerar como efectivo (comportamiento por defecto)
                 $isCashPayment = true;
             }
-            
+
             if ($isCashPayment) {
                 $expectedCash += $amount;
             }
         }
-        
+
         // Calculamos la diferencia de efectivo si hay un monto final registrado
-        $cashDifference = $this->final_amount !== null 
-            ? ($this->final_amount - $expectedCash) 
+        $cashDifference = $this->final_amount !== null
+            ? ($this->final_amount - $expectedCash)
             : null;
-        
+
         // Asignamos los nuevos valores calculados a las propiedades del modelo
         $this->payment_method_totals = $paymentTotals;
         $this->expected_cash_balance = $expectedCash;
         $this->cash_difference = $cashDifference;
+
+        // Calcular total_income y total_expenses de todos los movimientos (no solo efectivo)
+        $totalIncome = 0;
+        $totalExpenses = 0;
+
+        foreach ($movements as $movement) {
+            // CRÍTICO: Solo procesar movimientos que afectan el balance (igual que arriba)
+            if (!$movement->affects_balance) {
+                continue;
+            }
+
+            // Excluir movimientos automáticos del sistema
+            $movementTypeName = $movement->movementType->name ?? '';
+            if (in_array($movementTypeName, ['Apertura automática', 'Cierre automático', 'Ajuste del sistema'])) {
+                continue;
+            }
+
+            $opType = $movement->movementType->operation_type;
+            $amt = (float) $movement->amount;
+
+            if ($opType === 'entrada') {
+                $totalIncome += $amt;
+            } elseif ($opType === 'salida') {
+                $totalExpenses += $amt;
+            }
+        }
+
+        $this->total_income = $totalIncome;
+        $this->total_expenses = $totalExpenses;
 
         // Guardamos los cambios en la base de datos sin disparar otros eventos
         $this->saveQuietly();
@@ -263,9 +296,19 @@ class CashRegister extends Model
     {
         return LogOptions::defaults()
             ->logOnly([
-                'branch_id', 'user_id', 'opened_at', 'closed_at', 'initial_amount',
-                'final_amount', 'expected_cash_balance', 'cash_difference',
-                'payment_method_totals', 'status', 'notes'
+                'branch_id',
+                'user_id',
+                'opened_at',
+                'closed_at',
+                'initial_amount',
+                'final_amount',
+                'total_income',
+                'total_expenses',
+                'expected_cash_balance',
+                'cash_difference',
+                'payment_method_totals',
+                'status',
+                'notes'
             ])
             ->useLogName('cash_register')
             ->logOnlyDirty();

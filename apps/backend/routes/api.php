@@ -285,6 +285,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('client-services')->group(function () {
+        // Stats route - must be before {id} routes
+        Route::get('/stats', [ClientServiceController::class, 'stats']);
         // General access if needed, or mostly via customer
         Route::get('/', [ClientServiceController::class, 'index']);
         Route::get('/{id}', [ClientServiceController::class, 'show']);

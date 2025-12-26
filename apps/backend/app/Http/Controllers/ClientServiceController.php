@@ -141,4 +141,44 @@ class ClientServiceController extends Controller
         $service = ClientService::findOrFail($id);
         return response()->json($service->payments()->orderBy('payment_date', 'desc')->get());
     }
+
+    public function stats()
+    {
+        $now = Carbon::now();
+        $thirtyDaysFromNow = $now->copy()->addDays(30);
+
+        $total = ClientService::count();
+        $active = ClientService::where('status', 'active')->count();
+        $suspended = ClientService::where('status', 'suspended')->count();
+        $cancelled = ClientService::where('status', 'cancelled')->count();
+
+        $expired = ClientService::where('status', 'active')
+            ->whereNotNull('next_due_date')
+            ->where('next_due_date', '<', $now)
+            ->count();
+
+        $dueSoon = ClientService::where('status', 'active')
+            ->whereNotNull('next_due_date')
+            ->whereBetween('next_due_date', [$now, $thirtyDaysFromNow])
+            ->count();
+
+        $monthlyRevenue = ClientService::where('status', 'active')
+            ->where('billing_cycle', 'monthly')
+            ->sum('amount');
+
+        $annualRevenue = ClientService::where('status', 'active')
+            ->where('billing_cycle', 'annual')
+            ->sum('amount');
+
+        return response()->json([
+            'total' => $total,
+            'active' => $active,
+            'suspended' => $suspended,
+            'cancelled' => $cancelled,
+            'expired' => $expired,
+            'due_soon' => $dueSoon,
+            'monthly_revenue' => $monthlyRevenue,
+            'annual_revenue' => $annualRevenue,
+        ]);
+    }
 }

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator } from "lucide-react"
+import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator, Filter, ChevronUp } from "lucide-react"
 import { NewProductButton } from "@/components/new-product-button"
 import { AddStockButton } from "@/components/add-stock-button"
 import { EditProductDialog } from "@/components/edit-product-dialog"
@@ -27,6 +27,7 @@ import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { useAuth } from '@/hooks/useAuth';
 import { useBranch } from '@/context/BranchContext';
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
@@ -52,16 +53,20 @@ export default function InventarioPage() {
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>([])
+  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([])
+  const [selectedProductStatus, setSelectedProductStatus] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState<string>("")
   const { request, loading, error } = useApi()
   const { dispatch } = useEntityContext()
   const [initialDataLoaded, setInitialDataLoaded] = useState(false)
+  const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
   const [perBranchView, setPerBranchView] = useState(false)
   const [page, setPage] = useState<number>(1)
   const [perPage, setPerPage] = useState<number>(10)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [advancedBulkUpdateDialogOpen, setAdvancedBulkUpdateDialogOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Configuración de columnas redimensionables
   const columnConfig = [
@@ -112,6 +117,16 @@ export default function InventarioPage() {
         selectedStockStatuses.forEach(status => params.append('stock_status[]', status))
       }
 
+      // Supplier filter
+      if (selectedSuppliers.length > 0) {
+        selectedSuppliers.forEach(id => params.append('supplier_ids[]', id))
+      }
+
+      // Product status filter (active/inactive)
+      if (selectedProductStatus !== 'all') {
+        params.set('status', selectedProductStatus)
+      }
+
       // for_admin is no longer strictly needed for pagination but kept if backend uses it for other logic, 
       // primarily we rely on the new pagination structure.
       // params.set('for_admin', 'true') 
@@ -152,7 +167,7 @@ export default function InventarioPage() {
       console.error("Error al cargar productos:", err)
       setProducts([])
     }
-  }, [request, page, perPage, searchQuery, selectedBranches, selectedCategories, selectedStockStatuses]);
+  }, [request, page, perPage, searchQuery, selectedBranches, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus]);
 
   const refreshData = useCallback(() => {
     // If we are on page > 1 and refresh, we might want to stay on page or go to 1. 
@@ -257,12 +272,33 @@ export default function InventarioPage() {
     }
   }
 
+  const fetchSuppliers = async (signal?: AbortSignal) => {
+    try {
+      const response = await request({
+        method: "GET",
+        url: "/suppliers",
+        signal,
+      })
+      const suppliersData = Array.isArray(response?.data?.data) ? response.data.data :
+        Array.isArray(response?.data) ? response.data :
+          Array.isArray(response) ? response : []
+
+      setSuppliers(suppliersData)
+    } catch (err: any) {
+      if (err.name === 'AbortError' || err.message === 'canceled') {
+        return;
+      }
+      console.error("Error al cargar proveedores:", err)
+      setSuppliers([])
+    }
+  }
+
   useEffect(() => {
     const controller = new AbortController()
     const signal = controller.signal
 
     const loadInitialData = async () => {
-      await Promise.all([fetchBranches(signal), fetchCategories(signal)])
+      await Promise.all([fetchBranches(signal), fetchCategories(signal), fetchSuppliers(signal)])
       const branchParams = searchParams.getAll('branch')
       const stockParam = searchParams.get('stock')
       const catParam = searchParams.getAll('category')
@@ -326,7 +362,7 @@ export default function InventarioPage() {
   useEffect(() => {
     if (!initialDataLoaded) return
     setPage(1)
-  }, [selectedBranches, selectedCategories, selectedStockStatuses, searchQuery, perBranchView])
+  }, [selectedBranches, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
 
   // Remove client-side applyFilters logic
 
@@ -540,6 +576,16 @@ export default function InventarioPage() {
     { value: 'out-of-stock', label: 'Agotado' },
   ]
 
+  // Supplier options
+  const supplierOptions = suppliers.map((s) => ({ value: String(s.id), label: s.name || `Proveedor ${s.id}` }))
+
+  // Product status options (active/inactive)
+  const productStatusOptions = [
+    { value: 'all', label: 'Todos' },
+    { value: 'active', label: 'Activos' },
+    { value: 'inactive', label: 'Inactivos' },
+  ]
+
   const summarizeSelection = (
     all: { value: string; label: string }[],
     selected: string[],
@@ -555,6 +601,8 @@ export default function InventarioPage() {
   const catSummary = summarizeSelection(categoryOptions, selectedCategories, 'Todas')
   const branchSummary = summarizeSelection(branchOptions, selectedBranches, 'Todas')
   const statusSummary = summarizeSelection(statusOptions, selectedStockStatuses, 'Todos')
+  const supplierSummary = summarizeSelection(supplierOptions, selectedSuppliers, 'Todos')
+  const productStatusLabel = productStatusOptions.find(o => o.value === selectedProductStatus)?.label || 'Todos'
 
   type Row = { key: string; product: Product; stock: Stock; branchName: string }
 
@@ -688,9 +736,11 @@ export default function InventarioPage() {
             </div>
           </div>
 
-          <div className="flex w-full flex-col space-y-4 md:flex-row md:flex-wrap md:items-start md:justify-between md:gap-2 md:space-y-0">
-            <div className="flex flex-1 min-w-0 items-center gap-2">
-              <div className="relative w-full md:w-80">
+          {/* Search bar and filter toggle */}
+          <div className="flex w-full flex-col gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              {/* Search */}
+              <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="search"
@@ -700,65 +750,139 @@ export default function InventarioPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap justify-end">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar categorías">
-                    <span className="truncate">Categorías</span>
-                    <span className=" flex items-center gap-1 text-muted-foreground">
-                      <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{catSummary}</span>
-                      <ChevronDown className="h-4 w-4 opacity-70" />
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                  <div className="mb-2 text-xs text-muted-foreground">Selecciona categorías</div>
-                  <MultiSelectCheckbox options={categoryOptions} selected={selectedCategories} onChange={setSelectedCategories} />
-                </PopoverContent>
-              </Popover>
-              {branches.length > 1 && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar sucursales">
-                      <span className="truncate">Sucursales</span>
-                      <span className="ml-2 flex items-center gap-1 text-muted-foreground">
-                        <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{branchSummary}</span>
-                        <ChevronDown className="h-4 w-4 opacity-70" />
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                    <div className="mb-2 text-xs text-muted-foreground">Selecciona sucursales</div>
-                    <MultiSelectCheckbox options={branchOptions} selected={selectedBranches} onChange={setSelectedBranches} />
-                  </PopoverContent>
-                </Popover>
-              )}
 
-              {hasPermission('ver_stock') && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-[180px] sm:w-[220px] max-w-full justify-between overflow-hidden" title="Seleccionar estados de stock">
-                      <span className="truncate">Estado stock</span>
-                      <span className="ml-2 flex items-center gap-1 text-muted-foreground">
-                        <span className="truncate max-w-[80px] sm:max-w-[120px] md:max-w-[140px]">{statusSummary}</span>
-                        <ChevronDown className="h-4 w-4 opacity-70" />
-                      </span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                    <div className="mb-2 text-xs text-muted-foreground">Selecciona estados</div>
-                    <MultiSelectCheckbox options={statusOptions} selected={selectedStockStatuses} onChange={setSelectedStockStatuses} />
-                  </PopoverContent>
-                </Popover>
-              )}
-
-              {branches.length > 1 && (
-                <Button variant={perBranchView ? "default" : "outline"} onClick={togglePerBranchView} title={perBranchView ? "Cambiar a vista por producto" : "Cambiar a vista por sucursal"} className="whitespace-nowrap text-xs sm:text-sm">
-                  {perBranchView ? "Modo: Por sucursal" : "Modo: Por producto"}
+              {/* Filter toggle button + View mode - Right aligned */}
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  variant={filtersOpen ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                  className="flex items-center gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filtros
+                  {filtersOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
-              )}
+
+                {branches.length > 1 && (
+                  <Button variant={perBranchView ? "default" : "outline"} size="sm" onClick={togglePerBranchView} title={perBranchView ? "Cambiar a vista por producto" : "Cambiar a vista por sucursal"} className="whitespace-nowrap text-xs sm:text-sm">
+                    {perBranchView ? "Por sucursal" : "Por producto"}
+                  </Button>
+                )}
+              </div>
             </div>
+
+            {/* Collapsible filters panel */}
+            <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <CollapsibleContent className="pt-2">
+                <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30">
+                  {/* Categories */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="justify-between min-w-[140px]" title="Seleccionar categorías">
+                        <span className="truncate">Categorías</span>
+                        <span className="ml-2 flex items-center gap-1 text-muted-foreground text-xs">
+                          <span className="truncate max-w-[60px]">{catSummary}</span>
+                          <ChevronDown className="h-3 w-3 opacity-70" />
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                      <div className="mb-2 text-xs text-muted-foreground">Selecciona categorías</div>
+                      <MultiSelectCheckbox options={categoryOptions} selected={selectedCategories} onChange={setSelectedCategories} />
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Branches */}
+                  {branches.length > 1 && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="justify-between min-w-[140px]" title="Seleccionar sucursales">
+                          <span className="truncate">Sucursales</span>
+                          <span className="ml-2 flex items-center gap-1 text-muted-foreground text-xs">
+                            <span className="truncate max-w-[60px]">{branchSummary}</span>
+                            <ChevronDown className="h-3 w-3 opacity-70" />
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                        <div className="mb-2 text-xs text-muted-foreground">Selecciona sucursales</div>
+                        <MultiSelectCheckbox options={branchOptions} selected={selectedBranches} onChange={setSelectedBranches} />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+
+                  {/* Stock Status */}
+                  {hasPermission('ver_stock') && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="justify-between min-w-[140px]" title="Seleccionar estados de stock">
+                          <span className="truncate">Estado stock</span>
+                          <span className="ml-2 flex items-center gap-1 text-muted-foreground text-xs">
+                            <span className="truncate max-w-[60px]">{statusSummary}</span>
+                            <ChevronDown className="h-3 w-3 opacity-70" />
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                        <div className="mb-2 text-xs text-muted-foreground">Selecciona estados</div>
+                        <MultiSelectCheckbox options={statusOptions} selected={selectedStockStatuses} onChange={setSelectedStockStatuses} />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+
+                  {/* Supplier */}
+                  {suppliers.length > 0 && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="justify-between min-w-[140px]" title="Filtrar por proveedor">
+                          <span className="truncate">Proveedor</span>
+                          <span className="ml-2 flex items-center gap-1 text-muted-foreground text-xs">
+                            <span className="truncate max-w-[60px]">{supplierSummary}</span>
+                            <ChevronDown className="h-3 w-3 opacity-70" />
+                          </span>
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                        <div className="mb-2 text-xs text-muted-foreground">Selecciona proveedores</div>
+                        <MultiSelectCheckbox options={supplierOptions} selected={selectedSuppliers} onChange={setSelectedSuppliers} />
+                      </PopoverContent>
+                    </Popover>
+                  )}
+
+                  {/* Product Status (Active/Inactive) */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="justify-between min-w-[120px]" title="Filtrar por estado del producto">
+                        <span className="truncate">Estado</span>
+                        <span className="ml-2 flex items-center gap-1 text-muted-foreground text-xs">
+                          <span className="truncate max-w-[50px]">{productStatusLabel}</span>
+                          <ChevronDown className="h-3 w-3 opacity-70" />
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-48">
+                      <div className="mb-2 text-xs text-muted-foreground">Estado del producto</div>
+                      <div className="grid gap-2">
+                        {productStatusOptions.map((opt) => (
+                          <label key={opt.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <Checkbox
+                              checked={selectedProductStatus === opt.value}
+                              onCheckedChange={() => setSelectedProductStatus(opt.value)}
+                            />
+                            <span>{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
 
           {error && (

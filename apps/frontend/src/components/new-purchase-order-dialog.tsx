@@ -362,9 +362,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         currency: selectedCurrency as 'ARS' | 'USD',
         order_date: format(form.order_date, 'yyyy-MM-dd'),
         notes: form.notes || '',
-        notes: form.notes || '',
         items: items.map(({ product, ...rest }) => rest), // Remove extra 'product' prop
-        payment_method_id: parseInt(selectedPaymentMethod),
         payment_method_id: parseInt(selectedPaymentMethod),
         affects_cash_register: affectsCashRegister,
       });

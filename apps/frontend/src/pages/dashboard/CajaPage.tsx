@@ -47,6 +47,7 @@ import { MovementsTable } from "@/components/cash/MovementsTable"
 import { MultiBranchNewMovementDialog } from "@/components/cash/MultiBranchNewMovementDialog"
 import { MultiBranchFilters } from "@/components/cash/MultiBranchFilters"
 import { ExportDialog } from "@/components/cash/ExportDialog"
+import { PaymentBreakdownGrid, calculatePaymentMethodTotals } from "@/components/cash/PaymentBreakdownGrid"
 
 // Utilidades
 import {
@@ -165,6 +166,11 @@ export default function CajaPage() {
     isCashPaymentMethod
   })
 
+  // Usar valores optimizados si están disponibles, o fallback a cálculo manual (solo si es necesario para compatibilidad)
+  // NOTA: optimizedCashRegister ahora trae total_income y total_expenses pre-calculados
+  const todayIncome = optimizedCashRegister?.total_income ?? optimizedCashRegister?.today_income ?? calculateTodayIncome()
+  const todayExpenses = optimizedCashRegister?.total_expenses ?? optimizedCashRegister?.today_expenses ?? calculateTodayExpenses()
+
   // Determinar si la caja se abrió hoy para mostrar títulos dinámicos
   const isOpenedToday = useMemo(() => {
     if (!currentRegister) return false
@@ -217,12 +223,18 @@ export default function CajaPage() {
 
   // Paginación para el historial de cajas
   const [registerHistoryPage, setRegisterHistoryPage] = useState(1)
+  const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
   const registerHistoryPerPage = 5
   const registerHistoryTotalPages = Math.max(1, Math.ceil(registerHistory.length / registerHistoryPerPage))
   const pagedRegisterHistory = registerHistory.slice(
     (registerHistoryPage - 1) * registerHistoryPerPage,
     registerHistoryPage * registerHistoryPerPage
   )
+
+  // Calcular desglose por método de pago de la caja actual usando función utilitaria
+  const currentRegisterPaymentBreakdown = useMemo(() => {
+    return calculatePaymentMethodTotals(allMovementsFromRegister || [])
+  }, [allMovementsFromRegister])
 
   // Estado para el diálogo de orden de compra
   const [openPurchaseOrderDialog, setOpenPurchaseOrderDialog] = useState(false)
@@ -414,23 +426,8 @@ export default function CajaPage() {
     }
   }, [dateRangeFilter, customDateRange, selectedBranchIdsArray.length, multiBranchTab, activeTab, loadCashRegistersHistory])
 
-  // Cargar todos los movimientos cuando se carga la caja actual (para una sola sucursal)
   useEffect(() => {
-    if (currentRegister?.id && canViewMovements && selectedBranchIdsArray.length === 1 && currentRegister.status === 'open') {
-      // Cargar todos los movimientos solo de la caja actualmente abierta
-      loadAllMovements(currentRegister.id)
-    } else if (!currentRegister || currentRegister.status !== 'open') {
-      // Si no hay caja abierta, limpiar los movimientos
-      // Esto se hace automáticamente en el hook cuando se cierra la caja, pero por si acaso
-    }
-  }, [currentRegister?.id, currentRegister?.status, canViewMovements, selectedBranchIdsArray.length, loadAllMovements])
-
-  // Cuando cambia la página de movimientos, perPage o filtros, recargar
-  useEffect(() => {
-    // Cargar movimientos del servidor paginados
-    // Funciona tanto para monosucursal como para multisucursal (si se usa loadMovements)
-    // PERO: para multisucursal usamos loadMultipleBranchesData arriba.
-    // Así que aquí solo manejamos monosucursal:
+    // Solo cargar movimientos paginados cuando sea necesario (tab actual)
     if (currentRegister?.id && canViewMovements && activeTab === "current" && selectedBranchIdsArray.length === 1) {
       loadMovements(currentRegister.id, movementsPage, movementsPerPage, searchTerm, false)
 
@@ -446,6 +443,14 @@ export default function CajaPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRegister?.id, movementsPage, movementsPerPage, searchTerm, movementTypeFilter, canViewMovements, activeTab, selectedBranchIdsArray.length])
+
+  // Cargar todos los movimientos cuando currentRegister cambie (para el desglose por método de pago)
+  useEffect(() => {
+    if (currentRegister?.id && canViewMovements && selectedBranchIdsArray.length === 1) {
+      loadAllMovements(currentRegister.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRegister?.id, canViewMovements, selectedBranchIdsArray.length])
 
   // Efecto para restaurar la selección original cuando el usuario navega a otras páginas
   useEffect(() => {
@@ -1470,13 +1475,13 @@ export default function CajaPage() {
                             Cierre
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Saldo Inicial
+                            Efectivo Inicial
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Saldo Final
+                            Efectivo Final
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Diferencia
+                            Diferencia Efectivo
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Estado
@@ -1497,87 +1502,141 @@ export default function CajaPage() {
                           cashRegistersHistory.map((cashRegister) => {
                             const branchInfo = getBranchInfo(cashRegister.branch_id)
                             const branchColor = branchInfo?.color || '#6b7280'
+                            const isExpanded = expandedHistoryRows.has(cashRegister.id)
+                            const paymentMethodTotals = cashRegister.payment_method_totals || []
+
+                            const toggleExpand = () => {
+                              setExpandedHistoryRows(prev => {
+                                const newSet = new Set(prev)
+                                if (newSet.has(cashRegister.id)) {
+                                  newSet.delete(cashRegister.id)
+                                } else {
+                                  newSet.add(cashRegister.id)
+                                }
+                                return newSet
+                              })
+                            }
 
                             return (
-                              <tr key={cashRegister.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex items-center gap-2">
-                                    <div
-                                      className="w-3 h-3 rounded-full flex-shrink-0"
-                                      style={{ backgroundColor: branchColor }}
-                                    />
-                                    <span className="text-black font-semibold">
-                                      {cashRegister.branch_name}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
-                                  {cashRegister.user_name}
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
-                                  {formatDate(cashRegister.opened_at)}
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
-                                  {cashRegister.closed_at ? formatDate(cashRegister.closed_at) : 'En curso'}
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
-                                  {formatCurrency(cashRegister.initial_amount || 0)}
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
-                                  {cashRegister.status === 'open' ? '-' : (() => {
-                                    const finalAmount = cashRegister.final_amount !== null && cashRegister.final_amount !== undefined
-                                      ? parseFloat(String(cashRegister.final_amount))
-                                      : null
-                                    return finalAmount !== null ? formatCurrency(finalAmount) : '-'
-                                  })()}
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                  {cashRegister.status === 'open' ? (
-                                    '-'
-                                  ) : (
-                                    (() => {
-                                      // Calcular la diferencia entre lo que el sistema esperaba y lo que se contó físicamente
-                                      const expectedAmount = cashRegister.expected_cash_balance !== null && cashRegister.expected_cash_balance !== undefined
-                                        ? parseFloat(String(cashRegister.expected_cash_balance))
-                                        : 0
-                                      const countedAmount = cashRegister.final_amount !== null && cashRegister.final_amount !== undefined
+                              <>
+                                <tr key={cashRegister.id} className="hover:bg-gray-50 cursor-pointer" onClick={toggleExpand}>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                    <div className="flex items-center gap-2">
+                                      <button className="text-gray-500 hover:text-gray-700 transition-transform" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                                        ▶
+                                      </button>
+                                      <div
+                                        className="w-3 h-3 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: branchColor }}
+                                      />
+                                      <span className="text-black font-semibold">
+                                        {cashRegister.branch_name}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                                    {cashRegister.user_name}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                                    {formatDate(cashRegister.opened_at)}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                                    {cashRegister.closed_at ? formatDate(cashRegister.closed_at) : 'En curso'}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                                    {formatCurrency(cashRegister.initial_amount || 0)}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                                    {cashRegister.status === 'open' ? '-' : (() => {
+                                      const finalAmount = cashRegister.final_amount !== null && cashRegister.final_amount !== undefined
                                         ? parseFloat(String(cashRegister.final_amount))
                                         : null
+                                      return finalAmount !== null ? formatCurrency(finalAmount) : '-'
+                                    })()}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                    {cashRegister.status === 'open' ? (
+                                      '-'
+                                    ) : (
+                                      (() => {
+                                        const expectedAmount = cashRegister.expected_cash_balance !== null && cashRegister.expected_cash_balance !== undefined
+                                          ? parseFloat(String(cashRegister.expected_cash_balance))
+                                          : 0
+                                        const countedAmount = cashRegister.final_amount !== null && cashRegister.final_amount !== undefined
+                                          ? parseFloat(String(cashRegister.final_amount))
+                                          : null
 
-                                      // Si no hay monto final contado, no podemos calcular diferencia
-                                      if (countedAmount === null) {
-                                        return <span className="text-gray-500">-</span>
-                                      }
+                                        if (countedAmount === null) {
+                                          return <span className="text-gray-500">-</span>
+                                        }
 
-                                      const difference = countedAmount - expectedAmount
+                                        const difference = countedAmount - expectedAmount
 
-                                      return (
-                                        <span className={`${Math.abs(difference) < 0.01
-                                          ? 'text-blue-600'
-                                          : difference > 0
-                                            ? 'text-green-600'
-                                            : 'text-red-600'
-                                          }`}>
-                                          {Math.abs(difference) < 0.01
-                                            ? 'Sin diferencia'
+                                        return (
+                                          <span className={`${Math.abs(difference) < 0.01
+                                            ? 'text-blue-600'
                                             : difference > 0
-                                              ? `+${formatCurrency(difference)} (sobrante)`
-                                              : `${formatCurrency(difference)} (faltante)`
-                                          }
-                                        </span>
-                                      )
-                                    })()
-                                  )}
-                                </td>
-                                <td className="px-4 py-4 whitespace-nowrap">
-                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cashRegister.status === 'open'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                    {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
-                                  </span>
-                                </td>
-                              </tr>
+                                              ? 'text-green-600'
+                                              : 'text-red-600'
+                                            }`}>
+                                            {Math.abs(difference) < 0.01
+                                              ? 'Sin diferencia'
+                                              : difference > 0
+                                                ? `+${formatCurrency(difference)} (sobrante)`
+                                                : `${formatCurrency(difference)} (faltante)`
+                                            }
+                                          </span>
+                                        )
+                                      })()
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cashRegister.status === 'open'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                      {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
+                                    </span>
+                                  </td>
+                                </tr>
+                                {isExpanded && paymentMethodTotals.length > 0 && (
+                                  <tr key={`${cashRegister.id}-detail`} className="bg-gray-50">
+                                    <td colSpan={8} className="px-8 py-4">
+                                      <div className="text-sm">
+                                        <h4 className="font-semibold text-gray-700 mb-2">Desglose por Método de Pago</h4>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                          {paymentMethodTotals.map((pm: { id: number; name: string; income: number; expense: number; total: number }) => (
+                                            <div key={pm.id} className="bg-white rounded-lg p-3 border">
+                                              <div className="font-medium text-gray-900">{pm.name}</div>
+                                              <div className="text-green-600">+{formatCurrency(pm.income)}</div>
+                                              {pm.expense > 0 && <div className="text-red-600">-{formatCurrency(pm.expense)}</div>}
+                                              <div className="font-semibold border-t mt-1 pt-1">Total: {formatCurrency(pm.total)}</div>
+                                            </div>
+                                          ))}
+                                          {/* Total General Card */}
+                                          {(() => {
+                                            const totalIncome = paymentMethodTotals.reduce((sum: number, pm: { income: number }) => sum + pm.income, 0)
+                                            const totalExpense = paymentMethodTotals.reduce((sum: number, pm: { expense: number }) => sum + pm.expense, 0)
+                                            const totalNet = totalIncome - totalExpense
+                                            return (
+                                              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 text-white shadow-md">
+                                                <div className="font-bold text-white flex items-center gap-1">
+                                                  <Wallet className="h-4 w-4 text-yellow-300" /> Total General
+                                                </div>
+                                                <div className="text-blue-100">Ingresos: +{formatCurrency(totalIncome)}</div>
+                                                <div className="text-blue-100">Egresos: -{formatCurrency(totalExpense)}</div>
+                                                <div className="font-bold border-t border-blue-400 mt-1 pt-1 text-lg">
+                                                  Neto: {formatCurrency(totalNet)}
+                                                </div>
+                                              </div>
+                                            )
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
                             )
                           })
                         ) : (
@@ -1627,14 +1686,14 @@ export default function CajaPage() {
           />
           <StatCard
             title={incomeTitle}
-            value={formatCurrency(calculateTodayIncome())}
+            value={formatCurrency(todayIncome)}
             description={incomeDescription}
             icon={ArrowDownIcon}
             colorClass="text-blue-700"
           />
           <StatCard
             title={expensesTitle}
-            value={formatCurrency(calculateTodayExpenses())}
+            value={formatCurrency(todayExpenses)}
             description={expensesDescription}
             icon={ArrowUpIcon}
             colorClass="text-amber-700"
@@ -1704,6 +1763,14 @@ export default function CajaPage() {
                     Movimientos de la caja actualmente abierta en esta sucursal
                   </p>
                 </div>
+
+                {/* Desglose por Método de Pago - Caja Actual */}
+                {currentRegister && currentRegisterPaymentBreakdown.length > 0 && (
+                  <PaymentBreakdownGrid
+                    paymentMethodTotals={currentRegisterPaymentBreakdown}
+                    formatCurrency={formatCurrency}
+                  />
+                )}
 
                 <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
                   <div className="flex flex-1 items-center space-x-2">
@@ -1907,13 +1974,13 @@ export default function CajaPage() {
                             Cierre
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Saldo Inicial
+                            Efectivo Inicial
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Saldo Final
+                            Efectivo Final
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Diferencia
+                            Diferencia Efectivo
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Estado
@@ -1931,78 +1998,137 @@ export default function CajaPage() {
                             </td>
                           </tr>
                         ) : pagedRegisterHistory.length > 0 ? (
-                          pagedRegisterHistory.map((cashRegister) => (
-                            <tr key={cashRegister.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
-                                {cashRegister.user?.username || 'N/A'}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
-                                {formatDate(cashRegister.opened_at)}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
-                                {cashRegister.closed_at ? formatDate(cashRegister.closed_at) : 'En curso'}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
-                                {formatCurrency(Number(cashRegister.initial_amount) || 0)}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
-                                {cashRegister.status === 'open' ? '-' : (() => {
-                                  const finalAmount = (cashRegister.closing_balance !== null && cashRegister.closing_balance !== undefined) ||
-                                    ((cashRegister as any).final_amount !== null && (cashRegister as any).final_amount !== undefined)
-                                    ? parseFloat(String(cashRegister.closing_balance || (cashRegister as any).final_amount || '0'))
-                                    : null
-                                  return finalAmount !== null ? formatCurrency(finalAmount) : '-'
-                                })()}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                                {cashRegister.status === 'open' ? (
-                                  '-'
-                                ) : (
-                                  (() => {
-                                    // Calcular la diferencia entre lo que el sistema esperaba y lo que se contó físicamente
-                                    const expectedAmount = (cashRegister as any).expected_cash_balance !== null && (cashRegister as any).expected_cash_balance !== undefined
-                                      ? parseFloat(String((cashRegister as any).expected_cash_balance))
-                                      : 0
-                                    const countedAmount = (cashRegister.closing_balance !== null && cashRegister.closing_balance !== undefined) ||
-                                      ((cashRegister as any).final_amount !== null && (cashRegister as any).final_amount !== undefined)
-                                      ? parseFloat(String(cashRegister.closing_balance || (cashRegister as any).final_amount || '0'))
-                                      : null
+                          pagedRegisterHistory.map((cashRegister) => {
+                            const isExpanded = expandedHistoryRows.has(cashRegister.id)
+                            const paymentMethodTotals = (cashRegister as any).payment_method_totals || []
 
-                                    // Si no hay monto final contado, no podemos calcular diferencia
-                                    if (countedAmount === null) {
-                                      return <span className="text-gray-500">-</span>
-                                    }
+                            const toggleExpand = () => {
+                              setExpandedHistoryRows(prev => {
+                                const newSet = new Set(prev)
+                                if (newSet.has(cashRegister.id)) {
+                                  newSet.delete(cashRegister.id)
+                                } else {
+                                  newSet.add(cashRegister.id)
+                                }
+                                return newSet
+                              })
+                            }
 
-                                    const difference = countedAmount - expectedAmount
+                            return (
+                              <>
+                                <tr key={cashRegister.id} className="hover:bg-gray-50 cursor-pointer" onClick={toggleExpand}>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                                    <div className="flex items-center gap-2">
+                                      <button className="text-gray-500 hover:text-gray-700 transition-transform" style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                                        ▶
+                                      </button>
+                                      {cashRegister.user?.username || 'N/A'}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                                    {formatDate(cashRegister.opened_at)}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black">
+                                    {cashRegister.closed_at ? formatDate(cashRegister.closed_at) : 'En curso'}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                                    {formatCurrency(Number(cashRegister.initial_amount) || 0)}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm text-black font-medium">
+                                    {cashRegister.status === 'open' ? '-' : (() => {
+                                      const finalAmount = (cashRegister.closing_balance !== null && cashRegister.closing_balance !== undefined) ||
+                                        ((cashRegister as any).final_amount !== null && (cashRegister as any).final_amount !== undefined)
+                                        ? parseFloat(String(cashRegister.closing_balance || (cashRegister as any).final_amount || '0'))
+                                        : null
+                                      return finalAmount !== null ? formatCurrency(finalAmount) : '-'
+                                    })()}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+                                    {cashRegister.status === 'open' ? (
+                                      '-'
+                                    ) : (
+                                      (() => {
+                                        const expectedAmount = (cashRegister as any).expected_cash_balance !== null && (cashRegister as any).expected_cash_balance !== undefined
+                                          ? parseFloat(String((cashRegister as any).expected_cash_balance))
+                                          : 0
+                                        const countedAmount = (cashRegister.closing_balance !== null && cashRegister.closing_balance !== undefined) ||
+                                          ((cashRegister as any).final_amount !== null && (cashRegister as any).final_amount !== undefined)
+                                          ? parseFloat(String(cashRegister.closing_balance || (cashRegister as any).final_amount || '0'))
+                                          : null
 
-                                    return (
-                                      <span className={`${Math.abs(difference) < 0.01
-                                        ? 'text-blue-600'
-                                        : difference > 0
-                                          ? 'text-green-600'
-                                          : 'text-red-600'
-                                        }`}>
-                                        {Math.abs(difference) < 0.01
-                                          ? 'Sin diferencia'
-                                          : difference > 0
-                                            ? `+${formatCurrency(difference)} (sobrante)`
-                                            : `${formatCurrency(difference)} (faltante)`
+                                        if (countedAmount === null) {
+                                          return <span className="text-gray-500">-</span>
                                         }
-                                      </span>
-                                    )
-                                  })()
+
+                                        const difference = countedAmount - expectedAmount
+
+                                        return (
+                                          <span className={`${Math.abs(difference) < 0.01
+                                            ? 'text-blue-600'
+                                            : difference > 0
+                                              ? 'text-green-600'
+                                              : 'text-red-600'
+                                            }`}>
+                                            {Math.abs(difference) < 0.01
+                                              ? 'Sin diferencia'
+                                              : difference > 0
+                                                ? `+${formatCurrency(difference)} (sobrante)`
+                                                : `${formatCurrency(difference)} (faltante)`
+                                            }
+                                          </span>
+                                        )
+                                      })()
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-4 whitespace-nowrap">
+                                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cashRegister.status === 'open'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                      {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
+                                    </span>
+                                  </td>
+                                </tr>
+                                {isExpanded && paymentMethodTotals.length > 0 && (
+                                  <tr key={`${cashRegister.id}-detail`} className="bg-gray-50">
+                                    <td colSpan={7} className="px-8 py-4">
+                                      <div className="text-sm">
+                                        <h4 className="font-semibold text-gray-700 mb-2">Desglose por Método de Pago</h4>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                                          {paymentMethodTotals.map((pm: { id: number; name: string; income: number; expense: number; total: number }) => (
+                                            <div key={pm.id} className="bg-white rounded-lg p-3 border">
+                                              <div className="font-medium text-gray-900">{pm.name}</div>
+                                              <div className="text-green-600">+{formatCurrency(pm.income)}</div>
+                                              {pm.expense > 0 && <div className="text-red-600">-{formatCurrency(pm.expense)}</div>}
+                                              <div className="font-semibold border-t mt-1 pt-1">Total: {formatCurrency(pm.total)}</div>
+                                            </div>
+                                          ))}
+                                          {/* Total General Card */}
+                                          {(() => {
+                                            const totalIncome = paymentMethodTotals.reduce((sum: number, pm: { income: number }) => sum + pm.income, 0)
+                                            const totalExpense = paymentMethodTotals.reduce((sum: number, pm: { expense: number }) => sum + pm.expense, 0)
+                                            const totalNet = totalIncome - totalExpense
+                                            return (
+                                              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 text-white shadow-md">
+                                                <div className="font-bold text-white flex items-center gap-1">
+                                                  <Wallet className="h-4 w-4 text-yellow-300" /> Total General
+                                                </div>
+                                                <div className="text-blue-100">Ingresos: +{formatCurrency(totalIncome)}</div>
+                                                <div className="text-blue-100">Egresos: -{formatCurrency(totalExpense)}</div>
+                                                <div className="font-bold border-t border-blue-400 mt-1 pt-1 text-lg">
+                                                  Neto: {formatCurrency(totalNet)}
+                                                </div>
+                                              </div>
+                                            )
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
                                 )}
-                              </td>
-                              <td className="px-4 py-4 whitespace-nowrap">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${cashRegister.status === 'open'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-gray-100 text-gray-800'
-                                  }`}>
-                                  {cashRegister.status === 'open' ? 'Abierta' : 'Cerrada'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))
+                              </>
+                            )
+                          })
                         ) : (
                           <tr>
                             <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">

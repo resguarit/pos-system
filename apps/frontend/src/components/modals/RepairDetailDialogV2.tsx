@@ -252,7 +252,7 @@ export default function RepairDetailDialogV2({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" hideCloseButton>
                 <DialogHeader>
                     <div className="flex items-center justify-between">
                         <DialogTitle className="flex items-center gap-3">
@@ -635,7 +635,7 @@ export default function RepairDetailDialogV2({
                                                             <div className="mt-1">
                                                                 <Badge variant="outline" className="text-xs font-normal">
                                                                     <Tag className="h-3 w-3 mr-1" />
-                                                                    {repair.category.description}
+                                                                    {repair.category.name}
                                                                 </Badge>
                                                             </div>
                                                         )}

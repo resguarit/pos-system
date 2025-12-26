@@ -30,7 +30,8 @@ class ProductController extends Controller
             'supplier_ids' => $request->query('supplier_ids'),
             'branch_ids' => $request->query('branch_ids'),     // array
             'stock_status' => $request->query('stock_status'),  // array
-            'currency' => $request->query('currency')
+            'currency' => $request->query('currency'),
+            'status' => $request->query('status'),             // active/inactive/all
         ];
 
         // Handle comma-separated strings if passed that way (common in some frontends)

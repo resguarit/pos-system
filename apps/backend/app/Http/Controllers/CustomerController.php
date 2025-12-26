@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Interfaces\CustomerServiceInterface;
 use App\Exceptions\ConflictException;
+use App\Http\Requests\Customers\StoreCustomerRequest;
+use App\Http\Requests\Customers\UpdateCustomerRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
-use App\Models\SaleHeader; // Added import
+use App\Models\SaleHeader;
 
 class CustomerController extends Controller
 {
@@ -31,7 +33,7 @@ class CustomerController extends Controller
                 'data' => $customers
             ], 200);
         }
-        
+
         // Si no hay búsqueda, devolver todos los clientes
         $customers = $this->customerService->getAllCustomers();
         return response()->json([
@@ -60,32 +62,9 @@ class CustomerController extends Controller
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(StoreCustomerRequest $request): JsonResponse
     {
-        // Normalizar campos opcionales
-        $request->merge([
-            'email' => $request->filled('email') && trim($request->input('email')) !== '' ? trim($request->input('email')) : null,
-            'credit_limit' => $request->filled('credit_limit') && trim((string)$request->input('credit_limit')) !== '' ? $request->input('credit_limit') : null,
-        ]);
-
-        $validatedData = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'documento' => 'nullable|digits_between:6,12',
-            'cuit' => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'state' => 'nullable|string|max:255',
-            'postal_code' => 'nullable|string|max:20',
-            'phone' => 'nullable|string|max:20',
-            'fiscal_condition_id' => 'nullable|integer',
-            'person_type_id' => 'nullable|integer',
-            'email' => 'nullable|email|max:255',
-            'active' => 'boolean',
-            'credit_limit' => 'nullable|numeric',
-            'notes' => 'nullable|string',
-            'document_type_id' => 'nullable|integer',
-        ]);
+        $validatedData = $request->validated();
         $validatedData['active'] = $request->input('active', true);
 
         $customer = $this->customerService->createCustomer($validatedData);
@@ -97,40 +76,16 @@ class CustomerController extends Controller
         ], 201);
     }
 
-    public function update(Request $request, $id): JsonResponse
+    public function update(UpdateCustomerRequest $request, $id): JsonResponse
     {
-        // Normalizar campos opcionales: convertir strings vacíos a null
-        $request->merge([
-            'email' => $request->filled('email') && trim($request->input('email')) !== '' ? trim($request->input('email')) : null,
-            'documento' => $request->filled('documento') && trim((string)$request->input('documento')) !== '' ? trim((string)$request->input('documento')) : null,
-            'credit_limit' => $request->filled('credit_limit') && trim((string)$request->input('credit_limit')) !== '' ? $request->input('credit_limit') : null,
-        ]);
-
-        $validatedData = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'documento' => 'nullable|digits_between:6,12',
-            'cuit' => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:255',
-            'city' => 'nullable|string|max:255',
-            'state' => 'nullable|string|max:255',
-            'postal_code' => 'nullable|string|max:20',
-            'phone' => 'nullable|string|max:20',
-            'fiscal_condition_id' => 'nullable|integer',
-            'person_type_id' => 'nullable|integer',
-            'email' => 'nullable|email|max:255',
-            'active' => 'boolean',
-            'credit_limit' => 'nullable|numeric',
-            'notes' => 'nullable|string',
-            'document_type_id' => 'nullable|integer',
-        ]);
+        $validatedData = $request->validated();
 
         $customer = $this->customerService->updateCustomer($id, $validatedData);
         if (!$customer) {
             return response()->json([
                 'status' => 404,
                 'success' => false,
-                'message' => 'Cliente no encontrado'
+                'message' => 'Cliente no encontrado. El cliente que intenta actualizar no existe o fue eliminado.'
             ], 404);
         }
         return response()->json([
@@ -185,9 +140,9 @@ class CustomerController extends Controller
         }
 
         $sales = SaleHeader::with(['items.product', 'branch', 'paymentType', 'receiptType', 'salePayments.paymentMethod']) // Added 'receiptType'
-                            ->where('customer_id', $id)
-                            ->orderBy('date', 'desc')
-                            ->get();
+            ->where('customer_id', $id)
+            ->orderBy('date', 'desc')
+            ->get();
 
         return response()->json([
             'status' => 200,
@@ -242,7 +197,7 @@ class CustomerController extends Controller
     {
         try {
             $exists = $this->customerService->checkNameExists($firstName, $lastName);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);

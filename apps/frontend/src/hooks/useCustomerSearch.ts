@@ -34,17 +34,17 @@ export const useCustomerSearch = (): CustomerSearchResult => {
   const mapCustomerToOption = useCallback((customer: any): CustomerOption => {
     const hasCuit = customer.person?.cuit
     const hasDni = customer.person?.documento
-    
+
     return {
       id: customer.id,
-      name: customer.person 
-        ? `${customer.person.first_name} ${customer.person.last_name}`.trim() 
+      name: customer.person
+        ? [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' ')
         : `Cliente ${customer.id}`,
       dni: hasDni ? customer.person.documento : null,
       cuit: hasCuit ? customer.person.cuit : null,
       fiscal_condition_id: customer.person?.fiscal_condition_id || null,
-      fiscal_condition_name: customer.person?.fiscal_condition?.description || 
-                              customer.person?.fiscal_condition?.name || null,
+      fiscal_condition_name: customer.person?.fiscal_condition?.description ||
+        customer.person?.fiscal_condition?.name || null,
     }
   }, [])
 
@@ -53,7 +53,7 @@ export const useCustomerSearch = (): CustomerSearchResult => {
       setCustomerOptions([])
       return
     }
-    
+
     if (customerSearch.length < 3) {
       setCustomerOptions([])
       return
@@ -61,9 +61,9 @@ export const useCustomerSearch = (): CustomerSearchResult => {
 
     const fetchCustomers = async () => {
       try {
-        const response = await request({ 
-          method: 'GET', 
-          url: `/customers?search=${encodeURIComponent(customerSearch)}` 
+        const response = await request({
+          method: 'GET',
+          url: `/customers?search=${encodeURIComponent(customerSearch)}`
         })
         const customers = Array.isArray(response) ? response : response?.data ?? []
         const mappedCustomers = customers.map(mapCustomerToOption)

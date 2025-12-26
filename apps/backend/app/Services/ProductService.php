@@ -83,10 +83,15 @@ class ProductService implements ProductServiceInterface
     public function getPaginatedProducts(array $filters, int $perPage = 50)
     {
         try {
-            $query = Product::with(['measure', 'category', 'iva', 'supplier'])
-                ->where('status', true); // Default to active products, can be overridden by filter if needed
+            $query = Product::with(['measure', 'category', 'iva', 'supplier']);
 
             // --- Apply Filters ---
+
+            // Status filter - only apply if explicitly requested
+            // By default, show ALL products (active and inactive) for admin visibility
+            if (isset($filters['status']) && $filters['status'] !== 'all') {
+                $query->where('status', $filters['status'] === 'active');
+            }
 
             // 1. Search (Code, Description, Category)
             if (!empty($filters['search'])) {
@@ -138,70 +143,42 @@ class ProductService implements ProductServiceInterface
 
             // 6. Stock Status (Complex)
             // 'in-stock', 'low-stock', 'out-of-stock'
+            // 6. Stock Status (Complex)
+            // 'in-stock', 'low-stock', 'out-of-stock'
             if (!empty($filters['stock_status'])) {
-                // We need to calculate aggregate stock for the context (selected branches or all)
-                // and then filter by it.
-                // Using subqueries to avoid groupBy issues with pagination.
-
                 $query->where(function ($q) use ($filters, $branchIds) {
                     $statuses = $filters['stock_status'];
 
-                    // Helper to build the stock sum subquery
-                    $buildStockSumQuery = function ($column) use ($branchIds) {
-                        return DB::table('stocks')
-                            ->selectRaw("COALESCE(SUM($column), 0)")
-                            ->whereColumn('stocks.product_id', 'products.id')
-                            ->when(!empty($branchIds), function ($sq) use ($branchIds) {
-                                $sq->whereIn('branch_id', $branchIds);
-                            });
-                    };
+                    // Ensure branch IDs are integers for SQL safety
+                    $validBranchIds = [];
+                    if (!empty($branchIds)) {
+                        $rawIds = is_array($branchIds) ? $branchIds : [$branchIds];
+                        $validBranchIds = array_filter(array_map('intval', $rawIds));
+                    }
+
+                    $branchCondition = "";
+                    if (!empty($validBranchIds)) {
+                        $ids = implode(',', $validBranchIds);
+                        $branchCondition = " AND branch_id IN ({$ids})";
+                    }
+
+                    // Using subqueries to calculate aggregate stock for filtering
+                    // We use variable interpolation for branch IDs as they are strictly sanitized integers
+                    // This creates a cleaner and more robust query structure
+                    $sumCurrent = "(SELECT COALESCE(SUM(current_stock), 0) FROM stocks WHERE stocks.product_id = products.id{$branchCondition})";
+                    $sumMin = "(SELECT COALESCE(SUM(min_stock), 0) FROM stocks WHERE stocks.product_id = products.id{$branchCondition})";
 
                     foreach ($statuses as $status) {
-                        $q->orWhere(function ($subQ) use ($status, $buildStockSumQuery) {
-                            $currentStockSql = $buildStockSumQuery('current_stock')->toSql();
-                            $minStockSql = $buildStockSumQuery('min_stock')->toSql();
-                            // We need to bind parameters if branchIds are used, but toSql() doesn't include bindings.
-                            // Laravel's whereRaw handles bindings if passed.
-                            // However, mixing subqueries with bindings in whereRaw is tricky.
-                            // Let's use cleaner whereRaw with the subquery string logic carefully?
-                            // Actually, Laravel 8/9+ supports filter via `where(function($q) { ... })` effectively.
-                            // Let's use `whereRaw` with subqueries directly injected if possible, or `whereHas` logic.
-
-                            // Alternative: Recalculate logic. 
-                            // Out of Stock: SUM(current) <= 0
-                            // Low Stock: SUM(current) > 0 AND SUM(current) <= SUM(min)
-                            // In Stock: SUM(current) > SUM(min)
-
-                            // To do this safely with bindings, we can use `whereRaw`.
-                            // But getting the bindings right for the subquery inside whereRaw is hard.
-                            // Simplified approach: Add select subqueries and use `having`? No, having breaks pagination count.
-
-                            // Let's use `whereExists` or logic that doesn't require aggregate comparison in the WHERE directly if possible? No.
-
-                            // Best approach for Laravel: use `whereRaw` with robust subquery generation.
-
-                            $bindings = [];
-                            if (!empty($branchIds)) {
-                                // Add bindings for both current and min subqueries if needed
-                                // But since we are inside a loop, it's messy.
-                            }
-
-                            // Let's try to construct the SQL string for the subquery.
-                            $branchCondition = "";
-                            if (!empty($branchIds)) {
-                                $ids = implode(',', array_map('intval', $branchIds));
-                                $branchCondition = "AND branch_id IN ($ids)";
-                            }
-
-                            $sumCurrent = "(SELECT COALESCE(SUM(current_stock), 0) FROM stocks WHERE stocks.product_id = products.id $branchCondition)";
-                            $sumMin = "(SELECT COALESCE(SUM(min_stock), 0) FROM stocks WHERE stocks.product_id = products.id $branchCondition)";
-
+                        $q->orWhere(function ($subQ) use ($status, $sumCurrent, $sumMin) {
                             if ($status === 'out-of-stock') {
-                                $subQ->whereRaw("$sumCurrent <= 0");
+                                // Quantity <= 0
+                                $subQ->whereRaw("{$sumCurrent} <= 0");
                             } elseif ($status === 'low-stock') {
-                                $subQ->whereRaw("$sumCurrent > 0 AND $sumCurrent <= $sumMin");
+                                // 0 < Quantity <= Min
+                                $subQ->whereRaw("{$sumCurrent} > 0 AND {$sumCurrent} <= {$sumMin}");
                             } elseif ($status === 'in-stock') {
-                                $subQ->whereRaw("$sumCurrent > $sumMin");
+                                // Quantity > Min
+                                $subQ->whereRaw("{$sumCurrent} > {$sumMin}");
                             }
                         });
                     }

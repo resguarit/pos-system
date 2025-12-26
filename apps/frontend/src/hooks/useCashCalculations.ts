@@ -149,6 +149,9 @@ export const useCashCalculations = ({
   const calculateTodayIncome = useMemo(() => {
     return () => {
       // Usar valores optimizados del backend si están disponibles
+      if (optimizedCashRegister?.total_income !== undefined) {
+        return optimizedCashRegister.total_income
+      }
       if (optimizedCashRegister?.today_income !== undefined) {
         return optimizedCashRegister.today_income
       }
@@ -170,7 +173,7 @@ export const useCashCalculations = ({
         return total + CashCalculationUtils.getMovementAmount(movement)
       }, 0)
     }
-  }, [currentRegister, movements, allMovements])
+  }, [currentRegister, movements, allMovements, optimizedCashRegister])
 
   /**
    * Calcula los egresos del día actual
@@ -180,6 +183,9 @@ export const useCashCalculations = ({
   const calculateTodayExpenses = useMemo(() => {
     return () => {
       // Usar valores optimizados del backend si están disponibles
+      if (optimizedCashRegister?.total_expenses !== undefined) {
+        return optimizedCashRegister.total_expenses
+      }
       if (optimizedCashRegister?.today_expenses !== undefined) {
         return optimizedCashRegister.today_expenses
       }
@@ -201,7 +207,7 @@ export const useCashCalculations = ({
         return total + CashCalculationUtils.getMovementAmount(movement)
       }, 0)
     }
-  }, [currentRegister, movements, allMovements])
+  }, [currentRegister, movements, allMovements, optimizedCashRegister])
 
   /**
    * Calcula el saldo desde la apertura de la caja
@@ -236,9 +242,9 @@ export const useCashCalculations = ({
    * Helper para verificar si hay estadísticas consolidadas disponibles
    */
   const hasConsolidatedStats = useMemo(() => {
-    return selectedBranchIdsArray.length > 1 && 
-           consolidatedStats && 
-           Object.keys(consolidatedStats).length > 0
+    return selectedBranchIdsArray.length > 1 &&
+      consolidatedStats &&
+      Object.keys(consolidatedStats).length > 0
   }, [selectedBranchIdsArray.length, consolidatedStats])
 
   /**
