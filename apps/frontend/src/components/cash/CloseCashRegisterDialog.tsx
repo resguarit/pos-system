@@ -13,7 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { formatCurrency, formatDate, calculatePaymentMethodBreakdown } from "@/utils/cash-register-utils"
+import { formatCurrency, formatDate } from "@/utils/cash-register-utils"
+import { calculatePaymentMethodTotals } from "./PaymentBreakdownGrid"
 
 interface CloseCashRegisterDialogProps {
   open: boolean
@@ -57,8 +58,8 @@ export const CloseCashRegisterDialog = ({
   }
 
   // Determinar qué caja mostrar: múltiples sucursales o una sola
-  const registerToShow = selectedBranchForAction 
-    ? multipleCashRegisters?.[selectedBranchForAction] 
+  const registerToShow = selectedBranchForAction
+    ? multipleCashRegisters?.[selectedBranchForAction]
     : currentRegister
 
   const getSystemBalance = () => {
@@ -69,23 +70,22 @@ export const CloseCashRegisterDialog = ({
     } else {
       // Estamos cerrando desde una sola sucursal
       // Priorizar optimizedCashRegister que tiene el balance calculado del backend
-      return optimizedCashRegister?.expected_cash_balance ?? 
-             registerToShow?.expected_cash_balance ?? 
-             calculateCashOnlyBalance?.() ?? 0
+      return optimizedCashRegister?.expected_cash_balance ??
+        registerToShow?.expected_cash_balance ??
+        calculateCashOnlyBalance?.() ?? 0
     }
   }
 
   const calculatePaymentBreakdown = () => {
     if (!registerToShow) return {}
-    
+
     const opening = parseFloat(registerToShow.initial_amount) || 0
     const expectedCashBalance = getSystemBalance()
-    const systemBalance = expectedCashBalance
-    
+
     // Determinar qué movimientos usar
     // Priorizar allMovements si está disponible (tiene todos los movimientos, no solo los paginados)
     let movementsToUse = allMovements.length > 0 ? allMovements : movements
-    
+
     if (selectedBranchForAction && movementsToUse.length > 0) {
       movementsToUse = movementsToUse.filter(movement => {
         return movement.cash_register_id === registerToShow.id
@@ -96,48 +96,52 @@ export const CloseCashRegisterDialog = ({
         return movement.cash_register_id === registerToShow?.id
       })
     }
-    
-    // Calcular el desglose desde los movimientos
-    const breakdown = calculatePaymentMethodBreakdown(
-      movementsToUse, 
-      opening, 
-      isCashPaymentMethod
-    )
-    
-    // Debug: Log para verificar qué métodos de pago se están detectando
+
+    // Usar la misma lógica que el Grid del Dashboard para consistencia
+    const totals = calculatePaymentMethodTotals(movementsToUse)
+    const breakdown: Record<string, number> = {}
+
+    // Agrupar por nombre (el dashboard grid lo hace por ID, pero aquí mostramos lista por nombre)
+    totals.forEach(t => {
+      breakdown[t.name] = (breakdown[t.name] || 0) + t.total
+    })
+
+    // Sumar saldo inicial a Efectivo
+    // Asumimos que 'Efectivo' es el nombre standard. Si viene con otro nombre del backend (ej: "Contado"),
+    // la lógica de calculatePaymentMethodTotals usará ese nombre.
+    // Intentamos detectar si hay un método que sea efectivo
+    const cashMethodName = totals.find(t => isCashPaymentMethod?.(t.name) || t.name === 'Efectivo')?.name || 'Efectivo'
+
+    breakdown[cashMethodName] = (breakdown[cashMethodName] || 0) + opening
+
+    // Debug
     if (process.env.NODE_ENV === 'development') {
-      console.log('Movements to use:', movementsToUse.length)
-      console.log('Payment methods found in movements:', movementsToUse.map(m => ({
-        id: m.id,
-        payment_method: m.payment_method?.name || 'N/A',
-        payment_method_id: m.payment_method_id,
-        description: m.description
-      })))
-      console.log('Breakdown calculated:', breakdown)
+      console.log('CloseCashRegisterDialog - Totals matching dashboard:', totals)
+      console.log('CloseCashRegisterDialog - Breakdown with opening:', breakdown)
     }
-    
+
     // Si tenemos el balance esperado del backend (de optimizedCashRegister o del registro),
     // ajustar el efectivo para que coincida con el balance esperado del backend
     // Esto asegura consistencia con el cálculo del backend
     if (optimizedCashRegister?.expected_cash_balance !== undefined || registerToShow?.expected_cash_balance !== undefined) {
       breakdown['Efectivo'] = expectedCashBalance
     }
-    
+
     return breakdown
   }
 
   const calculateDifference = () => {
     if (!closingForm.closing_balance) return 0
-    
+
     const countedCash = parseFloat(closingForm.closing_balance) || 0
     const breakdown = calculatePaymentBreakdown()
-     const expectedCashValue = breakdown['Efectivo'] || 0
-     const initialAmount = parseFloat(registerToShow?.initial_amount) || 0
-    
-     // El usuario ingresa el efectivo adicional
-     // expectedCashValue ya incluye el inicial
-     // Diferencia = Efectivo Contado - |expectedCashValue|
-     return countedCash - Math.abs(expectedCashValue)
+    const expectedCashValue = breakdown['Efectivo'] || 0
+    const initialAmount = parseFloat(registerToShow?.initial_amount) || 0
+
+    // El usuario ingresa el efectivo adicional
+    // expectedCashValue ya incluye el inicial
+    // Diferencia = Efectivo Contado - |expectedCashValue|
+    return countedCash - Math.abs(expectedCashValue)
   }
 
   const paymentBreakdown = calculatePaymentBreakdown()
@@ -150,13 +154,13 @@ export const CloseCashRegisterDialog = ({
         <DialogHeader>
           <DialogTitle>Cerrar Caja</DialogTitle>
           <DialogDescription>
-            {selectedBranchForAction 
+            {selectedBranchForAction
               ? `Cerrar caja para ${branchInfo?.(selectedBranchForAction)?.description || `Sucursal ${selectedBranchForAction}`}`
               : 'Ingresa los detalles para cerrar la caja actual.'
             }
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="py-4">
           {/* Alerta de saldo negativo - Ancho completo */}
           {systemBalance < 0 && (
@@ -198,7 +202,7 @@ export const CloseCashRegisterDialog = ({
                   )}
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Desglose por Método de Pago</Label>
                 <div className="bg-gray-50 p-3 rounded-md space-y-2 border border-gray-200">
@@ -209,7 +213,7 @@ export const CloseCashRegisterDialog = ({
                         if (b === 'Efectivo') return 1
                         return a.localeCompare(b)
                       })
-                    
+
                     if (breakdownEntries.length === 0) {
                       return (
                         <div className="text-sm text-gray-500 italic">
@@ -217,15 +221,15 @@ export const CloseCashRegisterDialog = ({
                         </div>
                       )
                     }
-                    
+
                     return breakdownEntries.map(([method, amount]) => (
                       <div key={method} className="flex justify-between items-center text-sm">
                         <span className={method === 'Efectivo' ? 'font-semibold text-green-700' : ''}>{method}:</span>
                         <span className={`font-medium ${Math.abs(amount) < 0.01 ? 'text-gray-500' : amount >= 0 ? 'text-green-600' : 'text-red-600'} ${method === 'Efectivo' ? 'font-semibold' : ''}`}>
-                          {Math.abs(amount) < 0.01 
-                            ? formatCurrency(0) 
-                            : amount >= 0 
-                              ? formatCurrency(amount) 
+                          {Math.abs(amount) < 0.01
+                            ? formatCurrency(0)
+                            : amount >= 0
+                              ? formatCurrency(amount)
                               : `-${formatCurrency(Math.abs(amount))}`
                           }
                         </span>
@@ -255,18 +259,17 @@ export const CloseCashRegisterDialog = ({
                   <Coins className="h-3 w-3" /> Ingresa la cantidad de efectivo que contaste físicamente en la caja
                 </p>
               </div>
-              
+
               {closingForm.closing_balance && (
                 <div className="space-y-2 p-3 bg-slate-50 rounded-md border border-slate-200">
                   <Label>Diferencia de Efectivo</Label>
                   <div>
-                    <p className={`text-lg font-bold ${
-                      Math.abs(difference) < 0.01
-                        ? 'text-blue-600' 
-                        : difference > 0 
-                          ? 'text-green-600' 
-                          : 'text-red-600'
-                    }`}>
+                    <p className={`text-lg font-bold ${Math.abs(difference) < 0.01
+                      ? 'text-blue-600'
+                      : difference > 0
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                      }`}>
                       {formatCurrency(difference)}
                     </p>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
@@ -309,11 +312,11 @@ export const CloseCashRegisterDialog = ({
           <Button variant="outline" onClick={handleClose}>
             Cancelar
           </Button>
-          <Button 
+          <Button
             onClick={() => {
               onCloseCashRegister(closingForm)
               handleClose()
-            }} 
+            }}
             disabled={loading}
           >
             {loading ? (
