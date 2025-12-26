@@ -183,12 +183,12 @@ export default function UserPerformancePage() {
   const fetchUserData = async () => {
     try {
       setLoadingUser(true);
-      
+
       const response = await request({
         method: 'GET',
         url: `/users/${userId}`,
       });
-      
+
       if (response?.data) {
         setUser(response.data);
       } else if (response) {
@@ -289,25 +289,33 @@ export default function UserPerformancePage() {
       if (response?.data) {
         // Mapear la respuesta del API a la estructura esperada
         const apiData = response.data;
-        
+
         const mappedStatistics = {
-          total_sales: apiData.summary?.total_sales || 0,
-          total_amount: apiData.summary?.total_amount || 0,
-          total_iva_amount: apiData.summary?.total_iva || 0,
-          average_sale_amount: apiData.summary?.average_sale_amount || 0,
-          budget_count: apiData.summary?.budget_count || 0,
+          total_sales: Number(apiData.summary?.total_sales || 0),
+          total_amount: Number(apiData.summary?.total_amount || 0),
+          total_iva_amount: Number(apiData.summary?.total_iva || 0),
+          average_sale_amount: Number(apiData.summary?.average_sale_amount || 0),
+          budget_count: Number(apiData.summary?.budget_count || 0),
           last_7_days: {
-            sales_count: apiData.period_stats?.last_7_days?.count || 0,
-            total_amount: apiData.period_stats?.last_7_days?.total_amount || 0
+            sales_count: Number(apiData.period_stats?.last_7_days?.count || 0),
+            total_amount: Number(apiData.period_stats?.last_7_days?.total_amount || 0)
           },
           last_30_days: {
-            sales_count: apiData.period_stats?.last_30_days?.count || 0,
-            total_amount: apiData.period_stats?.last_30_days?.total_amount || 0
+            sales_count: Number(apiData.period_stats?.last_30_days?.count || 0),
+            total_amount: Number(apiData.period_stats?.last_30_days?.total_amount || 0)
           },
-          by_branch: apiData.by_branch || [],
-          by_receipt_type: apiData.by_receipt_type || []
+          by_branch: (apiData.by_branch || []).map((b: any) => ({
+            ...b,
+            count: Number(b.count),
+            total_amount: Number(b.total_amount)
+          })),
+          by_receipt_type: (apiData.by_receipt_type || []).map((t: any) => ({
+            ...t,
+            count: Number(t.count),
+            total_amount: Number(t.total_amount)
+          }))
         };
-        
+
         setStatistics(mappedStatistics);
       }
     } catch (error) {
@@ -335,9 +343,17 @@ export default function UserPerformancePage() {
       });
 
       if (Array.isArray(response)) {
-        setDailySales(response);
+        setDailySales(response.map((item: any) => ({
+          ...item,
+          sales_count: Number(item.sales_count),
+          total_amount: Number(item.total_amount)
+        })));
       } else if (response?.data) {
-        setDailySales(response.data);
+        setDailySales(response.data.map((item: any) => ({
+          ...item,
+          sales_count: Number(item.sales_count),
+          total_amount: Number(item.total_amount)
+        })));
       } else {
         setDailySales([]);
       }
@@ -370,9 +386,17 @@ export default function UserPerformancePage() {
       });
 
       if (Array.isArray(response)) {
-        setMonthlySales(response);
+        setMonthlySales(response.map((item: any) => ({
+          ...item,
+          sales_count: Number(item.sales_count),
+          total_amount: Number(item.total_amount)
+        })));
       } else if (response?.data) {
-        setMonthlySales(response.data);
+        setMonthlySales(response.data.map((item: any) => ({
+          ...item,
+          sales_count: Number(item.sales_count),
+          total_amount: Number(item.total_amount)
+        })));
       } else {
         setMonthlySales([]);
       }
@@ -405,9 +429,19 @@ export default function UserPerformancePage() {
       });
 
       if (Array.isArray(response)) {
-        setTopProducts(response);
+        setTopProducts(response.map((item: any) => ({
+          ...item,
+          sales_count: Number(item.sales_count),
+          total_quantity: Number(item.total_quantity),
+          total_amount: Number(item.total_amount)
+        })));
       } else if (response?.data) {
-        setTopProducts(response.data);
+        setTopProducts(response.data.map((item: any) => ({
+          ...item,
+          sales_count: Number(item.sales_count),
+          total_quantity: Number(item.total_quantity),
+          total_amount: Number(item.total_amount)
+        })));
       } else {
         setTopProducts([]);
       }
@@ -678,48 +712,48 @@ export default function UserPerformancePage() {
                 <CardTitle>Ventas Diarias</CardTitle>
                 <CardDescription>Evolución de ventas por día</CardDescription>
               </CardHeader>
-                <CardContent>
-                  {dailySales && dailySales.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={dailySales}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="date" 
-                          tickFormatter={(value) => format(new Date(value), 'dd/MM')}
-                        />
-                        <YAxis 
-                          tickFormatter={(value) => {
-                            if (value >= 1000000) {
-                              return `$${(value / 1000000).toFixed(1)}M`;
-                            } else if (value >= 1000) {
-                              return `$${(value / 1000).toFixed(1)}K`;
-                            } else {
-                              return `$${value}`;
-                            }
-                          }}
-                          tick={{ fontSize: 12 }}
-                          width={100}
-                        />
-                        <Tooltip 
-                          formatter={(value: any, name: string) => [
-                            name === 'total_amount' ? formatCurrency(value) : value.toLocaleString("es-AR"),
-                            name === 'total_amount' ? 'Monto' : 'Ventas'
-                          ]}
-                          labelFormatter={(value) => format(new Date(value), 'dd/MM/yyyy')}
-                        />
-                        <Line type="monotone" dataKey="sales_count" stroke="#8884d8" strokeWidth={2} />
-                        <Line type="monotone" dataKey="total_amount" stroke="#82ca9d" strokeWidth={2} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                      <div className="text-center">
-                        <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No hay datos de ventas diarias</p>
-                      </div>
+              <CardContent>
+                {dailySales && dailySales.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={dailySales}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={(value) => format(new Date(value), 'dd/MM')}
+                      />
+                      <YAxis
+                        tickFormatter={(value) => {
+                          if (value >= 1000000) {
+                            return `$${(value / 1000000).toFixed(1)}M`;
+                          } else if (value >= 1000) {
+                            return `$${(value / 1000).toFixed(1)}K`;
+                          } else {
+                            return `$${value}`;
+                          }
+                        }}
+                        tick={{ fontSize: 12 }}
+                        width={100}
+                      />
+                      <Tooltip
+                        formatter={(value: any, name: string) => [
+                          name === 'total_amount' ? formatCurrency(value) : value.toLocaleString("es-AR"),
+                          name === 'total_amount' ? 'Monto' : 'Ventas'
+                        ]}
+                        labelFormatter={(value) => format(new Date(value), 'dd/MM/yyyy')}
+                      />
+                      <Line type="monotone" dataKey="sales_count" stroke="#8884d8" strokeWidth={2} />
+                      <Line type="monotone" dataKey="total_amount" stroke="#82ca9d" strokeWidth={2} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                    <div className="text-center">
+                      <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No hay datos de ventas diarias</p>
                     </div>
-                  )}
-                </CardContent>
+                  </div>
+                )}
+              </CardContent>
             </Card>
 
             {/* Gráfico de productos más vendidos */}
@@ -733,19 +767,19 @@ export default function UserPerformancePage() {
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={topProducts}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="product_name" 
+                      <XAxis
+                        dataKey="product_name"
                         tick={{ fontSize: 10 }}
                         angle={-45}
                         textAnchor="end"
                         height={100}
                       />
-                      <YAxis 
+                      <YAxis
                         tickFormatter={(value) => formatCurrency(value)}
                         tick={{ fontSize: 12 }}
                         width={100}
                       />
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: any, name: string) => [
                           name === 'total_amount' ? formatCurrency(value) : value,
                           name === 'total_amount' ? 'Monto' : 'Cantidad'
@@ -780,19 +814,19 @@ export default function UserPerformancePage() {
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={statistics.by_receipt_type}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="receipt_type" 
+                      <XAxis
+                        dataKey="receipt_type"
                         tick={{ fontSize: 12 }}
                         angle={-45}
                         textAnchor="end"
                         height={80}
                       />
-                      <YAxis 
+                      <YAxis
                         tickFormatter={(value) => formatCurrency(value)}
                         tick={{ fontSize: 12 }}
                         width={100}
                       />
-                      <Tooltip 
+                      <Tooltip
                         formatter={(value: any) => [formatCurrency(value), 'Monto']}
                         labelFormatter={(value) => `Tipo: ${value}`}
                       />
@@ -867,150 +901,150 @@ export default function UserPerformancePage() {
                 <CardDescription>Lista detallada de todas las ventas</CardDescription>
               </CardHeader>
               <CardContent>
-              <Table>
-                <TableHeader>
-                  {columnConfig.map((column) => (
-                    <ResizableTableHeader
-                      key={column.id}
-                      columnId={column.id}
-                      getResizeHandleProps={getResizeHandleProps}
-                      getColumnHeaderProps={getColumnHeaderProps}
-                      className="font-medium"
-                    >
-                      {column.id === 'receipt_number' && 'Número'}
-                      {column.id === 'receipt_type' && 'Comprobante'}
-                      {column.id === 'customer' && 'Cliente'}
-                      {column.id === 'branch' && 'Sucursal'}
-                      {column.id === 'items_count' && 'Items'}
-                      {column.id === 'subtotal' && 'Subtotal'}
-                      {column.id === 'total_iva_amount' && 'IVA'}
-                      {column.id === 'total' && 'Total'}
-                      {column.id === 'date' && 'Fecha'}
-                      {column.id === 'status' && 'Estado'}
-                    </ResizableTableHeader>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  {loadingData ? (
-                    <TableRow>
-                      <TableCell colSpan={columnConfig.length} className="text-center py-8">
-                        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                        Cargando ventas...
-                      </TableCell>
-                    </TableRow>
-                  ) : sales.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={columnConfig.length} className="text-center py-8 text-muted-foreground">
-                        No se encontraron ventas para los filtros seleccionados
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    sales.map((sale) => (
-                      <TableRow key={sale.id}>
-                        <ResizableTableCell
-                          columnId="receipt_number"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {sale.receipt_number || sale.id}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="receipt_type"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {sale.receipt_type}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="customer"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {sale.customer}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="branch"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {sale.branch}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="items_count"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {sale.items_count}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="subtotal"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {formatCurrency(sale.subtotal)}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="total_iva_amount"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {formatCurrency(sale.total_iva_amount)}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="total"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {formatCurrency(sale.total)}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="date"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          {formatShortDate(sale.date)}
-                        </ResizableTableCell>
-                        <ResizableTableCell
-                          columnId="status"
-                          getColumnCellProps={getColumnCellProps}
-                        >
-                          <Badge variant={sale.status === 'annulled' ? 'destructive' : 'default'}>
-                            {sale.status === 'annulled' ? 'Anulada' : 'Activa'}
-                          </Badge>
-                        </ResizableTableCell>
+                <Table>
+                  <TableHeader>
+                    {columnConfig.map((column) => (
+                      <ResizableTableHeader
+                        key={column.id}
+                        columnId={column.id}
+                        getResizeHandleProps={getResizeHandleProps}
+                        getColumnHeaderProps={getColumnHeaderProps}
+                        className="font-medium"
+                      >
+                        {column.id === 'receipt_number' && 'Número'}
+                        {column.id === 'receipt_type' && 'Comprobante'}
+                        {column.id === 'customer' && 'Cliente'}
+                        {column.id === 'branch' && 'Sucursal'}
+                        {column.id === 'items_count' && 'Items'}
+                        {column.id === 'subtotal' && 'Subtotal'}
+                        {column.id === 'total_iva_amount' && 'IVA'}
+                        {column.id === 'total' && 'Total'}
+                        {column.id === 'date' && 'Fecha'}
+                        {column.id === 'status' && 'Estado'}
+                      </ResizableTableHeader>
+                    ))}
+                  </TableHeader>
+                  <TableBody>
+                    {loadingData ? (
+                      <TableRow>
+                        <TableCell colSpan={columnConfig.length} className="text-center py-8">
+                          <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+                          Cargando ventas...
+                        </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-
-              {/* Información de paginación mejorada */}
-              {salesPagination && (
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-sm text-muted-foreground">
-                    Mostrando {salesPagination.from} a {salesPagination.to} de {salesPagination.total} ventas
-                    {salesPagination.total > 0 && (
-                      <span className="ml-2">
-                        (Página {salesPagination.current_page} de {salesPagination.last_page})
-                      </span>
+                    ) : sales.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={columnConfig.length} className="text-center py-8 text-muted-foreground">
+                          No se encontraron ventas para los filtros seleccionados
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      sales.map((sale) => (
+                        <TableRow key={sale.id}>
+                          <ResizableTableCell
+                            columnId="receipt_number"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {sale.receipt_number || sale.id}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="receipt_type"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {sale.receipt_type}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="customer"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {sale.customer}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="branch"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {sale.branch}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="items_count"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {sale.items_count}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="subtotal"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {formatCurrency(sale.subtotal)}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="total_iva_amount"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {formatCurrency(sale.total_iva_amount)}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="total"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {formatCurrency(sale.total)}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="date"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            {formatShortDate(sale.date)}
+                          </ResizableTableCell>
+                          <ResizableTableCell
+                            columnId="status"
+                            getColumnCellProps={getColumnCellProps}
+                          >
+                            <Badge variant={sale.status === 'annulled' ? 'destructive' : 'default'}>
+                              {sale.status === 'annulled' ? 'Anulada' : 'Activa'}
+                            </Badge>
+                          </ResizableTableCell>
+                        </TableRow>
+                      ))
                     )}
+                  </TableBody>
+                </Table>
+
+                {/* Información de paginación mejorada */}
+                {salesPagination && (
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-muted-foreground">
+                      Mostrando {salesPagination.from} a {salesPagination.to} de {salesPagination.total} ventas
+                      {salesPagination.total > 0 && (
+                        <span className="ml-2">
+                          (Página {salesPagination.current_page} de {salesPagination.last_page})
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => goToPage(currentPage - 1)}
+                        disabled={currentPage === 1 || loadingData}
+                        className="cursor-pointer"
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => goToPage(currentPage + 1)}
+                        disabled={currentPage >= totalPages || loadingData}
+                        className="cursor-pointer"
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => goToPage(currentPage - 1)}
-                      disabled={currentPage === 1 || loadingData}
-                      className="cursor-pointer"
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => goToPage(currentPage + 1)}
-                      disabled={currentPage >= totalPages || loadingData}
-                      className="cursor-pointer"
-                    >
-                      Siguiente
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         )}
       </Tabs>
     </div>
