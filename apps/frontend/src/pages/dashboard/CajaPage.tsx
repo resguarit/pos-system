@@ -2206,7 +2206,7 @@ export default function CajaPage() {
         selectedBranchForAction={selectedBranchForAction}
         branchInfo={getBranchInfo}
         movements={movements}
-        allMovements={allMovements}
+        allMovements={movementsForCalculations}
         calculateCashOnlyBalance={calculateCashOnlyBalance}
         isCashPaymentMethod={isCashPaymentMethod}
         optimizedCashRegister={optimizedCashRegister}
