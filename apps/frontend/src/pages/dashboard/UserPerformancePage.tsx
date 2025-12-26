@@ -891,7 +891,7 @@ export default function UserPerformancePage() {
               </CardContent>
             </Card>
 
-            {/* Resumen de rendimiento */}
+            {/* Resumen de rendi */}
             <Card>
               <CardHeader>
                 <CardTitle>Resumen de Rendimiento</CardTitle>
