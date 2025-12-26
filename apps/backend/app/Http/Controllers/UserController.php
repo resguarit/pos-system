@@ -467,7 +467,8 @@ class UserController extends Controller
                 }
             }
 
-            $allSales = $query->get();
+            // Eager load convertedToSale to check ownership of the resulting sale
+            $allSales = $query->with('convertedToSale')->get();
 
             // 1. Estadísticas básicas (Ventas Directas)
             // Excluir presupuestos (016) y anuladas
@@ -476,49 +477,47 @@ class UserController extends Controller
                     $sale->status !== 'annulled';
             });
 
-            // 2. Ventas Indirectas (Presupuestos de este usuario que se convirtieron en ventas de OTRO usuario)
-            // Buscamos ventas donde:
-            // - converted_from_budget_id pertenezca a un presupuesto creado por ESTE usuario
-            // - user_id de la venta sea DIFERENTE a este usuario (para no contar doble si se convirtió a sí mismo)
-            // - status no sea anulado
-            $indirectSales = \App\Models\SaleHeader::where('status', '!=', 'annulled')
-                ->where('user_id', '!=', $id) // Venta asignada a otro
-                ->whereHas('convertedFromBudget', function ($q) use ($id) {
-                    $q->where('user_id', $id); // Presupuesto original de este usuario
-                })
-                ->get();
-
-            // 3. Presupuestos (Total creados)
+            // 2. Presupuestos (Total creados en este periodo)
             $allBudgets = $allSales->filter(function ($sale) {
                 return $sale->receiptType && $sale->receiptType->afip_code === '016';
             });
 
-            // 4. Presupuestos Pendientes (No convertidos)
-            // Asumimos que si converted_to_sale_id es null, es pendiente
-            // IMPORTANTE: Asegurarse de que el modelo tenga 'converted_to_sale_id'
+            // 3. Presupuestos Pendientes (No convertidos)
             $pendingBudgets = $allBudgets->filter(function ($budget) {
-                return empty($budget->converted_to_sale_id);
+                return empty($budget->converted_to_sale_id) && $budget->status !== 'annulled';
             });
 
-            // 5. Presupuestos Convertidos (Creados por este usuario)
+            // 4. Presupuestos Convertidos (Creados por este usuario)
             $convertedBudgets = $allBudgets->filter(function ($budget) {
-                return !empty($budget->converted_to_sale_id);
+                return !empty($budget->converted_to_sale_id) && $budget->status !== 'annulled';
             });
 
+            // 5. Ventas Indirectas (Calculado desde los Presupuestos Convertidos)
+            // Son presupuestos de este usuario que se convirtieron en venta, pero la venta final NO es de este usuario.
+            // Esto evita doble contabilidad: Si yo convierto mi propio presupuesto, ya está en $directSales.
+            // Si otro lo convierte, está aquí.
+            $indirectSales = $convertedBudgets->filter(function ($budget) use ($id) {
+                // Si no hay venta vinculada cargada, asumimos que es indirecta por defecto (o podríamos ignorarla para ser conservadores)
+                // Pero si hay venta vinculada, verificamos el user_id
+                if ($budget->convertedToSale) {
+                    return $budget->convertedToSale->user_id != $id;
+                }
+                // Si tiene ID pero no cargó la relación (raro si eager loading funciona), asumimos indirecta si el status es converted
+                return true;
+            });
 
             // --- Cálculos de Totales ---
 
             // Total Comisionable = Ventas Directas + Ventas Indirectas
+            // Nota: Para las indirectas usamos el total del PRESUPUESTO original, que es lo que generó el usuario.
             $commissionableSalesCount = $directSales->count() + $indirectSales->count();
             $commissionableAmount = $directSales->sum('total') + $indirectSales->sum('total');
 
-            // Total "Gestión" (Lo que el Dashboard mostraba antes como Total Amount + Budget Amount)
-            // Ahora lo refinamos: Ventas Totales (Directas + Indirectas) + Presupuestos Pendientes
-            // (Los presupuestos convertidos YA son ventas, así que no los sumamos de nuevo para no duplicar)
+            // Total "Gestión" = Ventas Directas + Ventas Indirectas + Presupuestos Pendientes
+            // Es decir, todo el dinero que el usuario "movió" o "generó"
             $managementTotalAmount = $commissionableAmount + $pendingBudgets->sum('total');
 
-
-            // Estadísticas por tipo de comprobante (Solo Ventas Directas para mantener consistencia visual histórica)
+            // Estadísticas por tipo de comprobante (Solo Ventas Directas)
             $salesByReceiptType = $directSales->groupBy('receipt_type_id')
                 ->map(function ($group) {
                     $receiptType = $group->first()->receiptType;
