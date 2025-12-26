@@ -30,34 +30,34 @@ class UserController extends Controller
             $roleId = $request->get('role_id');
             $status = $request->get('status');
             $perPage = $request->get('limit', 10); // Cambiar per_page por limit para consistencia
-            
+
             // Construir la consulta base - excluir usuarios ocultos
             $query = User::with(['person', 'role', 'branches'])
-                         ->where('hidden', false);
-            
+                ->where('hidden', false);
+
             // Aplicar filtros
             if ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('email', 'like', "%{$search}%")
-                      ->orWhereHas('person', function ($subQ) use ($search) {
-                          $subQ->where('first_name', 'like', "%{$search}%")
-                               ->orWhere('last_name', 'like', "%{$search}%");
-                      });
+                        ->orWhereHas('person', function ($subQ) use ($search) {
+                            $subQ->where('first_name', 'like', "%{$search}%")
+                                ->orWhere('last_name', 'like', "%{$search}%");
+                        });
                 });
             }
-            
+
             if ($roleId && $roleId !== 'all') {
                 $query->where('role_id', $roleId);
             }
-            
+
             if ($status && $status !== 'all') {
                 $active = $status === 'active';
                 $query->where('active', $active);
             }
-            
+
             // Usar paginación estándar
             $users = $query->paginate($perPage);
-            
+
             // Formatear la respuesta para consistencia
             return response()->json([
                 'status' => 200,
@@ -71,7 +71,7 @@ class UserController extends Controller
                 'from' => $users->firstItem(),
                 'to' => $users->lastItem(),
             ], 200);
-            
+
         } catch (\Exception $e) {
             Log::error('Error in UserController@index: ' . $e->getMessage());
             return response()->json([
@@ -127,7 +127,7 @@ class UserController extends Controller
 
     public function userBranches($id)
     {
-        $result = $this->userService->getUserBranches((int)$id);
+        $result = $this->userService->getUserBranches((int) $id);
         return response()->json($result);
     }
 
@@ -159,7 +159,7 @@ class UserController extends Controller
     {
         $user = $request->user();
         $user->load(['person', 'role.permissions', 'branches']);
-        
+
         // Obtener todos los permisos del usuario (a través de su único rol)
         $permissions = $user->role && $user->role->permissions
             ? $user->role->permissions->pluck('name')->unique()->values()
@@ -210,7 +210,7 @@ class UserController extends Controller
     {
         try {
             $exists = $this->userService->checkUsernameExists($username);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);
@@ -226,7 +226,7 @@ class UserController extends Controller
     {
         try {
             $exists = $this->userService->checkEmailExists($email);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);
@@ -242,7 +242,7 @@ class UserController extends Controller
     {
         try {
             $exists = $this->userService->checkNameExists($firstName, $lastName);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);
@@ -272,7 +272,7 @@ class UserController extends Controller
 
             // Los administradores tienen acceso completo
             $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
-            
+
             if (!$isAdmin) {
                 // Verificar si el usuario tiene el permiso ver_ventas_usuario
                 $hasPermission = $currentUser->role
@@ -290,14 +290,14 @@ class UserController extends Controller
             }
 
             $user = User::with('person')->findOrFail($id);
-            
+
             // Parámetros de filtrado
             $fromDate = $request->input('from_date');
             $toDate = $request->input('to_date');
             $branchIds = $request->input('branch_id');
             $perPage = $request->input('per_page', 10);
             $page = $request->input('page', 1);
-            
+
             // Construir query base
             $query = \App\Models\SaleHeader::with([
                 'receiptType',
@@ -306,7 +306,7 @@ class UserController extends Controller
                 'items.product',
                 'saleIvas'
             ])->where('user_id', $id);
-            
+
             // Aplicar filtros de fecha
             if ($fromDate) {
                 $query->whereDate('date', '>=', Carbon::parse($fromDate)->startOfDay());
@@ -314,7 +314,7 @@ class UserController extends Controller
             if ($toDate) {
                 $query->whereDate('date', '<=', Carbon::parse($toDate)->endOfDay());
             }
-            
+
             // Aplicar filtro de sucursales
             if ($branchIds) {
                 if (is_array($branchIds)) {
@@ -325,13 +325,13 @@ class UserController extends Controller
                     $query->where('branch_id', $branchIds);
                 }
             }
-            
+
             // Ordenar por fecha descendente
             $query->orderByDesc('date');
-            
+
             // Paginación
             $sales = $query->paginate($perPage, ['*'], 'page', $page);
-            
+
             // Formatear datos de respuesta
             $formattedSales = $sales->getCollection()->map(function ($sale) {
                 $customerName = '';
@@ -342,10 +342,10 @@ class UserController extends Controller
                 } else {
                     $customerName = 'Consumidor Final';
                 }
-                
+
                 $receiptTypeName = $sale->receiptType ? $sale->receiptType->description : 'N/A';
                 $receiptTypeCode = $sale->receiptType ? $sale->receiptType->afip_code ?? '' : '';
-                
+
                 return [
                     'id' => $sale->id,
                     'date' => $sale->date ? Carbon::parse($sale->date)->format('Y-m-d H:i:s') : '',
@@ -370,7 +370,7 @@ class UserController extends Controller
                     'branch_id' => $sale->branch_id,
                 ];
             });
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -391,7 +391,7 @@ class UserController extends Controller
                     'username' => $user->username,
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('Error in UserController@getUserSales: ' . $e->getMessage());
             return response()->json([
@@ -420,7 +420,7 @@ class UserController extends Controller
 
             // Los administradores tienen acceso completo
             $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
-            
+
             if (!$isAdmin) {
                 // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
                 $hasPermission = $currentUser->role
@@ -438,16 +438,16 @@ class UserController extends Controller
             }
 
             $user = User::with('person')->findOrFail($id);
-            
+
             // Parámetros de filtrado
             $fromDate = $request->input('from_date');
             $toDate = $request->input('to_date');
             $branchIds = $request->input('branch_id');
-            
+
             // Construir query base
             $query = \App\Models\SaleHeader::with('receiptType')
                 ->where('user_id', $id);
-            
+
             // Aplicar filtros de fecha
             if ($fromDate) {
                 $query->whereDate('date', '>=', Carbon::parse($fromDate)->startOfDay());
@@ -455,7 +455,7 @@ class UserController extends Controller
             if ($toDate) {
                 $query->whereDate('date', '<=', Carbon::parse($toDate)->endOfDay());
             }
-            
+
             // Aplicar filtro de sucursales
             if ($branchIds) {
                 if (is_array($branchIds)) {
@@ -466,21 +466,21 @@ class UserController extends Controller
                     $query->where('branch_id', $branchIds);
                 }
             }
-            
+
             $allSales = $query->get();
-            
+
             // Filtrar presupuestos y ventas anuladas para estadísticas financieras
             $financialSales = $allSales->filter(function ($sale) {
-                return !($sale->receiptType && $sale->receiptType->afip_code === '016') && 
-                       $sale->status !== 'annulled';
+                return !($sale->receiptType && $sale->receiptType->afip_code === '016') &&
+                    $sale->status !== 'annulled';
             });
-            
+
             // Estadísticas básicas
             $totalSales = $financialSales->count();
             $totalAmount = $financialSales->sum('total');
             $totalIva = $financialSales->sum('total_iva_amount');
             $averageSaleAmount = $totalSales > 0 ? $totalAmount / $totalSales : 0;
-            
+
             // Estadísticas por tipo de comprobante
             $salesByReceiptType = $financialSales->groupBy('receipt_type_id')
                 ->map(function ($group) {
@@ -492,7 +492,7 @@ class UserController extends Controller
                         'average_amount' => $group->count() > 0 ? $group->sum('total') / $group->count() : 0,
                     ];
                 })->values();
-            
+
             // Estadísticas por sucursal
             $salesByBranch = $financialSales->groupBy('branch_id')
                 ->map(function ($group) {
@@ -505,40 +505,40 @@ class UserController extends Controller
                         'average_amount' => $group->count() > 0 ? $group->sum('total') / $group->count() : 0,
                     ];
                 })->values();
-            
+
             // Estadísticas por período (últimos 30 días)
             $last30Days = $financialSales->filter(function ($sale) {
                 return $sale->date >= Carbon::now()->subDays(30);
             });
-            
+
             $last30DaysStats = [
                 'count' => $last30Days->count(),
                 'total_amount' => $last30Days->sum('total'),
                 'average_amount' => $last30Days->count() > 0 ? $last30Days->sum('total') / $last30Days->count() : 0,
             ];
-            
+
             // Estadísticas por período (últimos 7 días)
             $last7Days = $financialSales->filter(function ($sale) {
                 return $sale->date >= Carbon::now()->subDays(7);
             });
-            
+
             $last7DaysStats = [
                 'count' => $last7Days->count(),
                 'total_amount' => $last7Days->sum('total'),
                 'average_amount' => $last7Days->count() > 0 ? $last7Days->sum('total') / $last7Days->count() : 0,
             ];
-            
+
             // Estadísticas de presupuestos
             $budgetSales = $allSales->filter(function ($sale) {
                 return $sale->receiptType && $sale->receiptType->afip_code === '016';
             });
-            
+
             $budgetStats = [
                 'count' => $budgetSales->count(),
                 'total_amount' => $budgetSales->sum('total'),
                 'average_amount' => $budgetSales->count() > 0 ? $budgetSales->sum('total') / $budgetSales->count() : 0,
             ];
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -574,7 +574,7 @@ class UserController extends Controller
                     'by_branch' => $salesByBranch,
                 ]
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('Error in UserController@getUserSalesStatistics: ' . $e->getMessage());
             return response()->json([
@@ -603,7 +603,7 @@ class UserController extends Controller
 
             // Los administradores tienen acceso completo
             $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
-            
+
             if (!$isAdmin) {
                 // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
                 $hasPermission = $currentUser->role
@@ -651,7 +651,7 @@ class UserController extends Controller
                 ->get();
 
             return response()->json($dailySales);
-            
+
         } catch (\Exception $e) {
             Log::error('Error in UserController@getUserDailySales: ' . $e->getMessage());
             return response()->json([
@@ -680,7 +680,7 @@ class UserController extends Controller
 
             // Los administradores tienen acceso completo
             $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
-            
+
             if (!$isAdmin) {
                 // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
                 $hasPermission = $currentUser->role
@@ -725,16 +725,16 @@ class UserController extends Controller
             $monthlySales = $query->selectRaw('
                 YEAR(date) as year,
                 MONTH(date) as month,
-                CONCAT(YEAR(date), "-", LPAD(MONTH(date), 2, "0")) as month_key,
+                DATE_FORMAT(date, "%Y-%m") as month_key,
                 COUNT(*) as sales_count,
                 COALESCE(SUM(total), 0) as total_amount
             ')
-                ->groupByRaw('YEAR(date), MONTH(date)')
+                ->groupByRaw('YEAR(date), MONTH(date), DATE_FORMAT(date, "%Y-%m")')
                 ->orderByRaw('YEAR(date), MONTH(date)')
                 ->get();
 
             return response()->json($monthlySales);
-            
+
         } catch (\Exception $e) {
             Log::error('Error in UserController@getUserMonthlySales: ' . $e->getMessage());
             return response()->json([
@@ -763,7 +763,7 @@ class UserController extends Controller
 
             // Los administradores tienen acceso completo
             $isAdmin = $currentUser->role && $currentUser->role->name === 'Admin';
-            
+
             if (!$isAdmin) {
                 // Verificar si el usuario tiene el permiso ver_estadisticas_usuario
                 $hasPermission = $currentUser->role
@@ -827,7 +827,7 @@ class UserController extends Controller
                 ->values();
 
             return response()->json($topProducts);
-            
+
         } catch (\Exception $e) {
             Log::error('Error in UserController@getUserTopProducts: ' . $e->getMessage());
             return response()->json([
