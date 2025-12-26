@@ -189,7 +189,9 @@ export default function ReparacionesPage() {
     // Save repair changes (including staged notes)
     const handleSaveRepair = async (data: Partial<Repair>, notes?: string[]) => {
         if (!selectedRepair) return;
+        // updateRepair will throw on error
         const updated = await updateRepair(selectedRepair.id, data as any);
+
         if (updated) {
             // Save any staged notes
             if (notes && notes.length > 0) {

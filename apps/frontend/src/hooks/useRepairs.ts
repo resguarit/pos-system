@@ -237,17 +237,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
     // Create repair
     const createRepair = useCallback(
         async (data: CreateRepairData): Promise<Repair | null> => {
-            try {
-                const resp = await request({ method: "POST", url: "/repairs", data });
-                const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-                toast.success("Reparación creada");
-                return repair;
-            } catch (err: unknown) {
-                const error = err as { response?: { data?: { message?: string } } };
-                const msg = error?.response?.data?.message || "No se pudo crear la reparación";
-                toast.error(msg);
-                return null;
-            }
+            const resp = await request({ method: "POST", url: "/repairs", data });
+            const repair = (resp as { data?: Repair })?.data || (resp as Repair);
+            toast.success("Reparación creada");
+            return repair;
         },
         [request]
     );
@@ -255,17 +248,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
     // Update repair
     const updateRepair = useCallback(
         async (id: number, data: UpdateRepairData): Promise<Repair | null> => {
-            try {
-                const resp = await request({ method: "PUT", url: `/repairs/${id}`, data });
-                const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-                toast.success("Reparación actualizada");
-                return repair;
-            } catch (err: unknown) {
-                const error = err as { response?: { data?: { message?: string } } };
-                const msg = error?.response?.data?.message || "No se pudo actualizar la reparación";
-                toast.error(msg);
-                return null;
-            }
+            const resp = await request({ method: "PUT", url: `/repairs/${id}`, data });
+            const repair = (resp as { data?: Repair })?.data || (resp as Repair);
+            toast.success("Reparación actualizada");
+            return repair;
         },
         [request]
     );

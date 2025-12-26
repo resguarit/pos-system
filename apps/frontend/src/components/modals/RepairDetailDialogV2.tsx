@@ -41,6 +41,7 @@ import type { Repair, RepairNote, RepairPriority, RepairStatus } from "@/types/r
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import useApi from "@/hooks/useApi";
+import { AlertCircle } from "lucide-react";
 
 type CustomerOption = { id: number; name: string };
 type UserOption = { id: number; name: string };
@@ -127,6 +128,7 @@ export default function RepairDetailDialogV2({
     const [saving, setSaving] = useState(false);
     const [newNote, setNewNote] = useState("");
     const [stagedNotes, setStagedNotes] = useState<string[]>([]);
+    const [errors, setErrors] = useState<Record<string, string[]>>({});
 
     // Customer search
     const [customerSearch, setCustomerSearch] = useState("");
@@ -218,22 +220,31 @@ export default function RepairDetailDialogV2({
                 sale_price: repair.sale_price,
                 customer_id: repair.customer?.id,
                 technician_id: repair.technician?.id,
-                category_id: repair.category?.id || repair.category_id,
+                category_id: repair.category?.id ?? repair.category_id ?? undefined,
                 estimated_date: repair.estimated_date,
             });
             setCustomerSearch(repair.customer?.name || "");
             setTechnicianSearch(repair.technician?.name || "");
             setStagedNotes([]);
+            setErrors({});
         }
     }, [editMode, repair]);
 
     const handleSave = async () => {
         if (!onSave) return;
         setSaving(true);
+        setErrors({});
         try {
             await onSave(editData, stagedNotes);
             setStagedNotes([]);
             setNewNote("");
+        } catch (error: any) {
+            console.error("Error saving repair:", error);
+            if (error.response && error.response.data && error.response.data.errors) {
+                setErrors(error.response.data.errors);
+            } else {
+                setErrors({ general: ["Ocurrió un error al guardar los cambios."] });
+            }
         } finally {
             setSaving(false);
         }
@@ -312,6 +323,12 @@ export default function RepairDetailDialogV2({
                             <TabsContent value="details" className="space-y-4 m-0">
                                 {editMode ? (
                                     <div className="grid gap-4 py-2">
+                                        {errors.general && (
+                                            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative text-sm flex items-center gap-2">
+                                                <AlertCircle className="h-4 w-4" />
+                                                <span>{errors.general[0]}</span>
+                                            </div>
+                                        )}
                                         {/* Customer and Technician */}
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
@@ -360,6 +377,12 @@ export default function RepairDetailDialogV2({
                                                         )}
                                                 </div>
                                             </div>
+                                            {errors.customer_id && (
+                                                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                                    <AlertCircle className="h-3 w-3" />
+                                                    {errors.customer_id[0]}
+                                                </p>
+                                            )}
 
                                             <div className="space-y-2">
                                                 <Label>Técnico Asignado</Label>
@@ -433,6 +456,12 @@ export default function RepairDetailDialogV2({
                                                         setEditData((d) => ({ ...d, device: e.target.value }))
                                                     }
                                                 />
+                                                {errors.device && (
+                                                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        {errors.device[0]}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>Número de Serie</Label>
@@ -442,6 +471,12 @@ export default function RepairDetailDialogV2({
                                                         setEditData((d) => ({ ...d, serial_number: e.target.value }))
                                                     }
                                                 />
+                                                {errors.serial_number && (
+                                                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        {errors.serial_number[0]}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
 
@@ -481,6 +516,12 @@ export default function RepairDetailDialogV2({
                                                 }
                                                 rows={3}
                                             />
+                                            {errors.issue_description && (
+                                                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                                    <AlertCircle className="h-3 w-3" />
+                                                    {errors.issue_description[0]}
+                                                </p>
+                                            )}
                                         </div>
 
                                         {/* Diagnosis */}
@@ -547,6 +588,12 @@ export default function RepairDetailDialogV2({
                                                         setEditData((d) => ({ ...d, estimated_date: e.target.value }))
                                                     }
                                                 />
+                                                {errors.estimated_date && (
+                                                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                                                        <AlertCircle className="h-3 w-3" />
+                                                        {errors.estimated_date[0]}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
