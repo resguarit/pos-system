@@ -206,6 +206,22 @@ class SaleHeader extends Model
         return $query->where('status', 'rejected');
     }
 
+    /**
+     * Relación con la venta a la que se convirtió este presupuesto
+     */
+    public function convertedToSale()
+    {
+        return $this->belongsTo(SaleHeader::class, 'converted_to_sale_id');
+    }
+
+    /**
+     * Relación con el presupuesto desde el cual se generó esta venta
+     */
+    public function convertedFromBudget()
+    {
+        return $this->belongsTo(SaleHeader::class, 'converted_from_budget_id');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

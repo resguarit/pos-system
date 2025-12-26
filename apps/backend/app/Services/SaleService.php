@@ -721,6 +721,8 @@ class SaleService implements SaleServiceInterface
             'saleIvas.iva',
             // Include payments and their methods for detailed view
             'salePayments.paymentMethod',
+            'convertedToSale',
+            'convertedFromBudget',
         ])->find($id);
     }
 
@@ -1066,6 +1068,8 @@ class SaleService implements SaleServiceInterface
             'customer.person',
             'user.person',
             'items',
+            'convertedToSale',
+            'convertedFromBudget',
         ]);
 
         // Detectar si la búsqueda es principalmente por número de venta
@@ -1175,6 +1179,12 @@ class SaleService implements SaleServiceInterface
                 'annulled_by' => $sale->annulled_by,
                 'annulment_reason' => $sale->annulment_reason,
                 'branch' => $sale->branch ? $sale->branch->description : 'N/A',
+                // Campos de conversión de presupuesto
+                'converted_from_budget_id' => $sale->converted_from_budget_id,
+                'converted_from_budget_receipt' => $sale->convertedFromBudget ? $sale->convertedFromBudget->receipt_number : null,
+                'converted_to_sale_id' => $sale->converted_to_sale_id,
+                'converted_to_sale_receipt' => $sale->convertedToSale ? $sale->convertedToSale->receipt_number : null,
+                'converted_at' => $sale->converted_at ? Carbon::parse($sale->converted_at)->format('Y-m-d H:i:s') : null,
             ];
         });
 
@@ -1895,6 +1905,7 @@ class SaleService implements SaleServiceInterface
             'customer.person',
             'user.person',
             'items.product',
+            'convertedToSale',
         ])->where('receipt_type_id', $budgetReceiptType->id);
 
         // Filtrar estados: solo 'active' por defecto (no convertidos ni anulados)
@@ -2001,6 +2012,11 @@ class SaleService implements SaleServiceInterface
                         ] : null
                     ];
                 }),
+                // Campos de conversión
+                'converted_to_sale_id' => $budget->converted_to_sale_id,
+                'converted_to_sale_receipt' => $budget->convertedToSale ? $budget->convertedToSale->receipt_number : null,
+                'converted_at' => $budget->converted_at ? Carbon::parse($budget->converted_at)->format('Y-m-d H:i:s') : null,
+                'converted_from_budget_id' => $budget->converted_from_budget_id,
             ];
         })->toArray();
 

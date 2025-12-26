@@ -108,6 +108,8 @@ class SaleController extends Controller
         }
 
         $saleData = $sale->toArray();
+        $saleData['converted_to_sale_receipt'] = $sale->convertedToSale ? $sale->convertedToSale->receipt_number : null;
+        $saleData['converted_from_budget_receipt'] = $sale->convertedFromBudget ? $sale->convertedFromBudget->receipt_number : null;
 
         if ($sale->user) {
             if ($sale->user->person) {

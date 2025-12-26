@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
 import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
+import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
 
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart";
@@ -155,7 +156,7 @@ export default function VentasPage() {
 
   // Configuración de columnas redimensionables
   const columnConfig = [
-    { id: 'receipt_number', minWidth: 100, maxWidth: 160, defaultWidth: 120 },
+    { id: 'receipt_number', minWidth: 100, maxWidth: 300, defaultWidth: 220 },
     { id: 'customer', minWidth: 100, maxWidth: 200, defaultWidth: 120 },
     { id: 'receipt_type', minWidth: 150, maxWidth: 350, defaultWidth: 220 },
     { id: 'branch', minWidth: 120, maxWidth: 150, defaultWidth: 120 },
@@ -1393,7 +1394,17 @@ export default function VentasPage() {
                               getColumnCellProps={getColumnCellProps}
                               className={`font-medium ${sale.status === 'annulled' ? 'text-red-700' : ''}`}
                             >
-                              {sale.receipt_number || sale.id}
+                              <div className="flex items-center gap-1">
+                                <span>{sale.receipt_number || sale.id}</span>
+                                <ConversionStatusBadge
+                                  convertedFromBudgetId={sale.converted_from_budget_id}
+                                  convertedFromBudgetReceipt={sale.converted_from_budget_receipt}
+                                />
+                                <ConversionStatusBadge
+                                  convertedToSaleId={sale.converted_to_sale_id}
+                                  convertedToSaleReceipt={sale.converted_to_sale_receipt}
+                                />
+                              </div>
                             </ResizableTableCell>
                             <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
                               <div
@@ -1670,7 +1681,7 @@ export default function VentasPage() {
         </div >
       </BranchRequiredWrapper >
       {/* Diálogo de impresión */}
-      <SaleReceiptPreviewDialog
+      < SaleReceiptPreviewDialog
         open={showReceiptPreview}
         onOpenChange={setShowReceiptPreview}
         sale={selectedReceiptSale}

@@ -150,4 +150,10 @@ export interface SaleHeader {
     }
   }>
   items_count?: number
+  // Campos de conversión de presupuesto
+  converted_from_budget_id?: number | null
+  converted_to_sale_id?: number | null
+  converted_from_budget_receipt?: string | null
+  converted_to_sale_receipt?: string | null
+  converted_at?: string | null
 }

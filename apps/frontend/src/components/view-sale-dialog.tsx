@@ -21,6 +21,8 @@ import { type Dispatch, type SetStateAction, useState, useEffect } from "react";
 import { type SaleHeader } from "@/types/sale";
 import { useAfipAuthorization } from "@/hooks/useAfipAuthorization";
 import { Badge } from "@/components/ui/badge";
+import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
+
 
 interface ViewSaleDialogProps {
   open: boolean;
@@ -166,8 +168,18 @@ const ViewSaleDialog = ({
           <div className="flex items-center justify-between">
             <div>
               {/* Título dinámico */}
-              <DialogTitle className="text-lg">
-                {dialogTitle}: {saleToDisplay.receipt_number || saleToDisplay.id}
+              <DialogTitle className="text-lg flex items-center gap-2">
+                <span>{dialogTitle}: {saleToDisplay.receipt_number || saleToDisplay.id}</span>
+                <ConversionStatusBadge
+                  convertedToSaleId={saleToDisplay.converted_to_sale_id}
+                  convertedToSaleReceipt={saleToDisplay.converted_to_sale_receipt}
+                  className="ml-2"
+                />
+                <ConversionStatusBadge
+                  convertedFromBudgetId={saleToDisplay.converted_from_budget_id}
+                  convertedFromBudgetReceipt={saleToDisplay.converted_from_budget_receipt}
+                  className="ml-2"
+                />
               </DialogTitle>
               {/* Descripción dinámica */}
               <DialogDescription>

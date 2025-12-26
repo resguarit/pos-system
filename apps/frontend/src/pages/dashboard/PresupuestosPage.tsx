@@ -15,6 +15,7 @@ import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resiza
 import { useAuth } from '@/context/AuthContext'
 import { toast } from 'sonner'
 import type { PaymentMethod } from '@/types/sale'
+import { ConversionStatusBadge } from '@/components/sales/conversion-status-badge'
 
 interface ReceiptType {
     id: number
@@ -69,7 +70,7 @@ export default function PresupuestosPage({
 
     // Resizable columns configuration matching Sales table
     const columnConfig = [
-        { id: 'number', minWidth: 80, maxWidth: 120, defaultWidth: 90 },
+        { id: 'number', minWidth: 80, maxWidth: 300, defaultWidth: 220 },
         { id: 'customer', minWidth: 120, maxWidth: 180, defaultWidth: 140 },
         { id: 'receipt_type', minWidth: 150, maxWidth: 250, defaultWidth: 120 },
         { id: 'branch', minWidth: 100, maxWidth: 200, defaultWidth: 150 },
@@ -128,7 +129,7 @@ export default function PresupuestosPage({
                 // Filter only active payment methods
                 const activeMethods = methods.filter((m: PaymentMethod) => m.is_active !== false)
                 setPaymentMethods(activeMethods)
-                
+
                 // Set default payment method (Efectivo if available)
                 const efectivo = activeMethods.find((m: PaymentMethod) => m.name.toLowerCase() === 'efectivo')
                 if (efectivo) {
@@ -218,11 +219,11 @@ export default function PresupuestosPage({
 
         const selectedMethod = paymentMethods.find(m => m.id === selectedPaymentMethodId)
         let cashRegisterIdToUse: number | undefined = undefined
-        
+
         // Validate and get cash register if payment method affects cash
         if (selectedMethod?.affects_cash) {
             const budgetBranchId = selectedBudget!.branch_id
-            
+
             if (!budgetBranchId) {
                 toast.error('No se puede determinar la sucursal del presupuesto.')
                 return
@@ -231,7 +232,7 @@ export default function PresupuestosPage({
             setIsCheckingCashRegister(true)
             const cashRegisterId = await getCashRegisterIdForBranch(budgetBranchId)
             setIsCheckingCashRegister(false)
-            
+
             if (!cashRegisterId) {
                 toast.error(
                     `No hay una caja abierta en ${selectedBudget!.branch}. Por favor, abra una caja antes de realizar esta operación.`,
@@ -247,7 +248,7 @@ export default function PresupuestosPage({
         setConvertLoading(true)
         try {
             await onConvert(
-                selectedBudget!.id, 
+                selectedBudget!.id,
                 selectedReceiptTypeId!,
                 cashRegisterIdToUse,
                 selectedPaymentMethodId!
@@ -331,7 +332,13 @@ export default function PresupuestosPage({
                             {budgets.map((budget) => (
                                 <TableRow key={budget.id} className={budget.status === 'annulled' ? 'bg-red-50' : ''}>
                                     <ResizableTableCell columnId="number" getColumnCellProps={getColumnCellProps} className="font-medium">
-                                        {budget.receipt_number.replace(/^#/, '')}
+                                        <div className="flex items-center gap-1">
+                                            <span>{budget.receipt_number.replace(/^#/, '')}</span>
+                                            <ConversionStatusBadge
+                                                convertedToSaleId={budget.converted_to_sale_id}
+                                                convertedToSaleReceipt={budget.converted_to_sale_receipt}
+                                            />
+                                        </div>
                                     </ResizableTableCell>
                                     <ResizableTableCell columnId="customer" getColumnCellProps={getColumnCellProps}>
                                         <div className="truncate" title={budget.customer === 'N/A' ? '-' : budget.customer}>
@@ -580,19 +587,19 @@ export default function PresupuestosPage({
                         )}
 
                         <div className="flex justify-end gap-2 pt-4">
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 onClick={() => setShowConvertDialog(false)}
                                 disabled={convertLoading || isCheckingCashRegister}
                             >
                                 Cancelar
                             </Button>
-                            <Button 
-                                onClick={handleConvertConfirm} 
+                            <Button
+                                onClick={handleConvertConfirm}
                                 disabled={
-                                    !selectedReceiptTypeId || 
-                                    !selectedPaymentMethodId || 
-                                    convertLoading || 
+                                    !selectedReceiptTypeId ||
+                                    !selectedPaymentMethodId ||
+                                    convertLoading ||
                                     isCheckingCashRegister ||
                                     receiptTypes.length === 0 ||
                                     paymentMethods.length === 0
@@ -653,7 +660,7 @@ export default function PresupuestosPage({
                             ¿Estás seguro de que deseas aprobar el presupuesto
                             <strong> #{selectedBudget?.receipt_number}</strong>?
                         </p>
-                        
+
                         {selectedBudget && (
                             <Card className="bg-muted/50">
                                 <CardContent className="pt-4 text-sm">

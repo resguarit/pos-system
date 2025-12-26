@@ -19,6 +19,12 @@ interface Budget {
     branch_color?: string
     branch_id: number
     items?: any[]
+    // Campos de conversión
+    converted_to_sale_id?: number | null
+    converted_to_sale_receipt?: string | null
+    converted_at?: string | null
+    converted_from_budget_id?: number | null
+    converted_from_budget_receipt?: string | null
 }
 
 interface UseBudgetsOptions {
@@ -131,10 +137,10 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             }
         } catch (error: any) {
             console.error('Error converting budget:', error)
-            
+
             // Mejorar el manejo de mensajes de error
             let errorMessage = 'Error al convertir presupuesto'
-            
+
             if (error?.response?.data?.message) {
                 errorMessage = error.response.data.message
             } else if (error?.response?.data?.errors) {
@@ -144,7 +150,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             } else if (error?.message) {
                 errorMessage = error.message
             }
-            
+
             toast.error(errorMessage, { duration: 5000 })
             throw error
         } finally {
