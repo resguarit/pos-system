@@ -42,6 +42,7 @@ type NewRepairForm = {
     cost: string;
     sale_price: string;
     estimated_date: string;
+    intake_date: string;
     // Siniestro fields
     is_siniestro: boolean;
     insurer_id: number | null;
@@ -62,7 +63,9 @@ const defaultForm: NewRepairForm = {
     initial_notes: "",
     cost: "",
     sale_price: "",
-    estimated_date: "",
+    intake_date: new Date().toISOString().split('T')[0],
+    // Default estimated date to 7 days from now
+    estimated_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     // Siniestro defaults
     is_siniestro: false,
     insurer_id: null,
@@ -88,6 +91,7 @@ type NewRepairDialogProps = {
         cost?: number;
         sale_price?: number;
         estimated_date?: string;
+        intake_date?: string;
     }) => Promise<boolean>;
     branchId: number | string | null;
     options: { statuses: RepairStatus[]; priorities: RepairPriority[] };
@@ -262,6 +266,7 @@ export default function NewRepairDialog({
             if (form.cost) payload.cost = parseFloat(form.cost);
             if (form.sale_price) payload.sale_price = parseFloat(form.sale_price);
             if (form.estimated_date) payload.estimated_date = form.estimated_date;
+            if (form.intake_date) payload.intake_date = form.intake_date;
             if (form.category_id) payload.category_id = form.category_id;
 
             const success = await onSubmit(payload);
@@ -635,8 +640,29 @@ export default function NewRepairDialog({
                                 />
                             </div>
 
-                            {/* Priority, Status, Estimated Date */}
-                            <div className="grid grid-cols-3 gap-4">
+                            {/* Priority, Status, Dates */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="intake">Fecha de Recibido</Label>
+                                    <Input
+                                        id="intake"
+                                        type="date"
+                                        value={form.intake_date}
+                                        onChange={(e) => setForm((f) => ({ ...f, intake_date: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="estimated">Fecha Estimada</Label>
+                                    <Input
+                                        id="estimated"
+                                        type="date"
+                                        value={form.estimated_date}
+                                        onChange={(e) => setForm((f) => ({ ...f, estimated_date: e.target.value }))}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Prioridad</Label>
                                     <Select
@@ -672,15 +698,6 @@ export default function NewRepairDialog({
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="estimated">Fecha Estimada</Label>
-                                    <Input
-                                        id="estimated"
-                                        type="date"
-                                        value={form.estimated_date}
-                                        onChange={(e) => setForm((f) => ({ ...f, estimated_date: e.target.value }))}
-                                    />
                                 </div>
                             </div>
 

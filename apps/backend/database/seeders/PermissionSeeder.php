@@ -28,6 +28,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'editar_productos', 'description' => 'Editar producto', 'module' => 'productos'],
             ['name' => 'eliminar_productos', 'description' => 'Eliminar producto', 'module' => 'productos'],
             ['name' => 'actualizar_stock', 'description' => 'Actualizar stock de productos', 'module' => 'productos'],
+            ['name' => 'ver_precio_unitario', 'description' => 'Ver precio unitario (costo) de productos', 'module' => 'productos'],
 
             // Combos
             ['name' => 'gestionar_combos', 'description' => 'Gestionar combos de productos', 'module' => 'combos'],

@@ -125,7 +125,7 @@ export default function RepairDetailDialogV2({
     },
 }: RepairDetailDialogV2Props) {
     const { request } = useApi();
-    const [editData, setEditData] = useState<Partial<Repair> & { customer_id?: number; technician_id?: number; category_id?: number }>({});
+    const [editData, setEditData] = useState<Partial<Repair> & { customer_id?: number; technician_id?: number; category_id?: number; intake_date?: string }>({});
     const [saving, setSaving] = useState(false);
     const [newNote, setNewNote] = useState("");
     const [stagedNotes, setStagedNotes] = useState<string[]>([]);
@@ -223,6 +223,7 @@ export default function RepairDetailDialogV2({
                 technician_id: repair.technician?.id,
                 category_id: repair.category?.id ?? repair.category_id ?? undefined,
                 estimated_date: repair.estimated_date,
+                intake_date: repair.intake_date,
             });
             setCustomerSearch(repair.customer?.name || "");
             setTechnicianSearch(repair.technician?.name || "");
@@ -588,6 +589,16 @@ export default function RepairDetailDialogV2({
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label>Fecha de Ingreso</Label>
+                                                <Input
+                                                    type="date"
+                                                    value={editData.intake_date ?? repair.intake_date ?? ""}
+                                                    onChange={(e) =>
+                                                        setEditData((d) => ({ ...d, intake_date: e.target.value }))
+                                                    }
+                                                />
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>Fecha Estimada</Label>
