@@ -263,7 +263,14 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       onSuccess();
     } catch (err: any) {
       console.error('Error creating shipment:', err);
-      toast.error(err.response?.data?.message || 'Error al crear el envío');
+      if (err.response && err.response.data && err.response.data.errors) {
+        const validationErrors = err.response.data.errors;
+        const firstField = Object.keys(validationErrors)[0];
+        const firstErrorMsg = validationErrors[firstField]?.[0];
+        toast.error(firstErrorMsg || 'Hay errores de validación. Por favor revise el formulario.');
+      } else {
+        toast.error(err.response?.data?.message || 'Error al crear el envío');
+      }
     } finally {
       setLoading(false);
     }
@@ -341,8 +348,8 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                     key={sale.id}
                     onClick={() => handleSaleToggle(sale.id)}
                     className={`p-3 border rounded-lg cursor-pointer transition-colors ${newShipmentForm.sale_ids.includes(sale.id)
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:bg-muted/50'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:bg-muted/50'
                       }`}
                   >
                     <div className="flex items-center justify-between">

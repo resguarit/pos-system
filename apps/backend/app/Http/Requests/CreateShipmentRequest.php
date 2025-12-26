@@ -41,9 +41,31 @@ class CreateShipmentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'sale_ids.required' => 'At least one sale must be selected.',
-            'sale_ids.min' => 'At least one sale must be selected.',
-            'sale_ids.*.exists' => 'One or more selected sales do not exist.',
+            'sale_ids.required' => 'Debe seleccionar al menos una venta.',
+            'sale_ids.array' => 'El formato de ventas seleccionadas es inválido.',
+            'sale_ids.min' => 'Debe seleccionar al menos una venta.',
+            'sale_ids.*.required' => 'El ID de la venta es obligatorio.',
+            'sale_ids.*.integer' => 'El ID de la venta debe ser un número entero.',
+            'sale_ids.*.exists' => 'Una o más ventas seleccionadas no existen.',
+            'shipping_address.required' => 'El campo dirección es obligatorio.',
+            'shipping_address.string' => 'La dirección debe ser texto.',
+            'shipping_address.max' => 'La dirección no puede tener más de 255 caracteres.',
+            'shipping_city.string' => 'La ciudad debe ser texto.',
+            'shipping_city.max' => 'La ciudad no puede tener más de 255 caracteres.',
+            'shipping_state.string' => 'La provincia/estado debe ser texto.',
+            'shipping_state.max' => 'La provincia/estado no puede tener más de 255 caracteres.',
+            'shipping_postal_code.string' => 'El código postal debe ser texto.',
+            'shipping_postal_code.max' => 'El código postal no puede tener más de 20 caracteres.',
+            'shipping_country.string' => 'El país debe ser texto.',
+            'shipping_country.max' => 'El país no puede tener más de 255 caracteres.',
+            'priority.string' => 'La prioridad debe ser texto.',
+            'priority.in' => 'La prioridad seleccionada no es válida.',
+            'estimated_delivery_date.date' => 'La fecha estimada de entrega no es válida.',
+            'notes.string' => 'Las notas deben ser texto.',
+            'shipping_cost.numeric' => 'El costo de envío debe ser un número.',
+            'shipping_cost.min' => 'El costo de envío no puede ser negativo.',
+            'branch_id.integer' => 'El ID de la sucursal debe ser un número entero.',
+            'branch_id.exists' => 'La sucursal seleccionada no existe.',
         ];
     }
 }

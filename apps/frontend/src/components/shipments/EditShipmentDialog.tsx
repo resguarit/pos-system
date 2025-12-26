@@ -51,14 +51,14 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
-  
+
   const [users, setUsers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
-  
+
   // Estados para búsqueda de transportista
   const [transporterSearch, setTransporterSearch] = useState('');
   const [showTransporterOptions, setShowTransporterOptions] = useState(false);
-  
+
   // Estados para búsqueda de cliente  
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
@@ -98,21 +98,21 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
   const fetchShipmentData = async () => {
     if (!shipmentId) return;
-    
+
     try {
       setLoadingData(true);
-      
+
       const response = await shipmentService.getShipment(shipmentId);
       const shipmentData = response; // shipmentService.getShipment ya devuelve response.data?.data
-      
+
       if (shipmentData) {
         setShipment(shipmentData);
-        
+
         // Determinar cliente_id de las ventas asociadas
-        const customerId = shipmentData.sales && shipmentData.sales.length > 0 
-          ? shipmentData.sales[0].customer_id 
+        const customerId = shipmentData.sales && shipmentData.sales.length > 0
+          ? shipmentData.sales[0].customer_id
           : undefined;
-        
+
         // Poblar el formulario
         setEditForm({
           shipping_address: shipmentData.shipping_address || '',
@@ -128,7 +128,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           cliente_id: customerId,
           stage_id: shipmentData.current_stage_id,
         });
-        
+
         // Establecer búsquedas si existen
         // Esperamos un momento para que users y customers estén cargados
         setTimeout(() => {
@@ -161,9 +161,9 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   const fetchUsers = async () => {
     try {
       const response = await request({ method: 'GET', url: '/users?include=person' });
-      
+
       console.log('Users response:', response);
-      
+
       if (response?.data) {
         const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
         console.log('Users data:', usersData);
@@ -177,9 +177,9 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   const fetchCustomers = async () => {
     try {
       const response = await request({ method: 'GET', url: '/customers' });
-      
+
       console.log('Customers response:', response);
-      
+
       if (response?.data) {
         const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
         console.log('Customers data:', customersData);
@@ -201,7 +201,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
     try {
       setLoading(true);
-      
+
       const metadata: any = {
         shipping_state: editForm.shipping_state || null,
         shipping_postal_code: editForm.shipping_postal_code || null,
@@ -240,7 +240,14 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       onSuccess();
     } catch (err: any) {
       console.error('Error updating shipment:', err);
-      toast.error(err.response?.data?.message || 'Error al actualizar el envío');
+      if (err.response && err.response.data && err.response.data.errors) {
+        const validationErrors = err.response.data.errors;
+        const firstField = Object.keys(validationErrors)[0];
+        const firstErrorMsg = validationErrors[firstField]?.[0];
+        toast.error(firstErrorMsg || 'Hay errores de validación. Por favor revise el formulario.');
+      } else {
+        toast.error(err.response?.data?.message || 'Error al actualizar el envío');
+      }
     } finally {
       setLoading(false);
     }
@@ -256,7 +263,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
     try {
       setLoading(true);
-      
+
       await shipmentService.deleteShipment(shipmentId);
 
       toast.success('Envío cancelado exitosamente');
@@ -378,40 +385,40 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 const fullName = `${firstName} ${lastName}`.toLowerCase();
                 return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
               }).length > 0 && (
-                <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                  {users.filter(user => {
-                    const searchLower = transporterSearch.toLowerCase();
-                    const firstName = user.person?.first_name || '';
-                    const lastName = user.person?.last_name || '';
-                    const email = user.email || '';
-                    const fullName = `${firstName} ${lastName}`.toLowerCase();
-                    return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                  }).map((user) => {
-                    const firstName = user.person?.first_name || '';
-                    const lastName = user.person?.last_name || '';
-                    const email = user.email || '';
-                    const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Usuario sin nombre';
-                    
-                    return (
-                      <div
-                        key={user.id}
-                        className="p-2 cursor-pointer hover:bg-gray-100"
-                        role="button"
-                        tabIndex={0}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setEditForm(prev => ({ ...prev, transportista_id: user.id }));
-                          setTransporterSearch(`${name} (${email})`);
-                          setShowTransporterOptions(false);
-                        }}
-                      >
-                        {name} ({email})
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                  <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                    {users.filter(user => {
+                      const searchLower = transporterSearch.toLowerCase();
+                      const firstName = user.person?.first_name || '';
+                      const lastName = user.person?.last_name || '';
+                      const email = user.email || '';
+                      const fullName = `${firstName} ${lastName}`.toLowerCase();
+                      return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
+                    }).map((user) => {
+                      const firstName = user.person?.first_name || '';
+                      const lastName = user.person?.last_name || '';
+                      const email = user.email || '';
+                      const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Usuario sin nombre';
+
+                      return (
+                        <div
+                          key={user.id}
+                          className="p-2 cursor-pointer hover:bg-gray-100"
+                          role="button"
+                          tabIndex={0}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setEditForm(prev => ({ ...prev, transportista_id: user.id }));
+                            setTransporterSearch(`${name} (${email})`);
+                            setShowTransporterOptions(false);
+                          }}
+                        >
+                          {name} ({email})
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
             </div>
           </div>
 
@@ -441,50 +448,50 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 const fullName = `${firstName} ${lastName}`.toLowerCase();
                 return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
               }).length > 0 && (
-                <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                  {customers.filter(customer => {
-                    const searchLower = customerSearch.toLowerCase();
-                    const firstName = customer.person?.first_name || '';
-                    const lastName = customer.person?.last_name || '';
-                    const email = customer.email || '';
-                    const fullName = `${firstName} ${lastName}`.toLowerCase();
-                    return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                  }).map((customer) => {
-                    const firstName = customer.person?.first_name || '';
-                    const lastName = customer.person?.last_name || '';
-                    const email = customer.email || '';
-                    const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Cliente sin nombre';
-                    
-                    return (
-                      <div
-                        key={customer.id}
-                        className="p-2 cursor-pointer hover:bg-gray-100"
-                        role="button"
-                        tabIndex={0}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          
-                          // Rellenar los campos del formulario con los datos del cliente
-                          setEditForm(prev => ({
-                            ...prev,
-                            cliente_id: customer.id,
-                            shipping_address: customer.person?.address || prev.shipping_address,
-                            shipping_city: customer.person?.city || prev.shipping_city,
-                            shipping_state: customer.person?.state || prev.shipping_state,
-                            shipping_postal_code: customer.person?.postal_code || prev.shipping_postal_code,
-                          }));
-                          
-                          setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
-                          setShowCustomerOptions(false);
-                        }}
-                      >
-                        {name}{email ? ` (${email})` : ''}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                  <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                    {customers.filter(customer => {
+                      const searchLower = customerSearch.toLowerCase();
+                      const firstName = customer.person?.first_name || '';
+                      const lastName = customer.person?.last_name || '';
+                      const email = customer.email || '';
+                      const fullName = `${firstName} ${lastName}`.toLowerCase();
+                      return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
+                    }).map((customer) => {
+                      const firstName = customer.person?.first_name || '';
+                      const lastName = customer.person?.last_name || '';
+                      const email = customer.email || '';
+                      const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Cliente sin nombre';
+
+                      return (
+                        <div
+                          key={customer.id}
+                          className="p-2 cursor-pointer hover:bg-gray-100"
+                          role="button"
+                          tabIndex={0}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+
+                            // Rellenar los campos del formulario con los datos del cliente
+                            setEditForm(prev => ({
+                              ...prev,
+                              cliente_id: customer.id,
+                              shipping_address: customer.person?.address || prev.shipping_address,
+                              shipping_city: customer.person?.city || prev.shipping_city,
+                              shipping_state: customer.person?.state || prev.shipping_state,
+                              shipping_postal_code: customer.person?.postal_code || prev.shipping_postal_code,
+                            }));
+
+                            setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
+                            setShowCustomerOptions(false);
+                          }}
+                        >
+                          {name}{email ? ` (${email})` : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
             </div>
           </div>
 
