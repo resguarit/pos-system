@@ -51,6 +51,7 @@ interface SalesStatistics {
   total_iva_amount: number;
   average_sale_amount: number;
   budget_count: number;
+  budget_total_amount: number;
   by_receipt_type: Array<{
     receipt_type: string;
     count: number;
@@ -296,6 +297,7 @@ export default function UserPerformancePage() {
           total_iva_amount: Number(apiData.summary?.total_iva || 0),
           average_sale_amount: Number(apiData.summary?.average_sale_amount || 0),
           budget_count: Number(apiData.summary?.budget_count || 0),
+          budget_total_amount: Number(apiData.summary?.budget_total_amount || 0),
           last_7_days: {
             sales_count: Number(apiData.period_stats?.last_7_days?.count || 0),
             total_amount: Number(apiData.period_stats?.last_7_days?.total_amount || 0)
@@ -642,17 +644,18 @@ export default function UserPerformancePage() {
       </Card>
 
       {/* Estadísticas principales */}
+      {/* Estadísticas principales */}
       {statistics && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Ventas</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Ventas (+Presupu.)</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{statistics?.total_sales || 0}</div>
+              <div className="text-2xl font-bold">{(statistics?.total_sales || 0) + (statistics?.budget_count || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                {statistics?.last_7_days?.sales_count || 0} en los últimos 7 días
+                {statistics?.total_sales || 0} ventas y {statistics?.budget_count || 0} presupuestos
               </p>
             </CardContent>
           </Card>
@@ -662,9 +665,9 @@ export default function UserPerformancePage() {
               <DollarSign className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(statistics?.total_amount || 0)}</div>
+              <div className="text-2xl font-bold">{formatCurrency((statistics?.total_amount || 0) + (statistics?.budget_total_amount || 0))}</div>
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(statistics?.last_7_days?.total_amount || 0)} en los últimos 7 días
+                Incluye ventas y presupuestos
               </p>
             </CardContent>
           </Card>
@@ -674,9 +677,14 @@ export default function UserPerformancePage() {
               <BarChart3 className="h-4 w-4 text-purple-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(statistics?.average_sale_amount || 0)}</div>
+              <div className="text-2xl font-bold">
+                {formatCurrency(
+                  ((statistics?.total_amount || 0) + (statistics?.budget_total_amount || 0)) /
+                  (((statistics?.total_sales || 0) + (statistics?.budget_count || 0)) || 1)
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Promedio de {statistics?.total_sales || 0} ventas
+                Global (Ventas + Presupuestos)
               </p>
             </CardContent>
           </Card>
@@ -686,7 +694,7 @@ export default function UserPerformancePage() {
               <Award className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(calculateCommission(statistics?.total_amount || 0, commissionPercentage / 100))}</div>
+              <div className="text-2xl font-bold">{formatCurrency(calculateCommission((statistics?.total_amount || 0) + (statistics?.budget_total_amount || 0), commissionPercentage / 100))}</div>
               <p className="text-xs text-muted-foreground">
                 Al {commissionPercentage}% de comisión
               </p>
