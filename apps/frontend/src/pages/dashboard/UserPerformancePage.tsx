@@ -899,12 +899,17 @@ export default function UserPerformancePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Ventas este mes:</span>
-                  <span className="font-bold">{statistics?.last_30_days?.sales_count || 0}</span>
+                  <span className="text-sm font-medium">Ventas (Periodo):</span>
+                  <span className="font-bold">{statistics?.commissionable_count || 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium">Monto este mes:</span>
-                  <span className="font-bold">{formatCurrency(statistics?.last_30_days?.total_amount || 0)}</span>
+                  <span className="text-sm font-medium">Monto (Periodo):</span>
+                  <span className="font-bold">{formatCurrency(statistics?.commissionable_amount || 0)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground ml-2">
+                    ({statistics?.indirect_sales_count || 0} indirectas)
+                  </span>
                 </div>
                 <Separator />
                 <div className="flex justify-between items-center">
@@ -919,7 +924,7 @@ export default function UserPerformancePage() {
                 <div className="bg-green-50 p-3 rounded-lg">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-medium text-green-800">Comisión Estimada:</span>
-                    <span className="font-bold text-green-900">{formatCurrency(calculateCommission(statistics?.total_amount || 0, commissionPercentage / 100))}</span>
+                    <span className="font-bold text-green-900">{formatCurrency(calculateCommission(statistics?.commissionable_amount || 0, commissionPercentage / 100))}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-xs text-green-600">Porcentaje:</span>
