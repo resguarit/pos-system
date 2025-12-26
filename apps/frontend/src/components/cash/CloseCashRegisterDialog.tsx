@@ -223,6 +223,7 @@ export const CloseCashRegisterDialog = ({
                     }
 
                     return breakdownEntries.map(([method, amount]) => (
+                      <div key={method} className="flex justify-between items-center text-sm">
                         <span className={method === 'Efectivo' ? 'font-semibold text-green-700' : ''}>
                           {method} {method === 'Efectivo' && <span className="text-xs text-muted-foreground font-normal">(incl. inicio)</span>}:
                         </span>
@@ -235,102 +236,102 @@ export const CloseCashRegisterDialog = ({
                           }
                         </span>
                       </div>
-                ))
+                    ))
                   })()}
-              </div>
-            </div>
-          </div>
-
-          {/* Columna Derecha: Acciones del Usuario */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="final-amount" className="text-base font-semibold text-primary">
-                Efectivo Contado (Conteo Físico)
-              </Label>
-              <Input
-                id="final-amount"
-                type="number"
-                placeholder="0.00"
-                step="0.01"
-                value={closingForm.closing_balance}
-                onChange={(e) => setClosingForm(prev => ({ ...prev, closing_balance: e.target.value }))}
-                className="text-lg h-12"
-              />
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <Coins className="h-3 w-3" /> Ingresa la cantidad de efectivo que contaste físicamente en la caja
-              </p>
-            </div>
-
-            {closingForm.closing_balance && (
-              <div className="space-y-2 p-3 bg-slate-50 rounded-md border border-slate-200">
-                <Label>Diferencia de Efectivo</Label>
-                <div>
-                  <p className={`text-lg font-bold ${Math.abs(difference) < 0.01
-                    ? 'text-blue-600'
-                    : difference > 0
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                    }`}>
-                    {formatCurrency(difference)}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                    {Math.abs(difference) < 0.01 ? (
-                      <>
-                        <CheckCircle className="h-3 w-3 text-blue-600" />
-                        Perfecto! Coincide con el sistema
-                      </>
-                    ) : difference > 0 ? (
-                      <>
-                        <TrendingUp className="h-3 w-3 text-green-600" />
-                        Sobrante
-                      </>
-                    ) : (
-                      <>
-                        <TrendingDown className="h-3 w-3 text-red-600" />
-                        Faltante
-                      </>
-                    )}
-                  </p>
                 </div>
               </div>
-            )}
+            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="closing-notes">Observaciones</Label>
-              <Textarea
-                id="closing-notes"
-                placeholder="Observaciones sobre el cierre de caja"
-                value={closingForm.notes}
-                onChange={(e) => setClosingForm(prev => ({ ...prev, notes: e.target.value }))}
-                className="min-h-[100px]"
-              />
+            {/* Columna Derecha: Acciones del Usuario */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="final-amount" className="text-base font-semibold text-primary">
+                  Efectivo Contado (Conteo Físico)
+                </Label>
+                <Input
+                  id="final-amount"
+                  type="number"
+                  placeholder="0.00"
+                  step="0.01"
+                  value={closingForm.closing_balance}
+                  onChange={(e) => setClosingForm(prev => ({ ...prev, closing_balance: e.target.value }))}
+                  className="text-lg h-12"
+                />
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Coins className="h-3 w-3" /> Ingresa la cantidad de efectivo que contaste físicamente en la caja
+                </p>
+              </div>
+
+              {closingForm.closing_balance && (
+                <div className="space-y-2 p-3 bg-slate-50 rounded-md border border-slate-200">
+                  <Label>Diferencia de Efectivo</Label>
+                  <div>
+                    <p className={`text-lg font-bold ${Math.abs(difference) < 0.01
+                      ? 'text-blue-600'
+                      : difference > 0
+                        ? 'text-green-600'
+                        : 'text-red-600'
+                      }`}>
+                      {formatCurrency(difference)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      {Math.abs(difference) < 0.01 ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-blue-600" />
+                          Perfecto! Coincide con el sistema
+                        </>
+                      ) : difference > 0 ? (
+                        <>
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                          Sobrante
+                        </>
+                      ) : (
+                        <>
+                          <TrendingDown className="h-3 w-3 text-red-600" />
+                          Faltante
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="closing-notes">Observaciones</Label>
+                <Textarea
+                  id="closing-notes"
+                  placeholder="Observaciones sobre el cierre de caja"
+                  value={closingForm.notes}
+                  onChange={(e) => setClosingForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="min-h-[100px]"
+                />
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <DialogFooter>
-        <Button variant="outline" onClick={handleClose}>
-          Cancelar
-        </Button>
-        <Button
-          onClick={() => {
-            onCloseCashRegister(closingForm)
-            handleClose()
-          }}
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Procesando...
-            </>
-          ) : (
-            'Cerrar Caja'
-          )}
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onCloseCashRegister(closingForm)
+              handleClose()
+            }}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Procesando...
+              </>
+            ) : (
+              'Cerrar Caja'
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
     </Dialog >
   )
 }
