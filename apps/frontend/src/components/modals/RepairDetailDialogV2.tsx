@@ -42,6 +42,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import useApi from "@/hooks/useApi";
 import { AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 
 type CustomerOption = { id: number; name: string };
 type UserOption = { id: number; name: string };
@@ -241,9 +242,18 @@ export default function RepairDetailDialogV2({
         } catch (error: any) {
             console.error("Error saving repair:", error);
             if (error.response && error.response.data && error.response.data.errors) {
-                setErrors(error.response.data.errors);
+                const validationErrors = error.response.data.errors;
+                setErrors(validationErrors);
+
+                // Get the first error message to show in the toast
+                const firstField = Object.keys(validationErrors)[0];
+                const firstErrorMsg = validationErrors[firstField]?.[0];
+
+                toast.error(firstErrorMsg || "Hay errores de validación. Por favor revise el formulario.");
             } else {
-                setErrors({ general: ["Ocurrió un error al guardar los cambios."] });
+                const msg = error.response?.data?.message || "Ocurrió un error al guardar los cambios.";
+                setErrors({ general: [msg] });
+                toast.error(msg);
             }
         } finally {
             setSaving(false);
