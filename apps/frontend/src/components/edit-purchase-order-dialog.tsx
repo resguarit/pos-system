@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Plus, Trash2, Search, Calendar as CalendarIcon, CheckCircle, AlertCircle, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
-import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService'
+import { purchaseOrderService } from '@/lib/api/purchaseOrderService'
 import { getBranches } from '@/lib/api/branchService'
 import { getProducts } from '@/lib/api/productService'
 import api from '@/lib/api'
@@ -33,6 +33,13 @@ export interface EditPurchaseOrderDialogProps {
   onSaved: () => void
 }
 
+// Interface local para permitir edición con strings vacíos
+interface EditablePurchaseOrderItem {
+  product_id: number;
+  quantity: number | string;
+  purchase_price: number | string;
+}
+
 export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId, onSaved }: EditPurchaseOrderDialogProps) {
   const [form, setForm] = useState({
     supplier_id: '',
@@ -42,7 +49,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   })
   const [orderStatus, setOrderStatus] = useState<string>('pending')
   const isReadOnly = orderStatus !== 'pending'
-  const [items, setItems] = useState<PurchaseOrderItem[]>([])
+  const [items, setItems] = useState<EditablePurchaseOrderItem[]>([])
   const [newItem, setNewItem] = useState({ product_id: '', quantity: '', purchase_price: '' })
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
@@ -89,13 +96,13 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         setSelectedPaymentMethod(String((order as any).payment_method_id ?? (order as any).payment_method?.id ?? ''));
         setAffectsCashRegister((order as any).affects_cash_register !== false); // Por defecto true si no existe
         setPaymentMethods(paymentMethodsData as unknown as PaymentMethod[]);
-        const mapped: PurchaseOrderItem[] = ((order as any).items || []).map((it: any) => ({
+        const mapped: EditablePurchaseOrderItem[] = ((order as any).items || []).map((it: any) => ({
           product_id: Number(it.product_id || it.product?.id),
           quantity: Number(it.quantity),
           purchase_price: Number(it.purchase_price),
         }))
         setItems(mapped)
-        
+
         // Detectar moneda de la orden existente basándose en el primer producto
         if (mapped.length > 0) {
           const firstProduct = productsData.find((p: any) => p.id === mapped[0].product_id);
@@ -142,11 +149,11 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
       // Verificar si el proveedor del producto es diferente al de la orden
       const orderSupplierId = form.supplier_id;
       const productSupplierId = (selectedProduct as any).supplier_id;
-      
+
       if (orderSupplierId && productSupplierId !== orderSupplierId) {
         // Solo mostrar información, NO actualizar el proveedor en el frontend
         // El backend se encargará de actualizar solo el proveedor (no el precio) al editar la orden
-        
+
         // Producto con proveedor diferente - se actualizará automáticamente
       }
 
@@ -154,7 +161,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
       const idx = items.findIndex(i => i.product_id === pid)
       if (idx !== -1) {
         const updated = [...items]
-        updated[idx].quantity += qty
+        updated[idx].quantity = Number(updated[idx].quantity || 0) + qty
         setItems(updated)
       } else {
         setItems(prev => [...prev, { product_id: pid, quantity: qty, purchase_price: price }])
@@ -177,7 +184,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   }
 
   const calculateTotal = () => {
-    return items.reduce((acc, item) => acc + (item.quantity * item.purchase_price), 0);
+    return items.reduce((acc, item) => acc + (Number(item.quantity || 0) * Number(item.purchase_price || 0)), 0);
   };
 
   const getProductName = (productId: number) => {
@@ -208,14 +215,18 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         affects_cash_register: affectsCashRegister,
       }
       if (items.length > 0) {
-        payload.items = items
+        payload.items = items.map(item => ({
+          ...item,
+          quantity: Number(item.quantity) || 0,
+          purchase_price: Number(item.purchase_price) || 0
+        })).filter(item => item.quantity > 0)
       }
       await purchaseOrderService.update(purchaseOrderId, payload)
       toast.success('Orden de compra actualizada', { description: 'Los cambios fueron guardados.' })
       onSaved()
       onOpenChange(false)
     } catch (err: any) {
-        // Error updating purchase order
+      // Error updating purchase order
       setError(err?.response?.data?.message || err?.message || 'Error al actualizar la orden de compra')
     } finally {
       setLoading(false)
@@ -223,7 +234,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   }
 
   // Helpers to update existing items inline
-  const updateItemField = (index: number, field: 'quantity' | 'purchase_price', value: number) => {
+  const updateItemField = (index: number, field: 'quantity' | 'purchase_price', value: number | string) => {
     setItems(prev => prev.map((it, i) => i === index ? { ...it, [field]: value } : it))
   }
 
@@ -240,7 +251,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
           </DialogDescription>
         </DialogHeader>
 
-        <form 
+        <form
           onSubmit={(e) => {
             // Verificar si el submit viene de un Enter no deseado
             const activeElement = document.activeElement as HTMLElement;
@@ -257,17 +268,17 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
             // Prevenir que cualquier Enter dentro del formulario lo envíe
             if (e.key === 'Enter') {
               const target = e.target as HTMLElement;
-              
+
               // Solo permitir Enter en botones de submit
               if (target.tagName === 'BUTTON' && (target.getAttribute('type') === 'submit' || target.classList.contains('submit-button'))) {
                 return;
               }
-              
+
               // Solo permitir Enter en textareas
               if (target.tagName === 'TEXTAREA') {
                 return;
               }
-              
+
               // Para todos los demás casos, prevenir completamente
               e.preventDefault();
               e.stopPropagation();
@@ -363,8 +374,8 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
               </div>
               <div className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all",
-                affectsCashRegister 
-                  ? "bg-green-50 border-green-300" 
+                affectsCashRegister
+                  ? "bg-green-50 border-green-300"
                   : "bg-orange-50 border-orange-300"
               )}>
                 {affectsCashRegister ? (
@@ -382,7 +393,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                     affectsCashRegister ? "border-green-600" : "border-orange-600"
                   )}
                 />
-                <Label 
+                <Label
                   htmlFor="affects_cash_register"
                   className={cn(
                     "font-semibold cursor-pointer text-base whitespace-nowrap",
@@ -407,22 +418,22 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
               <div className="space-y-2">
                 <Label>Producto *</Label>
                 <div className="relative">
-                  <Input 
-                    placeholder="Buscar producto..." 
-                    value={productSearch} 
-                    onChange={(e) => { setProductSearch(e.target.value); setShowProductSearch(true) }} 
-                    onFocus={() => setShowProductSearch(true)} 
+                  <Input
+                    placeholder="Buscar producto..."
+                    value={productSearch}
+                    onChange={(e) => { setProductSearch(e.target.value); setShowProductSearch(true) }}
+                    onFocus={() => setShowProductSearch(true)}
                     disabled={isReadOnly}
                     onKeyDown={(e) => {
                       // Prevenir que el Enter de la pistola de código de barras envíe el formulario
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         e.stopPropagation();
-                        
+
                         // Si hay productos filtrados, seleccionar el primero
                         if (filteredProducts.length > 0) {
                           selectProduct(filteredProducts[0]);
-                          
+
                           // Si ya hay cantidad y precio, agregar automáticamente el producto
                           if (newItem.quantity && newItem.purchase_price) {
                             addItem();
@@ -458,15 +469,15 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                     </span>
                   )}
                 </Label>
-                <Input 
-                  type="number" 
-                  step="0.01" 
-                  min="0" 
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
                   placeholder={`0.00 ${newItem.product_id ? getProductCurrency(Number(newItem.product_id)) : ''}`}
-                  value={newItem.purchase_price} 
-                  onChange={(e) => setNewItem({ ...newItem, purchase_price: e.target.value })} 
+                  value={newItem.purchase_price}
+                  onChange={(e) => setNewItem({ ...newItem, purchase_price: e.target.value })}
                   onKeyDown={handleInputKeyDown}
-                  disabled={isReadOnly} 
+                  disabled={isReadOnly}
                 />
               </div>
               <div className="space-y-2">
@@ -491,8 +502,8 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                       const product = products.find(p => p.id === item.product_id);
                       const currentPrice = product ? Number(product.unit_price) : 0;
                       const orderPrice = item.purchase_price;
-                      const isPriceChanged = Math.abs(currentPrice - orderPrice) > 0.01;
-                      
+                      const isPriceChanged = Math.abs(currentPrice - Number(orderPrice)) > 0.01;
+
                       return (
                         <TableRow key={index}>
                           <TableCell>
@@ -505,21 +516,24 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                               )}
                             </div>
                           </TableCell>
-                        <TableCell>
-                          {isReadOnly ? (
-                            item.quantity
-                          ) : (
-                            <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value, 10)
-                                updateItemField(index, 'quantity', isNaN(v) || v < 1 ? 1 : v)
-                              }}
-                            />
-                          )}
-                        </TableCell>
+                          <TableCell>
+                            {isReadOnly ? (
+                              item.quantity
+                            ) : (
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  // Permitir vacío o números positivos
+                                  if (val === '' || (!isNaN(Number(val)) && Number(val) >= 0)) {
+                                    updateItemField(index, 'quantity', val === '' ? '' : Number(val))
+                                  }
+                                }}
+                              />
+                            )}
+                          </TableCell>
                           <TableCell>
                             {isReadOnly ? (
                               <TooltipProvider>
@@ -527,7 +541,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                                   <TooltipTrigger asChild>
                                     <div className="relative inline-block cursor-help">
                                       <span className={isPriceChanged ? "bg-orange-50 px-2 py-1 rounded border border-orange-200" : ""}>
-                                        ${item.purchase_price.toFixed(2)} ${getProductCurrency(item.product_id)}
+                                        ${Number(item.purchase_price).toFixed(2)} {getProductCurrency(item.product_id)}
                                       </span>
                                       {isPriceChanged && (
                                         <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full"></div>
@@ -539,7 +553,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                                       <div className="space-y-1">
                                         <div className="font-semibold text-orange-600">Precio Tentativo</div>
                                         <div className="text-sm">Precio actual: ${currentPrice.toFixed(2)}</div>
-                                        <div className="text-sm">Precio orden: ${orderPrice.toFixed(2)}</div>
+                                        <div className="text-sm">Precio orden: ${Number(orderPrice).toFixed(2)}</div>
                                         <div className="text-xs text-muted-foreground">Se aplicará al completar la orden</div>
                                       </div>
                                     </TooltipContent>
@@ -558,9 +572,11 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                                           min="0"
                                           value={item.purchase_price}
                                           onChange={(e) => {
-                                            const v = parseFloat(e.target.value)
-                                            const num = isNaN(v) || v < 0 ? 0 : Math.round(v * 100) / 100
-                                            updateItemField(index, 'purchase_price', num)
+                                            const val = e.target.value
+                                            // Permitir vacío o números positivos
+                                            if (val === '' || (!isNaN(Number(val)) && Number(val) >= 0)) {
+                                              updateItemField(index, 'purchase_price', val === '' ? '' : val)
+                                            }
                                           }}
                                           className={isPriceChanged ? "border-orange-300 bg-orange-50" : ""}
                                         />
@@ -574,7 +590,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                                         <div className="space-y-1">
                                           <div className="font-semibold text-orange-600">Precio Tentativo</div>
                                           <div className="text-sm">Precio actual: ${currentPrice.toFixed(2)}</div>
-                                          <div className="text-sm">Precio orden: ${orderPrice.toFixed(2)}</div>
+                                          <div className="text-sm">Precio orden: ${Number(orderPrice).toFixed(2)}</div>
                                           <div className="text-xs text-muted-foreground">Se aplicará al completar la orden</div>
                                         </div>
                                       </TooltipContent>
@@ -587,7 +603,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                               </div>
                             )}
                           </TableCell>
-                          <TableCell>${(item.quantity * item.purchase_price).toFixed(2)} {getProductCurrency(item.product_id)}</TableCell>
+                          <TableCell>${(Number(item.quantity || 0) * Number(item.purchase_price || 0)).toFixed(2)} {getProductCurrency(item.product_id)}</TableCell>
                           <TableCell>
                             <Button type="button" variant="outline" size="sm" onClick={() => removeItem(index)} disabled={isReadOnly}>
                               <Trash2 className="h-4 w-4" />
