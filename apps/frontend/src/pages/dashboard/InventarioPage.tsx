@@ -156,9 +156,50 @@ export default function InventarioPage() {
             to: pData.to
           })
         } else if (Array.isArray(pData)) {
-          // Fallback for flat array response
-          setProducts(pData)
-          setPaginationMeta(prev => ({ ...prev, total: pData.length, last_page: 1, current_page: 1 }))
+          // Fallback for flat array response (Client-side filtering & pagination)
+          let filteredData = pData;
+
+          // 1. Client-side Search
+          if (searchQuery) {
+            const lowerQuery = searchQuery.toLowerCase();
+            filteredData = filteredData.filter((p: any) =>
+              (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
+              (p.code && p.code.toLowerCase().includes(lowerQuery)) ||
+              (p.barcode && p.barcode.toLowerCase().includes(lowerQuery))
+            );
+          }
+
+          // 2. Client-side Category Filter
+          if (selectedCategories.length > 0) {
+            filteredData = filteredData.filter((p: any) => selectedCategories.includes(p.category_id));
+          }
+
+          // 3. Client-side Supplier Filter
+          if (selectedSuppliers.length > 0) {
+            filteredData = filteredData.filter((p: any) => selectedSuppliers.includes(p.supplier_id));
+          }
+
+          // 4. Pagination calculation
+          const total = filteredData.length;
+          const lastPage = Math.max(1, Math.ceil(total / perPage));
+          // Ensure current page is valid for the filtered results
+          const currentPage = Math.min(Math.max(1, page), lastPage);
+
+          // Calculate slice indices
+          const fromIndex = (currentPage - 1) * perPage;
+          const toIndex = Math.min(fromIndex + perPage, total);
+
+          const paginatedData = filteredData.slice(fromIndex, toIndex);
+
+          setProducts(paginatedData);
+          setPaginationMeta({
+            current_page: currentPage,
+            last_page: lastPage,
+            per_page: perPage,
+            total: total,
+            from: fromIndex + 1,
+            to: toIndex
+          });
         }
       }
     } catch (err: any) {
