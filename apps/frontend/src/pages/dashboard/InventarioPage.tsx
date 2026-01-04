@@ -222,16 +222,16 @@ export default function InventarioPage() {
 
       setBranches(branchesData)
       dispatch({ type: "SET_ENTITIES", entityType: "branches", entities: branchesData })
-      if (branchesData.length > 0) {
-        setSelectedBranches([String(branchesData[0].id)])
-      }
+      // Return data for immediate usage
+      return branchesData;
     } catch (err: any) {
       if (err.name === 'AbortError' || err.message === 'canceled') {
-        return;
+        return [];
       }
       console.error("Error al cargar sucursales:", err)
       setBranches([])
       dispatch({ type: "SET_ENTITIES", entityType: "branches", entities: [] })
+      return [];
     }
   }
 
@@ -298,7 +298,9 @@ export default function InventarioPage() {
     const signal = controller.signal
 
     const loadInitialData = async () => {
-      await Promise.all([fetchBranches(signal), fetchCategories(signal), fetchSuppliers(signal)])
+      // Fetch branches and capture the returned data
+      const [branchesData] = await Promise.all([fetchBranches(signal), fetchCategories(signal), fetchSuppliers(signal)])
+
       const branchParams = searchParams.getAll('branch')
       const stockParam = searchParams.get('stock')
       const catParam = searchParams.getAll('category')
@@ -308,8 +310,9 @@ export default function InventarioPage() {
 
       if (branchParams && branchParams.length > 0) {
         setSelectedBranches(branchParams)
-      } else if (branches.length > 0) {
-        setSelectedBranches([String(branches[0].id)])
+      } else if (branchesData && branchesData.length > 0) {
+        // Use the returned branchesData instead of the state variable
+        setSelectedBranches([String(branchesData[0].id)])
       }
 
       if (stockParam === 'alerts') {
