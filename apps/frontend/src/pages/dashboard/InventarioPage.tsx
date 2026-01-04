@@ -137,14 +137,13 @@ export default function InventarioPage() {
         signal,
       });
 
-      // Handle paginated response
-      if (response && response.data) {
-        // Laravel paginate returns: { current_page, data, first_page_url, from, last_page, last_page_url, links, next_page_url, path, per_page, prev_page_url, to, total }
-        // Our Axios wrapper might return response.data direct if interceptor handles it, or response directly.
-        // Based on useApi implementation usually response is the data.
-        // Let's assume standard Laravel pagination JSON structure.
+      // Handle paginated response or flat array
+      if (response && (response.data || Array.isArray(response))) {
+        // Laravel paginate returns: { current_page, data, ... } which corresponds to response (since useApi returns body)
+        // If response is a flat array, pData should be response itself.
 
-        const pData = (response.data && response.data.current_page) ? response.data : response;
+        // Determine if response is the paginated object or the data array itself
+        const pData = (response.current_page || response.data) ? response : response;
 
         if (pData.data && Array.isArray(pData.data)) {
           setProducts(pData.data)
@@ -157,9 +156,9 @@ export default function InventarioPage() {
             to: pData.to
           })
         } else if (Array.isArray(pData)) {
-          // Fallback if backend returns flat array (shouldn't happen with new controller)
+          // Fallback for flat array response
           setProducts(pData)
-          setPaginationMeta(prev => ({ ...prev, total: pData.length }))
+          setPaginationMeta(prev => ({ ...prev, total: pData.length, last_page: 1, current_page: 1 }))
         }
       }
     } catch (err: any) {
