@@ -28,15 +28,24 @@
     "build:frontend": "cd apps/frontend && npm run build",
     "install:all": "npm install && cd apps/frontend && npm install && cd ../backend && composer install",
     "lint": "cd apps/frontend && npm run lint",
-    "test": "cd apps/frontend && npm test"
+    "type-check": "cd apps/frontend && npm run type-check",
+    "test": "cd apps/frontend && npm test",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.2",
     "concurrently": "^8.2.2",
+    "husky": "^9.1.7",
     "lerna": "^8.0.0",
-    "@vitejs/plugin-react": "^4.3.2"
+    "lint-staged": "^16.2.7"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
+  },
+  "lint-staged": {
+    "apps/frontend/src/**/*.{ts,tsx}": [
+      "eslint --max-warnings=100"
+    ]
   }
 }

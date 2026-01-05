@@ -1,0 +1,5 @@
+# Ejecutar lint-staged (ESLint en archivos staged)
+npx lint-staged
+
+# Verificar TypeScript (detecta errores de estructura JSX, tipos, etc)
+npm run type-check
