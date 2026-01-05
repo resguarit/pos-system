@@ -190,40 +190,33 @@ export const CloseCashRegisterDialog = ({
                         <span className="text-blue-700 font-medium">Operador:</span>
                         <span className="text-right">{registerToShow.user?.full_name || registerToShow.user?.username || 'N/A'}</span>
                       </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-blue-700 font-medium">Monto Inicial:</span>
-                        <span className="font-semibold text-right">{formatCurrency(parseFloat(registerToShow.initial_amount) || 0)}</span>
-                      </div>
                     </>
                   )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Desglose por Método de Pago</Label>
+                <Label>Otros Métodos de Pago</Label>
                 <div className="bg-gray-50 p-3 rounded-md space-y-2 border border-gray-200">
                   {(() => {
                     const breakdownEntries = Object.entries(paymentBreakdown)
-                      .sort(([a], [b]) => {
-                        if (a === 'Efectivo') return -1
-                        if (b === 'Efectivo') return 1
-                        return a.localeCompare(b)
-                      })
+                      .filter(([method]) => method !== 'Efectivo') // Excluir Efectivo de esta lista
+                      .sort(([a], [b]) => a.localeCompare(b))
 
                     if (breakdownEntries.length === 0) {
                       return (
                         <div className="text-sm text-gray-500 italic">
-                          No hay movimientos registrados
+                          No hay otros movimientos
                         </div>
                       )
                     }
 
                     return breakdownEntries.map(([method, amount]) => (
                       <div key={method} className="flex justify-between items-center text-sm">
-                        <span className={method === 'Efectivo' ? 'font-medium' : ''}>
+                        <span className="font-medium">
                           {method}:
                         </span>
-                        <span className={`font-medium ${Math.abs(amount) < 0.01 ? 'text-gray-500' : amount >= 0 ? 'text-green-600' : 'text-red-600'} ${method === 'Efectivo' ? 'font-semibold' : ''}`}>
+                        <span className={`font-medium ${Math.abs(amount) < 0.01 ? 'text-gray-500' : amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {Math.abs(amount) < 0.01
                             ? formatCurrency(0)
                             : amount >= 0
@@ -237,13 +230,13 @@ export const CloseCashRegisterDialog = ({
                 </div>
               </div>
 
-              {/* Nueva sección: Cálculo de Efectivo Esperado */}
+              {/* Nueva sección: Balance de Efectivo */}
               <div className="space-y-2">
-                <Label>Cálculo de Efectivo Esperado</Label>
-                <div className="bg-slate-50 p-3 rounded-md space-y-2 border border-slate-200">
+                <Label className="text-primary font-semibold">Balance de Efectivo (Objetivo)</Label>
+                <div className="bg-slate-50 p-3 rounded-md space-y-2 border border-slate-200 shadow-sm">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Saldo Inicial:</span>
-                    <span className="text-right">{formatCurrency(parseFloat(registerToShow?.initial_amount) || 0)}</span>
+                    <span className="text-right font-medium text-slate-700">{formatCurrency(parseFloat(registerToShow?.initial_amount) || 0)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Movimientos Efectivo:</span>
@@ -251,9 +244,9 @@ export const CloseCashRegisterDialog = ({
                       {(paymentBreakdown['Efectivo'] || 0) >= 0 ? '+' : ''}{formatCurrency(paymentBreakdown['Efectivo'] || 0)}
                     </span>
                   </div>
-                  <div className="border-t border-slate-300 my-1 pt-1 flex justify-between items-center text-sm">
-                    <span className="font-bold text-slate-700">Total Esperado:</span>
-                    <span className="font-bold text-right text-slate-900">
+                  <div className="border-t border-slate-300 my-1 pt-2 flex justify-between items-center text-base">
+                    <span className="font-bold text-slate-800">Debe haber en caja:</span>
+                    <span className="font-bold text-right text-lg text-slate-900">
                       {formatCurrency((parseFloat(registerToShow?.initial_amount) || 0) + (paymentBreakdown['Efectivo'] || 0))}
                     </span>
                   </div>
