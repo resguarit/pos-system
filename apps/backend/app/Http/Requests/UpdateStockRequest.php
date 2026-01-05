@@ -26,7 +26,7 @@ class UpdateStockRequest extends FormRequest
             // supplier_id ya no es requerido en update de stock directo
             // 'supplier_id' => 'sometimes|required|integer|exists:suppliers,id',
             // Valida el nuevo stock total que se está estableciendo
-            'current_stock' => 'sometimes|required|integer',
+            'current_stock' => 'sometimes|required|integer|min:-2147483648|max:2147483647',
             'min_stock' => 'sometimes|required|integer|min:0',
             // Valida max_stock contra el min_stock (nuevo o existente)
             'max_stock' => [
@@ -45,11 +45,11 @@ class UpdateStockRequest extends FormRequest
         ];
     }
 
-     public function messages(): array
+    public function messages(): array
     {
         return [
-             // Mensajes personalizados si es necesario, la función personalizada ya tiene uno.
-             'max_stock.min' => 'El stock máximo debe ser mayor que 0.',
+            // Mensajes personalizados si es necesario, la función personalizada ya tiene uno.
+            'max_stock.min' => 'El stock máximo debe ser mayor que 0.',
         ];
     }
 }

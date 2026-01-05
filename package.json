@@ -33,8 +33,11 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.51.0",
+    "@typescript-eslint/parser": "^8.51.0",
     "@vitejs/plugin-react": "^4.3.2",
     "concurrently": "^8.2.2",
+    "eslint": "^9.39.2",
     "husky": "^9.1.7",
     "lerna": "^8.0.0",
     "lint-staged": "^16.2.7"
@@ -45,7 +48,7 @@
   },
   "lint-staged": {
     "apps/frontend/src/**/*.{ts,tsx}": [
-      "eslint --max-warnings=100"
+      "bash -c 'cd apps/frontend && npx eslint --max-warnings=100 \"$@\"' _"
     ]
   }
 }

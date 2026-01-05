@@ -19,7 +19,7 @@ class StoreStockRequest extends FormRequest
             // supplier_id ya no es requerido al crear/ajustar stock directamente
             // 'supplier_id' => 'required|integer|exists:suppliers,id',
             // Valida el stock inicial que se está creando
-            'current_stock' => 'required|integer',
+            'current_stock' => 'required|integer|min:-2147483648|max:2147483647',
             'min_stock' => 'required|integer|min:0',
             // max_stock debe ser entero, mayor que 0 y mayor que min_stock
             'max_stock' => 'required|integer|min:1|gt:min_stock',

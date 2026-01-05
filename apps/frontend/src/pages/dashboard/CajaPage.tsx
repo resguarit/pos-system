@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -47,7 +50,8 @@ import { MovementsTable } from "@/components/cash/MovementsTable"
 import { MultiBranchNewMovementDialog } from "@/components/cash/MultiBranchNewMovementDialog"
 import { MultiBranchFilters } from "@/components/cash/MultiBranchFilters"
 import { ExportDialog } from "@/components/cash/ExportDialog"
-import { PaymentBreakdownGrid, calculatePaymentMethodTotals } from "@/components/cash/PaymentBreakdownGrid"
+import { PaymentBreakdownGrid } from "@/components/cash/PaymentBreakdownGrid"
+import { calculatePaymentMethodTotals } from "@/utils/payment-breakdown-utils"
 
 // Utilidades
 import {

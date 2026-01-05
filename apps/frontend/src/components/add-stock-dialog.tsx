@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,49 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, PackagePlus, Search } from "lucide-react"
 import useApi from "@/hooks/useApi"
 import type { Product, Branch } from "@/types/product"
-import { toast } from "sonner" // Importar toast
+import { toast } from "sonner"
+
+/**
+ * Límites de MySQL INTEGER para validación de stock.
+ * Estos valores corresponden al rango del tipo INTEGER en MySQL.
+ */
+const STOCK_LIMITS = {
+  MIN: -2147483648,
+  MAX: 2147483647,
+} as const;
+
+/**
+ * Mensajes de error de validación centralizados.
+ * Facilita la internacionalización y el mantenimiento.
+ */
+const VALIDATION_MESSAGES = {
+  PRODUCT_REQUIRED: "Debes seleccionar un producto.",
+  BRANCH_REQUIRED: "Debes seleccionar una sucursal.",
+  QUANTITY_ZERO: "La cantidad no puede ser 0.",
+  QUANTITY_NOT_INTEGER: "La cantidad debe ser un número entero.",
+  QUANTITY_OUT_OF_RANGE: (min: string, max: string) =>
+    `La cantidad debe estar entre ${min} y ${max}.`,
+  RESULTING_STOCK_OUT_OF_RANGE: (result: string, min: string, max: string) =>
+    `El stock resultante (${result}) excede el límite permitido (${min} a ${max}).`,
+  MIN_STOCK_INVALID: "El stock mínimo debe ser 0 o mayor.",
+  MIN_STOCK_EXCEEDS_LIMIT: (max: string) =>
+    `El stock mínimo no puede exceder ${max}.`,
+  MAX_STOCK_INVALID: "El stock máximo debe ser mayor que 0.",
+  MAX_STOCK_EXCEEDS_LIMIT: (max: string) =>
+    `El stock máximo no puede exceder ${max}.`,
+  MAX_STOCK_LESS_THAN_MIN: "El stock máximo debe ser mayor que el stock mínimo.",
+} as const;
+
+/**
+ * Verifica si un valor está dentro del rango válido de stock.
+ */
+const isWithinStockRange = (value: number): boolean =>
+  value >= STOCK_LIMITS.MIN && value <= STOCK_LIMITS.MAX;
+
+/**
+ * Formatea un número para mostrar con separadores de miles.
+ */
+const formatNumber = (value: number): string => value.toLocaleString();
 
 interface AddStockDialogProps {
   open: boolean
@@ -30,22 +72,23 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
   const [fallbackBranches, setFallbackBranches] = useState<Branch[]>([])
   const allBranches: Branch[] = (branches && branches.length > 0) ? branches : fallbackBranches
 
-  const resolveBranchLabel = (b: Branch) => (b as any)?.name || (b as any)?.description || `Sucursal ${String((b as any)?.id ?? '')}`
+  const resolveBranchLabel = (b: Branch) => b.name || b.description || `Sucursal ${String(b.id ?? '')}`
 
-   // Estados para el formulario
-   const [products, setProducts] = useState<Product[]>([])
-   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-   const [selectedBranch, setSelectedBranch] = useState<string>("")
-   const [stockToAdd, setStockToAdd] = useState<string>("1")
-   const [minStock, setMinStock] = useState<string>("0")
-   const [maxStock, setMaxStock] = useState<string>("0")
-   const [currentStock, setCurrentStock] = useState<string>("0")
-   const [searchQuery, setSearchQuery] = useState<string>("")
-   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
-   const [showProductsList, setShowProductsList] = useState(false)
-   const [productStocks, setProductStocks] = useState<any[]>([])
-   const [loadingStock, setLoadingStock] = useState(false)
-   const [errors, setErrors] = useState<{ [key: string]: string }>({}); // Estado para errores
+  // Estados para el formulario
+  const [products, setProducts] = useState<Product[]>([])
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [selectedBranch, setSelectedBranch] = useState<string>("")
+  const [stockToAdd, setStockToAdd] = useState<string>("1")
+  const [minStock, setMinStock] = useState<string>("0")
+  const [maxStock, setMaxStock] = useState<string>("0")
+  const [currentStock, setCurrentStock] = useState<string>("0")
+  const [searchQuery, setSearchQuery] = useState<string>("")
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+  const [showProductsList, setShowProductsList] = useState(false)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [productStocks, setProductStocks] = useState<any[]>([])
+  const [loadingStock, setLoadingStock] = useState(false)
+  const [errors, setErrors] = useState<{ [key: string]: string }>({}); // Estado para errores
 
   // Cargar productos al abrir el diálogo
   useEffect(() => {
@@ -54,10 +97,11 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       resetForm()
       // Cargar sucursales si no hay
       if (!branches || branches.length === 0) {
-        ;(async () => {
+        ; (async () => {
           try {
             // Usar solo sucursales activas
             const resp = await request({ method: 'GET', url: '/branches/active' })
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const data = Array.isArray(resp) ? resp : (resp as any)?.data && Array.isArray((resp as any).data) ? (resp as any).data : []
             setFallbackBranches(data as Branch[])
           } catch (e) {
@@ -67,6 +111,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
         })()
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   // Filtrar productos cuando cambia la búsqueda
@@ -102,13 +147,14 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       setMinStock("0");
       setMaxStock("0");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct]); // Only depends on selectedProduct
 
   // Actualizar stock cuando cambia la sucursal, los stocks cargados, o el estado de carga
   useEffect(() => {
     // Update display based on current state
     updateStockForSelectedBranch();
-    // Dependencies: product selection, branch selection, loaded stocks, and loading status
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct, selectedBranch, productStocks, loadingStock]);
 
   const resetForm = () => {
@@ -127,16 +173,18 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
 
   const fetchProducts = async () => {
     try {
-      const data = await request({
+      const resp = await request({
         method: "GET",
         url: "/products?include=category,supplier&for_admin=true",
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = resp as any
       const productList = Array.isArray(data)
         ? data
-        : Array.isArray((data as any)?.data)
-          ? (data as any).data
-          : Array.isArray((data as any)?.data?.data)
-            ? (data as any).data.data
+        : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.data?.data)
+            ? data.data.data
             : []
       setProducts(productList)
     } catch (err) {
@@ -160,15 +208,18 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       });
 
       // robust unwrapping
-      const payload = (stockResponse as any)?.data ?? stockResponse
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const resp = stockResponse as any
+      const payload = resp?.data ?? stockResponse
       const list = Array.isArray(payload)
         ? payload
         : Array.isArray(payload?.data)
           ? payload.data
-          : Array.isArray((stockResponse as any)?.data?.data)
-            ? (stockResponse as any).data.data
+          : Array.isArray(resp?.data?.data)
+            ? resp.data.data
             : []
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const validStockData = list.filter((s: any) => s && s.branch_id != null && s.current_stock != null)
       setProductStocks(validStockData)
     } catch (err) {
@@ -220,46 +271,108 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
     }
   };
 
-  // Función para validar el formulario
-  const validateForm = (): boolean => {
-    const newErrors: { [key: string]: string } = {};
+  /**
+   * Valida los campos de cantidad y retorna el error si existe.
+   */
+  const validateQuantityField = (value: string, currentStockValue: number): string | null => {
+    const numValue = Number(value);
 
-    if (!selectedProduct) {
-      newErrors.product = "Debes seleccionar un producto.";
+    if (!value || numValue === 0) {
+      return VALIDATION_MESSAGES.QUANTITY_ZERO;
     }
-    if (!selectedBranch) {
-      newErrors.branch = "Debes seleccionar una sucursal.";
+
+    if (!Number.isInteger(numValue)) {
+      return VALIDATION_MESSAGES.QUANTITY_NOT_INTEGER;
     }
-    if (!stockToAdd || Number(stockToAdd) === 0) {
-      newErrors.stockToAdd = "La cantidad no puede ser 0.";
+
+    if (!isWithinStockRange(numValue)) {
+      return VALIDATION_MESSAGES.QUANTITY_OUT_OF_RANGE(
+        formatNumber(STOCK_LIMITS.MIN),
+        formatNumber(STOCK_LIMITS.MAX)
+      );
     }
-    const min = Number(minStock);
-    const max = Number(maxStock);
+
+    const resultingStock = currentStockValue + numValue;
+    if (!isWithinStockRange(resultingStock)) {
+      return VALIDATION_MESSAGES.RESULTING_STOCK_OUT_OF_RANGE(
+        formatNumber(resultingStock),
+        formatNumber(STOCK_LIMITS.MIN),
+        formatNumber(STOCK_LIMITS.MAX)
+      );
+    }
+
+    return null;
+  };
+
+  /**
+   * Valida los campos de stock mínimo y máximo.
+   */
+  const validateStockLimits = (
+    minValue: string,
+    maxValue: string
+  ): { minError: string | null; maxError: string | null } => {
+    const min = Number(minValue);
+    const max = Number(maxValue);
+    let minError: string | null = null;
+    let maxError: string | null = null;
 
     // Validar Stock Mínimo
-    if (minStock === "" || min < 0) { // Asegurar que no esté vacío y sea >= 0
-        newErrors.minStock = "El stock mínimo debe ser 0 o mayor.";
+    if (minValue === "" || min < 0) {
+      minError = VALIDATION_MESSAGES.MIN_STOCK_INVALID;
+    } else if (min > STOCK_LIMITS.MAX) {
+      minError = VALIDATION_MESSAGES.MIN_STOCK_EXCEEDS_LIMIT(formatNumber(STOCK_LIMITS.MAX));
     }
 
     // Validar Stock Máximo
-    if (maxStock === "" || max <= 0) { // Asegurar que no esté vacío y sea > 0
-        newErrors.maxStock = "El stock máximo debe ser mayor que 0.";
-    } else if (minStock !== "" && min >= 0 && max <= min) { // Solo comparar si minStock es válido
-       newErrors.maxStock = "El stock máximo debe ser mayor que el stock mínimo.";
+    if (maxValue === "" || max <= 0) {
+      maxError = VALIDATION_MESSAGES.MAX_STOCK_INVALID;
+    } else if (max > STOCK_LIMITS.MAX) {
+      maxError = VALIDATION_MESSAGES.MAX_STOCK_EXCEEDS_LIMIT(formatNumber(STOCK_LIMITS.MAX));
+    } else if (minValue !== "" && min >= 0 && max <= min) {
+      maxError = VALIDATION_MESSAGES.MAX_STOCK_LESS_THAN_MIN;
     }
 
+    return { minError, maxError };
+  };
+
+  /**
+   * Valida todo el formulario antes de enviar.
+   * @returns true si el formulario es válido, false en caso contrario.
+   */
+  const validateForm = useCallback((): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    // Validar campos requeridos
+    if (!selectedProduct) {
+      newErrors.product = VALIDATION_MESSAGES.PRODUCT_REQUIRED;
+    }
+    if (!selectedBranch) {
+      newErrors.branch = VALIDATION_MESSAGES.BRANCH_REQUIRED;
+    }
+
+    // Validar cantidad a ajustar
+    const currentStockNum = Number(currentStock) || 0;
+    const quantityError = validateQuantityField(stockToAdd, currentStockNum);
+    if (quantityError) {
+      newErrors.stockToAdd = quantityError;
+    }
+
+    // Validar límites de stock
+    const { minError, maxError } = validateStockLimits(minStock, maxStock);
+    if (minError) newErrors.minStock = minError;
+    if (maxError) newErrors.maxStock = maxError;
 
     setErrors(newErrors);
-    const isValid = Object.keys(newErrors).length === 0;
-    if (!isValid) {
-        // Mostrar toast de error si la validación falla
-        const errorMessages = Object.values(newErrors).join("\n"); // Unir mensajes para el toast
-        toast.error("Error de validación", {
-            description: errorMessages,
-        });
+
+    const hasErrors = Object.keys(newErrors).length > 0;
+    if (hasErrors) {
+      toast.error("Error de validación", {
+        description: Object.values(newErrors).join("\n"),
+      });
     }
-    return isValid; // Retorna true si no hay errores
-  };
+
+    return !hasErrors;
+  }, [selectedProduct, selectedBranch, stockToAdd, currentStock, minStock, maxStock]);
 
 
   const handleAddStock = async () => {
@@ -282,12 +395,15 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
         method: "GET",
         url: `/stocks?product_id=${selectedProduct!.id}&branch_id=${selectedBranch}`,
       })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payload = (stockResponse as any)?.data ?? stockResponse
       const list = Array.isArray(payload)
         ? payload
         : Array.isArray(payload?.data)
           ? payload.data
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           : Array.isArray((stockResponse as any)?.data?.data)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? (stockResponse as any).data.data
             : []
 
@@ -325,13 +441,27 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       onOpenChange(false)
       // Mostrar toast de éxito
       toast.success("Stock ajustado exitosamente", {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         description: `Se ${Number(stockToAdd) >= 0 ? 'agregaron' : 'restaron'} ${Math.abs(Number(stockToAdd))} unidades de ${selectedProduct?.description} a la sucursal ${resolveBranchLabel(allBranches.find(b => String((b as any).id) === String(selectedBranch)) as Branch)}.`,
       });
-    } catch (err: any) { // Capturar error específico
+    } catch (err: unknown) {
       console.error("Error al actualizar stock:", err)
+
+      let errorMessage = "Ocurrió un problema al intentar guardar el stock."
+
+      if (err && typeof err === 'object' && 'response' in err) {
+        // Safe access to potential axios error structure
+        const axiosError = err as { response?: { data?: { message?: string } } }
+        if (axiosError.response?.data?.message) {
+          errorMessage = axiosError.response.data.message
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message
+      }
+
       // Mostrar toast de error de API
       toast.error("Error al agregar stock", {
-        description: err?.response?.data?.message || err.message || "Ocurrió un problema al intentar guardar el stock.",
+        description: errorMessage,
       });
     }
   }
@@ -342,6 +472,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
     setShowProductsList(false)
     // limpiar error de producto si existía
     setErrors((prev) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { product: _prodErr, ...rest } = prev
       return rest
     })
@@ -380,6 +511,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
                       if (e.target.value.trim() === "") {
                         setShowProductsList(false)
                         if (errors.product) {
+                          // eslint-disable-next-line @typescript-eslint/no-unused-vars
                           const { product, ...rest } = errors;
                           setErrors(rest);
                         }
@@ -422,7 +554,8 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
                 onValueChange={(value) => {
                   setSelectedBranch(value);
                   if (errors.branch) {
-                    const { branch, ...rest } = errors;
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                    const { branch: _, ...rest } = errors;
                     setErrors(rest);
                   }
                 }}
@@ -459,6 +592,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
                     </p>
                   )}
                   <p>
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     <span className="font-medium">Stock {selectedBranch ? `en Sucursal (${allBranches.find(b => String((b as any).id) === String(selectedBranch)) ? resolveBranchLabel(allBranches.find(b => String((b as any).id) === String(selectedBranch)) as Branch) : 'Seleccionada'})` : 'Total (Todas las Sucursales)'}:</span> {loadingStock ? "Cargando..." : currentStock}
                   </p>
                   {!loadingStock && selectedBranch && (
@@ -501,6 +635,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
                 onChange={(e) => {
                   setMinStock(e.target.value);
                   if (errors.minStock || errors.maxStock) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     const { minStock, maxStock, ...rest } = errors;
                     setErrors(rest);
                   }
@@ -521,6 +656,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
                 onChange={(e) => {
                   setMaxStock(e.target.value);
                   if (errors.maxStock) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     const { maxStock, ...rest } = errors;
                     setErrors(rest);
                   }
@@ -541,6 +677,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
                 onChange={(e) => {
                   setStockToAdd(e.target.value);
                   if (errors.stockToAdd) {
+                    // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     const { stockToAdd, ...rest } = errors;
                     setErrors(rest);
                   }
@@ -565,7 +702,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
                 <strong>Advertencia:</strong> El backend está configurado para requerir stock mayor o igual a 0, pero el sistema permite stock negativo. Si necesitas operar con stock negativo, contacta al administrador para ajustar la configuración o ignora este mensaje si tu flujo lo requiere.
               </div>
             )}
-        </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

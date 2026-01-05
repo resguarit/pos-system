@@ -95,9 +95,9 @@ export const OpenCashRegisterDialog = ({
         url: '/cash-registers/last-closure',
         params: { branch_id: branchId }
       })
-      
+
       const lastClosureAmount = response?.data?.last_closure_amount
-      
+
       if (lastClosureAmount !== null && lastClosureAmount !== undefined && lastClosureAmount >= 0) {
         setOpeningForm(prev => ({
           ...prev,
@@ -114,19 +114,19 @@ export const OpenCashRegisterDialog = ({
       }
     } catch (error: unknown) {
       console.error('Error al cargar el último cierre:', error)
-      
+
       // En caso de error, dejar el campo vacío para que el usuario lo ingrese manualmente
       setOpeningForm(prev => ({
         ...prev,
         opening_balance: ''
       }))
       setHasLoadedFromLastClosure(false)
-      
+
       // Mostrar mensaje de error solo si no es un error de validación esperado
-      const errorMessage = error instanceof Error 
-        ? error.message 
+      const errorMessage = error instanceof Error
+        ? error.message
         : 'Error desconocido al cargar el último cierre'
-      
+
       if (!errorMessage.includes('422') && !errorMessage.includes('404')) {
         toast.error('No se pudo cargar el último cierre. Por favor, ingresa el saldo manualmente.')
       }
@@ -205,7 +205,7 @@ export const OpenCashRegisterDialog = ({
         <DialogHeader>
           <DialogTitle>Abrir Caja</DialogTitle>
           <DialogDescription>
-            {branchDescription 
+            {branchDescription
               ? `Abrir caja para ${branchDescription}`
               : 'Ingresa el saldo inicial para abrir una nueva sesión de caja.'
             }
@@ -214,7 +214,7 @@ export const OpenCashRegisterDialog = ({
         <div className="grid gap-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="opening-balance">
-              Saldo Inicial
+              Saldo Inicial (Efectivo)
               <span className="text-destructive ml-1">*</span>
             </Label>
             {loadingLastClosure && (
@@ -236,7 +236,7 @@ export const OpenCashRegisterDialog = ({
               aria-describedby={hasLoadedFromLastClosure ? "last-closure-info" : undefined}
             />
             {!loadingLastClosure && hasLoadedFromLastClosure && (
-              <p 
+              <p
                 id="last-closure-info"
                 className="text-xs text-muted-foreground"
                 role="status"
@@ -266,15 +266,15 @@ export const OpenCashRegisterDialog = ({
           </div>
         </div>
         <DialogFooter>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={handleClose}
             disabled={loading || loadingLastClosure}
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={handleSubmit} 
+          <Button
+            onClick={handleSubmit}
             disabled={loading || loadingLastClosure || !openingForm.opening_balance}
           >
             {loading ? (

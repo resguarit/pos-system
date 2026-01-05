@@ -1,13 +1,5 @@
 import { Wallet } from "lucide-react"
-
-// Type definition for payment method totals
-export interface PaymentMethodTotal {
-    id: number
-    name: string
-    income: number
-    expense: number
-    total: number
-}
+import { PaymentMethodTotal } from "@/utils/payment-breakdown-utils"
 
 interface PaymentBreakdownGridProps {
     paymentMethodTotals: PaymentMethodTotal[]
@@ -85,46 +77,5 @@ export function PaymentBreakdownGrid({
     )
 }
 
-/**
- * Utility function to calculate payment method totals from a list of movements
- * @param movements - Array of cash movements
- * @returns Array of PaymentMethodTotal objects
- */
-export function calculatePaymentMethodTotals(movements: any[]): PaymentMethodTotal[] {
-    if (!movements || movements.length === 0) {
-        return []
-    }
-
-    const totals: Record<number, PaymentMethodTotal> = {}
-
-    movements.forEach((movement) => {
-        const paymentMethodId = movement.payment_method_id ?? 0
-        const paymentMethodName = movement.payment_method?.name ?? "Sin especificar"
-        const amount = parseFloat(movement.amount) || 0
-        const movementType = movement.movement_type
-        const isIncome =
-            movementType?.operation_type === "entrada" || movementType?.is_income === true
-
-        if (!totals[paymentMethodId]) {
-            totals[paymentMethodId] = {
-                id: paymentMethodId,
-                name: paymentMethodName,
-                income: 0,
-                expense: 0,
-                total: 0,
-            }
-        }
-
-        if (isIncome) {
-            totals[paymentMethodId].income += amount
-        } else {
-            totals[paymentMethodId].expense += amount
-        }
-        totals[paymentMethodId].total =
-            totals[paymentMethodId].income - totals[paymentMethodId].expense
-    })
-
-    return Object.values(totals)
-}
-
 export default PaymentBreakdownGrid
+
