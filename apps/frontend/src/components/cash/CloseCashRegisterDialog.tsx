@@ -240,7 +240,12 @@ export const CloseCashRegisterDialog = ({
 
               {/* Nueva sección: Balance de Efectivo */}
               <div className="space-y-2">
-                <Label className="text-primary font-semibold">Balance de Efectivo (Objetivo)</Label>
+                <div>
+                  <Label className="text-primary font-semibold">Objetivo de Efectivo en Caja</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Saldo Inicial + Flujo de Efectivo = Total que debe haber
+                  </p>
+                </div>
                 <div className="bg-slate-50 p-3 rounded-md space-y-2 border border-slate-200 shadow-sm">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Saldo Inicial:</span>
