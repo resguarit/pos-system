@@ -124,6 +124,22 @@ export const CloseCashRegisterDialog = ({
     return breakdown
   }
 
+  // Helper to get movements used for calculation (duplicated logic for consistency, could be refactored)
+  const getMovementsToUse = () => {
+    let movementsToUse = allMovements.length > 0 ? allMovements : movements
+    if (selectedBranchForAction && movementsToUse.length > 0) {
+      return movementsToUse.filter(m => m.cash_register_id === registerToShow?.id)
+    } else if (!selectedBranchForAction && allMovements.length > 0) {
+      return movementsToUse.filter(m => m.cash_register_id === registerToShow?.id)
+    }
+    return movementsToUse
+  }
+
+  const movementsForStats = getMovementsToUse()
+  const cashMovements = movementsForStats.filter(m => isCashPaymentMethod?.(m.payment_method?.name || 'Efectivo') || m.payment_method?.name === 'Efectivo')
+  const cashIncome = cashMovements.filter(m => m.amount > 0).reduce((sum, m) => sum + parseFloat(m.amount), 0)
+  const cashExpense = cashMovements.filter(m => m.amount < 0).reduce((sum, m) => sum + parseFloat(m.amount), 0)
+
   const calculateDifference = () => {
     if (!closingForm.closing_balance) return 0
 
@@ -238,12 +254,24 @@ export const CloseCashRegisterDialog = ({
                     <span className="text-muted-foreground">Saldo Inicial:</span>
                     <span className="text-right font-medium text-slate-700">{formatCurrency(parseFloat(registerToShow?.initial_amount) || 0)}</span>
                   </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Movimientos Efectivo:</span>
-                    <span className={`text-right font-medium ${(paymentBreakdown['Efectivo'] || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {(paymentBreakdown['Efectivo'] || 0) >= 0 ? '+' : ''}{formatCurrency(paymentBreakdown['Efectivo'] || 0)}
-                    </span>
+
+                  <div className="border-t border-dashed border-slate-200 my-1 pt-1 space-y-1">
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>Ingresos Efectivo:</span>
+                      <span className="text-green-600">+{formatCurrency(cashIncome)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs text-muted-foreground">
+                      <span>Egresos Efectivo:</span>
+                      <span className="text-red-600">{formatCurrency(cashExpense)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-600">Flujo Neto Efectivo:</span>
+                      <span className={`text-right font-medium ${(paymentBreakdown['Efectivo'] || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {(paymentBreakdown['Efectivo'] || 0) >= 0 ? '+' : ''}{formatCurrency(paymentBreakdown['Efectivo'] || 0)}
+                      </span>
+                    </div>
                   </div>
+
                   <div className="border-t border-slate-300 my-1 pt-2 flex justify-between items-center text-base">
                     <span className="font-bold text-slate-800">Debe haber en caja:</span>
                     <span className="font-bold text-right text-lg text-slate-900">
