@@ -232,9 +232,38 @@ export default function CajaPage() {
   )
 
   // Calcular desglose por método de pago de la caja actual usando función utilitaria
+  // Incluye el saldo inicial en "Efectivo" para mostrar el total real en caja
   const currentRegisterPaymentBreakdown = useMemo(() => {
-    return calculatePaymentMethodTotals(allMovementsFromRegister || [])
-  }, [allMovementsFromRegister])
+    const breakdown = calculatePaymentMethodTotals(allMovementsFromRegister || [])
+
+    // Agregar el saldo inicial al método "Efectivo" para reflejar el total en caja
+    const initialAmount = parseFloat(currentRegister?.initial_amount) || 0
+    if (initialAmount > 0) {
+      const efectivoIndex = breakdown.findIndex(pm =>
+        pm.name === 'Efectivo' || pm.name === 'Contado' || pm.name.toLowerCase().includes('efectivo')
+      )
+
+      if (efectivoIndex !== -1) {
+        // Sumar saldo inicial al ingreso y total de efectivo
+        breakdown[efectivoIndex] = {
+          ...breakdown[efectivoIndex],
+          income: breakdown[efectivoIndex].income + initialAmount,
+          total: breakdown[efectivoIndex].total + initialAmount
+        }
+      } else if (breakdown.length > 0) {
+        // Si no hay "Efectivo" en los movimientos, crear una entrada para mostrar el saldo inicial
+        breakdown.unshift({
+          id: -1, // ID especial para saldo inicial
+          name: 'Efectivo',
+          income: initialAmount,
+          expense: 0,
+          total: initialAmount
+        })
+      }
+    }
+
+    return breakdown
+  }, [allMovementsFromRegister, currentRegister?.initial_amount])
 
   // Estado para el diálogo de orden de compra
   const [openPurchaseOrderDialog, setOpenPurchaseOrderDialog] = useState(false)
@@ -1666,50 +1695,6 @@ export default function CajaPage() {
           showOpenButton={false}
           className="mb-4"
         />
-      )}
-
-      {/* Stats Cards - Solo para una sucursal */}
-      {selectedBranchIdsArray.length === 1 && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            title="Balance Esperado"
-            value={formatCurrency(calculateCashOnlyBalance())}
-            description={
-              optimizedCashRegister?.expected_cash_balance !== undefined
-                ? "Efectivo que debería haber en caja "
-                : currentRegister
-                  ? "Cálculo basado en movimientos de efectivo"
-                  : "Sin caja abierta"
-            }
-            icon={Coins}
-            colorClass="text-orange-700"
-          />
-          <StatCard
-            title={incomeTitle}
-            value={formatCurrency(todayIncome)}
-            description={incomeDescription}
-            icon={ArrowDownIcon}
-            colorClass="text-blue-700"
-          />
-          <StatCard
-            title={expensesTitle}
-            value={formatCurrency(todayExpenses)}
-            description={expensesDescription}
-            icon={ArrowUpIcon}
-            colorClass="text-amber-700"
-          />
-          <StatCard
-            title="Saldo desde apertura"
-            value={formatCurrency(calculateBalanceSinceOpening())}
-            description={
-              currentRegister
-                ? `Desde ${formatDate(currentRegister.opened_at)}`
-                : 'Sin caja abierta'
-            }
-            icon={DollarSign}
-            colorClass="text-violet-700"
-          />
-        </div>
       )}
 
       {/* Tabs de Historial y Reportes - Solo para una sucursal */}
