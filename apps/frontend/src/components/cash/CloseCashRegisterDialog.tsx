@@ -112,19 +112,13 @@ export const CloseCashRegisterDialog = ({
     // Intentamos detectar si hay un método que sea efectivo
     const cashMethodName = totals.find(t => isCashPaymentMethod?.(t.name) || t.name === 'Efectivo')?.name || 'Efectivo'
 
-    breakdown[cashMethodName] = (breakdown[cashMethodName] || 0) + opening
+    // breakdown[cashMethodName] = (breakdown[cashMethodName] || 0) + opening
+    // We now keep breakdown purely as "Flow" (movements) to match the dashboard.
 
     // Debug
     if (process.env.NODE_ENV === 'development') {
       console.log('CloseCashRegisterDialog - Totals matching dashboard:', totals)
-      console.log('CloseCashRegisterDialog - Breakdown with opening:', breakdown)
-    }
-
-    // Si tenemos el balance esperado del backend (de optimizedCashRegister o del registro),
-    // ajustar el efectivo para que coincida con el balance esperado del backend
-    // Esto asegura consistencia con el cálculo del backend
-    if (optimizedCashRegister?.expected_cash_balance !== undefined || registerToShow?.expected_cash_balance !== undefined) {
-      breakdown['Efectivo'] = expectedCashBalance
+      console.log('CloseCashRegisterDialog - Breakdown (Flow only):', breakdown)
     }
 
     return breakdown
@@ -135,13 +129,15 @@ export const CloseCashRegisterDialog = ({
 
     const countedCash = parseFloat(closingForm.closing_balance) || 0
     const breakdown = calculatePaymentBreakdown()
-    const expectedCashValue = breakdown['Efectivo'] || 0
     const initialAmount = parseFloat(registerToShow?.initial_amount) || 0
 
-    // El usuario ingresa el efectivo adicional
-    // expectedCashValue ya incluye el inicial
-    // Diferencia = Efectivo Contado - |expectedCashValue|
-    return countedCash - Math.abs(expectedCashValue)
+    // Nueva lógica:
+    // Efectivo en sistema = Inicial + Flujo de Efectivo
+    const cashFlow = breakdown['Efectivo'] || 0
+    const expectedCashValue = initialAmount + cashFlow
+
+    // Diferencia = Efectivo Contado - Total Esperado
+    return countedCash - expectedCashValue
   }
 
   const paymentBreakdown = calculatePaymentBreakdown()
@@ -224,8 +220,8 @@ export const CloseCashRegisterDialog = ({
 
                     return breakdownEntries.map(([method, amount]) => (
                       <div key={method} className="flex justify-between items-center text-sm">
-                        <span className={method === 'Efectivo' ? 'font-semibold text-green-700' : ''}>
-                          {method} {method === 'Efectivo' && <span className="text-xs text-muted-foreground font-normal">(incl. inicio)</span>}:
+                        <span className={method === 'Efectivo' ? 'font-medium' : ''}>
+                          {method}:
                         </span>
                         <span className={`font-medium ${Math.abs(amount) < 0.01 ? 'text-gray-500' : amount >= 0 ? 'text-green-600' : 'text-red-600'} ${method === 'Efectivo' ? 'font-semibold' : ''}`}>
                           {Math.abs(amount) < 0.01
@@ -238,6 +234,29 @@ export const CloseCashRegisterDialog = ({
                       </div>
                     ))
                   })()}
+                </div>
+              </div>
+
+              {/* Nueva sección: Cálculo de Efectivo Esperado */}
+              <div className="space-y-2">
+                <Label>Cálculo de Efectivo Esperado</Label>
+                <div className="bg-slate-50 p-3 rounded-md space-y-2 border border-slate-200">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Saldo Inicial:</span>
+                    <span className="text-right">{formatCurrency(parseFloat(registerToShow?.initial_amount) || 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Movimientos Efectivo:</span>
+                    <span className={`text-right font-medium ${(paymentBreakdown['Efectivo'] || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(paymentBreakdown['Efectivo'] || 0) >= 0 ? '+' : ''}{formatCurrency(paymentBreakdown['Efectivo'] || 0)}
+                    </span>
+                  </div>
+                  <div className="border-t border-slate-300 my-1 pt-1 flex justify-between items-center text-sm">
+                    <span className="font-bold text-slate-700">Total Esperado:</span>
+                    <span className="font-bold text-right text-slate-900">
+                      {formatCurrency((parseFloat(registerToShow?.initial_amount) || 0) + (paymentBreakdown['Efectivo'] || 0))}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -332,7 +351,6 @@ export const CloseCashRegisterDialog = ({
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog >
+    </Dialog>
   )
 }
-
