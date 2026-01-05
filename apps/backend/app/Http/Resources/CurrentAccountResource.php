@@ -23,23 +23,23 @@ class CurrentAccountResource extends JsonResource
             // Las ventas anuladas que tengan saldo pendiente también se incluyen
             $sales = \App\Models\SaleHeader::where('customer_id', $this->customer_id)
                 ->where('status', '!=', 'rejected') // Solo excluir rechazadas
-                ->where(function($query) {
+                ->where(function ($query) {
                     $query->whereNull('payment_status')
-                          ->orWhereIn('payment_status', ['pending', 'partial']);
+                        ->orWhereIn('payment_status', ['pending', 'partial']);
                 })
                 ->get();
-            
+
             // Sumar el pending_amount de cada venta que tenga saldo pendiente
             foreach ($sales as $sale) {
-                if ($sale->pending_amount > 0) {
+                if ($sale->pending_amount > 0.01) {
                     $totalPendingSales += $sale->pending_amount;
                 }
             }
         }
-        
+
         // El saldo adeudado total es solo las ventas pendientes
         $totalPendingDebt = $totalPendingSales;
-        
+
         return [
             'id' => $this->id,
             'customer_id' => $this->customer_id,
@@ -86,7 +86,7 @@ class CurrentAccountResource extends JsonResource
             'last_movement_at' => $this->last_movement_at?->format('Y-m-d H:i:s'),
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s'),
-            
+
             // Información adicional cuando se incluye
             'movements_count' => $this->whenLoaded('movements', function () {
                 return $this->movements->count();

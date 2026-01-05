@@ -154,7 +154,9 @@ class SaleHeader extends Model
     {
         $total = (float) ($this->total ?? 0);
         $paid = (float) ($this->paid_amount ?? 0);
-        return max(0, $total - $paid);
+        $pending = $total - $paid;
+        // Fix precision issues returning tiny debts
+        return $pending < 0.01 ? 0 : $pending;
     }
 
     /**
@@ -162,11 +164,23 @@ class SaleHeader extends Model
      */
     public function recordPayment(float $amount): void
     {
+        // Debug log
+        \Illuminate\Support\Facades\Log::info("SaleHeader::recordPayment [{$this->id}] {$this->receipt_number}", [
+            'amount_adding' => $amount,
+            'previous_paid' => $this->paid_amount,
+            'total' => $this->total
+        ]);
+
         $this->paid_amount = (float) $this->paid_amount + $amount;
 
-        if ($this->paid_amount >= $this->total) {
+        $epsilon = 0.01;
+
+        if ($this->paid_amount >= ($this->total - $epsilon)) {
             $this->payment_status = 'paid';
-            $this->paid_amount = $this->total;
+            // Snap to total to avoid fractional drift
+            if (abs($this->paid_amount - $this->total) < $epsilon) {
+                $this->paid_amount = $this->total;
+            }
         } elseif ($this->paid_amount > 0) {
             $this->payment_status = 'partial';
         }
