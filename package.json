@@ -30,7 +30,7 @@
     "lint": "cd apps/frontend && npm run lint",
     "type-check": "cd apps/frontend && npm run type-check",
     "test": "cd apps/frontend && npm test",
-    "prepare": "husky"
+    "prepare": "husky || echo 'husky not found, skipping'"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.51.0",
