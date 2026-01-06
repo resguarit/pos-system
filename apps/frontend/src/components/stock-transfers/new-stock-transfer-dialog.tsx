@@ -32,14 +32,16 @@ export interface StockTransferDialogProps {
   /** Transfer ID for edit mode. If undefined, creates new transfer */
   transferId?: number;
   preselectedSourceBranchId?: number;
+  visibleBranchIds?: string[];
 }
 
-export function StockTransferDialog({ 
-  open, 
-  onOpenChange, 
+export function StockTransferDialog({
+  open,
+  onOpenChange,
   onSaved,
   transferId,
   preselectedSourceBranchId,
+  visibleBranchIds,
 }: StockTransferDialogProps) {
   const {
     form,
@@ -59,6 +61,7 @@ export function StockTransferDialog({
     transferId,
     preselectedSourceBranchId,
     onSuccess: onSaved,
+    visibleBranchIds,
     onClose: () => onOpenChange(false),
   });
 
@@ -68,8 +71,8 @@ export function StockTransferDialog({
   };
 
   const dialogTitle = isEditMode ? 'Editar Transferencia' : 'Nueva Transferencia de Stock';
-  const dialogDescription = isEditMode 
-    ? 'Modifique los datos de la transferencia' 
+  const dialogDescription = isEditMode
+    ? 'Modifique los datos de la transferencia'
     : 'Transfiera productos entre sucursales';
   const submitButtonText = isEditMode ? 'Guardar Cambios' : 'Crear Transferencia';
 
@@ -147,8 +150,8 @@ export function StockTransferDialog({
                     disabled={loading}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {form.transfer_date 
-                      ? format(form.transfer_date, "PPP", { locale: es }) 
+                    {form.transfer_date
+                      ? format(form.transfer_date, "PPP", { locale: es })
                       : <span>Seleccione fecha</span>
                     }
                   </Button>
@@ -184,7 +187,7 @@ export function StockTransferDialog({
                 <Package className="h-4 w-4" />
                 Productos
               </Label>
-              
+
               <ProductSearch
                 products={products}
                 sourceBranchId={form.source_branch_id}
@@ -212,8 +215,8 @@ export function StockTransferDialog({
           >
             Cancelar
           </Button>
-          <Button 
-            onClick={handleSubmit} 
+          <Button
+            onClick={handleSubmit}
             disabled={isSubmitting || loading || items.length === 0}
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -41,7 +41,7 @@ export default function StockTransfersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [branchFilterUI, setBranchFilterUI] = useState<string[]>([])
-  
+
   // Permission checks
   const canCreate = hasPermission(PERMISSIONS.CREATE)
   const canEdit = hasPermission(PERMISSIONS.EDIT)
@@ -104,8 +104,9 @@ export default function StockTransfersPage() {
       toast.success("Transferencia completada exitosamente")
       setTransferToComplete(null)
       await loadTransfers()
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || "Error al completar")
+    } catch (error) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || "Error al completar")
     }
   }
 
@@ -115,8 +116,9 @@ export default function StockTransfersPage() {
       toast.success("Transferencia cancelada")
       setTransferToCancel(null)
       await loadTransfers()
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || "Error al cancelar")
+    } catch (error) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || "Error al cancelar")
     }
   }
 
@@ -126,8 +128,9 @@ export default function StockTransfersPage() {
       toast.success("Transferencia eliminada")
       setTransferToDelete(null)
       await loadTransfers()
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || "Error al eliminar")
+    } catch (error) {
+      const err = error as { response?: { data?: { error?: string } } };
+      toast.error(err.response?.data?.error || "Error al eliminar")
     }
   }
 
@@ -153,17 +156,17 @@ export default function StockTransfersPage() {
     }
   }
 
-  const getBranchName = (transfer: any, type: 'source' | 'destination') => {
+  const getBranchName = (transfer: StockTransfer, type: 'source' | 'destination') => {
     // API returns snake_case: source_branch, destination_branch
-    const branch = type === 'source' 
-      ? (transfer.source_branch || transfer.sourceBranch) 
+    const branch = type === 'source'
+      ? (transfer.source_branch || transfer.sourceBranch)
       : (transfer.destination_branch || transfer.destinationBranch)
     return branch?.description || branch?.name || 'N/A'
   }
 
-  const getBranchColorFromTransfer = (transfer: any, type: 'source' | 'destination') => {
-    const branch = type === 'source' 
-      ? (transfer.source_branch || transfer.sourceBranch) 
+  const getBranchColorFromTransfer = (transfer: StockTransfer, type: 'source' | 'destination') => {
+    const branch = type === 'source'
+      ? (transfer.source_branch || transfer.sourceBranch)
       : (transfer.destination_branch || transfer.destinationBranch)
     return branch?.color || '#6b7280'
   }
@@ -171,11 +174,11 @@ export default function StockTransfersPage() {
   // Extract unique branches from transfers for filter options
   const getUniqueBranches = (): Option[] => {
     const branchMap = new Map<number, { id: number; name: string; color: string }>()
-    
+
     transfers.forEach(transfer => {
       const sourceBranch = transfer.source_branch
       const destBranch = transfer.destination_branch
-      
+
       if (sourceBranch?.id) {
         branchMap.set(sourceBranch.id, {
           id: sourceBranch.id,
@@ -191,7 +194,7 @@ export default function StockTransfersPage() {
         })
       }
     })
-    
+
     return Array.from(branchMap.values())
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(branch => ({
@@ -211,7 +214,13 @@ export default function StockTransfersPage() {
       ? true
       : branchFilterNumbers.has(Number(transfer.source_branch_id)) || branchFilterNumbers.has(Number(transfer.destination_branch_id))
 
-    return matchesSearch && matchesStatus && matchesBranchFilter
+    const isGlobalBranchFilterActive = selectedBranchIds.length > 0
+    const globalBranchIds = new Set(selectedBranchIds.map(Number))
+    const matchesGlobalBranchFilter = !isGlobalBranchFilterActive
+      ? true
+      : globalBranchIds.has(Number(transfer.source_branch_id)) || globalBranchIds.has(Number(transfer.destination_branch_id))
+
+    return matchesSearch && matchesStatus && matchesBranchFilter && matchesGlobalBranchFilter
   })
 
   const pendingTransfers = transfers.filter(t => isPending(t.status)).length
@@ -364,12 +373,17 @@ export default function StockTransfersPage() {
         )}
       </div>
 
-      <NewStockTransferDialog open={openNewTransfer} onOpenChange={setOpenNewTransfer} onSaved={handleTransferSaved} />
+      <NewStockTransferDialog
+        open={openNewTransfer}
+        onOpenChange={setOpenNewTransfer}
+        onSaved={handleTransferSaved}
+        visibleBranchIds={selectedBranchIds}
+      />
 
       {/* Edit Dialog - reuses StockTransferDialog with transferId */}
-      <StockTransferDialog 
-        open={editTransferId !== null} 
-        onOpenChange={(open) => !open && setEditTransferId(null)} 
+      <StockTransferDialog
+        open={editTransferId !== null}
+        onOpenChange={(open) => !open && setEditTransferId(null)}
         onSaved={handleTransferSaved}
         transferId={editTransferId ?? undefined}
       />

@@ -21,6 +21,7 @@ interface UseStockTransferOptions {
   preselectedSourceBranchId?: number;
   onSuccess?: () => void;
   onClose?: () => void;
+  visibleBranchIds?: string[];
 }
 
 interface UseStockTransferReturn {
@@ -32,7 +33,7 @@ interface UseStockTransferReturn {
   loading: boolean;
   isSubmitting: boolean;
   isEditMode: boolean;
-  
+
   // Actions
   setForm: React.Dispatch<React.SetStateAction<TransferFormData>>;
   addItem: (productId: number, quantity: number) => Promise<boolean>;
@@ -41,7 +42,7 @@ interface UseStockTransferReturn {
   getProductStock: (productId: number) => Promise<number>;
   submit: () => Promise<boolean>;
   reset: () => void;
-  
+
   // Helpers
   getSourceBranchName: () => string;
   getDestinationBranchName: () => string;
@@ -107,7 +108,23 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   const [items, setItems] = useState<TransferItem[]>([]);
 
   // Data state
-  const [branches, setBranches] = useState<Branch[]>([]);
+  const [allBranches, setAllBranches] = useState<Branch[]>([]);
+
+  // Computed branches based on visibility filter
+  const branches = useMemo(() => {
+    const { visibleBranchIds } = options;
+    return allBranches.filter(branch => {
+      // If no filter provided or empty array, show all (or consistent with "No selection = All" behavior if that's preferred, 
+      // but usually "Create" needs strict selection. However, if page says "All" when empty, we should probably follow suit.
+      // But safe bet: if visibleBranchIds is undefined, show all. If array, check includes.
+      // NOTE: Empty array `[]` generally implies "Show None" in filters, but if global filter is "None Selected", maybe we want to allow user to pick any? 
+      // User complaint was "I have 2 selected and nothing appears".
+      // Let's ensure we handle the updates.
+
+      if (!visibleBranchIds || visibleBranchIds.length === 0) return true;
+      return visibleBranchIds.includes(branch.id.toString());
+    });
+  }, [allBranches, options]);
   const [products, setProducts] = useState<Product[]>([]);
 
   // Loading state
@@ -124,7 +141,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
         setItems(draft.items);
       }
     }
-  }, []);
+  }, [isEditMode]);
 
   // Save to localStorage only in create mode
   useEffect(() => {
@@ -147,13 +164,14 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       lastLoadedTransferId.current = transferId;
       loadTransferData(transferId, products);
     }
-  }, [transferId, dataLoaded, products]);
+  }, [transferId, dataLoaded, products, isEditMode]);
 
   // Update item stocks when source branch changes
   useEffect(() => {
     if (form.source_branch_id && items.length > 0 && dataLoaded) {
       updateAllItemStocks();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.source_branch_id, dataLoaded]);
 
   const loadInitialData = async () => {
@@ -163,13 +181,17 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
         getBranches(),
         getProducts(),
       ]);
-      
+
       // Filter only active branches that belong to the user
       const activeBranches = (branchesData as Branch[]).filter(
-        branch => branch.status === true && userBranchIds.includes(Number(branch.id))
+        branch => {
+          const isActive = branch.status === true;
+          const userHasAccess = userBranchIds.includes(Number(branch.id));
+          return isActive && userHasAccess;
+        }
       );
-      
-      setBranches(activeBranches);
+
+      setAllBranches(activeBranches);
       setProducts(productsData as Product[]);
       setDataLoaded(true);
     } catch (error) {
@@ -184,9 +206,9 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     try {
       setLoading(true);
       const transfer = await stockTransferService.getById(id);
-      
+
       const sourceBranchId = transfer.source_branch_id?.toString() ?? '';
-      
+
       // Set form data
       setForm({
         source_branch_id: sourceBranchId,
@@ -199,10 +221,10 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       if (transfer.items && Array.isArray(transfer.items)) {
         const transferItems: TransferItem[] = await Promise.all(
           transfer.items.map(async (item: { product_id: number; quantity: number; product?: { id: number; description: string; code?: string; barcode?: string } }) => {
-            const product = productsList.find(p => 
+            const product = productsList.find(p =>
               p.id.toString() === item.product_id?.toString()
             );
-            
+
             // Fetch available stock for this item
             let availableStock = 0;
             if (sourceBranchId) {
@@ -213,7 +235,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
                 availableStock = 0;
               }
             }
-            
+
             return {
               product_id: item.product_id,
               quantity: item.quantity,
@@ -274,7 +296,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       return false;
     }
 
-    const product = products.find(p => 
+    const product = products.find(p =>
       (typeof p.id === 'string' ? parseInt(p.id) : p.id) === productId
     );
     if (!product) {
@@ -284,14 +306,14 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
     const availableStock = await getProductStock(productId);
     const existingIndex = items.findIndex(item => item.product_id === productId);
-    
+
     if (existingIndex !== -1) {
       const currentQty = items[existingIndex].quantity;
       if (currentQty + quantity > availableStock) {
         toast.error(`Stock insuficiente. Disponible: ${availableStock}, Ya agregado: ${currentQty}`);
         return false;
       }
-      
+
       const updatedItems = [...items];
       updatedItems[existingIndex] = {
         ...updatedItems[existingIndex],
@@ -326,7 +348,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
   const updateItemQuantity = useCallback((index: number, quantity: number) => {
     if (quantity <= 0) return;
-    
+
     setItems(prev => {
       const updated = [...prev];
       if (updated[index]) {
@@ -349,17 +371,17 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     };
 
     const result = createTransferSchema.safeParse(payload);
-    
+
     if (result.success) {
       return { valid: true, errors: {} };
     }
-    
+
     return { valid: false, errors: getValidationErrors(result.error) };
   }, [form, items]);
 
   const submit = useCallback(async (): Promise<boolean> => {
     const validation = validateForm();
-    
+
     if (!validation.valid) {
       const firstError = Object.values(validation.errors)[0];
       toast.error(firstError || 'Por favor corrija los errores');
@@ -388,10 +410,10 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
         toast.success('Transferencia creada exitosamente');
         clearDraft();
       }
-      
+
       onSuccess?.();
       onClose?.();
-      
+
       return true;
     } catch (error: unknown) {
       console.error('Error saving transfer:', error);
@@ -431,7 +453,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     loading,
     isSubmitting,
     isEditMode,
-    
+
     // Actions
     setForm,
     addItem,
@@ -440,7 +462,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     getProductStock,
     submit,
     reset,
-    
+
     // Helpers
     getSourceBranchName,
     getDestinationBranchName,

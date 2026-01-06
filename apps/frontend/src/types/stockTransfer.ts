@@ -32,11 +32,28 @@ export interface StockTransfer {
     id: number;
     name: string;
     address?: string;
+    description?: string;
+    color?: string;
   };
   destinationBranch?: {
     id: number;
     name: string;
     address?: string;
+    description?: string;
+    color?: string;
+  };
+  // API response compatibility
+  source_branch?: {
+    id: number;
+    name?: string;
+    description?: string;
+    color?: string;
+  };
+  destination_branch?: {
+    id: number;
+    name?: string;
+    description?: string;
+    color?: string;
   };
   created_at?: string;
   updated_at?: string;
