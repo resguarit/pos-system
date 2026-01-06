@@ -29,12 +29,12 @@ class CurrentAccountController extends Controller
     {
         try {
             $accounts = $this->currentAccountService->getAccountsPaginated($request);
-            
+
             // Transformar los resultados usando el Resource para incluir campos calculados
             $transformedData = $accounts->through(function ($account) {
                 return new CurrentAccountResource($account);
             });
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -58,7 +58,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $account = $this->currentAccountService->createAccount($request->all());
-            
+
             return response()->json([
                 'status' => 201,
                 'success' => true,
@@ -82,7 +82,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $account = $this->currentAccountService->getAccountById($id);
-            
+
             if (!$account) {
                 return response()->json([
                     'status' => 404,
@@ -90,7 +90,7 @@ class CurrentAccountController extends Controller
                     'message' => 'Cuenta corriente no encontrada'
                 ], 404);
             }
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -114,7 +114,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $account = $this->currentAccountService->updateAccount($id, $request->all());
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -138,7 +138,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $deleted = $this->currentAccountService->deleteAccount($id);
-            
+
             if ($deleted) {
                 return response()->json([
                     'status' => 200,
@@ -146,7 +146,7 @@ class CurrentAccountController extends Controller
                     'message' => 'Cuenta corriente eliminada exitosamente'
                 ], 200);
             }
-            
+
             return response()->json([
                 'status' => 400,
                 'success' => false,
@@ -169,7 +169,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $account = $this->currentAccountService->getAccountByCustomer($customerId);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -194,7 +194,7 @@ class CurrentAccountController extends Controller
         try {
             $reason = $request->input('reason');
             $account = $this->currentAccountService->suspendAccount($id, $reason);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -218,7 +218,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $account = $this->currentAccountService->reactivateAccount($id);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -243,7 +243,7 @@ class CurrentAccountController extends Controller
         try {
             $reason = $request->input('reason');
             $account = $this->currentAccountService->closeAccount($id, $reason);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -268,7 +268,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $movements = $this->currentAccountService->getAccountMovements($accountId, $request);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -296,7 +296,7 @@ class CurrentAccountController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            
+
             return response()->json([
                 'status' => 500,
                 'success' => false,
@@ -314,7 +314,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $balance = $this->currentAccountService->getAccountBalance($accountId);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -338,7 +338,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $filters = $this->currentAccountService->getMovementFilters($accountId);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -362,7 +362,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $movement = $this->currentAccountService->processPayment($accountId, $request->all());
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -386,7 +386,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $movement = $this->currentAccountService->processCreditPurchase($accountId, $request->all());
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -410,7 +410,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $movement = $this->currentAccountService->createMovement($request->all());
-            
+
             return response()->json([
                 'status' => 201,
                 'success' => true,
@@ -435,7 +435,7 @@ class CurrentAccountController extends Controller
         try {
             $amount = $request->input('amount', 0);
             $available = $this->currentAccountService->checkAvailableCredit($accountId, $amount);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -462,7 +462,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $statistics = $this->currentAccountService->getAccountStatistics($accountId);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -486,7 +486,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $statistics = $this->currentAccountService->getGeneralStatistics();
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -510,7 +510,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $accounts = $this->currentAccountService->getAccountsByStatus($status);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -534,7 +534,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $accounts = $this->currentAccountService->getAccountsAtCreditLimit();
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -558,7 +558,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $accounts = $this->currentAccountService->getOverdrawnAccounts();
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -600,7 +600,7 @@ class CurrentAccountController extends Controller
                 $request->input('credit_limit'),
                 $request->input('reason')
             );
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -624,7 +624,7 @@ class CurrentAccountController extends Controller
     {
         try {
             $csv = $this->currentAccountService->exportMovements($accountId, $request);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -652,7 +652,7 @@ class CurrentAccountController extends Controller
         try {
             $filters = $request->only(['status', 'from_date', 'to_date']);
             $report = $this->currentAccountService->generateAccountsReport($filters);
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
@@ -676,18 +676,18 @@ class CurrentAccountController extends Controller
     {
         try {
             $account = \App\Models\CurrentAccount::with('customer')->findOrFail($accountId);
-            
+
             // Incluir todas las ventas EXCEPTO rechazadas
             // Las ventas anuladas que tengan saldo pendiente también se muestran
             $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                ->where('status', '!=', 'rejected') // Solo excluir rechazadas
-                ->where(function($query) {
+                ->whereNotIn('status', ['rejected', 'annulled']) // Excluir rechazadas y anuladas
+                ->where(function ($query) {
                     $query->whereNull('payment_status')
-                          ->orWhereIn('payment_status', ['pending', 'partial']);
+                        ->orWhereIn('payment_status', ['pending', 'partial']);
                 })
                 ->orderBy('created_at', 'desc')
                 ->get()
-                ->filter(function($sale) {
+                ->filter(function ($sale) {
                     // Solo incluir ventas que realmente tengan monto pendiente
                     return $sale->pending_amount > 0;
                 })
@@ -696,15 +696,15 @@ class CurrentAccountController extends Controller
                         'id' => $sale->id,
                         'receipt_number' => $sale->receipt_number,
                         'date' => $sale->created_at ? $sale->created_at->format('Y-m-d') : 'N/A',
-                        'total' => (float)($sale->total ?? 0),
-                        'paid_amount' => (float)($sale->paid_amount ?? 0),
-                        'pending_amount' => (float)$sale->pending_amount,
+                        'total' => (float) ($sale->total ?? 0),
+                        'paid_amount' => (float) ($sale->paid_amount ?? 0),
+                        'pending_amount' => (float) $sale->pending_amount,
                         'payment_status' => $sale->payment_status ?? 'pending',
                         'branch_id' => $sale->branch_id,
                     ];
                 })
                 ->values(); // Re-indexar el array después del filter
-            
+
             return response()->json([
                 'status' => 200,
                 'success' => true,

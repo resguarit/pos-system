@@ -34,7 +34,7 @@ class ReconcileAccountBalances extends Command
 
             if ($account->customer_id) {
                 $sales = SaleHeader::where('customer_id', $account->customer_id)
-                    ->where('status', '!=', 'rejected')
+                    ->whereNotIn('status', ['rejected', 'annulled'])
                     ->where(function ($query) {
                         $query->whereNull('payment_status')
                             ->orWhereIn('payment_status', ['pending', 'partial']);
