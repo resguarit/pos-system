@@ -18,7 +18,9 @@ interface Budget {
     branch: string
     branch_color?: string
     branch_id: number
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     items?: any[]
+    payments?: { payment_method_id: number; amount: number; payment_method_name: string; discount_percentage?: number }[]
     // Campos de conversión
     converted_to_sale_id?: number | null
     converted_to_sale_receipt?: string | null
@@ -135,6 +137,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             } else {
                 throw new Error(response?.message || 'Error al convertir presupuesto')
             }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             console.error('Error converting budget:', error)
 
@@ -173,6 +176,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             } else {
                 throw new Error(response?.message || 'Error al eliminar presupuesto')
             }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             console.error('Error deleting budget:', error)
             toast.error(error?.message || 'Error al eliminar presupuesto')
@@ -197,6 +201,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             } else {
                 throw new Error(response?.message || 'Error al aprobar presupuesto')
             }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             console.error('Error approving budget:', error)
             toast.error(error?.message || 'Error al aprobar presupuesto')

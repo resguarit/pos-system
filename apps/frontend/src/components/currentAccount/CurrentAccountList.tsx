@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/table';
@@ -6,7 +7,7 @@ import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resiza
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { usePendingSalesData } from '@/hooks/usePendingSalesData';
 import { toast } from 'sonner';
-import { Eye, Pause, Play, CreditCard, DollarSign, Loader2 } from 'lucide-react';
+import { Eye, Pause, Play, CreditCard, DollarSign } from 'lucide-react';
 import Pagination from '@/components/ui/pagination';
 import { CurrentAccount, CurrentAccountFilters, PaginatedResponse } from '@/types/currentAccount';
 import { CurrentAccountService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
@@ -15,23 +16,17 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useCurrentAccountActions } from '@/hooks/useCurrentAccountActions';
 
 interface CurrentAccountListProps {
-  onEdit: (account: CurrentAccount) => void;
-  onView: (account: CurrentAccount) => void;
-  onCreate: () => void;
   onPayment: (account: CurrentAccount) => void;
   initialSearchTerm?: string;
   initialStatusFilter?: string;
   initialBalanceFilter?: string;
 }
 
-export function CurrentAccountList({ 
-  onEdit, 
-  onView, 
-  onCreate, 
-  onPayment, 
-  initialSearchTerm = '', 
-  initialStatusFilter = '', 
-  initialBalanceFilter = '' 
+export function CurrentAccountList({
+  onPayment,
+  initialSearchTerm = '',
+  initialStatusFilter = '',
+  initialBalanceFilter = ''
 }: CurrentAccountListProps) {
   const [accounts, setAccounts] = useState<CurrentAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,19 +38,15 @@ export function CurrentAccountList({
     from: 0,
     to: 0
   });
-  
+
   const { hasPermission } = usePermissions();
-  const { 
-    suspendAccount, 
-    reactivateAccount, 
-    closeAccount, 
-    deleteAccount 
-  } = useCurrentAccountActions();
+  const { suspendAccount, reactivateAccount } = useCurrentAccountActions();
 
   // Memoizar IDs de cuentas para el hook de ventas pendientes
   const accountIds = useMemo(() => accounts.map(account => account.id), [accounts]);
-  
-  // Hook para cargar ventas pendientes
+
+  // Hook para cargar ventas pendientes - used in table rendering
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { getPendingDebt, isLoading: isPendingSalesLoading } = usePendingSalesData(accountIds);
 
   // Configuración de columnas según especificación del usuario
@@ -86,7 +77,7 @@ export function CurrentAccountList({
         page,
         per_page: 10
       };
-      
+
       // Aplicar filtros si están presentes
       if (searchTerm) {
         filters.search = searchTerm;
@@ -104,7 +95,7 @@ export function CurrentAccountList({
             break;
         }
       }
-      
+
       const response: PaginatedResponse<CurrentAccount> = await CurrentAccountService.getAll(filters);
       setAccounts(response.data);
       setPagination({
@@ -149,16 +140,7 @@ export function CurrentAccountList({
     await reactivateAccount(account, () => loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page));
   }, [reactivateAccount, loadAccounts, initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page]);
 
-  const handleClose = useCallback(async (account: CurrentAccount) => {
-    await closeAccount(account, () => loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page));
-  }, [closeAccount, loadAccounts, initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page]);
 
-  const handleDelete = useCallback(async (account: CurrentAccount) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar esta cuenta corriente?')) {
-      return;
-    }
-    await deleteAccount(account, () => loadAccounts(initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page));
-  }, [deleteAccount, loadAccounts, initialSearchTerm, initialStatusFilter, initialBalanceFilter, pagination.current_page]);
 
   // Función para obtener la inicial del nombre
   const getInitial = useCallback((name: string | undefined) => {
@@ -167,28 +149,6 @@ export function CurrentAccountList({
     }
     return name.charAt(0).toUpperCase();
   }, []);
-
-  // Función para renderizar el saldo adeudado
-  const renderPendingDebt = useCallback((accountId: number) => {
-    const pendingDebt = getPendingDebt(accountId);
-    const isLoadingDebt = isPendingSalesLoading(accountId);
-
-    if (isLoadingDebt) {
-      return (
-        <div className="flex items-center justify-end">
-          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-        </div>
-      );
-    }
-
-    return (
-      <span className={`font-medium ${
-        pendingDebt > 0 ? 'text-red-600' : 'text-green-600'
-      }`}>
-        {CurrentAccountUtils.formatCurrency(pendingDebt)}
-      </span>
-    );
-  }, [getPendingDebt, isPendingSalesLoading]);
 
   const getStatusBadge = useCallback((status: string) => {
     const statusConfig = {
@@ -228,7 +188,7 @@ export function CurrentAccountList({
           </div>
           <div className="h-10 w-32 bg-muted rounded-md animate-pulse"></div>
         </div>
-        
+
         {/* Tabla skeleton */}
         <div className="rounded-md border">
           <div className="p-6">
@@ -303,7 +263,7 @@ export function CurrentAccountList({
                 >
                   SALDO ADEUDADO
                 </ResizableTableHeader>
-            <ResizableTableHeader
+                <ResizableTableHeader
                   columnId="last_movement"
                   getResizeHandleProps={getResizeHandleProps}
                   getColumnHeaderProps={getColumnHeaderProps}
@@ -323,11 +283,11 @@ export function CurrentAccountList({
             <TableBody>
               {accounts.map((account) => {
                 // Validación robusta de datos
-                const customerName = account.customer?.person 
-                  ? `${account.customer.person.first_name || ''} ${account.customer.person.last_name || ''}`.trim() 
+                const customerName = account.customer?.person
+                  ? `${account.customer.person.first_name || ''} ${account.customer.person.last_name || ''}`.trim()
                   : 'Cliente sin nombre';
                 const customerEmail = account.customer?.email || 'Sin email';
-                
+
                 return (
                   <TableRow key={account.id}>
                     <ResizableTableCell
@@ -369,9 +329,8 @@ export function CurrentAccountList({
                       className="hidden md:table-cell text-right text-sm"
                     >
                       {/* Mostrar saldo adeudado: total de ventas pendientes */}
-                      <span className={`font-medium ${
-                        (account.total_pending_debt || 0) > 0 ? 'text-red-600' : 'text-gray-500'
-                      }`}>
+                      <span className={`font-medium ${(account.total_pending_debt || 0) > 0 ? 'text-red-600' : 'text-gray-500'
+                        }`}>
                         {CurrentAccountUtils.formatCurrency(account.total_pending_debt || 0)}
                       </span>
                     </ResizableTableCell>
@@ -395,29 +354,31 @@ export function CurrentAccountList({
                       <div className="flex items-center space-x-2">
                         {hasPermission('gestionar_cuentas_corrientes') && (
                           <>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => onView(account)}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              asChild
                               className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                               title="Ver detalles de la cuenta"
                             >
-                              <Eye className="h-4 w-4" />
+                              <Link to={`/dashboard/clientes/${account.customer_id}/cuenta-corriente`}>
+                                <Eye className="h-4 w-4" />
+                              </Link>
                             </Button>
                             {account.status === 'active' && (
                               <>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => onPayment(account)}
                                   className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
                                   title="Registrar pago"
                                 >
                                   <DollarSign className="h-4 w-4" />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   onClick={() => handleSuspend(account)}
                                   className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
                                   title="Suspender cuenta"
@@ -427,9 +388,9 @@ export function CurrentAccountList({
                               </>
                             )}
                             {account.status === 'suspended' && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => handleReactivate(account)}
                                 className="text-green-600 hover:text-green-700 hover:bg-green-50"
                                 title="Reactivar cuenta"

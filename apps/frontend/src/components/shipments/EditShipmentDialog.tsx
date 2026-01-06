@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -52,7 +52,9 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [users, setUsers] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [customers, setCustomers] = useState<any[]>([]);
 
   // Estados para búsqueda de transportista
@@ -79,24 +81,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   });
 
   // Cargar usuarios y clientes cuando se abre el dialog
-  useEffect(() => {
-    if (open) {
-      fetchUsers();
-      fetchCustomers();
-      if (shipmentId) {
-        fetchShipmentData();
-      }
-    } else {
-      // Limpiar búsquedas cuando se cierra
-      setTransporterSearch('');
-      setCustomerSearch('');
-      setShowTransporterOptions(false);
-      setShowCustomerOptions(false);
-      setShowCancelConfirm(false);
-    }
-  }, [open, shipmentId]);
-
-  const fetchShipmentData = async () => {
+  const fetchShipmentData = useCallback(async () => {
     if (!shipmentId) return;
 
     try {
@@ -156,9 +141,9 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [shipmentId, users, customers]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const response = await request({ method: 'GET', url: '/users?include=person' });
 
@@ -172,9 +157,9 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     } catch (error) {
       console.error('Error fetching users:', error);
     }
-  };
+  }, [request]);
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const response = await request({ method: 'GET', url: '/customers' });
 
@@ -188,7 +173,24 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
-  };
+  }, [request]);
+
+  useEffect(() => {
+    if (open) {
+      fetchUsers();
+      fetchCustomers();
+      if (shipmentId) {
+        fetchShipmentData();
+      }
+    } else {
+      // Limpiar búsquedas cuando se cierra
+      setTransporterSearch('');
+      setCustomerSearch('');
+      setShowTransporterOptions(false);
+      setShowCustomerOptions(false);
+      setShowCancelConfirm(false);
+    }
+  }, [open, shipmentId, fetchUsers, fetchCustomers, fetchShipmentData]);
 
   const handleUpdateShipment = async () => {
     if (!shipmentId) return;
@@ -202,6 +204,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     try {
       setLoading(true);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const metadata: any = {
         shipping_state: editForm.shipping_state || null,
         shipping_postal_code: editForm.shipping_postal_code || null,
@@ -209,27 +212,23 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
         priority: editForm.priority || 'normal',
         estimated_delivery_date: editForm.estimated_delivery_date || null,
         notes: editForm.notes || null,
+        transportista_id: editForm.transportista_id || null,
+        cliente_id: editForm.cliente_id || null
       };
 
-      if (editForm.transportista_id) {
-        metadata.transportista_id = editForm.transportista_id;
-      }
-      if (editForm.cliente_id) {
-        metadata.cliente_id = editForm.cliente_id;
-      }
-
       const shipmentData = {
-        shipping_address: editForm.shipping_address,
-        shipping_city: editForm.shipping_city,
-        shipping_state: editForm.shipping_state || undefined,
-        shipping_postal_code: editForm.shipping_postal_code || undefined,
-        shipping_country: editForm.shipping_country || undefined,
-        priority: editForm.priority || undefined,
-        estimated_delivery_date: editForm.estimated_delivery_date || undefined,
-        notes: editForm.notes || undefined,
-        shipping_cost: editForm.shipping_cost ? parseFloat(editForm.shipping_cost) : undefined,
+        shipping_address: editForm.shipping_address || '',
+        shipping_city: editForm.shipping_city || '',
+        shipping_state: editForm.shipping_state || null,
+        shipping_postal_code: editForm.shipping_postal_code || null,
+        shipping_country: editForm.shipping_country || null,
+        priority: editForm.priority || null,
+        estimated_delivery_date: editForm.estimated_delivery_date || null,
+        notes: editForm.notes || null,
+        shipping_cost: editForm.shipping_cost !== '' ? parseFloat(editForm.shipping_cost) : 0,
         metadata: metadata,
         current_stage_id: editForm.stage_id,
+
         version: shipment?.version || 1,
       };
 
@@ -238,6 +237,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       toast.success('Envío actualizado exitosamente');
       onOpenChange(false);
       onSuccess();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Error updating shipment:', err);
       if (err.response && err.response.data && err.response.data.errors) {
@@ -269,6 +269,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       toast.success('Envío cancelado exitosamente');
       onOpenChange(false);
       onSuccess();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error('Error cancelling shipment:', err);
       toast.error(err.response?.data?.message || 'Error al cancelar el envío');
@@ -281,7 +282,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   if (loadingData) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* @ts-ignore */}
+        {/* @ts-expect-error - DialogContent props mismatch typically due to children type */}
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -293,13 +294,12 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* @ts-ignore */}
+      {/* @ts-expect-error - DialogContent props mismatch */}
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* @ts-ignore */}
         <DialogHeader>
-          {/* @ts-ignore */}
+          {/* @ts-expect-error - DialogTitle children type mismatch */}
           <DialogTitle>Editar Envío {shipment?.reference}</DialogTitle>
-          {/* @ts-ignore */}
+          {/* @ts-expect-error - DialogDescription props mismatch */}
           <DialogDescription>
             Modifica los detalles del envío. Todos los campos son opcionales excepto la dirección y la ciudad.
           </DialogDescription>
@@ -313,18 +313,14 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
               value={editForm.stage_id?.toString() || ''}
               onValueChange={(value) => setEditForm(prev => ({ ...prev, stage_id: parseInt(value) }))}
             >
-              {/* @ts-ignore */}
               <SelectTrigger>
-                {/* @ts-ignore */}
                 <SelectValue placeholder="Seleccionar estado" />
               </SelectTrigger>
-              {/* @ts-ignore */}
               <SelectContent>
                 {stages
                   .filter(stage => stage.is_active)
                   .sort((a, b) => a.order - b.order)
                   .map((stage) => (
-                    // @ts-ignore
                     <SelectItem key={stage.id} value={stage.id.toString()}>
                       {stage.name}
                     </SelectItem>
@@ -340,20 +336,13 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
               value={editForm.priority}
               onValueChange={(value) => setEditForm(prev => ({ ...prev, priority: value }))}
             >
-              {/* @ts-ignore */}
               <SelectTrigger>
-                {/* @ts-ignore */}
                 <SelectValue placeholder="Seleccionar prioridad" />
               </SelectTrigger>
-              {/* @ts-ignore */}
               <SelectContent>
-                {/* @ts-ignore */}
                 <SelectItem value="low">Baja</SelectItem>
-                {/* @ts-ignore */}
                 <SelectItem value="normal">Normal</SelectItem>
-                {/* @ts-ignore */}
                 <SelectItem value="high">Alta</SelectItem>
-                {/* @ts-ignore */}
                 <SelectItem value="urgent">Urgente</SelectItem>
               </SelectContent>
             </Select>
@@ -667,7 +656,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
             <Button
               type="button"
               onClick={handleUpdateShipment}
-              disabled={loading || !editForm.shipping_address || !editForm.shipping_city}
+              disabled={loading}
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Guardar Cambios

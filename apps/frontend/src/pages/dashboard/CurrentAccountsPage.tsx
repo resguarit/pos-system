@@ -339,7 +339,7 @@ export default function CurrentAccountsPage() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Buscar por cliente, email o CUIT..."
+                placeholder="Buscar por cliente, email, CUIT o teléfono..."
                 className="w-full pl-8"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}

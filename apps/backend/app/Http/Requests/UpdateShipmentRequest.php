@@ -22,8 +22,8 @@ class UpdateShipmentRequest extends FormRequest
         return [
             'metadata' => 'sometimes|array',
             'version' => 'required|integer',
-            'shipping_address' => 'sometimes|string|max:255',
-            'shipping_city' => 'sometimes|string|max:255',
+            'shipping_address' => 'sometimes|nullable|string|max:255',
+            'shipping_city' => 'sometimes|nullable|string|max:255',
             'shipping_state' => 'nullable|string|max:255',
             'shipping_postal_code' => 'nullable|string|max:20',
             'shipping_country' => 'nullable|string|max:255',

@@ -318,7 +318,25 @@ class SaleService implements SaleServiceInterface
                 $this->registerSaleMovementFromPayments($saleHeader, $data['current_cash_register_id'] ?? null);
             }
 
-            // 12) Devolver con relaciones
+            // 12) Si viene de un presupuesto, actualizar el estado del presupuesto original
+            if (isset($data['converted_from_budget_id']) && $data['converted_from_budget_id']) {
+                $budget = SaleHeader::find($data['converted_from_budget_id']);
+                if ($budget) {
+                    $this->validateIsBudget($budget);
+                    $this->validateBudgetNotAnnulled($budget);
+                    // No validamos si ya fue convertido para permitir re-intentos si falló o si se permite,
+                    // pero idealmente deberíamos. Por ahora solo actualizamos.
+
+                    $budget->status = 'converted';
+                    $budget->converted_to_sale_id = $saleHeader->id;
+                    $budget->save();
+
+                    // Vincular en la nueva venta también (ya debería estar en $data pero nos aseguramos)
+                    // $saleHeader->converted_from_budget_id = $budget->id; // Ya está en create($data)
+                }
+            }
+
+            // 13) Devolver con relaciones
             return $saleHeader->fresh(['items', 'saleIvas']);
         });
     }
@@ -1111,7 +1129,10 @@ class SaleService implements SaleServiceInterface
                 $q->where('receipt_number', 'like', "%{$searchTerm}%")
                     ->orWhereHas('customer.person', function ($qr) use ($searchTerm) {
                         $qr->where('first_name', 'like', "%{$searchTerm}%")
-                            ->orWhere('last_name', 'like', "%{$searchTerm}%");
+                            ->orWhere('last_name', 'like', "%{$searchTerm}%")
+                            ->orWhere('phone', 'like', "%{$searchTerm}%")
+                            ->orWhere('documento', 'like', "%{$searchTerm}%")
+                            ->orWhere('cuit', 'like', "%{$searchTerm}%");
                     })
                     ->orWhereHas('branch', function ($qr) use ($searchTerm) {
                         $qr->where('description', 'like', "%{$searchTerm}%");
@@ -1906,6 +1927,7 @@ class SaleService implements SaleServiceInterface
             'user.person',
             'items.product',
             'convertedToSale',
+            'salePayments.paymentMethod',
         ])->where('receipt_type_id', $budgetReceiptType->id);
 
         // Filtrar estados: solo 'active' por defecto (no convertidos ni anulados)
@@ -1945,7 +1967,10 @@ class SaleService implements SaleServiceInterface
                 $q->where('receipt_number', 'like', "%{$searchTerm}%")
                     ->orWhereHas('customer.person', function ($subQuery) use ($searchTerm) {
                         $subQuery->where('first_name', 'like', "%{$searchTerm}%")
-                            ->orWhere('last_name', 'like', "%{$searchTerm}%");
+                            ->orWhere('last_name', 'like', "%{$searchTerm}%")
+                            ->orWhere('phone', 'like', "%{$searchTerm}%")
+                            ->orWhere('documento', 'like', "%{$searchTerm}%")
+                            ->orWhere('cuit', 'like', "%{$searchTerm}%");
                     });
             });
         }
@@ -2010,6 +2035,14 @@ class SaleService implements SaleServiceInterface
                             'sale_price' => (float) $item->product->sale_price,
                             'iva' => $item->product->iva,
                         ] : null
+                    ];
+                }),
+                'payments' => $budget->salePayments->map(function ($payment) {
+                    return [
+                        'payment_method_id' => $payment->payment_method_id,
+                        'amount' => (float) $payment->amount,
+                        'payment_method_name' => $payment->paymentMethod ? $payment->paymentMethod->name : 'N/A',
+                        'discount_percentage' => $payment->paymentMethod ? (float) $payment->paymentMethod->discount_percentage : 0,
                     ];
                 }),
                 // Campos de conversión

@@ -70,6 +70,7 @@ export default function ClientesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [allCustomers, setAllCustomers] = useState<any[]>([]) // Para paginación del cliente
   const PAGE_SIZE = 10
 
@@ -112,6 +113,7 @@ export default function ClientesPage() {
       const shouldFetchFromAPI = page === 1 || allCustomers.length === 0;
 
       if (shouldFetchFromAPI) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: any = {};
 
         // Agregar filtro de búsqueda si está definido
@@ -179,14 +181,17 @@ export default function ClientesPage() {
         setCurrentPage(safeCurrentPage);
         setTotalPages(totalPagesCalculated);
       }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       if (err.name === 'AbortError' || err.name === 'CanceledError') {
+        // Ignore abort errors
       } else if (!signal?.aborted) {
         setCustomers([]);
         setTotalItems(0)
         setTotalPages(1)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request, dispatch, PAGE_SIZE, debouncedSearchTerm]);
 
   useEffect(() => {
@@ -217,6 +222,7 @@ export default function ClientesPage() {
       toast.success('Cliente eliminado correctamente')
       setDeleteDialogOpen(false)
       setCustomerToDelete(null)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || 'Error al eliminar el cliente'
       toast.error(errorMessage)
@@ -261,7 +267,7 @@ export default function ClientesPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Buscar clientes..."
+              placeholder="Buscar por nombre, DNI o teléfono..."
               className="w-full pl-8"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -411,7 +417,7 @@ export default function ClientesPage() {
                           )}
                           {hasPermission('gestionar_cuentas_corrientes') && (
                             <Button variant="ghost" size="icon" title="Cuenta Corriente" className="hover:bg-green-100 group">
-                              <Link to={`/dashboard/cuentas-corrientes?filter=${encodeURIComponent([customer.person.first_name, customer.person.last_name].filter(Boolean).join(' '))}`}>
+                              <Link to={`/dashboard/clientes/${customer.id}/cuenta-corriente`}>
                                 <Wallet className="h-4 w-4 text-green-600 group-hover:text-green-700" />
                               </Link>
                             </Button>

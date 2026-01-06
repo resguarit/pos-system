@@ -83,6 +83,7 @@ class PosController extends Controller
             'payments.*.amount' => 'required|numeric|min:0',
             'metadata' => 'nullable|array',
             'metadata.current_account_id' => 'nullable|integer',
+            'converted_from_budget_id' => 'nullable|integer|exists:sales_header,id',
         ]);
 
         if ($validator->fails()) {

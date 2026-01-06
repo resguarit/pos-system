@@ -218,12 +218,65 @@
         </table>
     @endif
 
+    @php
+        $customerName = 'N/A';
+        $customerPhone = '';
+
+        // Intentar obtener cliente de metadata (si existe) o de la primera venta
+        if (isset($shipment->metadata['cliente_id'])) {
+            $customer = \App\Models\Customer::with('person')->find($shipment->metadata['cliente_id']);
+            if ($customer) {
+                if ($customer->person) {
+                    $customerName = trim($customer->person->first_name . ' ' . $customer->person->last_name);
+                    $customerPhone = $customer->person->phone;
+                } elseif ($customer->business_name) {
+                    $customerName = $customer->business_name;
+                    $customerPhone = $customer->phone;
+                }
+            }
+        }
+
+        // Si no se encontró (o no hay metadata), usar primera venta
+        if ($customerName === 'N/A' && $shipment->sales && $shipment->sales->count() > 0) {
+            $firstSale = $shipment->sales->first();
+            if ($firstSale && $firstSale->customer) {
+                if ($firstSale->customer->person) {
+                    $customerName = trim($firstSale->customer->person->first_name . ' ' . $firstSale->customer->person->last_name);
+                    $customerPhone = $firstSale->customer->person->phone;
+                } elseif ($firstSale->customer->business_name) {
+                    $customerName = $firstSale->customer->business_name;
+                    $customerPhone = $firstSale->customer->phone;
+                }
+            }
+        }
+    @endphp
+
+    <div class="mt-2 bold">Datos del Destinatario</div>
+    <table class="info-table">
+        <tr>
+            <td style="width: 120px;">Nombre:</td>
+            <td>{{ $customerName }}</td>
+        </tr>
+        @if($customerPhone)
+            <tr>
+                <td>Teléfono:</td>
+                <td>{{ $customerPhone }}</td>
+            </tr>
+        @endif
+    </table>
+
     <div class="mt-2 bold">Dirección de Envío</div>
     <table class="info-table">
         @if($shipment->shipping_address)
             <tr>
-                <td>Dirección:</td>
+                <td style="width: 120px;">Dirección:</td>
                 <td>{{ $shipment->shipping_address }}</td>
+            </tr>
+        @endif
+        @if($shipment->shipping_city)
+            <tr>
+                <td>Ciudad:</td>
+                <td>{{ $shipment->shipping_city }}</td>
             </tr>
         @endif
         @if($shipment->shipping_state)
@@ -236,6 +289,12 @@
             <tr>
                 <td>Código Postal:</td>
                 <td>{{ $shipment->shipping_postal_code }}</td>
+            </tr>
+        @endif
+        @if($shipment->shipping_country)
+            <tr>
+                <td>País:</td>
+                <td>{{ $shipment->shipping_country }}</td>
             </tr>
         @endif
     </table>

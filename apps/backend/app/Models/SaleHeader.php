@@ -48,6 +48,8 @@ class SaleHeader extends Model
         'paid_amount',
         'payment_status',
         'metadata',
+        'converted_from_budget_id',
+        'converted_to_sale_id',
     ];
 
     protected $casts = [

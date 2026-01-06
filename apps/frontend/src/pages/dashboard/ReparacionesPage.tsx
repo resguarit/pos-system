@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useBranch } from "@/context/BranchContext";
 import {
@@ -190,6 +190,7 @@ export default function ReparacionesPage() {
     const handleSaveRepair = async (data: Partial<Repair>, notes?: string[]) => {
         if (!selectedRepair) return;
         // updateRepair will throw on error
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updated = await updateRepair(selectedRepair.id, data as any);
 
         if (updated) {
@@ -344,7 +345,7 @@ export default function ReparacionesPage() {
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
                                 type="search"
-                                placeholder="Buscar reparaciones..."
+                                placeholder="Buscar por cliente, teléfono, código o equipo..."
                                 className="w-full pl-8"
                                 value={filters.search || ""}
                                 onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}

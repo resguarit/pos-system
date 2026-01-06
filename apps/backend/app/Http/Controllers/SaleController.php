@@ -53,6 +53,7 @@ class SaleController extends Controller
             'items.*.unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:percent,amount',
             'items.*.discount_value' => 'nullable|numeric|min:0',
+            'converted_from_budget_id' => 'nullable|integer|exists:sales_header,id',
         ]);
 
         if ($validator->fails()) {

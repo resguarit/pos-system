@@ -43,7 +43,10 @@ class RepairService implements RepairServiceInterface
                 $q->where('code', 'like', "%$search%")
                     ->orWhere('device', 'like', "%$search%")
                     ->orWhereHas('customer.person', function ($q2) use ($search) {
-                        $q2->where(DB::raw("CONCAT(first_name, ' ', last_name)"), 'like', "%$search%");
+                        $q2->where(DB::raw("CONCAT(first_name, ' ', last_name)"), 'like', "%$search%")
+                            ->orWhere('phone', 'like', "%$search%")
+                            ->orWhere('documento', 'like', "%$search%")
+                            ->orWhere('cuit', 'like', "%$search%");
                     });
             });
         }

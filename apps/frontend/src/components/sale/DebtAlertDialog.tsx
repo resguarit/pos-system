@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -11,7 +11,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertTriangle, DollarSign, ExternalLink } from "lucide-react"
 import api from "@/lib/api"
-import { toast } from 'sonner'
 import type { PendingSale } from '@/types/currentAccount'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -38,20 +37,19 @@ export function DebtAlertDialog({
   onOpenChange,
   customerId,
   debtAmount,
-  onPaymentSuccess,
+
 }: DebtAlertDialogProps) {
   const { hasPermission } = usePermissions()
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
-  const [currentAccount, setCurrentAccount] = useState<any>(null)
+
 
   // Cargar ventas pendientes
   useEffect(() => {
     if (!open || !customerId) {
       setPendingSales([])
-      setCurrentAccount(null)
       return
     }
 
@@ -68,7 +66,6 @@ export function DebtAlertDialog({
         }
 
         const account = accountResponse.data.data[0]
-        setCurrentAccount(account)
 
         // Obtener ventas pendientes
         const salesResponse = await api.get(
@@ -92,27 +89,8 @@ export function DebtAlertDialog({
   }
 
   const handleGoToAccounts = () => {
-    // Abrir en nueva pestaña filtrando por el nombre del cliente
-    let filterValue = ''
-
-    if (currentAccount?.customer?.person) {
-      const { first_name, last_name, documento, cuit } = currentAccount.customer.person
-      // Priorizar nombre completo para que sea más legible en el buscador
-      if (first_name && last_name) {
-        filterValue = `${first_name} ${last_name}`
-      } else if (first_name) {
-        filterValue = first_name
-      } else {
-        // Fallback a documentos
-        filterValue = documento || cuit || ''
-      }
-    }
-
-    // Si tenemos valor de filtro, lo usamos
-    const url = filterValue
-      ? `/dashboard/cuentas-corrientes?filter=${encodeURIComponent(filterValue)}`
-      : '/dashboard/cuentas-corrientes'
-
+    if (!customerId) return
+    const url = `/dashboard/clientes/${customerId}/cuenta-corriente`
     window.open(url, '_blank')
   }
 

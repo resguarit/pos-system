@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
-import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
+import { useParams, useNavigate } from "react-router-dom";
+import { CurrentAccountDetails } from "@/components/currentAccount/CurrentAccountDetails";
+
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import useApi from "@/hooks/useApi";
@@ -8,52 +9,48 @@ import { toast } from "sonner";
 
 export default function CuentaCorrienteClientePage() {
   const params = useParams();
-  const { request, loading } = useApi();
-  const [customer, setCustomer] = useState<any>(null);
-  const [accountData, setAccountData] = useState<any>(null);
+  const navigate = useNavigate();
+  const { request } = useApi();
+  const [accountId, setAccountId] = useState<number | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
     if (params.id) {
-      fetchCustomerAndAccount(params.id);
+      fetchAccountByCustomerId(params.id);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
-  const fetchCustomerAndAccount = async (id: string) => {
+  const fetchAccountByCustomerId = async (customerId: string) => {
     try {
-      // Obtener datos del cliente
-      const customerResponse = await request({
+      setInitialLoading(true);
+      // Buscar la cuenta corriente asociada al cliente
+      const response = await request({
         method: "GET",
-        url: `/customers/${id}`,
+        url: `/current-accounts`,
+        params: {
+          customer_id: customerId,
+          per_page: 1
+        }
       });
-      setCustomer(customerResponse.data?.data || customerResponse.data);
 
-      // TODO: Obtener datos de cuenta corriente
-      // const accountResponse = await request({
-      //   method: "GET",
-      //   url: `/customers/${id}/current-account`,
-      // });
-      // setAccountData(accountResponse.data?.data || accountResponse.data);
-      
-      // Por ahora, datos de ejemplo
-      setAccountData({
-        balance: 0,
-        credit_limit: 50000,
-        movements: []
-      });
+      const accounts = response.data?.data || response.data || [];
+
+      if (accounts.length > 0) {
+        setAccountId(accounts[0].id);
+      } else {
+        toast.error("El cliente no tiene cuenta corriente activa");
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
-      toast.error(error?.message || "Error al cargar la cuenta corriente");
+      console.error('Error fetching account:', error);
+      toast.error(error?.message || "Error al buscar la cuenta corriente");
+    } finally {
+      setInitialLoading(false);
     }
   };
 
-  const formatCurrency = (amount: number | null | undefined) => {
-    if (amount === null || amount === undefined) return "$0.00";
-    return new Intl.NumberFormat("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    }).format(amount);
-  };
-
-  if (loading && !customer) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -61,71 +58,24 @@ export default function CuentaCorrienteClientePage() {
     );
   }
 
+  if (!accountId) {
+    return (
+      <div className="container mx-auto p-4 flex flex-col items-center justify-center h-96 gap-4">
+        <p className="text-muted-foreground text-lg">No se encontró una cuenta corriente para este cliente.</p>
+        <Button onClick={() => navigate('/dashboard/clientes')}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Volver a Clientes
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/dashboard/clientes">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-2xl font-semibold">Cuenta Corriente</h1>
-            {customer && (
-              <p className="text-muted-foreground">
-                {customer.person?.first_name} {customer.person?.last_name}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Resumen de Cuenta */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Saldo Actual
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(accountData?.balance || 0)}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Límite de Crédito
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(accountData?.credit_limit || 0)}
-            </div>
-          </CardContent>
-        </Card>
-
-      </div>
-
-      {/* Movimientos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Movimientos de Cuenta</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-12 text-muted-foreground">
-            <p>Funcionalidad de cuentas corrientes en desarrollo</p>
-            <p className="text-sm mt-2">
-              Aquí se mostrarán los movimientos de la cuenta corriente del cliente
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="container mx-auto p-4 md:p-6">
+      <CurrentAccountDetails
+        accountId={accountId}
+        onBack={() => navigate('/dashboard/clientes')}
+      />
     </div>
   );
 }

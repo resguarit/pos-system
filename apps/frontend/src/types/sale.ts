@@ -13,7 +13,7 @@ export interface PaymentMethod {
 export interface ReceiptType {
   id: number
   name: string
-  afip_code: number
+  afip_code: string | number
 }
 
 export interface Payment {
@@ -47,6 +47,7 @@ export interface SaleData {
     payment_method_id: number
     amount: number
   }>
+  converted_from_budget_id?: number | null
 }
 
 export interface CompletedSale {

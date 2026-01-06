@@ -144,7 +144,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             $this->searchService->applyTextSearch(
                 $query,
                 $filters['search'],
-                ['first_name', 'last_name'],
+                ['first_name', 'last_name', 'phone', 'documento', 'cuit'],
                 'customer.person'
             );
         }
@@ -478,7 +478,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             ->get()
             ->map(function ($movement) {
                 $metadata = is_array($movement->metadata) ? $movement->metadata : [];
-                
+
                 // Priorizar metadata de pago
                 if (!empty($metadata['payment_branch_id'])) {
                     return [
@@ -487,7 +487,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                         'color' => $metadata['payment_branch_color'] ?? null,
                     ];
                 }
-                
+
                 // Usar branch de la venta si existe
                 if ($movement->sale && $movement->sale->branch) {
                     return [
@@ -496,7 +496,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                         'color' => $movement->sale->branch->color ?? null,
                     ];
                 }
-                
+
                 return null;
             })
             ->filter()
@@ -583,10 +583,10 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 $sale->recordPayment($paymentAmount);
 
                 // Crear movimiento en cuenta corriente
-                $paymentMethodName = $paymentMethodId 
-                    ? optional(\App\Models\PaymentMethod::find($paymentMethodId))->name 
+                $paymentMethodName = $paymentMethodId
+                    ? optional(\App\Models\PaymentMethod::find($paymentMethodId))->name
                     : null;
-                
+
                 $this->createMovement([
                     'current_account_id' => $accountId,
                     'movement_type_id' => $movementType->id,
@@ -792,7 +792,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
 
         foreach ($allAccounts as $account) {
             $pendingDebt = 0;
-            
+
             if ($account->customer_id) {
                 // Usar pending_amount directamente de SaleHeader
                 $sales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)

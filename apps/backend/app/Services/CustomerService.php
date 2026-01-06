@@ -32,7 +32,7 @@ class CustomerService implements CustomerServiceInterface
 
     public function createCustomer(array $data)
     {
-            
+
         return DB::transaction(function () use ($data) {
             // Preparando los datos para la persona
             $personData = [
@@ -50,9 +50,9 @@ class CustomerService implements CustomerServiceInterface
                 'documento' => isset($data['documento']) && $data['documento'] ? $data['documento'] : 0,
                 'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
             ];
-            
+
             $person = Person::create($personData);
-            
+
             $customer = Customer::create([
                 'person_id' => $person->id,
                 'email' => $data['email'] ?? null,
@@ -66,18 +66,20 @@ class CustomerService implements CustomerServiceInterface
                 'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
                 'notes' => 'Cuenta corriente creada automáticamente al crear el cliente',
             ];
-            
+
             $this->currentAccountService->createAccount($currentAccountData);
 
             return $customer->load('person');
         });
-    }    public function updateCustomer($id, array $data)
+    }
+    public function updateCustomer($id, array $data)
     {
-                
+
         return DB::transaction(function () use ($id, $data) {
             $customer = Customer::with('person')->find($id);
-            if (!$customer) return null;
-            
+            if (!$customer)
+                return null;
+
             $personData = [
                 'first_name' => $data['first_name'],
                 'last_name' => $data['last_name'],
@@ -93,9 +95,9 @@ class CustomerService implements CustomerServiceInterface
                 'documento' => isset($data['documento']) && $data['documento'] ? $data['documento'] : 0,
                 'credit_limit' => $data['credit_limit'] ?? 0,
             ];
-            
+
             $customer->person->update($personData);
-            
+
             $customer->update([
                 'email' => $data['email'] ?? $customer->email,
                 'active' => array_key_exists('active', $data) ? $data['active'] : $customer->active,
@@ -119,7 +121,7 @@ class CustomerService implements CustomerServiceInterface
             if ($currentAccount && $currentAccount->current_balance != 0) {
                 $balance = (float) $currentAccount->current_balance;
                 $balanceFormatted = number_format(abs($balance), 2, ',', '.');
-                
+
                 if ($balance > 0) {
                     // Balance positivo = el cliente debe dinero
                     throw new ConflictException("No se puede eliminar el cliente. Tiene una deuda de \${$balanceFormatted} en su cuenta corriente. Debe estar en \$0.");
@@ -136,10 +138,10 @@ class CustomerService implements CustomerServiceInterface
 
             // Eliminar cliente
             $customer->delete();
-            
+
             // Eliminar persona asociada
             $customer->person()->delete();
-            
+
             return true;
         });
     }
@@ -178,10 +180,11 @@ class CustomerService implements CustomerServiceInterface
             })
             ->orWhereHas('person', function ($query) use ($searchTerm) {
                 $query->where('first_name', 'like', "%{$searchTerm}%")
-                      ->orWhere('last_name', 'like', "%{$searchTerm}%")
-                      ->orWhere('cuit', 'like', "%{$searchTerm}%")
-                      ->orWhere('documento', 'like', "%{$searchTerm}%")
-                      ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$searchTerm}%"]);
+                    ->orWhere('last_name', 'like', "%{$searchTerm}%")
+                    ->orWhere('cuit', 'like', "%{$searchTerm}%")
+                    ->orWhere('documento', 'like', "%{$searchTerm}%")
+                    ->orWhere('phone', 'like', "%{$searchTerm}%")
+                    ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$searchTerm}%"]);
             })
             ->limit(10)
             ->get();
@@ -191,7 +194,7 @@ class CustomerService implements CustomerServiceInterface
     {
         return Customer::whereHas('person', function ($query) use ($firstName, $lastName) {
             $query->where('first_name', $firstName)
-                  ->where('last_name', $lastName);
+                ->where('last_name', $lastName);
         })->exists();
     }
 }

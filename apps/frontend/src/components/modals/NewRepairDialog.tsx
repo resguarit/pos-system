@@ -23,7 +23,14 @@ import useApi from "@/hooks/useApi";
 import { RepairPriority, RepairStatus } from "@/types/repairs";
 import CustomerForm from "@/components/customers/customer-form";
 
-type CustomerOption = { id: number; name: string };
+type CustomerOption = {
+    id: number;
+    name: string;
+    phone?: string;
+    cuit?: string;
+    documento?: string;
+    email?: string;
+};
 type UserOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
 type InsurerOption = { id: number; name: string };
@@ -144,17 +151,7 @@ export default function NewRepairDialog({
         }
     }, [open]);
 
-    // Fetch data on mount
-    useEffect(() => {
-        if (open) {
-            fetchCustomers();
-            fetchTechnicians();
-            fetchCategories();
-            fetchInsurers();
-        }
-    }, [open]);
-
-    const fetchCategories = async () => {
+    const fetchCategories = useCallback(async () => {
         try {
             const resp = await request({
                 method: "GET",
@@ -166,9 +163,9 @@ export default function NewRepairDialog({
         } catch (error) {
             console.error("Error fetching categories:", error);
         }
-    };
+    }, [request]);
 
-    const fetchInsurers = async () => {
+    const fetchInsurers = useCallback(async () => {
         try {
             const resp = await request({
                 method: "GET",
@@ -182,9 +179,9 @@ export default function NewRepairDialog({
         } catch (error) {
             console.error("Error fetching insurers:", error);
         }
-    };
+    }, [request]);
 
-    const fetchCustomers = async () => {
+    const fetchCustomers = useCallback(async () => {
         try {
             const resp = await request({
                 method: "GET",
@@ -192,19 +189,23 @@ export default function NewRepairDialog({
                 params: { limit: 100 },
             });
             const data = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
-            const mapped: CustomerOption[] = data.map((c: { id: number; person?: { first_name?: string; last_name?: string }; name?: string }) => ({
+            const mapped: CustomerOption[] = data.map((c: { id: number; person?: { first_name?: string; last_name?: string; phone?: string; cuit?: string; documento?: string; email?: string }; name?: string; email?: string }) => ({
                 id: c.id,
                 name: c.person
                     ? `${c.person.first_name || ""} ${c.person.last_name || ""}`.trim()
                     : c.name || `Cliente #${c.id}`,
+                phone: c.person?.phone,
+                cuit: c.person?.cuit,
+                documento: c.person?.documento,
+                email: c.person?.email || c.email,
             }));
             setCustomerOptions(mapped);
         } catch (error) {
             console.error("Error fetching customers:", error);
         }
-    };
+    }, [request]);
 
-    const fetchTechnicians = async () => {
+    const fetchTechnicians = useCallback(async () => {
         try {
             const resp = await request({
                 method: "GET",
@@ -222,7 +223,18 @@ export default function NewRepairDialog({
         } catch (error) {
             console.error("Error fetching technicians:", error);
         }
-    };
+    }, [request]);
+
+    // Fetch data on mount
+    useEffect(() => {
+        if (open) {
+            fetchCustomers();
+            fetchTechnicians();
+            fetchCategories();
+            fetchInsurers();
+        }
+    }, [open, fetchCustomers, fetchTechnicians, fetchCategories, fetchInsurers]);
+
 
     const validate = useCallback((): boolean => {
         const newErrors: Partial<Record<keyof NewRepairForm, string>> = {};
@@ -278,12 +290,17 @@ export default function NewRepairDialog({
         }
     };
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const handleCustomerCreated = (customer: any) => {
         const newCustomer = {
             id: customer.id,
             name: customer.person
                 ? `${customer.person.first_name || ""} ${customer.person.last_name || ""}`.trim()
                 : customer.name || `Cliente #${customer.id}`,
+            phone: customer.person?.phone,
+            cuit: customer.person?.cuit,
+            documento: customer.person?.documento,
+            email: customer.person?.email || customer.email,
         };
         setCustomerOptions(prev => [...prev, newCustomer]);
         setForm(f => ({ ...f, customer_id: customer.id }));
@@ -293,6 +310,7 @@ export default function NewRepairDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
+            {/* @ts-expect-error - DialogContent props mismatch */}
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 {showNewCustomerDialog ? (
                     <div className="p-4">
@@ -305,6 +323,7 @@ export default function NewRepairDialog({
                 ) : (
                     <>
                         <DialogHeader>
+                            {/* @ts-expect-error - DialogTitle children type mismatch */}
                             <DialogTitle>Nueva Reparación</DialogTitle>
                         </DialogHeader>
 
@@ -327,17 +346,29 @@ export default function NewRepairDialog({
                                                 }}
                                                 onFocus={() => setShowCustomerOptions(true)}
                                                 onBlur={() => setTimeout(() => setShowCustomerOptions(false), 200)}
-                                                placeholder="Buscar cliente..."
+                                                placeholder="Buscar cliente por nombre, teléfono, DNI o CUIT..."
                                                 className={cn(errors.customer_id && "border-red-500")}
                                             />
                                             {showCustomerOptions && customerSearch.length > 0 && customerOptions.filter(c => {
                                                 const searchLower = customerSearch.toLowerCase();
-                                                return c.name.toLowerCase().includes(searchLower);
+                                                return (
+                                                    c.name.toLowerCase().includes(searchLower) ||
+                                                    (c.phone && c.phone.toLowerCase().includes(searchLower)) ||
+                                                    (c.documento && c.documento.toLowerCase().includes(searchLower)) ||
+                                                    (c.cuit && c.cuit.toLowerCase().includes(searchLower)) ||
+                                                    (c.email && c.email.toLowerCase().includes(searchLower))
+                                                );
                                             }).length > 0 && (
                                                     <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
                                                         {customerOptions.filter(c => {
                                                             const searchLower = customerSearch.toLowerCase();
-                                                            return c.name.toLowerCase().includes(searchLower);
+                                                            return (
+                                                                c.name.toLowerCase().includes(searchLower) ||
+                                                                (c.phone && c.phone.toLowerCase().includes(searchLower)) ||
+                                                                (c.documento && c.documento.toLowerCase().includes(searchLower)) ||
+                                                                (c.cuit && c.cuit.toLowerCase().includes(searchLower)) ||
+                                                                (c.email && c.email.toLowerCase().includes(searchLower))
+                                                            );
                                                         }).map((customer) => (
                                                             <div
                                                                 key={customer.id}
@@ -512,6 +543,7 @@ export default function NewRepairDialog({
                                                             value={form.insurer_id ? form.insurer_id.toString() : ""}
                                                             onValueChange={(v) => setForm((f) => ({ ...f, insurer_id: v ? parseInt(v) : null }))}
                                                         >
+                                                            {/* @ts-expect-error - SelectTrigger props mismatch */}
                                                             <SelectTrigger className="flex-1">
                                                                 <SelectValue placeholder="Seleccionar o crear nueva..." />
                                                             </SelectTrigger>

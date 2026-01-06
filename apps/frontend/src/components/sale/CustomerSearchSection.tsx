@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -43,7 +42,7 @@ export function CustomerSearchSection({
     <div>
       <div className="flex items-end justify-between gap-2">
         <div className="flex-1">
-          <Label>Buscar cliente (DNI o nombre)</Label>
+          <Label>Buscar cliente (DNI, nombre o teléfono)</Label>
           <div className="relative">
             <Input
               value={customerSearch}
@@ -53,7 +52,7 @@ export function CustomerSearchSection({
               onKeyDown={(e) => {
                 if (e.key === 'Escape') onShowOptionsChange(false)
               }}
-              placeholder="Ingrese para buscar..."
+              placeholder="Ingrese nombre, DNI o teléfono..."
             />
             {customerOptions.length > 0 && showCustomerOptions && (
               <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
@@ -82,7 +81,7 @@ export function CustomerSearchSection({
           +
         </Button>
       </div>
-      
+
       {selectedCustomer && (
         <div className="mt-4">
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -109,13 +108,12 @@ export function CustomerSearchSection({
               </div>
 
               {/* Columna derecha - Estado de cuenta */}
-              <div className={`rounded-md p-2 ${
-                loadingBalance 
-                  ? 'bg-gray-100 border border-gray-300' 
-                  : customerBalance && customerBalance > 0 
-                    ? 'bg-red-100 border border-red-300' 
-                    : 'bg-green-100 border border-green-300'
-              }`}>
+              <div className={`rounded-md p-2 ${loadingBalance
+                ? 'bg-gray-100 border border-gray-300'
+                : customerBalance && customerBalance > 0
+                  ? 'bg-red-100 border border-red-300'
+                  : 'bg-green-100 border border-green-300'
+                }`}>
                 {loadingBalance ? (
                   <div className="flex items-center gap-2 text-gray-700 text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" />
