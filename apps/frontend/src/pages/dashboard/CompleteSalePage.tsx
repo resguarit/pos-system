@@ -685,7 +685,13 @@ export default function CompleteSalePage() {
         <div className="mb-6">
           <Button
             variant="ghost"
-            onClick={() => navigate("/dashboard/pos")}
+            onClick={() => navigate("/dashboard/pos", {
+              state: {
+                convertedFromBudgetId,
+                convertedFromBudgetTotal,
+                cart // Also pass cart back just in case, though localStorage handles it
+              }
+            })}
             className="mb-4"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />

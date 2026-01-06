@@ -250,6 +250,11 @@ export default function POSPage() {
         window.history.replaceState({}, document.title)
       }
     } else {
+      // Si volvemos de completar venta, restaurar el ID del presupuesto
+      if (location.state?.convertedFromBudgetId) {
+        setConvertedFromBudgetId(location.state.convertedFromBudgetId)
+      }
+
       // Comportamiento normal: cargar de localStorage
       const savedCart = loadCartFromStorage()
       if (savedCart.length > 0) {

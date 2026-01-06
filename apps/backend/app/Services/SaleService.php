@@ -639,6 +639,8 @@ class SaleService implements SaleServiceInterface
             'saleDocumentType',
             'items.product',
             'saleIvas',
+            'convertedFromBudget',
+            'convertedToSale',
         ]);
 
         // Manejar filtro por sucursales (array o valor único)
@@ -722,6 +724,8 @@ class SaleService implements SaleServiceInterface
                 'status' => $sale->status ?? ($sale->receiptType && strtoupper($sale->receiptType->code) === 'PRE' ? 'Presupuesto' : 'Completada'),
                 'branch' => $sale->branch ? $sale->branch->description : '',
                 'items' => $items,
+                'converted_from_budget_id' => $sale->converted_from_budget_id,
+                'converted_from_budget_receipt' => $sale->convertedFromBudget ? $sale->convertedFromBudget->receipt_number : null,
             ];
         });
     }
@@ -1195,14 +1199,13 @@ class SaleService implements SaleServiceInterface
                 'subtotal' => (float) $sale->subtotal,
                 'total' => (float) $sale->total,
                 'total_iva_amount' => (float) $sale->total_iva_amount,
+                'converted_from_budget_id' => $sale->converted_from_budget_id,
+                'converted_from_budget_receipt' => $sale->convertedFromBudget ? $sale->convertedFromBudget->receipt_number : null,
                 'status' => $sale->status ?? ($sale->receiptType && strtoupper($sale->receiptType->code) === 'PRE' ? 'Presupuesto' : 'Completada'),
                 'annulled_at' => $sale->annulled_at ? Carbon::parse($sale->annulled_at)->format('Y-m-d H:i:s') : null,
                 'annulled_by' => $sale->annulled_by,
                 'annulment_reason' => $sale->annulment_reason,
                 'branch' => $sale->branch ? $sale->branch->description : 'N/A',
-                // Campos de conversión de presupuesto
-                'converted_from_budget_id' => $sale->converted_from_budget_id,
-                'converted_from_budget_receipt' => $sale->convertedFromBudget ? $sale->convertedFromBudget->receipt_number : null,
                 'converted_to_sale_id' => $sale->converted_to_sale_id,
                 'converted_to_sale_receipt' => $sale->convertedToSale ? $sale->convertedToSale->receipt_number : null,
                 'converted_at' => $sale->converted_at ? Carbon::parse($sale->converted_at)->format('Y-m-d H:i:s') : null,
