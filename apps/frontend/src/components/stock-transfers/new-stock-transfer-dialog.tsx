@@ -9,21 +9,23 @@
  * - Reusable sub-components
  */
 
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar as CalendarIcon, Loader2, ArrowRightLeft, Package } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, ArrowRightLeft, Package, Search, Download } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 
 import { useStockTransfer } from './hooks/useStockTransfer';
 import { ProductSearch, TransferItemsTable } from './components';
+import { ImportSalesPanel } from './components/ImportSalesPanel';
 
 export interface StockTransferDialogProps {
   open: boolean;
@@ -47,12 +49,14 @@ export function StockTransferDialog({
     form,
     items,
     branches,
+    allBranches,
     products,
     loading,
     isSubmitting,
     isEditMode,
     setForm,
     addItem,
+    addItems,
     removeItem,
     updateItemQuantity,
     getProductStock,
@@ -64,6 +68,16 @@ export function StockTransferDialog({
     visibleBranchIds,
     onClose: () => onOpenChange(false),
   });
+
+  // Key para forzar remount del ImportSalesPanel cuando el diálogo se abre
+  const [importPanelKey, setImportPanelKey] = useState(0);
+
+  // Incrementar key cuando el diálogo se abre para resetear el panel
+  useEffect(() => {
+    if (open) {
+      setImportPanelKey(prev => prev + 1);
+    }
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +92,7 @@ export function StockTransferDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-7xl w-full max-h-[95vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <ArrowRightLeft className="h-5 w-5" />
@@ -89,7 +103,7 @@ export function StockTransferDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <div className="flex-1 overflow-y-auto pr-4">
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Branch Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -124,7 +138,7 @@ export function StockTransferDialog({
                     <SelectValue placeholder="Seleccione sucursal de destino" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches
+                    {allBranches
                       .filter(b => b.id.toString() !== form.source_branch_id)
                       .map((branch) => (
                         <SelectItem key={branch.id} value={branch.id.toString()}>
@@ -181,30 +195,59 @@ export function StockTransferDialog({
               />
             </div>
 
-            {/* Products Section */}
-            <div className="border-t pt-4 space-y-4">
-              <Label className="text-base font-semibold flex items-center gap-2">
-                <Package className="h-4 w-4" />
-                Productos
-              </Label>
+            {/* Products Section with Tabs */}
+            <div className="border-t pt-4">
+              <Tabs defaultValue="manual" className="w-full">
+                <div className="flex items-center justify-between mb-4">
+                  <Label className="text-base font-semibold flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Productos
+                  </Label>
+                  <TabsList>
+                    <TabsTrigger value="manual" className="flex items-center gap-2">
+                      <Search className="h-4 w-4" />
+                      Manual
+                    </TabsTrigger>
+                    <TabsTrigger value="import" className="flex items-center gap-2">
+                      <Download className="h-4 w-4" />
+                      Importar Ventas
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
 
-              <ProductSearch
-                products={products}
-                sourceBranchId={form.source_branch_id}
-                onAddItem={addItem}
-                getProductStock={getProductStock}
-                disabled={loading || !form.source_branch_id}
-              />
+                <TabsContent value="manual" className="space-y-4">
+                  <ProductSearch
+                    products={products}
+                    sourceBranchId={form.source_branch_id}
+                    onAddItem={addItem}
+                    getProductStock={getProductStock}
+                    disabled={loading || !form.source_branch_id}
+                  />
+                </TabsContent>
 
-              <TransferItemsTable
-                items={items}
-                onRemoveItem={removeItem}
-                onUpdateQuantity={updateItemQuantity}
-                disabled={loading}
-              />
+                <TabsContent value="import">
+                  <div className="border rounded-md p-4 bg-muted/10">
+                    <ImportSalesPanel
+                      key={importPanelKey}
+                      onImport={addItems}
+                      sourceBranchId={form.source_branch_id}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              {/* Items Table - Shared for both methods */}
+              <div className="mt-6">
+                <TransferItemsTable
+                  items={items}
+                  onRemoveItem={removeItem}
+                  onUpdateQuantity={updateItemQuantity}
+                  disabled={loading}
+                />
+              </div>
             </div>
           </form>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="flex-shrink-0 pt-4 border-t">
           <Button

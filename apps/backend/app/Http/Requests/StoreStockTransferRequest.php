@@ -37,7 +37,6 @@ class StoreStockTransferRequest extends FormRequest
             'transfer_date' => [
                 'required',
                 'date',
-                'before_or_equal:today',
             ],
             'notes' => [
                 'nullable',

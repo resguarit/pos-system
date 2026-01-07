@@ -19,9 +19,9 @@ export const createTransferSchema = z.object({
   destination_branch_id: z
     .number()
     .positive('Debe seleccionar la sucursal de destino'),
-  transfer_date: z
-    .date()
-    .max(new Date(), 'La fecha no puede ser futura'),
+  transfer_date: z.date({
+    required_error: 'La fecha es requerida',
+  }),
   notes: z
     .string()
     .max(1000, 'Las notas no pueden exceder 1000 caracteres')
@@ -60,10 +60,10 @@ export type TransferItemInput = z.infer<typeof transferItemSchema>;
 export type NewItemInput = z.infer<typeof newItemSchema>;
 
 // Validation helper
-export function validateTransfer(data: unknown): { 
-  success: boolean; 
-  data?: CreateTransferInput; 
-  errors?: z.ZodError 
+export function validateTransfer(data: unknown): {
+  success: boolean;
+  data?: CreateTransferInput;
+  errors?: z.ZodError
 } {
   const result = createTransferSchema.safeParse(data);
   if (result.success) {

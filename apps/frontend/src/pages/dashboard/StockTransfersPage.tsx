@@ -6,7 +6,7 @@ import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header'
 import { Badge } from "@/components/ui/badge"
-import { Plus, Search, ArrowRightLeft, CheckCircle, XCircle, Pencil, Eye, Clock } from "lucide-react"
+import { Plus, Search, ArrowRightLeft, CheckCircle, XCircle, Pencil, Eye, Clock, FileText, FileSpreadsheet, MoreHorizontal } from "lucide-react"
 
 // Permission constants for type safety
 const PERMISSIONS = {
@@ -25,6 +25,13 @@ import { stockTransferService } from '@/lib/api/stockTransferService'
 import type { StockTransfer } from '@/types/stockTransfer'
 import { toast } from "sonner"
 import { useBranch } from '@/context/BranchContext'
+import { exportTransferToPDF, exportTransferToExcel } from '@/lib/utils/transferExport'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -364,6 +371,38 @@ export default function StockTransfersPage() {
                           )}
                         </>
                       )}
+                      {/* Export dropdown menu */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Más opciones">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => exportTransferToPDF({
+                              transfer,
+                              getStatusLabel,
+                              getBranchName
+                            })}
+                            className="cursor-pointer"
+                          >
+                            <FileText className="h-4 w-4 mr-2 text-red-600" />
+                            Exportar PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => exportTransferToExcel({
+                              transfer,
+                              getStatusLabel,
+                              getBranchName
+                            })}
+                            className="cursor-pointer"
+                          >
+                            <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" />
+                            Exportar Excel
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </ResizableTableCell>
                 </TableRow>

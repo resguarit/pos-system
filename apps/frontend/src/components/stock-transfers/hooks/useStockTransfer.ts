@@ -29,6 +29,7 @@ interface UseStockTransferReturn {
   form: TransferFormData;
   items: TransferItem[];
   branches: Branch[];
+  allBranches: Branch[];
   products: Product[];
   loading: boolean;
   isSubmitting: boolean;
@@ -37,6 +38,7 @@ interface UseStockTransferReturn {
   // Actions
   setForm: React.Dispatch<React.SetStateAction<TransferFormData>>;
   addItem: (productId: number, quantity: number) => Promise<boolean>;
+  addItems: (items: { productId: number; quantity: number; productCode?: string; productName?: string; availableStock?: number }[]) => Promise<boolean>;
   removeItem: (index: number) => void;
   updateItemQuantity: (index: number, quantity: number) => void;
   getProductStock: (productId: number) => Promise<number>;
@@ -150,31 +152,9 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     }
   }, [form, items, isEditMode, dataLoaded]);
 
-  // Load branches and products on mount or when user branch IDs change
-  useEffect(() => {
-    if (!dataLoaded && userBranchIds.length > 0) {
-      loadInitialData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userBranchIds.length]);
 
-  // Load transfer data when transferId changes (edit mode)
-  useEffect(() => {
-    if (isEditMode && transferId && dataLoaded && lastLoadedTransferId.current !== transferId) {
-      lastLoadedTransferId.current = transferId;
-      loadTransferData(transferId, products);
-    }
-  }, [transferId, dataLoaded, products, isEditMode]);
 
-  // Update item stocks when source branch changes
-  useEffect(() => {
-    if (form.source_branch_id && items.length > 0 && dataLoaded) {
-      updateAllItemStocks();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.source_branch_id, dataLoaded]);
-
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
       const [branchesData, productsData] = await Promise.all([
@@ -200,9 +180,9 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     } finally {
       setLoading(false);
     }
-  };
+  }, [userBranchIds]);
 
-  const loadTransferData = async (id: number, productsList: Product[]) => {
+  const loadTransferData = useCallback(async (id: number, productsList: Product[]) => {
     try {
       setLoading(true);
       const transfer = await stockTransferService.getById(id);
@@ -257,19 +237,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     } finally {
       setLoading(false);
     }
-  };
-
-  const updateAllItemStocks = async () => {
-    if (!form.source_branch_id) return;
-
-    const updatedItems = await Promise.all(
-      items.map(async (item) => {
-        const stock = await getProductStock(item.product_id);
-        return { ...item, availableStock: stock };
-      })
-    );
-    setItems(updatedItems);
-  };
+  }, []);
 
   const getProductStock = useCallback(async (productId: number): Promise<number> => {
     if (!form.source_branch_id) return 0;
@@ -284,6 +252,40 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       return 0;
     }
   }, [form.source_branch_id]);
+
+  const updateAllItemStocks = useCallback(async () => {
+    if (!form.source_branch_id) return;
+
+    const updatedItems = await Promise.all(
+      items.map(async (item) => {
+        const stock = await getProductStock(item.product_id);
+        return { ...item, availableStock: stock };
+      })
+    );
+    setItems(updatedItems);
+  }, [form.source_branch_id, items, getProductStock]);
+
+  // Load branches and products on mount or when user branch IDs change
+  useEffect(() => {
+    if (!dataLoaded && userBranchIds.length > 0) {
+      loadInitialData();
+    }
+  }, [userBranchIds.length, dataLoaded, loadInitialData]);
+
+  // Load transfer data when transferId changes (edit mode)
+  useEffect(() => {
+    if (isEditMode && transferId && dataLoaded && lastLoadedTransferId.current !== transferId) {
+      lastLoadedTransferId.current = transferId;
+      loadTransferData(transferId, products);
+    }
+  }, [transferId, dataLoaded, products, isEditMode, loadTransferData]);
+
+  // Update item stocks when source branch changes
+  useEffect(() => {
+    if (form.source_branch_id && items.length > 0 && dataLoaded) {
+      updateAllItemStocks();
+    }
+  }, [form.source_branch_id, dataLoaded, items.length, updateAllItemStocks]);
 
   const addItem = useCallback(async (productId: number, quantity: number): Promise<boolean> => {
     if (!form.source_branch_id) {
@@ -339,6 +341,71 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       }]);
     }
 
+    return true;
+    return true;
+  }, [form.source_branch_id, products, items, getProductStock]);
+
+  const addItems = useCallback(async (newItems: { productId: number; quantity: number; productCode?: string; productName?: string; availableStock?: number }[]): Promise<boolean> => {
+    if (!form.source_branch_id) {
+      toast.error('Seleccione primero la sucursal de origen');
+      return false;
+    }
+
+    if (newItems.length === 0) return false;
+
+    const warnings: string[] = [];
+
+    // Clone current items to avoid mutation during loop
+    const currentItemsMap = new Map(items.map(i => [i.product_id, i]));
+    const productsMap = new Map(products.map(p => [typeof p.id === 'string' ? parseInt(p.id) : p.id, p]));
+
+    for (const newItem of newItems) {
+      // Si tenemos datos del producto pasados directamente, usarlos
+      // Si no, buscar en productsMap como fallback
+      const productFromMap = productsMap.get(newItem.productId);
+
+      const productName = newItem.productName || productFromMap?.description || `Producto #${newItem.productId}`;
+      const productCode = newItem.productCode || productFromMap?.code || null;
+
+      // Obtener stock disponible: usar el pasado, o buscar en la API, o 0 por defecto
+      let availableStock = newItem.availableStock;
+      if (availableStock === undefined) {
+        availableStock = await getProductStock(newItem.productId);
+      }
+
+      const existingItem = currentItemsMap.get(newItem.productId);
+      let finalQuantity = newItem.quantity;
+
+      if (existingItem) {
+        finalQuantity += existingItem.quantity;
+      }
+
+      // Advertir si stock es insuficiente pero no bloquear
+      if (finalQuantity > availableStock) {
+        warnings.push(`${productName}: Stock insuficiente (Necesario: ${finalQuantity}, Disponible: ${availableStock})`);
+      }
+
+      const item: TransferItem = {
+        product_id: newItem.productId,
+        quantity: finalQuantity,
+        availableStock,
+        product: {
+          id: newItem.productId,
+          description: productName,
+          code: productCode,
+          barcode: productFromMap?.barcode ?? null,
+        }
+      };
+      currentItemsMap.set(newItem.productId, item);
+    }
+
+    if (warnings.length > 0) {
+      toast.warning(`Advertencia de stock:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? '...' : ''}`, {
+        duration: 6000
+      });
+    }
+
+    setItems(Array.from(currentItemsMap.values()));
     return true;
   }, [form.source_branch_id, products, items, getProductStock]);
 
@@ -409,6 +476,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
         await stockTransferService.create(payload);
         toast.success('Transferencia creada exitosamente');
         clearDraft();
+        reset();
       }
 
       onSuccess?.();
@@ -424,7 +492,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     } finally {
       setIsSubmitting(false);
     }
-  }, [form, items, validateForm, isEditMode, transferId, onSuccess, onClose]);
+  }, [form, items, validateForm, isEditMode, transferId, onSuccess, onClose, reset]);
 
   const reset = useCallback(() => {
     setForm(initialFormState(preselectedSourceBranchId));
@@ -457,6 +525,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     // Actions
     setForm,
     addItem,
+    addItems,
     removeItem,
     updateItemQuantity,
     getProductStock,
@@ -467,5 +536,6 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     getSourceBranchName,
     getDestinationBranchName,
     validateForm,
+    allBranches,
   };
 }

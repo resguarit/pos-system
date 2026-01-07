@@ -120,7 +120,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                                 $paymentQuery->whereNull('payment_status')
                                     ->orWhereIn('payment_status', ['pending', 'partial']);
                             })
-                            ->whereRaw('(total - COALESCE(paid_amount, 0)) > 0');
+                            ->whereRaw('(total - COALESCE(paid_amount, 0)) > 0.01');
                     });
                     break;
             }
@@ -214,7 +214,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     /**
      * Suspender cuenta corriente
      */
-    public function suspendAccount(int $id, string $reason = null): CurrentAccount
+    public function suspendAccount(int $id, ?string $reason = null): CurrentAccount
     {
         return DB::transaction(function () use ($id, $reason) {
             $account = CurrentAccount::findOrFail($id);
@@ -238,7 +238,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     /**
      * Cerrar cuenta corriente
      */
-    public function closeAccount(int $id, string $reason = null): CurrentAccount
+    public function closeAccount(int $id, ?string $reason = null): CurrentAccount
     {
         return DB::transaction(function () use ($id, $reason) {
             $account = CurrentAccount::findOrFail($id);
@@ -442,7 +442,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getAccountBalance(int $accountId): float
     {
         $account = CurrentAccount::findOrFail($accountId);
-        return $account->current_balance;
+        return (float) $account->current_balance;
     }
 
     /**
@@ -979,7 +979,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     /**
      * Actualizar límite de crédito
      */
-    public function updateCreditLimit(int $accountId, float $newLimit, string $reason = null): CurrentAccount
+    public function updateCreditLimit(int $accountId, float $newLimit, ?string $reason = null): CurrentAccount
     {
         return DB::transaction(function () use ($accountId, $newLimit, $reason) {
             $account = CurrentAccount::findOrFail($accountId);
@@ -1012,7 +1012,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     /**
      * Validar datos de cuenta corriente antes de crear/actualizar
      */
-    public function validateAccountData(array $data, int $id = null): array
+    public function validateAccountData(array $data, ?int $id = null): array
     {
         $rules = [
             'customer_id' => 'required|integer|exists:customers,id',

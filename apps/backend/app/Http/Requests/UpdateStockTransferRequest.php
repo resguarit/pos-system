@@ -36,7 +36,6 @@ class UpdateStockTransferRequest extends FormRequest
             'transfer_date' => [
                 'sometimes',
                 'date',
-                'before_or_equal:today',
             ],
             'notes' => [
                 'nullable',

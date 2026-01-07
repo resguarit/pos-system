@@ -17,7 +17,7 @@ import {
   MapPin,
   Pause,
   Play,
-  Minus
+  RefreshCw
 } from 'lucide-react';
 import { CurrentAccount, CurrentAccountMovement, PendingSale, PaginatedResponse } from '@/types/currentAccount';
 import { CurrentAccountService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
@@ -27,14 +27,10 @@ import { useCurrentAccountActions } from '@/hooks/useCurrentAccountActions';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { PaymentDialog } from './PaymentDialog';
+import { PendingSalesTable } from './PendingSalesTable';
+import { BatchUpdatePricesDialog } from './BatchUpdatePricesDialog';
 import { CheckboxMultiSelect, type CheckboxOption } from '@/components/ui/checkbox-multi-select';
-import {
-  calculateOutstandingBalance,
-  calculateTotalPendingSales,
-  getOutstandingBalanceDescription,
-  formatOutstandingBalance,
-  getBalanceColorClass
-} from '@/utils/currentAccountUtils';
+
 
 interface CurrentAccountDetailsProps {
   accountId: number;
@@ -56,13 +52,14 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   const scrollPositionRef = useRef<number>(0);
   const [branchFilterUI, setBranchFilterUI] = useState<string[]>([]);
   const [movementTypeFilterUI, setMovementTypeFilterUI] = useState<string[]>([]);
-  
+
   // Opciones de filtros cargadas desde el backend
   const [branchOptions, setBranchOptions] = useState<CheckboxOption[]>([]);
   const [movementTypeOptions, setMovementTypeOptions] = useState<CheckboxOption[]>([]);
 
   // Estados para los diálogos
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [showBatchUpdateDialog, setShowBatchUpdateDialog] = useState(false);
 
   const resizableColumns = useResizableColumns({
     columns: [
@@ -81,33 +78,9 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   const { hasPermission } = usePermissions();
   const { suspendAccount, reactivateAccount } = useCurrentAccountActions();
 
-  useEffect(() => {
-    loadAccountDetails();
-    loadPendingSales();
-    loadFilters();
-    setCurrentPage(1); // Resetear a página 1 al cambiar de cuenta
-    scrollPositionRef.current = 0; // Resetear posición del scroll al cambiar de cuenta
-  }, [accountId]);
 
-  useEffect(() => {
-    if (accountId) {
-      loadMovements();
-    }
-  }, [currentPage, accountId]);
 
-  // Restaurar posición del scroll después de que los movimientos se hayan renderizado
-  useEffect(() => {
-    if (!loadingMovements && movements.length > 0 && movementsTableRef.current) {
-      // Usar requestAnimationFrame para asegurar que el DOM se haya actualizado
-      requestAnimationFrame(() => {
-        if (movementsTableRef.current) {
-          movementsTableRef.current.scrollTop = scrollPositionRef.current;
-        }
-      });
-    }
-  }, [loadingMovements, movements]);
-
-  const loadAccountDetails = async () => {
+  const loadAccountDetails = React.useCallback(async () => {
     try {
       setLoading(true);
       const accountData = await CurrentAccountService.getById(accountId);
@@ -118,9 +91,9 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     } finally {
       setLoading(false);
     }
-  };
+  }, [accountId]);
 
-  const loadMovements = async () => {
+  const loadMovements = React.useCallback(async () => {
     try {
       setLoadingMovements(true);
       const response = await CurrentAccountService.getMovements(accountId, {
@@ -137,7 +110,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     } finally {
       setLoadingMovements(false);
     }
-  };
+  }, [accountId, currentPage, perPage]);
 
   const handlePageChange = (page: number) => {
     // Guardar posición del scroll antes de cambiar de página
@@ -158,7 +131,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     }
   };
 
-  const loadPendingSales = async () => {
+  const loadPendingSales = React.useCallback(async () => {
     try {
       const sales = await CurrentAccountService.getPendingSales(accountId);
       setPendingSales(sales);
@@ -166,13 +139,13 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       console.error('Error loading pending sales:', error);
       toast.error('Error al cargar ventas pendientes');
     }
-  };
+  }, [accountId]);
 
-  const loadFilters = async () => {
+  const loadFilters = React.useCallback(async () => {
     try {
       const filters = await CurrentAccountService.getMovementFilters(accountId);
       console.log('Filtros recibidos:', filters);
-      
+
       setBranchOptions(
         (filters.branches || []).map(b => ({
           label: b.name,
@@ -190,7 +163,33 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       console.error('Error loading filters:', error);
       toast.error('Error al cargar filtros');
     }
-  };
+  }, [accountId]);
+
+  useEffect(() => {
+    loadAccountDetails();
+    loadPendingSales();
+    loadFilters();
+    setCurrentPage(1); // Resetear a página 1 al cambiar de cuenta
+    scrollPositionRef.current = 0; // Resetear posición del scroll al cambiar de cuenta
+  }, [accountId, loadAccountDetails, loadPendingSales, loadFilters]);
+
+  useEffect(() => {
+    if (accountId) {
+      loadMovements();
+    }
+  }, [currentPage, accountId, loadMovements]);
+
+  // Restaurar posición del scroll después de que los movimientos se hayan renderizado
+  useEffect(() => {
+    if (!loadingMovements && movements.length > 0 && movementsTableRef.current) {
+      // Usar requestAnimationFrame para asegurar que el DOM se haya actualizado
+      requestAnimationFrame(() => {
+        if (movementsTableRef.current) {
+          movementsTableRef.current.scrollTop = scrollPositionRef.current;
+        }
+      });
+    }
+  }, [loadingMovements, movements]);
 
   const handleSuspend = async () => {
     if (!account) return;
@@ -250,10 +249,10 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
 
   // Usar total_pending_debt que incluye ventas pendientes (el current_balance está corrupto)
   const totalPendingDebt = account?.total_pending_debt || 0;
-  const balanceDescription = getOutstandingBalanceDescription(
-    account?.current_balance || 0,
-    totalPendingDebt
-  );
+  // const balanceDescription = getOutstandingBalanceDescription(
+  //   account?.current_balance || 0,
+  //   totalPendingDebt
+  // );
 
   return (
     <div className="space-y-6">
@@ -352,302 +351,339 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       <Tabs defaultValue="info" className="space-y-4">
         <TabsList>
           <TabsTrigger value="info">Información</TabsTrigger>
+          <TabsTrigger value="sales">
+            <div className="flex items-center gap-2">
+              Ventas Pendientes
+              {pendingSales.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {pendingSales.length}
+                </Badge>
+              )}
+            </div>
+          </TabsTrigger>
           <TabsTrigger value="movements">Movimientos</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="info" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Información del Cliente */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Información del Cliente</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    {account.customer.person
-                      ? `${account.customer.person.first_name || ''} ${account.customer.person.last_name || ''}`.trim()
-                      : 'Sin nombre'}
-                  </span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span>{account.customer.email || 'Sin email'}</span>
-                </div>
-                {account.customer.person?.phone && (
+        <TabsContent value="info">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Información del Cliente */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Información del Cliente</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
                   <div className="flex items-center space-x-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{account.customer.person.phone}</span>
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>
+                      {account.customer.person
+                        ? `${account.customer.person.first_name || ''} ${account.customer.person.last_name || ''}`.trim()
+                        : 'Sin nombre'}
+                    </span>
                   </div>
-                )}
-                {account.customer.person?.address && (
                   <div className="flex items-center space-x-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{account.customer.person.address}</span>
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span>{account.customer.email || 'Sin email'}</span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                  {account.customer.person?.phone && (
+                    <div className="flex items-center space-x-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span>{account.customer.person.phone}</span>
+                    </div>
+                  )}
+                  {account.customer.person?.address && (
+                    <div className="flex items-center space-x-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span>{account.customer.person.address}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-            {/* Información de la Cuenta */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Información de la Cuenta</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>Apertura: {account.opened_at ? new Date(account.opened_at).toLocaleDateString('es-AR') : 'N/A'}</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span>Último movimiento: {account.last_movement_at ? new Date(account.last_movement_at).toLocaleDateString('es-AR') : 'Nunca'}</span>
-                </div>
-                {account.closed_at && (
+              {/* Información de la Cuenta */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Información de la Cuenta</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
                   <div className="flex items-center space-x-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>Cierre: {new Date(account.closed_at).toLocaleDateString('es-AR')}</span>
+                    <span>Apertura: {account.opened_at ? new Date(account.opened_at).toLocaleDateString('es-AR') : 'N/A'}</span>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span>Último movimiento: {account.last_movement_at ? new Date(account.last_movement_at).toLocaleDateString('es-AR') : 'Nunca'}</span>
+                  </div>
+                  {account.closed_at && (
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span>Cierre: {new Date(account.closed_at).toLocaleDateString('es-AR')}</span>
+                    </div>
+                  )}
+                  {account.notes && (
+                    <div className="mt-4">
+                      <p className="text-sm font-medium">Notas:</p>
+                      <p className="text-sm text-muted-foreground">{account.notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sales">
+          <div className="space-y-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Ventas Pendientes de Pago</h3>
+              {pendingSales.length > 0 && (
+                <Button
+                  onClick={() => setShowBatchUpdateDialog(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Actualizar Todos los Precios
+                </Button>
+              )}
+            </div>
+            <PendingSalesTable
+              sales={pendingSales}
+              accountId={accountId}
+              onSuccess={handleSuccess}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="movements">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Movimientos Recientes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loadingMovements ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  </div>
+                ) : movements.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No hay movimientos registrados</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Filtros */}
+                    <div className="flex flex-col md:flex-row md:items-center gap-2 mb-3">
+                      <div className="w-full md:w-72">
+                        <CheckboxMultiSelect
+                          options={branchOptions}
+                          selected={branchFilterUI}
+                          onChange={setBranchFilterUI}
+                          placeholder="Filtrar por sucursal..."
+                        />
+                      </div>
+                      <div className="w-full md:w-72">
+                        <CheckboxMultiSelect
+                          options={movementTypeOptions}
+                          selected={movementTypeFilterUI}
+                          onChange={setMovementTypeFilterUI}
+                          placeholder="Filtrar por tipo..."
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      ref={movementsTableRef}
+                      className="overflow-x-auto overflow-y-auto max-h-[600px]"
+                      style={{ scrollBehavior: 'auto' }}
+                    >
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead>
+                          <tr>
+                            <ResizableTableHeader
+                              columnId="fecha"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Fecha y Hora
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="tipo"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Tipo
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="descripcion"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Descripción
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="sucursal"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Sucursal
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="usuario"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Usuario
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="metodo"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Método de Pago
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="monto"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Monto
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="balance"
+                              getResizeHandleProps={resizableColumns.getResizeHandleProps}
+                              getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
+                            >
+                              Saldo Adeudado
+                            </ResizableTableHeader>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {(() => {
+                            const filtered = movements.filter((m) => {
+                              const id = m.branch?.id ?? m.branch_id;
+                              const typeName = m.movement_type?.name || '';
+
+                              const matchesBranch = branchFilterUI.length === 0
+                                || (id ? branchFilterUI.includes(String(id)) : false);
+                              const matchesType = movementTypeFilterUI.length === 0
+                                || movementTypeFilterUI.includes(typeName);
+
+                              return matchesBranch && matchesType;
+                            });
+                            return filtered;
+                          })().map((movement) => {
+                            // Usar el balance_after que viene del backend para cada movimiento
+                            // El backend ya calcula correctamente el balance después de cada movimiento
+                            // Solo hay saldo adeudado (deuda pendiente), así que nunca debe ser negativo
+                            const saldoAdeudado = Math.max(0, movement.balance_after || 0);
+
+                            return (
+                              <tr key={movement.id}>
+                                <ResizableTableCell
+                                  columnId="fecha"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                >
+                                  {movement.movement_date ?
+                                    new Date(movement.movement_date).toLocaleString('es-AR', {
+                                      year: 'numeric',
+                                      month: '2-digit',
+                                      day: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      second: '2-digit'
+                                    }) :
+                                    new Date(movement.created_at).toLocaleString('es-AR', {
+                                      year: 'numeric',
+                                      month: '2-digit',
+                                      day: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      second: '2-digit'
+                                    })
+                                  }
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="tipo"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                >
+                                  {movement.movement_type.name}
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="descripcion"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                >
+                                  {movement.description}
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="sucursal"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                >
+                                  {movement.branch ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs border-2 font-medium"
+                                      style={{
+                                        borderColor: movement.branch.color || '#6b7280',
+                                        color: movement.branch.color || '#6b7280',
+                                        backgroundColor: (movement.branch.color || '#6b7280') + '10'
+                                      }}
+                                    >
+                                      {movement.branch.description || movement.branch.name || '—'}
+                                    </Badge>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="usuario"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                >
+                                  {movement.user?.name || 'Sistema'}
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="metodo"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                >
+                                  {movement.payment_method?.name || '—'}
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="monto"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                  className={movement.is_outflow ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
+                                >
+                                  {movement.is_outflow ? '+' : '-'}{CurrentAccountUtils.formatCurrency(movement.amount)}
+                                </ResizableTableCell>
+                                <ResizableTableCell
+                                  columnId="balance"
+                                  getColumnCellProps={resizableColumns.getColumnCellProps}
+                                  className={saldoAdeudado > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}
+                                >
+                                  {CurrentAccountUtils.formatCurrency(saldoAdeudado)}
+                                </ResizableTableCell>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
-                {account.notes && (
+                {!loadingMovements && movements.length > 0 && (
                   <div className="mt-4">
-                    <p className="text-sm font-medium">Notas:</p>
-                    <p className="text-sm text-muted-foreground">{account.notes}</p>
+                    <Pagination
+                      currentPage={currentPage}
+                      lastPage={lastPage}
+                      total={totalMovements}
+                      itemName="movimientos"
+                      onPageChange={handlePageChange}
+                      disabled={loadingMovements}
+                    />
                   </div>
                 )}
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-
-        <TabsContent value="movements" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Movimientos Recientes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingMovements ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                </div>
-              ) : movements.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">No hay movimientos registrados</p>
-                </div>
-              ) : (
-                <>
-                  {/* Filtros */}
-                  <div className="flex flex-col md:flex-row md:items-center gap-2 mb-3">
-                    <div className="w-full md:w-72">
-                      <CheckboxMultiSelect
-                        options={branchOptions}
-                        selected={branchFilterUI}
-                        onChange={setBranchFilterUI}
-                        placeholder="Filtrar por sucursal..."
-                      />
-                    </div>
-                    <div className="w-full md:w-72">
-                      <CheckboxMultiSelect
-                        options={movementTypeOptions}
-                        selected={movementTypeFilterUI}
-                        onChange={setMovementTypeFilterUI}
-                        placeholder="Filtrar por tipo..."
-                      />
-                    </div>
-                  </div>
-
-                  <div
-                  ref={movementsTableRef}
-                  className="overflow-x-auto overflow-y-auto max-h-[600px]"
-                  style={{ scrollBehavior: 'auto' }}
-                >
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr>
-                        <ResizableTableHeader
-                          columnId="fecha"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Fecha y Hora
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="tipo"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Tipo
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="descripcion"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Descripción
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="sucursal"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Sucursal
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="usuario"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Usuario
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="metodo"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Método de Pago
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="monto"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Monto
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="balance"
-                          getResizeHandleProps={resizableColumns.getResizeHandleProps}
-                          getColumnHeaderProps={resizableColumns.getColumnHeaderProps}
-                        >
-                          Saldo Adeudado
-                        </ResizableTableHeader>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {(() => {
-                        const filtered = movements.filter((m) => {
-                          const id = m.branch?.id ?? m.branch_id;
-                          const typeName = m.movement_type?.name || '';
-
-                          const matchesBranch = branchFilterUI.length === 0
-                            || (id ? branchFilterUI.includes(String(id)) : false);
-                          const matchesType = movementTypeFilterUI.length === 0
-                            || movementTypeFilterUI.includes(typeName);
-
-                          return matchesBranch && matchesType;
-                        });
-                        return filtered;
-                      })().map((movement) => {
-                        // Usar el balance_after que viene del backend para cada movimiento
-                        // El backend ya calcula correctamente el balance después de cada movimiento
-                        // Solo hay saldo adeudado (deuda pendiente), así que nunca debe ser negativo
-                        const saldoAdeudado = Math.max(0, movement.balance_after || 0);
-
-                        return (
-                          <tr key={movement.id}>
-                            <ResizableTableCell
-                              columnId="fecha"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                            >
-                              {movement.movement_date ?
-                                new Date(movement.movement_date).toLocaleString('es-AR', {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit'
-                                }) :
-                                new Date(movement.created_at).toLocaleString('es-AR', {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  second: '2-digit'
-                                })
-                              }
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="tipo"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                            >
-                              {movement.movement_type.name}
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="descripcion"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                            >
-                              {movement.description}
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="sucursal"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                            >
-                              {movement.branch ? (
-                                <Badge
-                                  variant="outline"
-                                  className="text-xs border-2 font-medium"
-                                  style={{
-                                    borderColor: movement.branch.color || '#6b7280',
-                                    color: movement.branch.color || '#6b7280',
-                                    backgroundColor: (movement.branch.color || '#6b7280') + '10'
-                                  }}
-                                >
-                                  {movement.branch.description || movement.branch.name || '—'}
-                                </Badge>
-                              ) : (
-                                '—'
-                              )}
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="usuario"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                            >
-                              {movement.user?.name || 'Sistema'}
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="metodo"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                            >
-                              {movement.payment_method?.name || '—'}
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="monto"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                              className={movement.is_outflow ? 'text-red-600 font-semibold' : 'text-green-600 font-semibold'}
-                            >
-                              {movement.is_outflow ? '+' : '-'}{CurrentAccountUtils.formatCurrency(movement.amount)}
-                            </ResizableTableCell>
-                            <ResizableTableCell
-                              columnId="balance"
-                              getColumnCellProps={resizableColumns.getColumnCellProps}
-                              className={saldoAdeudado > 0 ? 'text-red-600 font-semibold' : 'text-gray-500'}
-                            >
-                              {CurrentAccountUtils.formatCurrency(saldoAdeudado)}
-                            </ResizableTableCell>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                </>
-              )}
-              {!loadingMovements && movements.length > 0 && (
-                <div className="mt-4">
-                  <Pagination
-                    currentPage={currentPage}
-                    lastPage={lastPage}
-                    total={totalMovements}
-                    itemName="movimientos"
-                    onPageChange={handlePageChange}
-                    disabled={loadingMovements}
-                  />
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
 
@@ -662,6 +698,12 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
             onSuccess={handleSuccess}
           />
 
+          <BatchUpdatePricesDialog
+            open={showBatchUpdateDialog}
+            onOpenChange={setShowBatchUpdateDialog}
+            accountId={accountId}
+            onSuccess={handleSuccess}
+          />
         </>
       )}
     </div>

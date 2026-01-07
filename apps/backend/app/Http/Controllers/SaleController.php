@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\JsonResponse;
 use Exception;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use App\Models\Category;
 use App\Models\ReceiptType; // Asegúrate de importar el modelo ReceiptType
 
 class SaleController extends Controller
@@ -537,6 +539,91 @@ class SaleController extends Controller
                 'success' => false,
                 'message' => $e->getMessage()
             ], 400);
+        }
+    }
+
+    /**
+     * Get sold products aggregated for stock transfer
+     * Groups products sold in a date range by product_id and includes available stock
+     * 
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getSoldProductsForTransfer(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'source_branch_id' => 'required|integer|exists:branches,id',
+            'from_date' => 'required|date',
+            'to_date' => 'required|date|after_or_equal:from_date',
+            'category_id' => 'nullable|integer|exists:categories,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $sourceBranchId = $request->input('source_branch_id');
+            $fromDate = $request->input('from_date');
+            $toDate = $request->input('to_date');
+            $categoryId = $request->input('category_id');
+
+            // Query sold items grouped by product
+            $query = DB::table('sale_items')
+                ->join('sales_header', 'sale_items.sale_header_id', '=', 'sales_header.id')
+                ->join('products', 'sale_items.product_id', '=', 'products.id')
+                ->leftJoin('stocks', function ($join) use ($sourceBranchId) {
+                    $join->on('sale_items.product_id', '=', 'stocks.product_id')
+                        ->where('stocks.branch_id', '=', $sourceBranchId);
+                })
+                ->where('sales_header.branch_id', $sourceBranchId)
+                ->whereDate('sales_header.date', '>=', $fromDate)
+                ->whereDate('sales_header.date', '<=', $toDate)
+                ->where('sales_header.status', 'active') // Only count active sales
+                ->select(
+                    'products.id as product_id',
+                    'products.code',
+                    'products.description as name',
+                    'products.category_id',
+                    DB::raw('SUM(sale_items.quantity) as total_quantity_sold'),
+                    DB::raw('COALESCE(MAX(stocks.current_stock), 0) as available_stock')
+                )
+                ->groupBy('products.id', 'products.code', 'products.description', 'products.category_id');
+
+            // Filter by category if provided
+            if ($categoryId) {
+                $query->where('products.category_id', $categoryId);
+            }
+
+            $soldProducts = $query->get();
+
+            // Get category names
+            $soldProducts = $soldProducts->map(function ($item) {
+                $category = Category::find($item->category_id);
+                return [
+                    'id' => $item->product_id,
+                    'code' => $item->code,
+                    'name' => $item->name,
+                    'category' => $category ? $category->name : 'Sin categoría',
+                    'category_id' => $item->category_id,
+                    'quantity' => (float) $item->total_quantity_sold,
+                    'availableStock' => (float) $item->available_stock,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $soldProducts
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener productos vendidos: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

@@ -722,4 +722,160 @@ class CurrentAccountController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Vista previa de actualización de precio para una venta individual
+     */
+    public function previewSalePriceUpdate(int $accountId, int $saleId): JsonResponse
+    {
+        try {
+            $updateService = new \App\Services\UpdateSalePricesService();
+            $preview = $updateService->previewSalePriceUpdate($saleId);
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Vista previa generada correctamente',
+                'data' => $preview
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al generar vista previa de actualización de precio: ' . $e->getMessage(), [
+                'account_id' => $accountId,
+                'sale_id' => $saleId,
+                'exception' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Aplicar actualización de precio a una venta individual
+     */
+    public function updateSalePrice(int $accountId, int $saleId): JsonResponse
+    {
+        try {
+            $updateService = new \App\Services\UpdateSalePricesService();
+            $result = $updateService->updateSalePrice($saleId);
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => $result['message'],
+                'data' => $result
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al actualizar precio de venta: ' . $e->getMessage(), [
+                'account_id' => $accountId,
+                'sale_id' => $saleId,
+                'exception' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
+
+    /**
+     * Vista previa de actualización masiva de precios (todas las ventas pendientes de un cliente)
+     */
+    public function previewBatchPriceUpdate(int $accountId): JsonResponse
+    {
+        try {
+            $account = \App\Models\CurrentAccount::findOrFail($accountId);
+            $updateService = new \App\Services\UpdateSalePricesService();
+            $preview = $updateService->previewBatchPriceUpdate($account->customer_id);
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Vista previa masiva generada correctamente',
+                'data' => $preview
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al generar vista previa masiva: ' . $e->getMessage(), [
+                'account_id' => $accountId,
+                'exception' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error al generar vista previa masiva'
+            ], 500);
+        }
+    }
+
+    /**
+     * Vista previa global de actualización masiva (todas las ventas pendientes, todos los clientes)
+     */
+    public function previewGlobalBatchPriceUpdate(): JsonResponse
+    {
+        try {
+            $updateService = new \App\Services\UpdateSalePricesService();
+            $preview = $updateService->previewBatchPriceUpdate(null);
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Vista previa global generada correctamente',
+                'data' => $preview
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al generar vista previa global: ' . $e->getMessage(), [
+                'exception' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error al generar vista previa global'
+            ], 500);
+        }
+    }
+
+    /**
+     * Aplicar actualización masiva de precios (array de sale_ids)
+     */
+    public function batchUpdatePrices(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'sale_ids' => 'required|array|min:1',
+                'sale_ids.*' => 'required|integer|exists:sales_header,id'
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 422,
+                    'success' => false,
+                    'message' => 'Datos de validación incorrectos',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $updateService = new \App\Services\UpdateSalePricesService();
+            $result = $updateService->updateBatchPrices($request->input('sale_ids'));
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => $result['message'],
+                'data' => $result
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al actualizar precios masivamente: ' . $e->getMessage(), [
+                'sale_ids' => $request->input('sale_ids'),
+                'exception' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
 }

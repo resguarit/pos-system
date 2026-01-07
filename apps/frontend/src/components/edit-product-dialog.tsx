@@ -40,7 +40,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
   // Rastrear qué campo se está editando actualmente usando useRef (no causa re-renders)
   const editingFieldRef = useRef<string | null>(null);
-  
+
   // Rastrear valores previos para evitar actualizaciones innecesarias
   const prevPricingRef = useRef({ markup: 0, salePrice: 0 });
   // Guardar el sale_price anterior al hacer focus para poder restaurarlo si queda vacío
@@ -52,7 +52,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     max_stock: ""
   });
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
-  const [currentStock, setCurrentStock] = useState<any>(null);
+  const [currentStock, setCurrentStock] = useState<any>(null); // eslint-disable-line @typescript-eslint/no-explicit-any
 
   // Estados para validación de duplicados
   const [codeError, setCodeError] = useState<string>("");
@@ -60,10 +60,10 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
   const [descriptionError, setDescriptionError] = useState<string>("");
   const [isCheckingDescription, setIsCheckingDescription] = useState<boolean>(false);
 
-  const [categories, setCategories] = useState<Array<{id: number, name: string, display_name?: string, type?: string, parent_id?: number}>>([]);
-  const [measures, setMeasures] = useState<Array<{id: number, name: string}>>([]);
-  const [suppliers, setSuppliers] = useState<Array<{id: number, name: string}>>([]);
-  const [ivas, setIvas] = useState<Array<{id: number, rate: number}>>([]);
+  const [categories, setCategories] = useState<Array<{ id: number, name: string, display_name?: string, type?: string, parent_id?: number }>>([]);
+  const [measures, setMeasures] = useState<Array<{ id: number, name: string }>>([]);
+  const [suppliers, setSuppliers] = useState<Array<{ id: number, name: string }>>([]);
+  const [ivas, setIvas] = useState<Array<{ id: number, rate: number }>>([]);
   const { request, loading } = useApi();
   const { dispatch } = useEntityContext();
 
@@ -80,26 +80,93 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     formatMarkup,
     calculateSalePrice
   } = usePricing({
-    unitPrice: typeof product?.unit_price === 'string' ? parseFloat(product.unit_price) : 
-               typeof product?.unit_price === 'number' ? product.unit_price : 0,
+    unitPrice: typeof product?.unit_price === 'string' ? parseFloat(product.unit_price) :
+      typeof product?.unit_price === 'number' ? product.unit_price : 0,
     currency: product?.currency || 'ARS',
-    markup: typeof product?.markup === 'string' ? parseFloat(product.markup) : 
-            typeof product?.markup === 'number' ? product.markup : 0,
+    markup: typeof product?.markup === 'string' ? parseFloat(product.markup) :
+      typeof product?.markup === 'number' ? product.markup : 0,
     ivaRate: product?.iva?.rate ? product.iva.rate / 100 : 0,
-    initialSalePrice: typeof product?.sale_price === 'string' ? parseFloat(product.sale_price) : 
-                      typeof product?.sale_price === 'number' ? product.sale_price : 0
+    initialSalePrice: typeof product?.sale_price === 'string' ? parseFloat(product.sale_price) :
+      typeof product?.sale_price === 'number' ? product.sale_price : 0
   });
+
+  const fetchStockForBranch = useCallback(async (branchId: number, signal?: AbortSignal) => {
+    if (!product) return;
+    try {
+      const stockResponse = await request({
+        method: 'GET',
+        url: `/stocks?product_id=${product.id}&branch_id=${branchId}`,
+        signal
+      });
+
+      const stockList = Array.isArray(stockResponse) ? stockResponse : (stockResponse?.data ?? []);
+      const stock = stockList.find((s: any) => s.product_id === product.id && s.branch_id === branchId); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      if (stock) {
+        setCurrentStock(stock);
+        setStockData({
+          min_stock: stock.min_stock?.toString() || "",
+          max_stock: stock.max_stock?.toString() || ""
+        });
+      } else {
+        setCurrentStock(null);
+        setStockData({ min_stock: "", max_stock: "" });
+      }
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (error.name !== 'AbortError' && !error.message?.includes('canceled')) {
+        console.error("Error al cargar stock:", error);
+      }
+    }
+  }, [product, request]);
+
+  const fetchCatalogs = useCallback(async (signal?: AbortSignal) => {
+    if (!open) return;
+
+    try {
+      const [categoriesResponse, measuresResponse, suppliersResponse, ivasResponse, branchesResponse] = await Promise.all([
+        request({ method: 'GET', url: '/categories/for-selector', signal }),
+        request({ method: 'GET', url: '/measures', signal }),
+        request({ method: 'GET', url: '/suppliers', signal }),
+        request({ method: 'GET', url: '/ivas', signal }),
+        request({ method: 'GET', url: '/branches', signal })
+      ]);
+
+      if (!open) return;
+
+      const getArray = (res: any) => Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+      setCategories(getArray(categoriesResponse));
+      setMeasures(getArray(measuresResponse));
+      setSuppliers(getArray(suppliersResponse));
+      setIvas(getArray(ivasResponse));
+
+      const branchList = getArray(branchesResponse);
+
+      if (branchList.length > 0) {
+        const defaultBranchId = branchList[0].id;
+        setSelectedBranchId(defaultBranchId);
+        if (open) {
+          await fetchStockForBranch(defaultBranchId, signal);
+        }
+      }
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (error.name !== 'AbortError' && !error.message?.includes('canceled')) {
+        console.error("Error general al cargar catálogos:", error);
+        toast.error("Error al cargar datos necesarios para editar.");
+      }
+    }
+  }, [open, request, fetchStockForBranch]);
 
   useEffect(() => {
     if (open && product) {
       const controller = new AbortController();
       fetchCatalogs(controller.signal);
-      
+
       const initialData: ProductFormData = {
         description: product.description || '',
         unit_price: product.unit_price?.toString() || '0',
-        markup: typeof product.markup === 'string' ? (parseFloat(product.markup) * 100).toFixed(2) : 
-                typeof product.markup === 'number' ? (product.markup * 100).toFixed(2) : '0',
+        markup: typeof product.markup === 'string' ? (parseFloat(product.markup) * 100).toFixed(2) :
+          typeof product.markup === 'number' ? (product.markup * 100).toFixed(2) : '0',
         sale_price: product.sale_price?.toString() || '0',
         category_id: product.category_id?.toString() || '',
         measure_id: product.measure_id?.toString() || '',
@@ -120,15 +187,15 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     } else {
       setFormData(null);
     }
-  }, [open, product, formatMarkup]);
+  }, [open, product, formatMarkup, fetchCatalogs]);
 
   // Sincronizar formData.markup con pricing.markup cuando el hook lo recalcula
   // PERO NO cuando el usuario está editando el campo markup directamente
   useEffect(() => {
     if (!formData || !pricing.hasChanged || editingFieldRef.current === 'markup') return;
-    
+
     const markupAsPercentage = (pricing.markup * 100).toFixed(2);
-    
+
     // Solo actualizar si realmente cambió
     if (prevPricingRef.current.markup !== pricing.markup && formData.markup !== markupAsPercentage) {
       setFormData(prev => prev ? { ...prev, markup: markupAsPercentage } : null);
@@ -138,7 +205,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
 
   // Funciones para verificar duplicados
-  const checkCodeExists = async (code: string) => {
+  const checkCodeExists = useCallback(async (code: string) => {
     if (!code.trim() || !product?.id) {
       setCodeError("");
       return;
@@ -150,7 +217,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         method: 'GET',
         url: `/products/check-code/${encodeURIComponent(code)}`
       });
-      
+
       if (response.exists && code !== product.code) {
         setCodeError("Este código ya está en uso");
         toast.error("Este código ya está en uso", {
@@ -159,15 +226,15 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       } else {
         setCodeError("");
       }
-    } catch (error) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error("Error checking code:", error);
       setCodeError("");
     } finally {
       setIsCheckingCode(false);
     }
-  };
+  }, [product, request]);
 
-  const checkDescriptionExists = async (description: string) => {
+  const checkDescriptionExists = useCallback(async (description: string) => {
     if (!description.trim() || !product?.id) {
       setDescriptionError("");
       return;
@@ -179,7 +246,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         method: 'GET',
         url: `/products/check-description/${encodeURIComponent(description)}`
       });
-      
+
       if (response.exists && description !== product.description) {
         setDescriptionError("Esta descripción ya está en uso");
         toast.error("Esta descripción ya está en uso", {
@@ -188,80 +255,16 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       } else {
         setDescriptionError("");
       }
-    } catch (error) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error("Error checking description:", error);
       setDescriptionError("");
     } finally {
       setIsCheckingDescription(false);
     }
-  };
+  }, [product, request]);
 
-  const fetchCatalogs = async (signal?: AbortSignal) => {
-    if (!open) return;
-    
-    try {
-      const [categoriesResponse, measuresResponse, suppliersResponse, ivasResponse, branchesResponse] = await Promise.all([
-        request({ method: 'GET', url: '/categories/for-selector', signal }),
-        request({ method: 'GET', url: '/measures', signal }),
-        request({ method: 'GET', url: '/suppliers', signal }),
-        request({ method: 'GET', url: '/ivas', signal }),
-        request({ method: 'GET', url: '/branches', signal })
-      ]);
 
-      if (!open) return;
 
-      const getArray = (res: any) => Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-      
-      setCategories(getArray(categoriesResponse));
-      setMeasures(getArray(measuresResponse));
-      setSuppliers(getArray(suppliersResponse));
-      setIvas(getArray(ivasResponse));
-      
-      const branchList = getArray(branchesResponse);
-      
-      if (branchList.length > 0) {
-        const defaultBranchId = branchList[0].id;
-        setSelectedBranchId(defaultBranchId);
-        if (open) {
-          await fetchStockForBranch(defaultBranchId, signal);
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError' && !error.message?.includes('canceled')) {
-        console.error("Error general al cargar catálogos:", error);
-        toast.error("Error al cargar datos necesarios para editar.");
-      }
-    }
-  };
-
-  const fetchStockForBranch = async (branchId: number, signal?: AbortSignal) => {
-    if (!product) return;
-    try {
-      const stockResponse = await request({ 
-        method: 'GET', 
-        url: `/stocks?product_id=${product.id}&branch_id=${branchId}`, 
-        signal 
-      });
-      
-      const stockList = Array.isArray(stockResponse) ? stockResponse : (stockResponse?.data ?? []);
-      const stock = stockList.find((s: any) => s.product_id === product.id && s.branch_id === branchId);
-      
-      if (stock) {
-        setCurrentStock(stock);
-        setStockData({
-          min_stock: stock.min_stock?.toString() || "",
-          max_stock: stock.max_stock?.toString() || ""
-        });
-      } else {
-        setCurrentStock(null);
-        setStockData({ min_stock: "", max_stock: "" });
-      }
-    } catch (error: any) {
-      if (error.name !== 'AbortError' && !error.message?.includes('canceled')) {
-        console.error("Error al cargar stock:", error);
-      }
-    }
-  };
 
   const handleInputChange = useCallback((field: keyof ProductFormData, value: string) => {
     if (!formData) return;
@@ -277,7 +280,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       }, 500);
       return () => clearTimeout(timeoutId);
     }
-    
+
     if (field === 'description') {
       const timeoutId = setTimeout(() => {
         checkDescriptionExists(value);
@@ -287,16 +290,17 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
     // Actualizar cálculos de precios según el campo editado
     const numericValue = parseFloat(value) || 0;
-    
+
     switch (field) {
       case 'unit_price':
         updateUnitPrice(numericValue);
         break;
-      case 'markup':
+      case 'markup': {
         // Convertir porcentaje a decimal
         const markupDecimal = numericValue / 100;
         updateMarkup(markupDecimal);
         break;
+      }
       case 'sale_price': {
         // Permitir vacío o 0 mientras escribe sin recalcular inmediatamente
         if (value.trim() === '' || value === '0' || value === '0,00' || value === '0.00') {
@@ -309,14 +313,15 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       case 'currency':
         updateCurrency(value);
         break;
-      case 'iva_id':
+      case 'iva_id': {
         const selectedIva = ivas.find(iva => iva.id.toString() === value);
         if (selectedIva) {
           updateIvaRate(selectedIva.rate / 100);
         }
         break;
+      }
     }
-  }, [formData, updateUnitPrice, updateMarkup, updateSalePrice, updateCurrency, updateIvaRate, ivas]);
+  }, [formData, updateUnitPrice, updateMarkup, updateSalePrice, updateCurrency, updateIvaRate, ivas, checkCodeExists, checkDescriptionExists]);
 
   const handleSubmit = async () => {
     if (!formData || !product) return;
@@ -331,12 +336,12 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     if (stockData.min_stock && stockData.max_stock) {
       const minStock = parseFloat(stockData.min_stock);
       const maxStock = parseFloat(stockData.max_stock);
-      
-      if (minStock <= 0) {
-        toast.error("El stock mínimo debe ser mayor que 0");
+
+      if (minStock < 0) {
+        toast.error("El stock mínimo no puede ser negativo");
         return;
       }
-      
+
       if (maxStock <= minStock) {
         toast.error("El stock máximo debe ser mayor que el stock mínimo");
         return;
@@ -351,14 +356,14 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       const salePriceValue = userEditedSalePrice
         ? (parseFloat(formData.sale_price) || 0)
         : Math.round(pricing.salePrice);
-      
+
       // Detectar si el usuario cambió el precio manualmente
       // Calculamos qué debería ser el precio automático con los datos actuales
-  const unitPrice = parseFloat(formData.unit_price);
-      
-  // Usar el markup del hook (que se recalcula automáticamente)
+      const unitPrice = parseFloat(formData.unit_price);
+
+      // Usar el markup del hook (que se recalcula automáticamente)
       const markupDecimal = pricing.markup;
-      
+
       const submitData = {
         ...formData,
         unit_price: unitPrice,
@@ -373,12 +378,12 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
       // Solo enviar la descripción si ha cambiado
       if (formData.description === product.description) {
-        delete submitData.description;
+        delete (submitData as any).description; // eslint-disable-line @typescript-eslint/no-explicit-any
       }
 
       // Solo enviar el código si ha cambiado
       if (formData.code === product.code) {
-        delete submitData.code;
+        delete (submitData as any).code; // eslint-disable-line @typescript-eslint/no-explicit-any
       }
 
       // Eliminar campos vacíos
@@ -388,7 +393,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         }
       });
 
-  // Nota: removidos logs de depuración para UX limpia
+      // Nota: removidos logs de depuración para UX limpia
 
       await request({
         method: 'PUT',
@@ -423,16 +428,16 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       toast.success("Producto actualizado correctamente");
       onProductUpdated();
       onOpenChange(false);
-      
+
       // Refrescar la entidad
       dispatch({ type: 'SET_ENTITIES', entityType: 'products', entities: [] });
 
-    } catch (error: any) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       console.error("Error al actualizar producto:", error);
-      
+
       if (error.response?.data?.errors) {
         const errors = error.response.data.errors;
-        Object.values(errors).flat().forEach((errorMsg: any) => {
+        Object.values(errors).flat().forEach((errorMsg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
           toast.error(errorMsg);
         });
       } else {

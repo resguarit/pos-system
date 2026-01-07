@@ -324,6 +324,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [SaleController::class, 'index']);
         Route::get('/summary', [SaleController::class, 'summary']);
         Route::get('/summary/all-branches', [SaleController::class, 'summaryAllBranches']);
+        Route::get('/sold-products-for-transfer', [SaleController::class, 'getSoldProductsForTransfer']);
         Route::get('/{id}', [SaleController::class, 'show'])->whereNumber('id');
 
         // Rutas que requieren caja abierta
@@ -423,9 +424,20 @@ Route::middleware('auth:sanctum')->group(function () {
         // Gestión de límites
         Route::patch('/{accountId}/credit-limit', [CurrentAccountController::class, 'updateCreditLimit']);
 
+        // Actualización de precios de ventas pendientes
+        Route::get('/{accountId}/sales/{saleId}/price-preview', [CurrentAccountController::class, 'previewSalePriceUpdate']);
+        Route::post('/{accountId}/sales/{saleId}/update-price', [CurrentAccountController::class, 'updateSalePrice']);
+        Route::get('/{accountId}/sales/batch-price-preview', [CurrentAccountController::class, 'previewBatchPriceUpdate']);
+
         // Estadísticas y reportes (con parámetro)
         Route::get('/{accountId}/statistics', [CurrentAccountController::class, 'statistics']);
         Route::get('/{accountId}/export-movements', [CurrentAccountController::class, 'exportMovements']);
+    });
+
+    // Rutas globales para actualización masiva de precios (todas las cuentas)
+    Route::prefix('sales')->group(function () {
+        Route::get('/batch-price-preview', [CurrentAccountController::class, 'previewGlobalBatchPriceUpdate']);
+        Route::post('/batch-update-prices', [CurrentAccountController::class, 'batchUpdatePrices']);
     });
 
     Route::prefix('movement-types')->group(function () {
