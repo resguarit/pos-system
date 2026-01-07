@@ -425,6 +425,14 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     });
   }, []);
 
+  const reset = useCallback(() => {
+    setForm(initialFormState(preselectedSourceBranchId));
+    setItems([]);
+    if (!isEditMode) {
+      clearDraft();
+    }
+  }, [preselectedSourceBranchId, isEditMode]);
+
   const validateForm = useCallback((): { valid: boolean; errors: Record<string, string> } => {
     const payload = {
       source_branch_id: parseInt(form.source_branch_id) || 0,
@@ -494,13 +502,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     }
   }, [form, items, validateForm, isEditMode, transferId, onSuccess, onClose, reset]);
 
-  const reset = useCallback(() => {
-    setForm(initialFormState(preselectedSourceBranchId));
-    setItems([]);
-    if (!isEditMode) {
-      clearDraft();
-    }
-  }, [preselectedSourceBranchId, isEditMode]);
+
 
   const getSourceBranchName = useCallback((): string => {
     const branch = branches.find(b => b.id.toString() === form.source_branch_id);
