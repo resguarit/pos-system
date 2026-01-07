@@ -31,7 +31,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_DIPAG_VPS_HOST || secrets.VPS_HOST }}
-        port: 5507
+        port: 5614
         username: posdeployer
         key: ${{ secrets.CLIENT_DIPAG_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         script: |
@@ -138,7 +138,7 @@ jobs:
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.CLIENT_DIPAG_VPS_HOST || secrets.VPS_HOST }}
-        port: 5507
+        port: 5614
         username: posdeployer
         key: ${{ secrets.CLIENT_DIPAG_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
@@ -150,7 +150,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_DIPAG_VPS_HOST || secrets.VPS_HOST }}
-        port: 5507
+        port: 5614
         username: posdeployer
         key: ${{ secrets.CLIENT_DIPAG_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         script: |
