@@ -41,32 +41,25 @@ class ReconcileAccountBalances extends Command
             // Current Balance stored in DB
             $storedBalance = (float) $account->current_balance;
 
-            // Also check the "total_pending_debt" if it exists
-            $storedPendingDebt = (float) ($account->total_pending_debt ?? 0);
-
             // Epsilon for float comparison
             $epsilon = 0.01;
 
             // Check for discrepancies
             $balanceDiscrepancy = abs($storedBalance - $realPendingDebt) > $epsilon;
-            $pendingDebtDiscrepancy = abs($storedPendingDebt - $realPendingDebt) > $epsilon;
 
-            $hasDiscrepancy = $balanceDiscrepancy || $pendingDebtDiscrepancy;
-
-            if ($hasDiscrepancy || $verboseAll) {
+            if ($balanceDiscrepancy || $verboseAll) {
                 $customerName = $account->customer
                     ? ($account->customer->person
                         ? trim($account->customer->person->first_name . ' ' . $account->customer->person->last_name)
                         : $account->customer->email)
                     : 'Sin cliente';
 
-                if ($hasDiscrepancy) {
+                if ($balanceDiscrepancy) {
                     $this->error("❌ Account #{$account->id} - {$customerName}");
                     $problemsFound[] = [
                         'id' => $account->id,
                         'customer' => $customerName,
                         'stored_balance' => $storedBalance,
-                        'stored_pending_debt' => $storedPendingDebt,
                         'real_pending_debt' => $realPendingDebt,
                         'difference' => $realPendingDebt - $storedBalance,
                     ];
@@ -75,10 +68,9 @@ class ReconcileAccountBalances extends Command
                 }
 
                 $this->line("   Stored current_balance:    \${$storedBalance}");
-                $this->line("   Stored total_pending_debt: \${$storedPendingDebt}");
                 $this->line("   Real pending from sales:   \${$realPendingDebt}");
 
-                if ($hasDiscrepancy) {
+                if ($balanceDiscrepancy) {
                     $diff = $realPendingDebt - $storedBalance;
                     $this->line("   -> Difference: " . ($diff >= 0 ? '+' : '') . "\${$diff}");
 
@@ -88,7 +80,6 @@ class ReconcileAccountBalances extends Command
 
                             // Update the account balance
                             $account->current_balance = $realPendingDebt;
-                            $account->total_pending_debt = $realPendingDebt;
                             $account->save();
 
                             DB::commit();
@@ -159,6 +150,9 @@ class ReconcileAccountBalances extends Command
 
         $totalPending = 0;
         foreach ($pendingSales as $sale) {
+            // We use the 'pending_amount' accessor or calculation
+            // Assuming pending_amount is available on SaleHeader model
+            // If not, we should calculate it: total - paid_amount
             $pending = $sale->pending_amount;
             if ($pending > 0.01) {
                 $totalPending += $pending;
