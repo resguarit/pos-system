@@ -9,119 +9,162 @@ use Illuminate\Support\Facades\DB;
 
 class ReconcileAccountBalances extends Command
 {
-    protected $signature = 'fix:reconcile-accounts {--dry-run : Run without making changes} {--account-id= : Fix specific account}';
-    protected $description = 'Reconcile Current Account Balance with Pending Sales by applying unallocated credits';
+    protected $signature = 'fix:reconcile-accounts 
+                            {--dry-run : Run without making changes} 
+                            {--account-id= : Fix specific account}
+                            {--verbose-all : Show all accounts, not just problematic ones}';
+
+    protected $description = 'Reconcile Current Account Balance with actual pending sales totals';
 
     public function handle()
     {
         $dryRun = $this->option('dry-run');
         $accountId = $this->option('account-id');
+        $verboseAll = $this->option('verbose-all');
 
         $this->info($dryRun ? "🔍 RUNNING IN DRY-RUN MODE" : "⚠️  RUNNING IN EXECUTE MODE");
+        $this->newLine();
 
-        $query = CurrentAccount::query();
+        $query = CurrentAccount::with('customer');
         if ($accountId) {
             $query->where('id', $accountId);
         }
 
         $accounts = $query->get();
         $fixedCount = 0;
+        $problemsFound = [];
 
         foreach ($accounts as $account) {
-            // Calculate actual total pending debt from sales
-            $totalPendingSales = 0;
-            $sales = collect([]);
+            // Calculate REAL total pending debt from sales
+            $realPendingDebt = $this->calculateRealPendingDebt($account);
 
-            if ($account->customer_id) {
-                $sales = SaleHeader::where('customer_id', $account->customer_id)
-                    ->whereNotIn('status', ['rejected', 'annulled'])
-                    ->where(function ($query) {
-                        $query->whereNull('payment_status')
-                            ->orWhereIn('payment_status', ['pending', 'partial']);
-                    })
-                    ->orderBy('date', 'asc') // Oldest first
-                    ->get();
+            // Current Balance stored in DB
+            $storedBalance = (float) $account->current_balance;
 
-                foreach ($sales as $sale) {
-                    if ($sale->pending_amount > 0.01) {
-                        $totalPendingSales += $sale->pending_amount;
-                    }
-                }
-            }
+            // Also check the "total_pending_debt" if it exists
+            $storedPendingDebt = (float) ($account->total_pending_debt ?? 0);
 
-            // Current Balance in DB (e.g. 0.00)
-            $currentBalance = $account->current_balance;
-
-            // If we have Pending Debt > Current Balance, means we have "Hidden Credits" in the balance
-            // that were not applied to the sales.
-            // Example: Debt = 12900, Balance = 0.
-            // Means we paid 12900 (balance went down), but sale is still pending.
-            // Difference = 12900 - 0 = 12900 credit available to apply.
-
-            // If Balance is POSITIVE, it means DEBT.
-            // So if PendingDebt (100) > CurrentBalance (0), we have 100 unallocated credit.
-
+            // Epsilon for float comparison
             $epsilon = 0.01;
 
-            if ($totalPendingSales > ($currentBalance + $epsilon)) {
-                $unallocatedCredit = $totalPendingSales - $currentBalance;
+            // Check for discrepancies
+            $balanceDiscrepancy = abs($storedBalance - $realPendingDebt) > $epsilon;
+            $pendingDebtDiscrepancy = abs($storedPendingDebt - $realPendingDebt) > $epsilon;
 
-                $this->alert("Account #{$account->id} (Customer {$account->customer_id}) needs reconciliation");
-                $this->info("  Current Balance: {$currentBalance}");
-                $this->info("  Total Pending Sales: {$totalPendingSales}");
-                $this->info("  -> Unallocated Credit to Apply: {$unallocatedCredit}");
+            $hasDiscrepancy = $balanceDiscrepancy || $pendingDebtDiscrepancy;
 
-                if ($unallocatedCredit > 0.01) {
-                    $fixedCount++;
-                    $remainingCredit = $unallocatedCredit;
+            if ($hasDiscrepancy || $verboseAll) {
+                $customerName = $account->customer
+                    ? ($account->customer->person
+                        ? trim($account->customer->person->first_name . ' ' . $account->customer->person->last_name)
+                        : $account->customer->email)
+                    : 'Sin cliente';
 
-                    DB::beginTransaction();
-                    try {
-                        foreach ($sales as $sale) {
-                            if ($remainingCredit <= 0.001)
-                                break;
+                if ($hasDiscrepancy) {
+                    $this->error("❌ Account #{$account->id} - {$customerName}");
+                    $problemsFound[] = [
+                        'id' => $account->id,
+                        'customer' => $customerName,
+                        'stored_balance' => $storedBalance,
+                        'stored_pending_debt' => $storedPendingDebt,
+                        'real_pending_debt' => $realPendingDebt,
+                        'difference' => $realPendingDebt - $storedBalance,
+                    ];
+                } else {
+                    $this->info("✅ Account #{$account->id} - {$customerName}");
+                }
 
-                            $pending = $sale->pending_amount;
-                            if ($pending <= 0.01)
-                                continue;
+                $this->line("   Stored current_balance:    \${$storedBalance}");
+                $this->line("   Stored total_pending_debt: \${$storedPendingDebt}");
+                $this->line("   Real pending from sales:   \${$realPendingDebt}");
 
-                            // Amount we can pay on this sale
-                            $paymentAmount = min($pending, $remainingCredit);
+                if ($hasDiscrepancy) {
+                    $diff = $realPendingDebt - $storedBalance;
+                    $this->line("   -> Difference: " . ($diff >= 0 ? '+' : '') . "\${$diff}");
 
-                            $this->line("    Sale #{$sale->receipt_number}: Pending {$pending} -> Paying {$paymentAmount}");
+                    if (!$dryRun) {
+                        try {
+                            DB::beginTransaction();
 
-                            if (!$dryRun) {
-                                // Apply payment logic manually to avoid creating new movements
-                                // We just want to update SaleHeader status
-                                $sale->paid_amount += $paymentAmount;
+                            // Update the account balance
+                            $account->current_balance = $realPendingDebt;
+                            $account->total_pending_debt = $realPendingDebt;
+                            $account->save();
 
-                                // Check status update
-                                if ($sale->paid_amount >= ($sale->total - 0.01)) {
-                                    $sale->payment_status = 'paid';
-                                    if (abs($sale->paid_amount - $sale->total) < 0.01) {
-                                        $sale->paid_amount = $sale->total; // Snap to total
-                                    }
-                                } elseif ($sale->paid_amount > 0) {
-                                    $sale->payment_status = 'partial';
-                                }
+                            DB::commit();
 
-                                $sale->save();
-                                $this->info("      [FIXED] Sale updated.");
-                            }
-
-                            $remainingCredit -= $paymentAmount;
+                            $fixedCount++;
+                            $this->info("   [FIXED] Balance updated to \${$realPendingDebt}");
+                        } catch (\Exception $e) {
+                            DB::rollBack();
+                            $this->error("   [ERROR] " . $e->getMessage());
                         }
-
-                        DB::commit();
-                    } catch (\Exception $e) {
-                        DB::rollBack();
-                        $this->error("Error fixing account {$account->id}: " . $e->getMessage());
+                    } else {
+                        $this->warn("   [WOULD FIX] Balance would be set to \${$realPendingDebt}");
                     }
                 }
+
+                $this->newLine();
             }
         }
 
-        $this->info("\nDone. Fixed {$fixedCount} accounts.");
+        // Summary
+        $this->newLine();
+        $this->info("=== SUMMARY ===");
+        $this->line("Total accounts checked: " . $accounts->count());
+        $this->line("Accounts with discrepancies: " . count($problemsFound));
+
+        if ($dryRun) {
+            $this->warn("Accounts that WOULD be fixed: " . count($problemsFound));
+        } else {
+            $this->info("Accounts fixed: {$fixedCount}");
+        }
+
+        // Table summary of problems
+        if (count($problemsFound) > 0) {
+            $this->newLine();
+            $this->table(
+                ['ID', 'Cliente', 'Saldo Guardado', 'Deuda Real', 'Diferencia'],
+                array_map(fn($p) => [
+                    $p['id'],
+                    substr($p['customer'], 0, 25),
+                    '$' . number_format($p['stored_balance'], 2),
+                    '$' . number_format($p['real_pending_debt'], 2),
+                    ($p['difference'] >= 0 ? '+$' : '-$') . number_format(abs($p['difference']), 2),
+                ], $problemsFound)
+            );
+        }
+
         return 0;
+    }
+
+    /**
+     * Calculate the real pending debt from actual sales
+     */
+    private function calculateRealPendingDebt(CurrentAccount $account): float
+    {
+        if (!$account->customer_id) {
+            return 0;
+        }
+
+        // Get all non-annulled, non-rejected sales for this customer
+        // that are pending or partial payment
+        $pendingSales = SaleHeader::where('customer_id', $account->customer_id)
+            ->whereNotIn('status', ['rejected', 'annulled'])
+            ->where(function ($query) {
+                $query->whereNull('payment_status')
+                    ->orWhereIn('payment_status', ['pending', 'partial']);
+            })
+            ->get();
+
+        $totalPending = 0;
+        foreach ($pendingSales as $sale) {
+            $pending = $sale->pending_amount;
+            if ($pending > 0.01) {
+                $totalPending += $pending;
+            }
+        }
+
+        return round($totalPending, 2);
     }
 }
