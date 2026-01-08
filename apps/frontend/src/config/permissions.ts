@@ -344,6 +344,7 @@ export const PERMISSIONS_CONFIG = {
       'crear_envios',       // Crear nuevos envíos
       'editar_envios',      // Editar envíos existentes
       'cancelar_envio',     // Cancelar envíos
+      'gestionar_envios',   // Gestionar estados/etapas de envíos
       'registrar_pago_envio', // Registar pago de envío
       'imprimir_etiqueta_envio' // Imprimir etiquetas
     ]
@@ -377,8 +378,7 @@ export const PERMISSIONS_CONFIG = {
 export function getActivePermissions() {
   const activePermissions: string[] = [];
 
-  Object.entries(PERMISSIONS_CONFIG).forEach(([_, config]) => {
-    // @ts-ignore - FEATURES puede no estar completamente tipado
+  Object.entries(PERMISSIONS_CONFIG).forEach(([, config]) => {
     if (FEATURES[config.feature as keyof typeof FEATURES]) {
       activePermissions.push(...config.permissions);
     }

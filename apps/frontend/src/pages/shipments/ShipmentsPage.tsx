@@ -329,7 +329,7 @@ export default function ShipmentsPage() {
     lastWeek.setDate(lastWeek.getDate() - 7);
 
     let from = '';
-    let to = today.toISOString().split('T')[0];
+    const to = today.toISOString().split('T')[0];
 
     switch (preset) {
       case 'today':
@@ -548,6 +548,10 @@ export default function ShipmentsPage() {
           <Button variant="outline" onClick={handleRefresh}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             Actualizar
+          </Button>
+          <Button variant="outline" onClick={() => navigate('/dashboard/envios/etapas')}>
+            <TrendingUp className="mr-2 h-4 w-4" />
+            Configurar Etapas
           </Button>
           {hasPermission('crear_envios') && (
             <Button onClick={handleNewShipment} className="gap-2">

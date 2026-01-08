@@ -680,11 +680,15 @@ class CurrentAccountController extends Controller
             // Incluir todas las ventas EXCEPTO rechazadas
             // Las ventas anuladas que tengan saldo pendiente también se muestran
             $pendingSales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                ->whereNotIn('status', ['rejected', 'annulled']) // Excluir rechazadas y anuladas
-                ->where(function ($query) {
-                    $query->whereNull('payment_status')
-                        ->orWhereIn('payment_status', ['pending', 'partial']);
-                })
+                ->validForDebt()
+                ->pendingDebt()
+                ->withSum([
+                    'currentAccountMovements as surcharge_total' => function ($query) {
+                        $query->whereHas('movementType', function ($q) {
+                            $q->where('name', 'Recargo');
+                        });
+                    }
+                ], 'amount')
                 ->orderBy('created_at', 'desc')
                 ->get()
                 ->filter(function ($sale) {
@@ -696,11 +700,13 @@ class CurrentAccountController extends Controller
                         'id' => $sale->id,
                         'receipt_number' => $sale->receipt_number,
                         'date' => $sale->created_at ? $sale->created_at->format('Y-m-d') : 'N/A',
-                        'total' => (float) ($sale->total ?? 0),
+                        'total' => (float) ($sale->total ?? 0) + (float) ($sale->surcharge_total ?? 0),
                         'paid_amount' => (float) ($sale->paid_amount ?? 0),
-                        'pending_amount' => (float) $sale->pending_amount,
+                        'pending_amount' => (float) $sale->pending_amount, // Ya incluye recargo por el accessor
                         'payment_status' => $sale->payment_status ?? 'pending',
                         'branch_id' => $sale->branch_id,
+                        'original_total' => (float) ($sale->total ?? 0),
+                        'surcharge_amount' => (float) ($sale->surcharge_total ?? 0),
                     ];
                 })
                 ->values(); // Re-indexar el array después del filter
@@ -788,8 +794,29 @@ class CurrentAccountController extends Controller
     {
         try {
             $account = \App\Models\CurrentAccount::findOrFail($accountId);
+
+            // Get all pending sale IDs for this customer
+            $pendingSaleIds = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
+                ->validForDebt()
+                ->pendingDebt()
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($pendingSaleIds)) {
+                return response()->json([
+                    'status' => 200,
+                    'success' => true,
+                    'message' => 'No hay ventas pendientes para actualizar',
+                    'data' => [
+                        'sales' => [],
+                        'total_difference' => 0,
+                        'count' => 0
+                    ]
+                ], 200);
+            }
+
             $updateService = new \App\Services\UpdateSalePricesService();
-            $preview = $updateService->previewBatchPriceUpdate($account->customer_id);
+            $preview = $updateService->previewBatchPriceUpdate($pendingSaleIds);
 
             return response()->json([
                 'status' => 200,

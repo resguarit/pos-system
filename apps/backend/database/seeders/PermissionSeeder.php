@@ -173,9 +173,6 @@ class PermissionSeeder extends Seeder
             ['name' => 'crear_categorias_gastos', 'description' => 'Crear categoría de gasto', 'module' => 'categorias_gastos'],
             ['name' => 'editar_categorias_gastos', 'description' => 'Editar categoría de gasto', 'module' => 'categorias_gastos'],
             ['name' => 'eliminar_categorias_gastos', 'description' => 'Eliminar categoría de gasto', 'module' => 'categorias_gastos'],
-
-            // Nómina
-            ['name' => 'generar_nomina', 'description' => 'Generar liquidación de sueldos', 'module' => 'nomina'],
         ];
         foreach ($permissions as $permission) {
             Permission::updateOrCreate(['name' => $permission['name']], $permission);

@@ -49,6 +49,7 @@ import ReparacionesPage from '@/pages/dashboard/ReparacionesPage'
 import CombosPage from '@/pages/dashboard/CombosPage'
 import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
 import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
+import ShipmentStagesPage from '@/pages/shipments/ShipmentStagesPage'
 import DebugInfoPage from '@/pages/DebugInfoPage'
 import AuditoriasPage from '@/pages/dashboard/AuditoriasPage'
 import PaymentMethodsPage from '@/pages/dashboard/PaymentMethodsPage'
@@ -123,6 +124,7 @@ function App() {
 
 
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}
+          {features.shipments && <Route path="envios/etapas" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentStagesPage /></ProtectedRoute>} />}
           {features.shipments && <Route path="envios/:id" element={<ProtectedRoute permissions={['ver_envios']}><ViewShipmentPage /></ProtectedRoute>} />}
           {features.auditorias && <Route path="auditorias" element={<ProtectedRoute permissions={['ver_auditorias']}><AuditoriasPage /></ProtectedRoute>} />}
           {features.metodosPago && <Route path="metodos-pago" element={<ProtectedRoute permissions={['ver_metodos_pago']}><PaymentMethodsPage /></ProtectedRoute>} />}

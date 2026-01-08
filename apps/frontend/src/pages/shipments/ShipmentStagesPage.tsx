@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShipmentStage, Role } from '@/types/shipment';
 import { shipmentService } from '@/services/shipmentService';
 import StageConfigurator from '@/components/shipments/StageConfigurator';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
 
 const ShipmentStagesPage: React.FC = () => {
+  const navigate = useNavigate();
   const [stages, setStages] = useState<ShipmentStage[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,10 +21,10 @@ const ShipmentStagesPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const stagesResponse = await shipmentService.getStages();
       setStages(stagesResponse);
-      
+
       // TODO: Fetch roles from a roles service when available
       // For now, we'll use mock data
       setRoles([
@@ -50,13 +54,18 @@ const ShipmentStagesPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Configuración de Etapas</h1>
-          <p className="mt-2 text-gray-600">
-            Configura las etapas del proceso de envío y sus reglas de visibilidad
-          </p>
+        <div className="mb-8 flex items-center gap-4">
+          <Button variant="outline" size="icon" onClick={() => navigate('/dashboard/envios')}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Configuración de Etapas</h1>
+            <p className="mt-2 text-gray-600">
+              Configura las etapas del proceso de envío y sus reglas de visibilidad
+            </p>
+          </div>
         </div>
 
         {/* Error Message */}

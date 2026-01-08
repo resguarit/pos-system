@@ -11,8 +11,7 @@ class UpsertShipmentStageRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->hasPermission('shipment.stage.create') || 
-               $this->user()->hasPermission('shipment.stage.update');
+        return $this->user()->hasPermission('gestionar_envios');
     }
 
     /**

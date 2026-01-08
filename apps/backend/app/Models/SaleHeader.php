@@ -149,14 +149,30 @@ class SaleHeader extends Model
         return $this->hasMany(CurrentAccountMovement::class, 'sale_id');
     }
 
+    public function getSurchargeTotalAttribute(): float
+    {
+        // Si ya fue cargado con withSum, usar ese valor
+        if (isset($this->attributes['surcharge_total'])) {
+            return (float) $this->attributes['surcharge_total'];
+        }
+
+        return (float) $this->currentAccountMovements()
+            ->whereHas('movementType', function ($q) {
+                $q->where('name', 'Recargo');
+            })
+            ->sum('amount');
+    }
+
     /**
-     * Accessor para monto pendiente
+     * Accessor para monto pendiente (Incluye recargos)
      */
     public function getPendingAmountAttribute(): float
     {
         $total = (float) ($this->total ?? 0);
+        $surcharges = $this->getSurchargeTotalAttribute();
         $paid = (float) ($this->paid_amount ?? 0);
-        $pending = $total - $paid;
+        $pending = ($total + $surcharges) - $paid;
+
         // Fix precision issues returning tiny debts
         return $pending < 0.01 ? 0 : $pending;
     }
@@ -176,12 +192,14 @@ class SaleHeader extends Model
         $this->paid_amount = (float) $this->paid_amount + $amount;
 
         $epsilon = 0.01;
+        $surchargeTotal = $this->getSurchargeTotalAttribute();
+        $effectiveTotal = (float) $this->total + $surchargeTotal;
 
-        if ($this->paid_amount >= ($this->total - $epsilon)) {
+        if ($this->paid_amount >= ($effectiveTotal - $epsilon)) {
             $this->payment_status = 'paid';
             // Snap to total to avoid fractional drift
-            if (abs($this->paid_amount - $this->total) < $epsilon) {
-                $this->paid_amount = $this->total;
+            if (abs($this->paid_amount - $effectiveTotal) < $epsilon) {
+                $this->paid_amount = $effectiveTotal;
             }
         } elseif ($this->paid_amount > 0) {
             $this->payment_status = 'partial';
@@ -220,6 +238,25 @@ class SaleHeader extends Model
     public function scopeRejected($query)
     {
         return $query->where('status', 'rejected');
+    }
+
+    /**
+     * Scope para ventas válidas para deuda (no rechazadas ni anuladas)
+     */
+    public function scopeValidForDebt($query)
+    {
+        return $query->whereNotIn('status', ['rejected', 'annulled']);
+    }
+
+    /**
+     * Scope para ventas con deuda pendiente
+     */
+    public function scopePendingDebt($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('payment_status')
+                ->orWhereIn('payment_status', ['pending', 'partial']);
+        });
     }
 
     /**

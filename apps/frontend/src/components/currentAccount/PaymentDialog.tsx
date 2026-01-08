@@ -25,14 +25,21 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
-import { DollarSign, CreditCard, Loader2 } from 'lucide-react';
+import { DollarSign, CreditCard, Loader2, RefreshCw } from 'lucide-react';
 import {
   PendingSale,
   SalePayment,
   ProcessPaymentBySaleData
 } from '@/types/currentAccount';
 import { CurrentAccountService } from '@/lib/services/currentAccountService';
+import { UpdateSalePricesService } from '@/lib/services/updateSalePricesService';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useAuth } from '@/hooks/useAuth';
 import api from '@/lib/api';
@@ -43,11 +50,13 @@ interface PaymentDialogProps {
   accountId: number;
   currentBalance: number | null | undefined;
   onSuccess: () => void;
+  onDataRefresh?: () => void; // Nueva prop para refrescar datos sin cerrar el diálogo
 }
 
 interface PaymentMethod {
   id: number;
   name: string;
+  is_active?: boolean;
 }
 
 interface SalePaymentForm {
@@ -58,7 +67,7 @@ interface SalePaymentForm {
 }
 
 
-export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, onSuccess }: PaymentDialogProps) {
+export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onDataRefresh }: PaymentDialogProps) {
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [salePayments, setSalePayments] = useState<SalePaymentForm>({});
@@ -67,8 +76,10 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
   const [loadingSales, setLoadingSales] = useState(false);
   const [loadingMethods, setLoadingMethods] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [updatingSaleId, setUpdatingSaleId] = useState<number | null>(null);
+
   const { hasPermission } = usePermissions();
-  const { branches, currentBranch } = useAuth();
+  const { branches } = useAuth();
 
   const loadPaymentMethods = useCallback(async () => {
     try {
@@ -107,15 +118,26 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
       const sales = await CurrentAccountService.getPendingSales(accountId);
       setPendingSales(sales);
 
-      // Inicializar formulario
-      const initialForm: SalePaymentForm = {};
-      sales.forEach(sale => {
-        initialForm[sale.id] = {
-          selected: false,
-          amount: sale.pending_amount.toFixed(2)
-        };
+      // Inicializar formulario preservando selecciones previas si es posible
+      setSalePayments(prev => {
+        const newForm: SalePaymentForm = {};
+        sales.forEach(sale => {
+          // Si ya estaba en el form, mantener estado, sino inicializar
+          if (prev[sale.id]) {
+            newForm[sale.id] = prev[sale.id];
+            // Actualizar monto default solo si no estaba seleccionado (para reflejar nuevo total)
+            if (!prev[sale.id].selected) {
+              newForm[sale.id].amount = sale.pending_amount.toFixed(2);
+            }
+          } else {
+            newForm[sale.id] = {
+              selected: false,
+              amount: sale.pending_amount.toFixed(2)
+            };
+          }
+        });
+        return newForm;
       });
-      setSalePayments(initialForm);
     } catch (error) {
       console.error('Error loading pending sales:', error);
       toast.error('Error al cargar ventas pendientes');
@@ -128,7 +150,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
   // Detectar si todas las ventas seleccionadas son de la misma sucursal
   const getSelectedSalesBranchIds = useCallback((): number[] => {
     const selectedSaleIds = Object.entries(salePayments)
-      .filter(([_, payment]) => payment.selected)
+      .filter(([, payment]) => payment.selected)
       .map(([saleId]) => parseInt(saleId));
 
     const branchIds = selectedSaleIds
@@ -188,7 +210,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
     // Si está seleccionando una venta, verificar que sea de la misma sucursal que las ya seleccionadas
     if (selected) {
       const currentlySelectedSales = Object.entries(salePayments)
-        .filter(([_, payment]) => payment.selected)
+        .filter(([, payment]) => payment.selected)
         .map(([id]) => parseInt(id));
 
       if (currentlySelectedSales.length > 0) {
@@ -248,6 +270,38 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
         amount
       }
     }));
+  };
+
+  const handleUpdateSalePrice = async (saleId: number) => {
+    try {
+      setUpdatingSaleId(saleId);
+      const result = await UpdateSalePricesService.updateSalePrice(accountId, saleId);
+
+      if (result.success) {
+        // Verificar si hubo cambios significativos en el precio
+        const difference = Math.abs(result.difference || 0);
+
+        if (difference < 0.01) {
+          toast.info('Los precios ya están actualizados. No hay cambios.');
+        } else {
+          toast.success('Precio actualizado exitosamente');
+        }
+
+        // Recargar ventas para reflejar el nuevo monto
+        await loadPendingSales();
+        // Notificar al componente padre para actualizar las cards y balance (sin cerrar el diálogo)
+        if (onDataRefresh) {
+          onDataRefresh();
+        }
+      } else {
+        toast.error(result.message || 'Error al actualizar precio');
+      }
+    } catch (error: any) {
+      console.error('Error updating sale price:', error);
+      toast.error(error?.response?.data?.message || 'Error al actualizar precio');
+    } finally {
+      setUpdatingSaleId(null);
+    }
   };
 
 
@@ -339,9 +393,10 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
       toast.success('Pago procesado exitosamente');
       onSuccess();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error processing payment:', error);
-      const message = error?.response?.data?.message || error?.message || 'Error al procesar el pago';
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      const message = err?.response?.data?.message || err?.message || 'Error al procesar el pago';
       toast.error(message);
     } finally {
       setLoading(false);
@@ -357,7 +412,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[950px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center">
             <CreditCard className="h-5 w-5 mr-2" />
@@ -400,6 +455,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
                           <TableHead className="text-right">Pagado</TableHead>
                           <TableHead className="text-right">Pendiente</TableHead>
                           <TableHead className="text-right">Monto a Pagar</TableHead>
+                          <TableHead className="w-16 text-center">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -407,13 +463,14 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
                           const isSelected = salePayments[sale.id]?.selected || false;
                           const canSelect = canSelectSale(sale.id);
                           const isDisabled = !isSelected && !canSelect;
+                          const isUpdating = updatingSaleId === sale.id;
 
                           return (
                             <TableRow key={sale.id} className={isDisabled ? 'opacity-50' : ''}>
                               <TableCell>
                                 <Checkbox
                                   checked={isSelected}
-                                  disabled={isDisabled}
+                                  disabled={isDisabled || isUpdating}
                                   onCheckedChange={(checked) =>
                                     handleSaleSelection(sale.id, checked as boolean)
                                   }
@@ -460,7 +517,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
                                         handleAmountChange(sale.id, '0.00');
                                       }
                                     }}
-                                    disabled={!salePayments[sale.id]?.selected}
+                                    disabled={!salePayments[sale.id]?.selected || isUpdating}
                                     className="pl-10"
                                     placeholder="0.00"
                                   />
@@ -470,6 +527,31 @@ export function PaymentDialog({ open, onOpenChange, accountId, currentBalance, o
                                     Máximo permitido: ${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                                   </p>
                                 )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        disabled={isUpdating || isSelected}
+                                        onClick={() => handleUpdateSalePrice(sale.id)}
+                                        className="h-8 w-8"
+                                      >
+                                        {isUpdating ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <RefreshCw className="h-4 w-4 text-muted-foreground hover:text-primary transition-colors" />
+                                        )}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Aplicar recargo por actualización de precios</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                               </TableCell>
                             </TableRow>
                           );

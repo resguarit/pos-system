@@ -179,9 +179,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     if (open) {
       fetchUsers();
       fetchCustomers();
-      if (shipmentId) {
-        fetchShipmentData();
-      }
     } else {
       // Limpiar búsquedas cuando se cierra
       setTransporterSearch('');
@@ -190,7 +187,15 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       setShowCustomerOptions(false);
       setShowCancelConfirm(false);
     }
-  }, [open, shipmentId, fetchUsers, fetchCustomers, fetchShipmentData]);
+  }, [open, fetchUsers, fetchCustomers]);
+
+  // Segundo useEffect para cargar shipment data solo cuando users y customers ya están disponibles
+  useEffect(() => {
+    if (open && shipmentId && users.length > 0 && customers.length > 0) {
+      fetchShipmentData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, shipmentId, users.length, customers.length]);
 
   const handleUpdateShipment = async () => {
     if (!shipmentId) return;

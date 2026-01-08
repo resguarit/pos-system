@@ -34,6 +34,11 @@ class ShipmentPermissionSeeder extends Seeder
                 'module' => 'envios',
             ],
             [
+                'name' => 'gestionar_envios',
+                'description' => 'Gestionar estados/etapas de envíos',
+                'module' => 'envios',
+            ],
+            [
                 'name' => 'registrar_pago_envio',
                 'description' => 'Registrar pago de envío',
                 'module' => 'envios',

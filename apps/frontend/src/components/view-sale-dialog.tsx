@@ -99,17 +99,15 @@ const ViewSaleDialog = ({
     }).format(amount);
   };
 
-  const formatUnitPrice = (item: any) => {
-    if (!item || !item.product) return '$0.00';
-
-    // sale_price es el precio de venta con IVA del producto
-    const salePrice = Number(item.product.sale_price || 0);
+  const formatUnitPrice = (item: { unit_price?: number | string; product?: { sale_price?: number | string } }) => {
+    // Usar el precio unitario GUARDADO en la venta (unit_price), no el precio actual del producto
+    const unitPrice = Number(item.unit_price || item.product?.sale_price || 0);
 
     // Todos los precios de venta son en ARS
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: 'ARS'
-    }).format(salePrice);
+    }).format(unitPrice);
   };
 
   if (!saleToDisplay) {
@@ -119,38 +117,38 @@ const ViewSaleDialog = ({
   // --- INICIO DE LA MODIFICACIÓN ---
 
   // 1. Determinar si el comprobante es un presupuesto basándonos en los datos.
-  const isBudget = (saleToDisplay.receipt_type as any)?.afip_code === '016' || (saleToDisplay.receipt_type as any)?.name === 'Presupuesto' || (typeof saleToDisplay.receipt_type === 'string' ? saleToDisplay.receipt_type : saleToDisplay.receipt_type?.description || '').toLowerCase().includes('presupuesto');
+  const receiptType = saleToDisplay.receipt_type as { afip_code?: string; name?: string; description?: string } | string;
+  const isBudget = (typeof receiptType !== 'string' && receiptType?.afip_code === '016') || (typeof receiptType !== 'string' && receiptType?.name === 'Presupuesto') || (typeof receiptType === 'string' ? receiptType : receiptType?.description || '').toLowerCase().includes('presupuesto');
 
   // 2. Definir textos dinámicos basados en si es un presupuesto o una venta.
   const dialogTitle = isBudget ? "Detalle del Presupuesto" : "Detalle de Venta";
   const dialogDescription = isBudget ? "Información detallada del presupuesto." : "Información detallada de la venta.";
 
   // Usar el nombre directo del tipo de comprobante para mayor precisión.
-  const receiptName = (typeof saleToDisplay.receipt_type === 'string' ? saleToDisplay.receipt_type : saleToDisplay.receipt_type?.description) || getReceiptType(saleToDisplay).displayName;
+  const receiptName = (typeof receiptType === 'string' ? receiptType : receiptType?.description) || getReceiptType(saleToDisplay).displayName;
 
   // --- FIN DE LA MODIFICACIÓN ---
 
   // Helpers locales
   const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
-  const itemsArray = (saleToDisplay.items as any[]) || [];
-  const itemsDiscountSum = round2(itemsArray.reduce((s, it: any) => s + Number(it.discount_amount || 0), 0));
-  const totalDiscount = round2(Number((saleToDisplay as any).discount_amount || 0));
-  const globalDiscount = Math.max(0, round2(totalDiscount - itemsDiscountSum));
+  const totalDiscount = round2(Number((saleToDisplay as { discount_amount?: number | string }).discount_amount || 0));
 
   // Asegurarse de que los métodos de pago se obtienen correctamente
-  const payments = Array.isArray((saleToDisplay as any).payments)
-    ? (saleToDisplay as any).payments
-    : Array.isArray((saleToDisplay as any).sale_payments)
-      ? (saleToDisplay as any).sale_payments
-      : Array.isArray((saleToDisplay as any).salePayments)
-        ? (saleToDisplay as any).salePayments
+  type PaymentData = { id?: number; amount?: number | string; payment_method?: { name?: string; description?: string }; paymentMethod?: { name?: string; description?: string }; method?: { name?: string; description?: string }; method_name?: string; name?: string };
+  const saleWithPayments = saleToDisplay as { payments?: PaymentData[]; sale_payments?: PaymentData[]; salePayments?: PaymentData[] };
+  const payments = Array.isArray(saleWithPayments.payments)
+    ? saleWithPayments.payments
+    : Array.isArray(saleWithPayments.sale_payments)
+      ? saleWithPayments.sale_payments
+      : Array.isArray(saleWithPayments.salePayments)
+        ? saleWithPayments.salePayments
         : [];
 
   // Estado AFIP
   const isAuthorized = !!saleToDisplay.cae;
   const canAuthorizeThis = canAuthorize(saleToDisplay);
 
-  const getPaymentMethodName = (p: any) =>
+  const getPaymentMethodName = (p: PaymentData) =>
     p?.payment_method?.name ||
     p?.payment_method?.description ||
     p?.paymentMethod?.name ||
@@ -265,7 +263,7 @@ const ViewSaleDialog = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((p: any, idx: number) => (
+                  {payments.map((p, idx: number) => (
                     <TableRow key={p.id || idx}>
                       <TableCell>{getPaymentMethodName(p)}</TableCell>
                       <TableCell className="text-right">{formatCurrencyARS(Number(p.amount || 0))}</TableCell>
@@ -289,18 +287,21 @@ const ViewSaleDialog = ({
             </TableHeader>
             <TableBody>
               {saleToDisplay.items?.map((item) => {
-                const salePrice = Number((item as any).product?.sale_price || 0);
-                const quantity = Number((item as any).quantity || 0);
-                const discountAmount = Number((item as any).discount_amount || 0);
+                // Usar el precio unitario GUARDADO en la venta, no el precio actual del producto
+                type SaleItem = { id: number; unit_price?: number | string; product?: { sale_price?: number | string; description?: string }; quantity?: number | string; discount_amount?: number | string; description?: string };
+                const saleItem = item as SaleItem;
+                const unitPrice = Number(saleItem.unit_price || saleItem.product?.sale_price || 0);
+                const quantity = Number(saleItem.quantity || 0);
+                const discountAmount = Number(saleItem.discount_amount || 0);
 
-                // Calcular el total del item: (precio de venta * cantidad) - descuento
-                const itemTotal = (salePrice * quantity) - discountAmount;
+                // Calcular el total del item con el precio original de la venta
+                const itemTotal = (unitPrice * quantity) - discountAmount;
 
                 return (
-                  <TableRow key={item.id}>
-                    <TableCell>{(item as any).description || (item as any).product?.description || 'Sin descripción'}</TableCell>
+                  <TableRow key={saleItem.id}>
+                    <TableCell>{saleItem.description || saleItem.product?.description || 'Sin descripción'}</TableCell>
                     <TableCell className="text-right">{quantity}</TableCell>
-                    <TableCell className="text-right">{formatUnitPrice(item)}</TableCell>
+                    <TableCell className="text-right">{formatUnitPrice(saleItem)}</TableCell>
                     <TableCell className="text-right">{formatCurrencyARS(discountAmount)}</TableCell>
                     <TableCell className="text-right">{formatCurrencyARS(itemTotal)}</TableCell>
                   </TableRow>
@@ -321,10 +322,10 @@ const ViewSaleDialog = ({
                   <span>IVA:</span>
                   <span>{formatCurrencyARS(Number(saleToDisplay.total_iva_amount || 0))}</span>
                 </div>
-                {(saleToDisplay as any).discount_amount > 0 && (
+                {totalDiscount > 0 && (
                   <div className="flex justify-between text-red-600">
                     <span>Descuentos:</span>
-                    <span>-{formatCurrencyARS(Number((saleToDisplay as any).discount_amount || 0))}</span>
+                    <span>-{formatCurrencyARS(totalDiscount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold border-t pt-2">

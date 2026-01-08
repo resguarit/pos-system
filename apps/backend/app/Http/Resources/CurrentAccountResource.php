@@ -22,11 +22,8 @@ class CurrentAccountResource extends JsonResource
             // Incluir todas las ventas EXCEPTO rechazadas
             // Las ventas anuladas que tengan saldo pendiente también se incluyen
             $sales = \App\Models\SaleHeader::where('customer_id', $this->customer_id)
-                ->whereNotIn('status', ['rejected', 'annulled']) // Excluir rechazadas y anuladas
-                ->where(function ($query) {
-                    $query->whereNull('payment_status')
-                        ->orWhereIn('payment_status', ['pending', 'partial']);
-                })
+                ->validForDebt()
+                ->pendingDebt()
                 ->get();
 
             // Sumar el pending_amount de cada venta que tenga saldo pendiente

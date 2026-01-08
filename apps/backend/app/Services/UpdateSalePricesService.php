@@ -7,7 +7,9 @@ namespace App\Services;
 use App\Models\SaleHeader;
 use App\Models\SaleItem;
 use App\Models\Product;
+use App\Models\CurrentAccount;
 use App\Models\CurrentAccountMovement;
+use App\Models\MovementType;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Exception;
@@ -15,30 +17,61 @@ use Exception;
 class UpdateSalePricesService
 {
     /**
-     * Vista previa de actualización de precio para una venta individual
-     * 
-     * @param int $saleId ID de la venta
-     * @return array Detalles de cambios de precio
-     * @throws Exception Si la venta no se puede actualizar
+     * Alias for getSaleUpdatePreview (API compatibility)
      */
     public function previewSalePriceUpdate(int $saleId): array
     {
-        $sale = SaleHeader::with(['items.product', 'customer'])->findOrFail($saleId);
+        return $this->getSaleUpdatePreview($saleId);
+    }
 
-        // Validar que la venta se puede actualizar
-        $this->validateSaleCanBeUpdated($sale);
+    /**
+     * Preview batch price update for multiple sales
+     */
+    public function previewBatchPriceUpdate(array $saleIds): array
+    {
+        $previews = [];
+        $totalDifference = 0;
 
-        $itemsPreview = [];
+        foreach ($saleIds as $saleId) {
+            try {
+                $preview = $this->getSaleUpdatePreview((int) $saleId);
+                $previews[] = $preview;
+                $totalDifference += $preview['difference'];
+            } catch (\Exception $e) {
+                $previews[] = [
+                    'sale_id' => $saleId,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        return [
+            'sales' => $previews,
+            'total_difference' => $totalDifference,
+            'count' => count($previews)
+        ];
+    }
+
+    /**
+     * Obtener vista previa de actualización de precios para una venta
+     * 
+     * @param int $saleId ID de la venta
+     * @return array Resumen de cambios
+     */
+    public function getSaleUpdatePreview(int $saleId): array
+    {
+        $sale = SaleHeader::with(['items.product', 'customer.person'])->findOrFail($saleId);
+
+        $oldTotal = (float) $sale->total;
         $newSubtotal = 0;
         $newTotalIva = 0;
+        $paidAmount = (float) $sale->paid_amount;
+        $items = [];
 
         foreach ($sale->items as $item) {
-            // Obtener precio actual del producto
             $product = $item->product;
-
-            if (!$product) {
-                throw new Exception("Producto no encontrado para el ítem de venta #{$item->id}");
-            }
+            if (!$product)
+                continue;
 
             $oldPrice = (float) $item->unit_price;
             $newPrice = (float) $product->sale_price;
@@ -47,7 +80,6 @@ class UpdateSalePricesService
             // Calcular nuevos valores
             $newItemSubtotal = $newPrice * $quantity;
             $newItemIva = $newItemSubtotal * ((float) $item->iva_rate / 100);
-            $newItemTotal = $newItemSubtotal + $newItemIva;
 
             // Aplicar descuento si existe
             $discountAmount = 0;
@@ -59,53 +91,54 @@ class UpdateSalePricesService
                 }
                 $newItemSubtotal -= $discountAmount;
                 $newItemIva = $newItemSubtotal * ((float) $item->iva_rate / 100);
-                $newItemTotal = $newItemSubtotal + $newItemIva;
             }
-
-            $itemsPreview[] = [
-                'id' => $item->id,
-                'product_name' => $product->description,
-                'quantity' => $quantity,
-                'old_price' => $oldPrice,
-                'new_price' => $newPrice,
-                'price_change' => $newPrice - $oldPrice,
-                'price_change_percentage' => $oldPrice > 0 ? (($newPrice - $oldPrice) / $oldPrice) * 100 : 0,
-                'old_total' => (float) $item->item_total,
-                'new_total' => $newItemTotal,
-            ];
 
             $newSubtotal += $newItemSubtotal;
             $newTotalIva += $newItemIva;
+
+            // Add item details for frontend
+            $priceChange = $newPrice - $oldPrice;
+            $priceChangePercentage = $oldPrice > 0 ? ($priceChange / $oldPrice) * 100 : 0;
+
+            $items[] = [
+                'id' => $item->id,
+                'product_name' => $product->name ?? 'Producto sin nombre',
+                'quantity' => $quantity,
+                'old_price' => $oldPrice,
+                'new_price' => $newPrice,
+                'price_change' => $priceChange,
+                'price_change_percentage' => $priceChangePercentage,
+            ];
         }
 
         // Aplicar descuento global de la venta si existe
-        $globalDiscount = 0;
         if ($sale->discount_type && $sale->discount_value > 0) {
+            $globalDiscount = 0;
             if ($sale->discount_type === 'percentage') {
                 $globalDiscount = $newSubtotal * ((float) $sale->discount_value / 100);
             } else {
                 $globalDiscount = (float) $sale->discount_value;
             }
+            $newSubtotal -= $globalDiscount;
+            // Recalcular IVA proporcional después del descuento
+            if (($newSubtotal + $globalDiscount) > 0) {
+                $newTotalIva = $newSubtotal * ($newTotalIva / ($newSubtotal + $globalDiscount));
+            }
         }
-
-        $newSubtotal -= $globalDiscount;
-        $newTotalIva = $newSubtotal * ($newTotalIva / ($newSubtotal + $globalDiscount)); // Recalcular IVA proporcional
 
         $newTotal = $newSubtotal + $newTotalIva + (float) $sale->iibb + (float) $sale->internal_tax;
 
-        $oldTotal = (float) $sale->total;
-        $paidAmount = (float) $sale->paid_amount;
+        // Get customer name
+        $customerName = '';
+        if ($sale->customer && $sale->customer->person) {
+            $customerName = ($sale->customer->person->first_name ?? '') . ' ' . ($sale->customer->person->last_name ?? '');
+        }
 
         return [
-            'can_update' => true,
             'sale_id' => $sale->id,
             'receipt_number' => $sale->receipt_number,
-            'customer_name' => $sale->customer ? $sale->customer->person->first_name . ' ' . $sale->customer->person->last_name : 'Cliente General',
-            'items' => $itemsPreview,
-            'old_subtotal' => (float) $sale->subtotal,
-            'new_subtotal' => $newSubtotal,
-            'old_total_iva' => (float) $sale->total_iva_amount,
-            'new_total_iva' => $newTotalIva,
+            'customer_name' => $customerName,
+            'items' => $items,
             'old_total' => $oldTotal,
             'new_total' => $newTotal,
             'difference' => $newTotal - $oldTotal,
@@ -116,7 +149,7 @@ class UpdateSalePricesService
     }
 
     /**
-     * Aplicar actualización de precio a una venta individual
+     * Aplicar actualización de precio a una venta individual mediante recargo
      * 
      * @param int $saleId ID de la venta
      * @return array Resultado de la actualización
@@ -130,15 +163,12 @@ class UpdateSalePricesService
             // Validar que la venta se puede actualizar
             $this->validateSaleCanBeUpdated($sale);
 
-            // Guardar valores originales para auditoría
+            // Calcular valores nuevos sin modificar la venta
             $oldTotal = (float) $sale->total;
-            $oldSubtotal = (float) $sale->subtotal;
-            $oldTotalIva = (float) $sale->total_iva_amount;
-
             $newSubtotal = 0;
             $newTotalIva = 0;
 
-            // Actualizar cada ítem
+            // Calcular nuevo total basado en precios actuales
             foreach ($sale->items as $item) {
                 $product = $item->product;
 
@@ -161,19 +191,9 @@ class UpdateSalePricesService
                     } else {
                         $discountAmount = (float) $item->discount_value;
                     }
-                    $item->discount_amount = $discountAmount;
                     $newItemSubtotal -= $discountAmount;
                     $newItemIva = $newItemSubtotal * ((float) $item->iva_rate / 100);
                 }
-
-                $newItemTotal = $newItemSubtotal + $newItemIva;
-
-                // Actualizar ítem
-                $item->unit_price = $newPrice;
-                $item->item_subtotal = $newItemSubtotal;
-                $item->item_iva = $newItemIva;
-                $item->item_total = $newItemTotal;
-                $item->save();
 
                 $newSubtotal += $newItemSubtotal;
                 $newTotalIva += $newItemIva;
@@ -187,7 +207,6 @@ class UpdateSalePricesService
                 } else {
                     $globalDiscount = (float) $sale->discount_value;
                 }
-                $sale->discount_amount = $globalDiscount;
                 $newSubtotal -= $globalDiscount;
                 // Recalcular IVA proporcional después del descuento
                 $newTotalIva = $newSubtotal * ($newTotalIva / ($newSubtotal + $globalDiscount));
@@ -195,232 +214,140 @@ class UpdateSalePricesService
 
             $newTotal = $newSubtotal + $newTotalIva + (float) $sale->iibb + (float) $sale->internal_tax;
 
-            // Actualizar venta
-            $sale->subtotal = $newSubtotal;
-            $sale->total_iva_amount = $newTotalIva;
-            $sale->total = $newTotal;
-            $sale->save();
+            $difference = $newTotal - $oldTotal;
 
-            // Actualizar movimiento de cuenta corriente si existe
-            $this->updateCurrentAccountMovement($sale, $oldTotal, $newTotal);
+            // Si la diferencia es positiva, crear movimiento de recargo
+            if ($difference > 0.01) {
+                $this->createSurchargeMovement($sale, $difference);
 
-            // Log de actividad
-            Log::info("Precio de venta actualizado", [
-                'sale_id' => $sale->id,
-                'receipt_number' => $sale->receipt_number,
-                'old_total' => $oldTotal,
-                'new_total' => $newTotal,
-                'difference' => $newTotal - $oldTotal,
-            ]);
+                // Log de actividad
+                Log::info("Recargo aplicado por actualización de precios", [
+                    'sale_id' => $sale->id,
+                    'receipt_number' => $sale->receipt_number,
+                    'old_total' => $oldTotal,
+                    'new_total' => $newTotal,
+                    'surcharge_amount' => $difference,
+                ]);
 
-            $paidAmount = (float) $sale->paid_amount;
+                return [
+                    'success' => true,
+                    'sale_id' => $sale->id,
+                    'receipt_number' => $sale->receipt_number,
+                    'old_total' => $oldTotal,
+                    'new_total' => $newTotal,
+                    'difference' => $difference,
+                    'message' => 'Recargo aplicado correctamente'
+                ];
+            }
 
             return [
-                'success' => true,
-                'sale_id' => $sale->id,
-                'receipt_number' => $sale->receipt_number,
-                'old_total' => $oldTotal,
-                'new_total' => $newTotal,
-                'difference' => $newTotal - $oldTotal,
-                'paid_amount' => $paidAmount,
-                'old_pending' => $oldTotal - $paidAmount,
-                'new_pending' => $newTotal - $paidAmount,
-                'message' => 'Precio actualizado correctamente',
+                'success' => false,
+                'message' => 'No hay diferencia de precio para aplicar'
             ];
         });
     }
 
     /**
-     * Vista previa de actualización masiva de precios
-     * 
-     * @param int|null $customerId ID del cliente (null = todos)
-     * @return array Resumen de cambios por cliente
+     * Actualizar precios de múltiples ventas
      */
-    public function previewBatchPriceUpdate(?int $customerId = null): array
-    {
-        $query = SaleHeader::with(['items.product', 'customer.person'])
-            ->whereIn('payment_status', ['pending', 'partial'])
-            ->whereNotIn('status', ['rejected', 'annulled']);
-
-        if ($customerId) {
-            $query->where('customer_id', $customerId);
-        }
-
-        $sales = $query->get();
-
-        $customerGroups = [];
-        $grandTotalDifference = 0;
-        $totalSalesWithChanges = 0;
-
-        foreach ($sales as $sale) {
-            try {
-                $preview = $this->previewSalePriceUpdate($sale->id);
-
-                // Solo incluir ventas con cambios de precio
-                if (abs($preview['difference']) < 0.01) {
-                    continue;
-                }
-
-                $totalSalesWithChanges++;
-                $grandTotalDifference += $preview['difference'];
-
-                $customerKey = $sale->customer_id ?? 0;
-                $customerName = $sale->customer
-                    ? $sale->customer->person->first_name . ' ' . $sale->customer->person->last_name
-                    : 'Cliente General';
-
-                if (!isset($customerGroups[$customerKey])) {
-                    $customerGroups[$customerKey] = [
-                        'customer_id' => $sale->customer_id,
-                        'customer_name' => $customerName,
-                        'sales' => [],
-                        'total_difference' => 0,
-                    ];
-                }
-
-                $customerGroups[$customerKey]['sales'][] = [
-                    'sale_id' => $sale->id,
-                    'receipt_number' => $sale->receipt_number,
-                    'date' => $sale->date->format('Y-m-d'),
-                    'old_total' => $preview['old_total'],
-                    'new_total' => $preview['new_total'],
-                    'difference' => $preview['difference'],
-                    'paid_amount' => $preview['paid_amount'],
-                    'old_pending' => $preview['old_pending'],
-                    'new_pending' => $preview['new_pending'],
-                    'items_count' => count($preview['items']),
-                ];
-
-                $customerGroups[$customerKey]['total_difference'] += $preview['difference'];
-
-            } catch (Exception $e) {
-                Log::warning("Error al generar preview para venta #{$sale->id}: " . $e->getMessage());
-                continue;
-            }
-        }
-
-        return [
-            'customers' => array_values($customerGroups),
-            'total_sales_with_changes' => $totalSalesWithChanges,
-            'grand_total_difference' => $grandTotalDifference,
-            'customers_affected' => count($customerGroups),
-        ];
-    }
-
-    /**
-     * Aplicar actualización masiva de precios
-     * 
-     * @param array $saleIds Array de IDs de ventas a actualizar
-     * @return array Resumen de actualizaciones
-     */
-    public function updateBatchPrices(array $saleIds): array
+    public function batchUpdateSalePrices(array $saleIds): array
     {
         $results = [
+            'total' => count($saleIds),
             'updated' => 0,
-            'failed' => 0,
-            'total_difference' => 0,
-            'details' => [],
-            'errors' => [],
+            'errors' => 0,
+            'details' => []
         ];
 
-        DB::beginTransaction();
-        try {
-            foreach ($saleIds as $saleId) {
-                try {
-                    $result = $this->updateSalePrice($saleId);
+        foreach ($saleIds as $id) {
+            try {
+                $result = $this->updateSalePrice((int) $id);
+                if ($result['success']) {
                     $results['updated']++;
-                    $results['total_difference'] += $result['difference'];
-                    $results['details'][] = $result;
-                } catch (Exception $e) {
-                    $results['failed']++;
-                    $results['errors'][] = [
-                        'sale_id' => $saleId,
-                        'error' => $e->getMessage(),
-                    ];
-                    Log::error("Error al actualizar venta #{$saleId}: " . $e->getMessage());
                 }
+                $results['details'][] = $result;
+            } catch (Exception $e) {
+                $results['errors']++;
+                $results['details'][] = [
+                    'success' => false,
+                    'sale_id' => $id,
+                    'message' => $e->getMessage()
+                ];
             }
-
-            // Si hubo algún error, hacer rollback de todo
-            if ($results['failed'] > 0) {
-                DB::rollBack();
-                throw new Exception("Se encontraron errores durante la actualización masiva. No se aplicó ningún cambio.");
-            }
-
-            DB::commit();
-
-            return array_merge($results, [
-                'success' => true,
-                'message' => "{$results['updated']} ventas actualizadas correctamente",
-            ]);
-
-        } catch (Exception $e) {
-            DB::rollBack();
-            throw $e;
         }
+
+        return $results;
     }
 
     /**
-     * Validar que una venta se puede actualizar
-     * 
-     * @param SaleHeader $sale
-     * @throws Exception Si la venta no se puede actualizar
+     * Validar si una venta puede ser actualizada
      */
     private function validateSaleCanBeUpdated(SaleHeader $sale): void
     {
-        // Solo ventas pendientes o parciales
-        if (!in_array($sale->payment_status, ['pending', 'partial'])) {
-            throw new Exception("Solo se pueden actualizar ventas pendientes o parcialmente pagadas");
+        // 1. Debe estar vinculada a una cuenta corriente (ya sea por payment_method o por cliente con cuenta)
+        $hasCurrentAccount = false;
+
+        if ($sale->payment_method === 'current_account') {
+            $hasCurrentAccount = true;
+        } elseif ($sale->customer_id) {
+            // Si tiene cliente, verificar si tiene cuenta corriente activa
+            $currentAccount = CurrentAccount::where('customer_id', $sale->customer_id)->first();
+            if ($currentAccount) {
+                $hasCurrentAccount = true;
+            }
         }
 
-        // No actualizar ventas rechazadas o anuladas
-        if (in_array($sale->status, ['rejected', 'annulled'])) {
-            throw new Exception("No se pueden actualizar ventas rechazadas o anuladas");
+        if (!$hasCurrentAccount) {
+            throw new Exception("La venta #{$sale->receipt_number} no está vinculada a una cuenta corriente");
         }
 
-        // Verificar que tiene ítems
-        if ($sale->items->isEmpty()) {
-            throw new Exception("La venta no tiene ítems");
+        // 2. Debe estar pendiente o parcial
+        if ($sale->payment_status === 'paid') {
+            throw new Exception("La venta #{$sale->receipt_number} ya está pagada por completo");
+        }
+
+        // 3. No debe estar anulada
+        if ($sale->status === 'canceled') {
+            throw new Exception("La venta #{$sale->receipt_number} está anulada");
+        }
+
+        // 4. Debe tener un cliente asignado
+        if (!$sale->customer_id) {
+            throw new Exception("La venta #{$sale->receipt_number} no tiene un cliente asignado");
         }
     }
 
     /**
-     * Actualizar el movimiento de cuenta corriente asociado a la venta
-     * 
-     * @param SaleHeader $sale
-     * @param float $oldTotal
-     * @param float $newTotal
+     * Crear movimiento de recargo en la cuenta corriente
      */
-    private function updateCurrentAccountMovement(SaleHeader $sale, float $oldTotal, float $newTotal): void
+    private function createSurchargeMovement(SaleHeader $sale, float $amount): void
     {
-        if (!$sale->customer_id) {
-            return; // No hay cuenta corriente si no hay cliente
+        $movementType = MovementType::where('name', 'Recargo')->first();
+        if (!$movementType) {
+            throw new Exception("Tipo de movimiento 'Recargo' no encontrado. Por favor ejecute las migraciones.");
         }
 
-        // Buscar movimiento de débito de la venta
-        $movement = CurrentAccountMovement::where('sale_id', $sale->id)
-            ->where('type', 'debit')
-            ->first();
-
-        if ($movement) {
-            $difference = $newTotal - $oldTotal;
-            $movement->amount = $newTotal;
-            $movement->balance_after += $difference;
-            $movement->save();
-
-            // Actualizar balance de la cuenta corriente
-            $account = $movement->currentAccount;
-            if ($account) {
-                $account->current_balance += $difference;
-                $account->save();
-            }
-
-            Log::info("Movimiento de cuenta corriente actualizado", [
-                'movement_id' => $movement->id,
-                'old_amount' => $oldTotal,
-                'new_amount' => $newTotal,
-                'difference' => $difference,
-            ]);
+        $currentAccount = CurrentAccount::where('customer_id', $sale->customer_id)->first();
+        if (!$currentAccount) {
+            throw new Exception("Cuenta corriente no encontrada para el cliente");
         }
+
+        $currentBalance = (float) $currentAccount->current_balance;
+        $newBalance = $currentBalance + $amount;
+
+        $movement = new CurrentAccountMovement();
+        $movement->current_account_id = $currentAccount->id;
+        $movement->sale_id = $sale->id;
+        $movement->movement_type_id = $movementType->id;
+        $movement->amount = (string) $amount;
+        $movement->balance_before = (string) $currentBalance;
+        $movement->balance_after = (string) $newBalance;
+        $movement->description = "Recargo por actualización de precios - Venta #{$sale->receipt_number}";
+        $movement->movement_date = now();
+        $movement->user_id = auth()->id() ?? 1;
+        $movement->save();
+
+        $currentAccount->current_balance = (string) $newBalance;
+        $currentAccount->save();
     }
 }

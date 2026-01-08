@@ -131,6 +131,16 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     }
   };
 
+  const handleDataRefresh = () => {
+    // Recargar solo los datos necesarios sin cerrar el diálogo
+    loadAccountDetails();
+    loadPendingSales();
+    // Notificar al componente padre para refrescar las estadísticas de las cards
+    if (onStatsRefresh) {
+      onStatsRefresh();
+    }
+  };
+
   const loadPendingSales = React.useCallback(async () => {
     try {
       const sales = await CurrentAccountService.getPendingSales(accountId);
@@ -247,8 +257,8 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     );
   }
 
-  // Usar total_pending_debt que incluye ventas pendientes (el current_balance está corrupto)
-  const totalPendingDebt = account?.total_pending_debt || 0;
+  // Total pending debt is already calculated in account.total_pending_debt
+
   // const balanceDescription = getOutstandingBalanceDescription(
   //   account?.current_balance || 0,
   //   totalPendingDebt
@@ -314,11 +324,11 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
             <DollarSign className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${totalPendingDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {CurrentAccountUtils.formatCurrency(totalPendingDebt)}
+            <div className={`text-2xl font-bold ${account?.total_pending_debt && account.total_pending_debt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {CurrentAccountUtils.formatCurrency(account?.total_pending_debt || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Ventas pendientes de pago
+              Deuda Total (Ventas Pendientes)
             </p>
           </CardContent>
         </Card>
@@ -696,6 +706,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
             accountId={accountId}
             currentBalance={account.current_balance}
             onSuccess={handleSuccess}
+            onDataRefresh={handleDataRefresh}
           />
 
           <BatchUpdatePricesDialog
