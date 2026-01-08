@@ -662,11 +662,11 @@ export default function RepairDetailDialogV2({
                                             <div className="grid grid-cols-2 gap-6">
                                                 <div className="text-center p-4 rounded-lg bg-muted/50">
                                                     <Label className="text-xs text-muted-foreground">Costo</Label>
-                                                    {editMode ? <Input type="number" step="0.01" className="mt-2 text-center" value={editData.cost ?? repair.cost ?? ""} onChange={(e) => setEditData((d) => ({ ...d, cost: e.target.value ? parseFloat(e.target.value) : null }))} /> : <p className="text-2xl font-bold mt-2">{formatCurrency(repair.cost)}</p>}
+                                                    {editMode ? <Input type="number" step="0.01" className="mt-2 text-center" value={"cost" in editData ? (editData.cost ?? "") : (repair.cost ?? "")} onChange={(e) => setEditData((d) => ({ ...d, cost: e.target.value ? parseFloat(e.target.value) : null }))} /> : <p className="text-2xl font-bold mt-2">{formatCurrency(repair.cost)}</p>}
                                                 </div>
                                                 <div className="text-center p-4 rounded-lg bg-muted/50">
                                                     <Label className="text-xs text-muted-foreground">Precio Venta</Label>
-                                                    {editMode ? <Input type="number" step="0.01" className="mt-2 text-center" value={editData.sale_price ?? repair.sale_price ?? ""} onChange={(e) => setEditData((d) => ({ ...d, sale_price: e.target.value ? parseFloat(e.target.value) : null }))} /> : <p className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(repair.sale_price)}</p>}
+                                                    {editMode ? <Input type="number" step="0.01" className="mt-2 text-center" value={"sale_price" in editData ? (editData.sale_price ?? "") : (repair.sale_price ?? "")} onChange={(e) => setEditData((d) => ({ ...d, sale_price: e.target.value ? parseFloat(e.target.value) : null }))} /> : <p className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(repair.sale_price)}</p>}
                                                 </div>
                                             </div>
                                         </CardContent>

@@ -11,7 +11,9 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('shipment_stages', function (Blueprint $table) {
-            $table->json('config')->nullable()->after('order');
+            if (!Schema::hasColumn('shipment_stages', 'config')) {
+                $table->json('config')->nullable()->after('order');
+            }
         });
     }
 
