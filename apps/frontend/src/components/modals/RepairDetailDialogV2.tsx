@@ -26,6 +26,18 @@ import {
     FileText,
     ClipboardCheck,
     AlertCircle,
+    User,
+    Phone,
+    MapPin,
+    Monitor,
+    Hash,
+    Wrench,
+    Calendar,
+    Clock,
+    AlertTriangle,
+    Package,
+    Stethoscope,
+    Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Repair, RepairNote, RepairPriority, RepairStatus, Insurer } from "@/types/repairs";
@@ -496,34 +508,148 @@ export default function RepairDetailDialogV2({
                                             </div>
                                         </div>
                                     ) : (
-                                        <>
-                                            <Card>
-                                                <CardContent className="py-2 grid grid-cols-3 gap-4 items-center">
-                                                    <div className="flex items-center gap-2"><p className="text-sm font-medium">{repair.customer?.name}</p></div>
-                                                    <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">{repair.customer?.phone}</div>
-                                                    <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">{repair.customer?.address}</div>
-                                                </CardContent>
-                                            </Card>
-                                            <Card>
-                                                <CardContent className="py-2 space-y-4">
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div><Label className="text-xs text-muted-foreground">Equipo</Label><p className="text-sm font-medium">{repair.device}</p></div>
-                                                        <div><Label className="text-xs text-muted-foreground">Serie</Label><p className="text-sm">{repair.serial_number || "-"}</p></div>
+                                        <div className="space-y-4">
+                                            {/* Customer Info Card */}
+                                            <Card className="border-l-4 border-l-blue-500">
+                                                <CardContent className="py-4">
+                                                    <div className="flex items-center gap-3 mb-3">
+                                                        <div className="p-2 bg-blue-100 rounded-full">
+                                                            <User className="h-4 w-4 text-blue-600" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-base">{repair.customer?.name}</p>
+                                                            <p className="text-xs text-muted-foreground">Cliente</p>
+                                                        </div>
                                                     </div>
-                                                    <div><Label className="text-xs text-muted-foreground">Problema</Label><p className="text-sm mt-1">{repair.issue_description}</p></div>
-                                                    <Separator />
-                                                    <div><Label className="text-xs text-muted-foreground">Diagnóstico</Label><p className="text-sm mt-1">{repair.diagnosis || "Sin diagnóstico"}</p></div>
+                                                    <div className="grid grid-cols-2 gap-4 pl-11">
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <Phone className="h-3.5 w-3.5" />
+                                                            <span>{repair.customer?.phone || "-"}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                            <MapPin className="h-3.5 w-3.5" />
+                                                            <span className="truncate">{repair.customer?.address || "-"}</span>
+                                                        </div>
+                                                    </div>
                                                 </CardContent>
                                             </Card>
+
+                                            {/* Device & Issue Card */}
                                             <Card>
-                                                <CardContent className="py-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                    <div><Label className="text-xs text-muted-foreground">Estado</Label><p className="text-sm font-medium">{repair.status}</p></div>
-                                                    <div><Label className="text-xs text-muted-foreground">Prioridad</Label><p className="text-sm font-medium">{repair.priority}</p></div>
-                                                    <div><Label className="text-xs text-muted-foreground">Ingreso</Label><p className="text-sm">{formatDate(repair.intake_date)}</p></div>
-                                                    <div><Label className="text-xs text-muted-foreground">Estimada</Label><p className="text-sm">{formatDate(repair.estimated_date)}</p></div>
+                                                <CardContent className="py-4 space-y-4">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="p-2 bg-purple-100 rounded-full mt-0.5">
+                                                                <Monitor className="h-4 w-4 text-purple-600" />
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-xs text-muted-foreground">Equipo</Label>
+                                                                <p className="text-sm font-semibold">{repair.device}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-start gap-3">
+                                                            <div className="p-2 bg-gray-100 rounded-full mt-0.5">
+                                                                <Hash className="h-4 w-4 text-gray-600" />
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-xs text-muted-foreground">Nº Serie</Label>
+                                                                <p className="text-sm font-medium">{repair.serial_number || "-"}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <Separator />
+
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="p-2 bg-orange-100 rounded-full mt-0.5">
+                                                            <Wrench className="h-4 w-4 text-orange-600" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <Label className="text-xs text-muted-foreground">Problema reportado</Label>
+                                                            <p className="text-sm mt-1">{repair.issue_description}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="p-2 bg-teal-100 rounded-full mt-0.5">
+                                                            <Stethoscope className="h-4 w-4 text-teal-600" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <Label className="text-xs text-muted-foreground">Diagnóstico técnico</Label>
+                                                            <p className="text-sm mt-1 text-muted-foreground italic">
+                                                                {repair.diagnosis || "Sin diagnóstico aún"}
+                                                            </p>
+                                                        </div>
+                                                    </div>
                                                 </CardContent>
                                             </Card>
-                                        </>
+
+                                            {/* Status & Dates Card */}
+                                            <Card className="bg-gradient-to-r from-gray-50 to-white">
+                                                <CardContent className="py-4">
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                                <Package className="h-3 w-3" /> Estado
+                                                            </Label>
+                                                            <Badge variant="outline" className={cn("text-xs font-medium", STATUS_COLORS[repair.status])}>
+                                                                {repair.status}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                                <AlertTriangle className="h-3 w-3" /> Prioridad
+                                                            </Label>
+                                                            <Badge variant="outline" className={cn("text-xs font-medium", PRIORITY_COLORS[repair.priority])}>
+                                                                {repair.priority}
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                                <Calendar className="h-3 w-3" /> Ingreso
+                                                            </Label>
+                                                            <p className="text-sm font-medium">{formatDate(repair.intake_date)}</p>
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                                                <Clock className="h-3 w-3" /> Estimada
+                                                            </Label>
+                                                            <p className="text-sm font-medium">{formatDate(repair.estimated_date)}</p>
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+
+                                            {/* Insurance Info Card - Only show if is_siniestro */}
+                                            {repair.is_siniestro && (
+                                                <Card className="border-l-4 border-l-amber-500 bg-amber-50/30">
+                                                    <CardContent className="py-4">
+                                                        <div className="flex items-center gap-2 mb-3">
+                                                            <Shield className="h-4 w-4 text-amber-600" />
+                                                            <span className="font-semibold text-sm text-amber-800">Información del Siniestro</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pl-6">
+                                                            <div>
+                                                                <Label className="text-xs text-muted-foreground">Aseguradora</Label>
+                                                                <p className="text-sm font-medium">{repair.insurer?.name || "-"}</p>
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-xs text-muted-foreground">Nº Siniestro</Label>
+                                                                <p className="text-sm font-medium">{repair.siniestro_number || "-"}</p>
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-xs text-muted-foreground">Nº Póliza</Label>
+                                                                <p className="text-sm font-medium">{repair.policy_number || "-"}</p>
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-xs text-muted-foreground">Antigüedad</Label>
+                                                                <p className="text-sm font-medium">{repair.device_age ? `${repair.device_age} años` : "-"}</p>
+                                                            </div>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </TabsContent>
