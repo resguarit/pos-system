@@ -53,6 +53,8 @@ class StoreRepairRequest extends FormRequest
             'insurer_id' => ['nullable', 'required_if:is_siniestro,true', 'integer', 'exists:insurers,id'],
             'siniestro_number' => ['nullable', 'string', 'max:100'],
             'insured_customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'policy_number' => ['nullable', 'string', 'max:100'],
+            'device_age' => ['nullable', 'integer', 'min:0'],
         ];
     }
 

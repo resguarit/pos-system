@@ -2,13 +2,17 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Search, X, Filter, Calendar } from "lucide-react"
+import { Search, X, Filter } from "lucide-react"
 import { useState } from "react"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar as CalendarComponent } from "@/components/ui/calendar"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { filterCashMovementTypes } from "@/utils/movementTypeFilters"
+import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
+
+interface MovementType {
+  id: number;
+  description: string;
+}
 
 interface MultiBranchFiltersProps {
   searchTerm: string
@@ -21,7 +25,7 @@ interface MultiBranchFiltersProps {
   onDateRangeChange: (range: string) => void
   customDateRange?: { from: Date | undefined; to: Date | undefined }
   onCustomDateRangeChange?: (range: { from: Date | undefined; to: Date | undefined }) => void
-  movementTypes: any[]
+  movementTypes: MovementType[]
   availableBranches: Array<{ id: number; name: string }>
   onClearFilters: () => void
 }
@@ -68,7 +72,7 @@ export const MultiBranchFilters = ({
             onChange={(e) => onSearchChange(e.target.value)}
           />
         </div>
-        
+
         <Select value={movementTypeFilter} onValueChange={onMovementTypeChange}>
           <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Tipo de movimiento" />
@@ -113,7 +117,7 @@ export const MultiBranchFilters = ({
                   <SelectItem key={branch.id} value={branch.id.toString()}>
                     <div className="flex items-center gap-2">
                       {branch.color && (
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full border"
                           style={{ backgroundColor: branch.color }}
                         />
@@ -128,62 +132,27 @@ export const MultiBranchFilters = ({
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Rango de fechas</label>
-            <div className="space-y-2">
-              <Select value={dateRangeFilter} onValueChange={onDateRangeChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar rango" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dateRangeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              
-              {dateRangeFilter === "custom" && onCustomDateRangeChange && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {customDateRange?.from ? (
-                        customDateRange.to ? (
-                          <>
-                            {format(customDateRange.from, "dd/MM/yyyy", { locale: es })} -{" "}
-                            {format(customDateRange.to, "dd/MM/yyyy", { locale: es })}
-                          </>
-                        ) : (
-                          format(customDateRange.from, "dd/MM/yyyy", { locale: es })
-                        )
-                      ) : (
-                        <span>Seleccionar fechas</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      initialFocus
-                      mode="range"
-                      defaultMonth={customDateRange?.from}
-                      selected={customDateRange}
-                      onSelect={(range) => {
-                        if (onCustomDateRangeChange) {
-                          onCustomDateRangeChange({
-                            from: range?.from,
-                            to: range?.to
-                          })
-                        }
-                      }}
-                      numberOfMonths={2}
-                      locale={es}
-                    />
-                  </PopoverContent>
-                </Popover>
-              )}
+            <div className="w-full">
+              <DatePickerWithRange
+                className="w-full"
+                selected={customDateRange as DateRange}
+                onSelect={(range) => {
+                  onDateRangeChange('custom');
+                  if (onCustomDateRangeChange) {
+                    onCustomDateRangeChange({
+                      from: range?.from,
+                      to: range?.to
+                    });
+                  }
+                }}
+                showClearButton={true}
+                onClear={() => {
+                  onDateRangeChange('all');
+                  if (onCustomDateRangeChange) {
+                    onCustomDateRangeChange({ from: undefined, to: undefined });
+                  }
+                }}
+              />
             </div>
           </div>
 
@@ -207,8 +176,8 @@ export const MultiBranchFilters = ({
           {searchTerm && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Búsqueda: "{searchTerm}"
-              <X 
-                className="h-3 w-3 cursor-pointer" 
+              <X
+                className="h-3 w-3 cursor-pointer"
                 onClick={() => onSearchChange('')}
               />
             </Badge>
@@ -216,8 +185,8 @@ export const MultiBranchFilters = ({
           {movementTypeFilter !== "all" && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Tipo: {filterCashMovementTypes(movementTypes).find(t => t.id.toString() === movementTypeFilter)?.description || movementTypes.find(t => t.id.toString() === movementTypeFilter)?.description}
-              <X 
-                className="h-3 w-3 cursor-pointer" 
+              <X
+                className="h-3 w-3 cursor-pointer"
                 onClick={() => onMovementTypeChange('all')}
               />
             </Badge>
@@ -225,8 +194,8 @@ export const MultiBranchFilters = ({
           {branchFilter !== "all" && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Sucursal: {availableBranches.find(b => b.id.toString() === branchFilter)?.name}
-              <X 
-                className="h-3 w-3 cursor-pointer" 
+              <X
+                className="h-3 w-3 cursor-pointer"
                 onClick={() => onBranchFilterChange('all')}
               />
             </Badge>
@@ -234,8 +203,8 @@ export const MultiBranchFilters = ({
           {dateRangeFilter !== "all" && dateRangeFilter !== "custom" && (
             <Badge variant="secondary" className="flex items-center gap-1">
               Fecha: {dateRangeOptions.find(d => d.value === dateRangeFilter)?.label}
-              <X 
-                className="h-3 w-3 cursor-pointer" 
+              <X
+                className="h-3 w-3 cursor-pointer"
                 onClick={() => onDateRangeChange('all')}
               />
             </Badge>
@@ -246,8 +215,8 @@ export const MultiBranchFilters = ({
               {customDateRange.to && customDateRange.to.getTime() !== customDateRange.from.getTime() && (
                 <> - {format(customDateRange.to, "dd/MM/yyyy", { locale: es })}</>
               )}
-              <X 
-                className="h-3 w-3 cursor-pointer" 
+              <X
+                className="h-3 w-3 cursor-pointer"
                 onClick={() => {
                   onDateRangeChange('all')
                   if (onCustomDateRangeChange) {

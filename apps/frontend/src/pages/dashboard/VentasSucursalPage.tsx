@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useParams, Link } from "react-router-dom"
 import { format, startOfYear } from "date-fns"
@@ -54,7 +55,7 @@ export default function BranchSalesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [receiptTypeFilter, setReceiptTypeFilter] = useState("all")
 
-  const [dateRange, setDateRange] = useState<DateRange>({ from: startOfYear(new Date()), to: new Date() });
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfYear(new Date()), to: new Date() });
 
   const [showChart, setShowChart] = useState(false)
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null)
@@ -76,14 +77,18 @@ export default function BranchSalesPage() {
   const tableRef = useRef<HTMLDivElement>(null)
 
   // --- Carga de Datos ---
-  const fetchBranchAndSales = useCallback(async (id: string, from: Date, to: Date, signal: AbortSignal) => {
+  const fetchBranchAndSales = useCallback(async (id: string, from: Date | undefined, to: Date | undefined, signal: AbortSignal) => {
     try {
-      // Ahora 'from' y 'to' siempre tendrán un valor
-      const apiParams = {
+      // Construir parámetros - solo incluir fechas si están definidas
+      const apiParams: Record<string, any> = {
         branch_id: id,
-        from_date: format(from, "yyyy-MM-dd"),
-        to_date: format(to, "yyyy-MM-dd"),
       };
+
+      // Solo agregar filtros de fecha si están definidos
+      if (from && to) {
+        apiParams.from_date = format(from, "yyyy-MM-dd");
+        apiParams.to_date = format(to, "yyyy-MM-dd");
+      }
 
       const [branchRes, salesRes, statsRes] = await Promise.all([
         request({ method: "GET", url: `/branches/${id}`, signal }),
@@ -102,11 +107,13 @@ export default function BranchSalesPage() {
 
       setSales(salesData);
 
-      // Filtrar ventas por rango de fechas seleccionado
-      salesData.filter((sale: any) => {
-        const saleDate = new Date(sale.date);
-        return saleDate >= from && saleDate <= to;
-      });
+      // Filtrar ventas por rango de fechas seleccionado (solo si hay fechas)
+      if (from && to) {
+        salesData.filter((sale: any) => {
+          const saleDate = new Date(sale.date);
+          return saleDate >= from && saleDate <= to;
+        });
+      }
 
 
       // Comentar esta línea para usar el filtro temporal
@@ -128,9 +135,15 @@ export default function BranchSalesPage() {
 
   useEffect(() => {
     const controller = new AbortController();
-    // La condición ahora es segura porque dateRange siempre está definido
-    if (params.id && dateRange.from && dateRange.to) {
-      fetchBranchAndSales(params.id, dateRange.from, dateRange.to, controller.signal);
+
+    // Si tenemos una fecha de inicio pero no de fin (selección en progreso), no hacemos fetch
+    if (dateRange?.from && !dateRange?.to) {
+      return;
+    }
+
+    // Siempre hacer fetch - con o sin fechas
+    if (params.id) {
+      fetchBranchAndSales(params.id, dateRange?.from, dateRange?.to, controller.signal);
     }
     return () => controller.abort();
   }, [params.id, dateRange, fetchBranchAndSales]);
@@ -227,6 +240,11 @@ export default function BranchSalesPage() {
     setDateRange(range);
   }
 
+  // Función para limpiar el filtro de fechas y volver al año actual
+  const clearDateRange = () => {
+    setDateRange({ from: startOfYear(new Date()), to: new Date() });
+  };
+
   const formatDate = (dateString?: string | null) => {
     if (!dateString) return "N/A";
     try {
@@ -259,7 +277,7 @@ export default function BranchSalesPage() {
       XLSX.utils.book_append_sheet(workbook, worksheet, "VentasSucursal");
       XLSX.writeFile(workbook, `ventas_sucursal_${params.id}.xlsx`);
       toast.success("Exportación completada");
-    } catch (error) {
+    } catch {
       toast.error("Error al exportar datos");
     } finally {
       setIsExporting(false);
@@ -272,7 +290,7 @@ export default function BranchSalesPage() {
       const fullSaleData: SaleHeader = response.data?.data || response.data;
       setSelectedSale(fullSaleData);
       setIsDetailOpen(true);
-    } catch (error) {
+    } catch {
       toast.error("Error al cargar el detalle de la venta");
       setSelectedSale(sale);
       setIsDetailOpen(true);
@@ -296,11 +314,11 @@ export default function BranchSalesPage() {
     }
 
     // Recargar datos si es necesario
-    if (branch && dateRange.from && dateRange.to) {
+    if (branch && dateRange?.from && dateRange?.to) {
       const apiParams = {
         branch_id: branch.id,
-        from_date: format(dateRange.from, "yyyy-MM-dd"),
-        to_date: format(dateRange.to, "yyyy-MM-dd"),
+        from_date: format(dateRange?.from, "yyyy-MM-dd"),
+        to_date: format(dateRange?.to, "yyyy-MM-dd"),
       };
 
       try {
@@ -361,7 +379,7 @@ export default function BranchSalesPage() {
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch {
       alert("Error al descargar PDF");
     }
   };
@@ -467,7 +485,7 @@ export default function BranchSalesPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input type="search" placeholder="Buscar por cliente o código..." className="w-full pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-          <DatePickerWithRange selected={dateRange} onSelect={(range) => range && handleDateRangeChange(range)} className="w-full md:w-auto" />
+          <DatePickerWithRange selected={dateRange} onSelect={(range) => range && handleDateRangeChange(range)} className="w-full md:w-auto" showClearButton={true} onClear={clearDateRange} />
         </div>
         <div className="flex flex-col space-y-2 md:flex-row md:space-x-2 md:space-y-0">
           <Select value={receiptTypeFilter} onValueChange={setReceiptTypeFilter}>

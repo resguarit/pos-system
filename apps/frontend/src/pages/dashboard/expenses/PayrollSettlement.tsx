@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { format } from "date-fns";
 import { expensesService } from "@/lib/api/expensesService";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +14,7 @@ export default function PayrollSettlement() {
     const [formData, setFormData] = useState({
         month: new Date().getMonth() + 1,
         year: new Date().getFullYear(),
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: format(new Date(), 'yyyy-MM-dd'),
         branch_id: "",
         category_id: "", // Should fetch payroll category ID
     });

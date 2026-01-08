@@ -55,6 +55,8 @@ type NewRepairForm = {
     insurer_id: number | null;
     siniestro_number: string;
     insured_customer_id: number | null;
+    policy_number: string;
+    device_age: string;
 };
 
 const defaultForm: NewRepairForm = {
@@ -78,6 +80,8 @@ const defaultForm: NewRepairForm = {
     insurer_id: null,
     siniestro_number: "",
     insured_customer_id: null,
+    policy_number: "",
+    device_age: "",
 };
 
 type NewRepairDialogProps = {
@@ -99,6 +103,13 @@ type NewRepairDialogProps = {
         sale_price?: number;
         estimated_date?: string;
         intake_date?: string;
+        // Siniestro fields
+        is_siniestro?: boolean;
+        insurer_id?: number | null;
+        siniestro_number?: string;
+        insured_customer_id?: number | null;
+        policy_number?: string;
+        device_age?: number;
     }) => Promise<boolean>;
     branchId: number | string | null;
     options: { statuses: RepairStatus[]; priorities: RepairPriority[] };
@@ -279,7 +290,18 @@ export default function NewRepairDialog({
             if (form.sale_price) payload.sale_price = parseFloat(form.sale_price);
             if (form.estimated_date) payload.estimated_date = form.estimated_date;
             if (form.intake_date) payload.intake_date = form.intake_date;
+            if (form.intake_date) payload.intake_date = form.intake_date;
             if (form.category_id) payload.category_id = form.category_id;
+
+            // Siniestro fields
+            if (form.is_siniestro) {
+                payload.is_siniestro = true;
+                if (form.insurer_id) payload.insurer_id = form.insurer_id;
+                if (form.siniestro_number) payload.siniestro_number = form.siniestro_number;
+                if (form.insured_customer_id) payload.insured_customer_id = form.insured_customer_id;
+                if (form.policy_number) payload.policy_number = form.policy_number;
+                if (form.device_age) payload.device_age = parseInt(form.device_age);
+            }
 
             const success = await onSubmit(payload);
             if (success) {
@@ -354,8 +376,8 @@ export default function NewRepairDialog({
                                                 return (
                                                     c.name.toLowerCase().includes(searchLower) ||
                                                     (c.phone && c.phone.toLowerCase().includes(searchLower)) ||
-                                                    (c.documento && c.documento.toLowerCase().includes(searchLower)) ||
-                                                    (c.cuit && c.cuit.toLowerCase().includes(searchLower)) ||
+                                                    (c.documento && String(c.documento).toLowerCase().includes(searchLower)) ||
+                                                    (c.cuit && String(c.cuit).toLowerCase().includes(searchLower)) ||
                                                     (c.email && c.email.toLowerCase().includes(searchLower))
                                                 );
                                             }).length > 0 && (
@@ -365,8 +387,8 @@ export default function NewRepairDialog({
                                                             return (
                                                                 c.name.toLowerCase().includes(searchLower) ||
                                                                 (c.phone && c.phone.toLowerCase().includes(searchLower)) ||
-                                                                (c.documento && c.documento.toLowerCase().includes(searchLower)) ||
-                                                                (c.cuit && c.cuit.toLowerCase().includes(searchLower)) ||
+                                                                (c.documento && String(c.documento).toLowerCase().includes(searchLower)) ||
+                                                                (c.cuit && String(c.cuit).toLowerCase().includes(searchLower)) ||
                                                                 (c.email && c.email.toLowerCase().includes(searchLower))
                                                             );
                                                         }).map((customer) => (
@@ -475,6 +497,8 @@ export default function NewRepairDialog({
                                             insurer_id: null,
                                             siniestro_number: "",
                                             insured_customer_id: null,
+                                            policy_number: "",
+                                            device_age: "",
                                         }),
                                     }))}
                                     className="h-4 w-4 rounded border-gray-300"
@@ -582,6 +606,27 @@ export default function NewRepairDialog({
                                                 placeholder="Ej: 12345-2024"
                                                 value={form.siniestro_number}
                                                 onChange={(e) => setForm((f) => ({ ...f, siniestro_number: e.target.value }))}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Número de Póliza</Label>
+                                            <Input
+                                                placeholder="Ej: POL-123456"
+                                                value={form.policy_number}
+                                                onChange={(e) => setForm((f) => ({ ...f, policy_number: e.target.value }))}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Antigüedad del Bien</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                placeholder="Ej: 2"
+                                                value={form.device_age}
+                                                onChange={(e) => setForm((f) => ({ ...f, device_age: e.target.value }))}
                                             />
                                         </div>
                                     </div>
@@ -792,6 +837,6 @@ export default function NewRepairDialog({
                     </>
                 )}
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }

@@ -1,9 +1,9 @@
 "use client"
 import * as React from "react"
-import { format } from "date-fns"
+import { format, startOfDay } from "date-fns"
 import type { Locale } from "date-fns"
 import { es } from "date-fns/locale"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -35,9 +35,11 @@ interface DatePickerWithRangeProps {
   onSelect: (range: DateRange | undefined) => void
   align?: "center" | "start" | "end"
   side?: "top" | "right" | "bottom" | "left"
+  showClearButton?: boolean
+  onClear?: () => void
 }
 
-export function DatePickerWithRange({ className, selected, onSelect, align = "start", side = "bottom" }: DatePickerWithRangeProps) {
+export function DatePickerWithRange({ className, selected, onSelect, align = "start", side = "bottom", showClearButton = false, onClear }: DatePickerWithRangeProps) {
   // Estado para controlar la apertura/cierre del Popover
   const [open, setOpen] = React.useState(false);
   // Calculamos el ancho del contenido del calendario según el número de meses
@@ -48,112 +50,138 @@ export function DatePickerWithRange({ className, selected, onSelect, align = "st
     return false;
   }, []);
 
-  // Adaptador para convertir entre los tipos de fecha  
-  const handleSelect = React.useCallback((date: Date | null | { from: Date; to?: Date }) => {
+  // Handler para limpiar las fechas
+  const handleClear = React.useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onClear) {
+      onClear();
+    } else {
+      onSelect(undefined);
+    }
+  }, [onClear, onSelect]);
 
-    // Si recibimos null o undefined, simplemente pasamos undefined al callback
-    if (!date) {
+  // Helper to check if a date is valid
+  const isValidDate = (date: unknown): date is Date => {
+    return date instanceof Date && !isNaN(date.getTime()) && date.getFullYear() >= 1970;
+  };
+
+  // Adaptador para convertir entre los tipos de fecha  
+  const handleSelect = React.useCallback((input: Date | { from: Date; to?: Date } | null) => {
+    // Si recibimos null o undefined, limpiar selección
+    if (!input) {
       onSelect(undefined);
       return;
     }
-    // Si recibimos un objeto de rango completo del calendario
-    if (typeof date === "object" && "from" in date) {
-      // Asegurarnos que ambas fechas son válidas
-      const from = date.from instanceof Date ? date.from : new Date(date.from);
-      let to = date.to instanceof Date ? date.to :
-        date.to ? new Date(date.to) : undefined;
 
-      // Verificar que la fecha "from" es válida (no es anterior a 1970)
-      if (!isNaN(from.getTime()) && from.getFullYear() >= 1970) {
-        if (to && !isNaN(to.getTime()) && to.getFullYear() >= 1970) {
-          // Primero actualizar la selección y luego cerrar el calendario
-          onSelect({ from, to });
-
-          setTimeout(() => setOpen(false), 100);
-        } else {
-          onSelect({ from });
-        }
-      } else {
-        console.error("Fecha 'from' inválida, usando fecha actual:", from);
-        // Usar fecha actual si es inválida
-        onSelect({ from: new Date() });
+    // Si es un Date solo (no debería pasar en mode="range", pero manejamos por seguridad)
+    if (input instanceof Date) {
+      if (isValidDate(input)) {
+        onSelect({ from: startOfDay(input) });
       }
       return;
     }
-    // Si es una fecha, verificar que sea válida y posterior a 1970
-    if (date instanceof Date && !isNaN(date.getTime()) && date.getFullYear() >= 1970) {
-      // Si ya tenemos una fecha de inicio pero no de fin, establecer como fin
-      if (selected?.from && !selected.to) {
-        const newRange = {
-          from: new Date(selected.from),
-          to: new Date(date)
-        };
-        // Ordenar las fechas (por si el usuario selecciona primero fecha fin y luego inicio)
-        if (date < selected.from) {
-          newRange.from = new Date(date);
-          newRange.to = new Date(selected.from);
-        }
-        // Actualizar la selección y luego cerrar el calendario
-        onSelect(newRange);
-        // Cerramos después de un pequeño delay para asegurar que la actualización se complete
-        setTimeout(() => setOpen(false), 100);
-      } else {
-        // Establecer solo fecha de inicio
-        onSelect({ from: new Date(date) });
-        // No cerramos el calendario para permitir seleccionar la segunda fecha
-      }
+
+    // Es un objeto range
+    const { from, to } = input;
+
+    // Caso 1: No hay fecha de inicio válida - no hacer nada
+    if (!isValidDate(from)) {
+      return;
     }
+
+    // Normalizar la fecha de inicio
+    const normalizedFrom = startOfDay(from);
+
+    // Caso 2: Solo hay fecha de inicio (primera selección del usuario)
+    // Mantenemos el calendario abierto y esperamos la segunda fecha
+    if (!to || !isValidDate(to)) {
+      // Solo actualizar si estamos iniciando una nueva selección
+      // (evitar actualizar si ya teníamos from sin to)
+      if (!selected?.from || (selected.to)) {
+        onSelect({ from: normalizedFrom });
+      }
+      return;
+    }
+
+    // Caso 3: Tenemos ambas fechas válidas - rango completo
+    const normalizedTo = startOfDay(to);
+
+    // Asegurar que from <= to
+    if (normalizedFrom <= normalizedTo) {
+      onSelect({ from: normalizedFrom, to: normalizedTo });
+    } else {
+      onSelect({ from: normalizedTo, to: normalizedFrom });
+    }
+
+    // Cerrar el calendario después de seleccionar el rango completo
+    setTimeout(() => setOpen(false), 100);
   }, [selected, onSelect, setOpen]);
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            id="date"
-            variant={"outline"}
-            className={cn("w-[220px] justify-start text-left font-normal", !selected && "text-muted-foreground")}
-          >            <CalendarIcon className="mr-2 h-4 w-4" />            {selected && selected.from && !isNaN(selected.from.getTime()) ? (
-            selected.to && !isNaN(selected.to.getTime()) ? (
-              <>
-                {safeFormat(selected.from, "dd/MM/yyyy", { locale: es })} -{" "}
-                {safeFormat(selected.to, "dd/MM/yyyy", { locale: es })}
-              </>
-            ) : (
-              safeFormat(selected.from, "dd/MM/yyyy", { locale: es })
-            )
-          ) : (
-            <span>Seleccionar fechas</span>
-          )}
-          </Button>
-        </PopoverTrigger>        <PopoverContent
-          className={cn("w-auto p-0", isMobile ? "max-w-[320px]" : "min-w-[600px]")}
-          align={align}
-          side={side}
-          sideOffset={5}
-        >
-          <div className={cn(isMobile ? "" : "grid grid-cols-2 gap-2")}>
-            <Calendar
-              initialFocus mode="range"
-              defaultMonth={selected?.from || new Date()}
-              selected={selected}
-              onSelect={handleSelect}
-              className="w-full"
-            />
-
-            {/* Si no está en móvil, muestra un segundo calendario */}
-            {!isMobile && (
+      <div className="flex items-center gap-1">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              id="date"
+              variant={"outline"}
+              className={cn("w-[220px] justify-start text-left font-normal", !selected && "text-muted-foreground")}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {selected && selected.from && !isNaN(selected.from.getTime()) ? (
+                selected.to && !isNaN(selected.to.getTime()) ? (
+                  <>
+                    {safeFormat(selected.from, "dd/MM/yyyy", { locale: es })} -{" "}
+                    {safeFormat(selected.to, "dd/MM/yyyy", { locale: es })}
+                  </>
+                ) : (
+                  safeFormat(selected.from, "dd/MM/yyyy", { locale: es })
+                )
+              ) : (
+                <span>Seleccionar fechas</span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className={cn("w-auto p-0", isMobile ? "max-w-[320px]" : "min-w-[600px]")}
+            align={align}
+            side={side}
+            sideOffset={5}
+          >
+            <div className={cn(isMobile ? "" : "grid grid-cols-2 gap-2")}>
               <Calendar
-                mode="range"
-                defaultMonth={selected?.from
-                  ? new Date(selected.from.getFullYear(), selected.from.getMonth() + 1)
-                  : new Date(new Date().getFullYear(), new Date().getMonth() + 1)} selected={selected}
+                initialFocus mode="range"
+                defaultMonth={selected?.from || new Date()}
+                selected={selected}
                 onSelect={handleSelect}
                 className="w-full"
               />
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+
+              {/* Si no está en móvil, muestra un segundo calendario */}
+              {!isMobile && (
+                <Calendar
+                  mode="range"
+                  defaultMonth={selected?.from
+                    ? new Date(selected.from.getFullYear(), selected.from.getMonth() + 1)
+                    : new Date(new Date().getFullYear(), new Date().getMonth() + 1)} selected={selected}
+                  onSelect={handleSelect}
+                  className="w-full"
+                />
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+        {showClearButton && selected && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClear}
+            title="Limpiar fechas"
+            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </div>
   )
 }

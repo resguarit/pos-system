@@ -18,7 +18,7 @@ const PERMISSIONS = {
 } as const;
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MultiSelect, type Option } from "@/components/ui/multi-select"
+import type { Option } from "@/components/ui/multi-select"
 import { NewStockTransferDialog, StockTransferDialog } from "@/components/stock-transfers/new-stock-transfer-dialog"
 import { ViewStockTransferDialog } from "@/components/stock-transfers/view-stock-transfer-dialog"
 import { stockTransferService } from '@/lib/api/stockTransferService'
@@ -26,6 +26,7 @@ import type { StockTransfer } from '@/types/stockTransfer'
 import { toast } from "sonner"
 import { useBranch } from '@/context/BranchContext'
 import { exportTransferToPDF, exportTransferToExcel } from '@/lib/utils/transferExport'
+import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,12 +43,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import { Check, ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export default function StockTransfersPage() {
   const { hasPermission } = usePermissions()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [branchFilterUI, setBranchFilterUI] = useState<string[]>([])
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
 
   // Permission checks
   const canCreate = hasPermission(PERMISSIONS.CREATE)
@@ -227,7 +233,22 @@ export default function StockTransfersPage() {
       ? true
       : globalBranchIds.has(Number(transfer.source_branch_id)) || globalBranchIds.has(Number(transfer.destination_branch_id))
 
-    return matchesSearch && matchesStatus && matchesBranchFilter && matchesGlobalBranchFilter
+    let matchesDate = true
+    if (dateRange?.from) {
+      const transferDate = new Date(transfer.transfer_date)
+      // Normalizar a inicio del día para comparación justa
+      transferDate.setHours(0, 0, 0, 0)
+
+      const from = new Date(dateRange.from)
+      from.setHours(0, 0, 0, 0)
+
+      const to = dateRange.to ? new Date(dateRange.to) : new Date(from)
+      to.setHours(23, 59, 59, 999)
+
+      matchesDate = transferDate >= from && transferDate <= to
+    }
+
+    return matchesSearch && matchesStatus && matchesBranchFilter && matchesGlobalBranchFilter && matchesDate
   })
 
   const pendingTransfers = transfers.filter(t => isPending(t.status)).length
@@ -284,12 +305,57 @@ export default function StockTransfersPage() {
           <Input type="search" placeholder="Buscar..." className="w-full pl-8" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
         </div>
         <div className="w-full md:w-48">
-          <MultiSelect
-            options={getUniqueBranches()}
-            selected={branchFilterUI}
-            onChange={setBranchFilterUI}
-            placeholder="Filtrar por sucursal..."
-          />
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className="w-full justify-between"
+              >
+                {branchFilterUI.length > 0
+                  ? getUniqueBranches().find((branch) => branch.value === branchFilterUI[0])?.label
+                  : "Filtrar por sucursal..."}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[200px] p-0">
+              <Command>
+                <CommandInput placeholder="Buscar sucursal..." />
+                <CommandEmpty>No se encontró la sucursal.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem
+                    value="all"
+                    onSelect={() => setBranchFilterUI([])}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        branchFilterUI.length === 0 ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    Todas
+                  </CommandItem>
+                  {getUniqueBranches().map((branch) => (
+                    <CommandItem
+                      key={branch.value}
+                      value={branch.label}
+                      onSelect={() => {
+                        setBranchFilterUI([branch.value])
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          branchFilterUI.includes(branch.value) ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {branch.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
@@ -302,6 +368,14 @@ export default function StockTransfersPage() {
             <SelectItem value="cancelled">Canceladas</SelectItem>
           </SelectContent>
         </Select>
+        <div className="w-auto">
+          <DatePickerWithRange
+            selected={dateRange}
+            onSelect={setDateRange}
+            showClearButton={true}
+            onClear={() => setDateRange(undefined)}
+          />
+        </div>
       </div>
 
       <div className="rounded-md border">

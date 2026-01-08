@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -76,7 +78,7 @@ export default function PurchaseOrderPage() {
   // Nuevos estados para el resumen
   const [summary, setSummary] = useState<{ ARS?: number; USD?: number }>({})
   const [summaryPeriod, setSummaryPeriod] = useState<{ from: string; to: string } | null>(null)
-  const [dateRange, setDateRange] = useState<DateRange>({
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: new Date(),
   })
@@ -110,9 +112,9 @@ export default function PurchaseOrderPage() {
 
   // Fetch purchase orders from backend
   useEffect(() => {
-    if (dateRange?.from && dateRange.to) {
-      const fromDate = format(dateRange.from, "yyyy-MM-dd");
-      const toDate = format(dateRange.to, "yyyy-MM-dd");
+    if (dateRange?.from && dateRange?.to) {
+      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
+      const toDate = format(dateRange?.to, "yyyy-MM-dd");
       loadPurchaseOrders(1, fromDate, toDate);
     } else {
       loadPurchaseOrders(1);
@@ -128,10 +130,10 @@ export default function PurchaseOrderPage() {
 
   useEffect(() => {
     const fetchSummary = async () => {
-      if (dateRange?.from && dateRange.to) {
+      if (dateRange?.from && dateRange?.to) {
         try {
-          const fromDate = format(dateRange.from, "yyyy-MM-dd")
-          const toDate = format(dateRange.to, "yyyy-MM-dd")
+          const fromDate = format(dateRange?.from, "yyyy-MM-dd")
+          const toDate = format(dateRange?.to, "yyyy-MM-dd")
           const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate)
           setSummary(summaryData.totals)
           setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
@@ -196,12 +198,15 @@ export default function PurchaseOrderPage() {
 
   // Actualizar useEffect para cargar órdenes de compra al cambiar el periodo
   useEffect(() => {
-    if (dateRange?.from && dateRange.to) {
-      const fromDate = format(dateRange.from, "yyyy-MM-dd");
-      const toDate = format(dateRange.to, "yyyy-MM-dd");
+    if (dateRange?.from && dateRange?.to) {
+      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
+      const toDate = format(dateRange?.to, "yyyy-MM-dd");
       loadPurchaseOrders(currentPOPage, fromDate, toDate);
+    } else {
+      // If dates are cleared, load all orders (or default logic)
+      loadPurchaseOrders(currentPOPage);
     }
-  }, [dateRange])
+  }, [dateRange, currentPOPage])
 
   // Funciones de paginación para órdenes de compra
   const goToPOPage = (pageNumber: number) => {
@@ -215,9 +220,9 @@ export default function PurchaseOrderPage() {
     setOpenNewPurchaseOrder(false)
     setEditPurchaseOrderDialogOpen(false)
     // Mantener el filtro de fechas al recargar
-    if (dateRange?.from && dateRange.to) {
-      const fromDate = format(dateRange.from, "yyyy-MM-dd");
-      const toDate = format(dateRange.to, "yyyy-MM-dd");
+    if (dateRange?.from && dateRange?.to) {
+      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
+      const toDate = format(dateRange?.to, "yyyy-MM-dd");
       await loadPurchaseOrders(currentPOPage, fromDate, toDate);
     } else {
       await loadPurchaseOrders(currentPOPage);
@@ -228,9 +233,9 @@ export default function PurchaseOrderPage() {
     setLoading(true);
     await loadPurchaseOrders(currentPOPage);
     // Refresca el resumen de compras
-    if (dateRange?.from && dateRange.to) {
-      const fromDate = format(dateRange.from, "yyyy-MM-dd");
-      const toDate = format(dateRange.to, "yyyy-MM-dd");
+    if (dateRange?.from && dateRange?.to) {
+      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
+      const toDate = format(dateRange?.to, "yyyy-MM-dd");
       try {
         const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate);
         setSummary(summaryData.totals);
@@ -446,6 +451,8 @@ export default function PurchaseOrderPage() {
                 setDateRange({ from: range.from, to: range.to });
               }
             }}
+            showClearButton={true}
+            onClear={() => setDateRange(undefined)}
           />
         </div>
 

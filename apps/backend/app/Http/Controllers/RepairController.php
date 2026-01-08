@@ -172,12 +172,51 @@ class RepairController extends Controller
             return response()->json(['message' => 'Reparación no encontrada'], 404);
         }
 
+        $date = now();
+        $date->setLocale('es');
         $pdf = Pdf::loadView('pdf.repair-intake', [
             'repair' => $repair,
-            'date' => now()->format('d/m/Y H:i'),
+            'date' => $date->translatedFormat('d/m/Y H:i'),
         ]);
 
         $filename = "comprobante_reparacion_{$repair->code}.pdf";
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Generate insurance reception certificate PDF
+     */
+    public function receptionCertificate(int $id): \Illuminate\Http\Response|JsonResponse
+    {
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
+        // Ensure insurer specific data is loaded or available
+        // If not siniestro, maybe we shouldn't generate this? Or allow it anyway?
+        // User said: "cuando tengo una nueva reparacion de aseguradora"
+        // But likely we can just generate it if requested.
+
+        $date = now();
+        $date->setLocale('es');
+        $insured = $repair->insuredCustomer ?? $repair->customer;
+
+        $pdf = Pdf::loadView('pdf.reception-certificate', [
+            'repair' => $repair,
+            'date' => $date,
+            'day' => $date->format('d'),
+            'monthName' => $date->translatedFormat('F'),
+            'year' => $date->format('Y'),
+            'insurerName' => $repair->insurer ? $repair->insurer->name : ($repair->insurer_name ?? 'Aseguradora no especificada'),
+            'name' => $insured->full_name ?? ($insured->person ? $insured->person->full_name : 'No especificado'),
+            'phone' => $insured->person->phone ?? ($repair->customer->person->phone ?? '-'),
+            'email' => $insured->email ?? ($repair->customer->email ?? '-'),
+            'address' => $insured->person->address ?? ($repair->customer->person->address ?? '-'),
+        ]);
+
+        $filename = "acta_recepcion_siniestro_{$repair->code}.pdf";
 
         return $pdf->download($filename);
     }

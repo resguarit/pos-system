@@ -48,6 +48,13 @@ class UpdateRepairRequest extends FormRequest
             'cost' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'sale_price' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'sale_id' => ['nullable', 'integer', 'exists:sales_header,id'],
+            // Siniestro fields
+            'is_siniestro' => ['nullable', 'boolean'],
+            'insurer_id' => ['nullable', 'required_if:is_siniestro,true', 'integer', 'exists:insurers,id'],
+            'siniestro_number' => ['nullable', 'string', 'max:100'],
+            'insured_customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'policy_number' => ['nullable', 'string', 'max:100'],
+            'device_age' => ['nullable', 'integer', 'min:0'],
         ];
     }
 

@@ -1,6 +1,7 @@
 
 
 import { useState } from "react"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -45,7 +46,7 @@ export default function VerCompraPage({ params }: PageProps) {
       phone: "+52 555 123 4567",
       email: "contacto@electronorte.com",
       address: "Av. Principal 123, Col. Centro",
-    },  
+    },
     items: [
       {
         id: "p1",
@@ -204,7 +205,7 @@ export default function VerCompraPage({ params }: PageProps) {
 
                 <div className="space-y-2">
                   <Label htmlFor="received-date">Fecha de Recepción</Label>
-                  <Input id="received-date" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
+                  <Input id="received-date" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} />
                 </div>
 
                 <div className="space-y-2">

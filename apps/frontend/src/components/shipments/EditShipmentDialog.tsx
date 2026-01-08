@@ -4,15 +4,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, X, AlertTriangle } from 'lucide-react';
+import type { SaleHeader } from '@/types/sale';
+import { Loader2, Trash2, Search, Package, DollarSign, Calendar as CalendarIcon, User as UserIcon, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
-import { Shipment, ShipmentStage } from '@/types/shipment';
-import { PaymentShipmentDialog } from './PaymentShipmentDialog';
+import { Shipment, ShipmentStage, User, Customer, Sale } from '@/types/shipment';
 import { useAuth } from '@/context/AuthContext';
-import { parseShippingCost } from '@/utils/shipmentUtils';
 
 interface EditShipmentDialogProps {
   open: boolean;
@@ -50,12 +49,9 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   const [loadingData, setLoadingData] = useState(false);
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [users, setUsers] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
   // Estados para búsqueda de transportista
   const [transporterSearch, setTransporterSearch] = useState('');
@@ -64,6 +60,13 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   // Estados para búsqueda de cliente  
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
+
+  // Estados para gestión de ventas
+  const [selectedSales, setSelectedSales] = useState<SaleHeader[]>([]);
+  const [salesSearch, setSalesSearch] = useState('');
+  const [foundSales, setFoundSales] = useState<SaleHeader[]>([]);
+  const [showSalesOptions, setShowSalesOptions] = useState(false);
+  const [loadingSales, setLoadingSales] = useState(false);
 
   const [editForm, setEditForm] = useState<EditShipmentForm>({
     shipping_address: '',
@@ -80,15 +83,37 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     stage_id: undefined,
   });
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      const response = await request({ method: 'GET', url: '/users?include=person' });
+      if (response?.data) {
+        const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
+        setUsers(usersData);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  }, [request]);
+
+  const fetchCustomers = useCallback(async () => {
+    try {
+      const response = await request({ method: 'GET', url: '/customers' });
+      if (response?.data) {
+        const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
+        setCustomers(customersData);
+      }
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+    }
+  }, [request]);
+
   // Cargar usuarios y clientes cuando se abre el dialog
   const fetchShipmentData = useCallback(async () => {
     if (!shipmentId) return;
 
     try {
       setLoadingData(true);
-
-      const response = await shipmentService.getShipment(shipmentId);
-      const shipmentData = response; // shipmentService.getShipment ya devuelve response.data?.data
+      const shipmentData = await shipmentService.getShipment(shipmentId);
 
       if (shipmentData) {
         setShipment(shipmentData);
@@ -114,26 +139,29 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           stage_id: shipmentData.current_stage_id,
         });
 
-        // Establecer búsquedas si existen
-        // Esperamos un momento para que users y customers estén cargados
-        setTimeout(() => {
-          if (shipmentData.metadata?.transportista_id && users.length > 0) {
-            const transporterUser = users.find(u => u.id === shipmentData.metadata.transportista_id);
-            if (transporterUser && transporterUser.person) {
-              const name = `${transporterUser.person.first_name} ${transporterUser.person.last_name}`;
-              const email = transporterUser.email || '';
-              setTransporterSearch(`${name} (${email})`);
-            }
-          }
-          if (customerId && customers.length > 0) {
-            const selectedCustomer = customers.find(c => c.id === customerId);
-            if (selectedCustomer && selectedCustomer.person) {
-              const name = `${selectedCustomer.person.first_name} ${selectedCustomer.person.last_name}`;
-              const email = selectedCustomer.email || '';
-              setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
-            }
-          }
-        }, 500);
+        // Inicializar ventas seleccionadas
+        // @ts-expect-error - mapping between Sale and SaleHeader
+        const mappedSales: SaleHeader[] = (shipmentData.sales || []).map((s: Sale) => ({
+          id: s.id,
+          date: s.date,
+          receipt_number: s.receipt_number,
+          total: s.total,
+          status: s.status,
+          customer: typeof s.customer === 'string'
+            ? { id: s.customer_id, business_name: s.customer }
+            : (s.customer ? { id: s.customer.id, person: s.customer.person } : undefined),
+          receipt_type: s.receipt_type ? {
+            id: s.receipt_type.id,
+            name: s.receipt_type.name || s.receipt_type.description || '',
+            afip_code: s.receipt_type.afip_code || ''
+          } : undefined
+        }));
+        setSelectedSales(mappedSales);
+
+        // Establecer búsquedas
+        if (shipmentData.metadata?.transportista_id) {
+          // will be handled by useEffect that watches users
+        }
       }
     } catch (error) {
       console.error('Error fetching shipment:', error);
@@ -141,76 +169,108 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     } finally {
       setLoadingData(false);
     }
-  }, [shipmentId, users, customers]);
+  }, [shipmentId]);
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      const response = await request({ method: 'GET', url: '/users?include=person' });
-
-      console.log('Users response:', response);
-
-      if (response?.data) {
-        const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        console.log('Users data:', usersData);
-        setUsers(usersData);
+  useEffect(() => {
+    if (shipment && users.length > 0) {
+      const transporterId = shipment.metadata?.transportista_id;
+      if (transporterId) {
+        const transporterUser = users.find(u => u.id === transporterId);
+        if (transporterUser && transporterUser.person) {
+          const name = `${transporterUser.person.first_name} ${transporterUser.person.last_name}`;
+          const email = transporterUser.email || '';
+          setTransporterSearch(`${name} (${email})`);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching users:', error);
     }
-  }, [request]);
+  }, [shipment, users]);
 
-  const fetchCustomers = useCallback(async () => {
-    try {
-      const response = await request({ method: 'GET', url: '/customers' });
-
-      console.log('Customers response:', response);
-
-      if (response?.data) {
-        const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        console.log('Customers data:', customersData);
-        setCustomers(customersData);
+  useEffect(() => {
+    if (shipment && customers.length > 0) {
+      const customerId = shipment.sales && shipment.sales.length > 0 ? shipment.sales[0].customer_id : undefined;
+      if (customerId) {
+        const selectedCustomer = customers.find(c => c.id === customerId);
+        if (selectedCustomer && selectedCustomer.person) {
+          const name = `${selectedCustomer.person.first_name} ${selectedCustomer.person.last_name}`;
+          const email = selectedCustomer.email || '';
+          setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
+        }
       }
-    } catch (error) {
-      console.error('Error fetching customers:', error);
     }
-  }, [request]);
+  }, [shipment, customers]);
+
+  const fetchSales = useCallback(async (search: string) => {
+    if (!search || search.length < 2) {
+      setFoundSales([]);
+      return;
+    }
+
+    try {
+      setLoadingSales(true);
+      const apiParams: Record<string, string | number | string[] | number[]> = {
+        search: search,
+        per_page: 10
+      };
+
+      if (shipment?.branch_id) {
+        apiParams['branch_id[]'] = [shipment.branch_id];
+      }
+
+      const response = await request({
+        method: 'GET',
+        url: '/sales/global',
+        params: apiParams
+      });
+
+      let salesData: SaleHeader[] = [];
+      if (response?.data?.data) {
+        salesData = response.data.data;
+      } else if (response?.data) {
+        salesData = response.data;
+      } else if (Array.isArray(response)) {
+        salesData = response;
+      }
+
+      const filtered = salesData.filter(s => !selectedSales.some(sel => sel.id === s.id));
+      setFoundSales(filtered);
+    } catch (error) {
+      console.error('Error searching sales:', error);
+    } finally {
+      setLoadingSales(false);
+    }
+  }, [request, shipment?.branch_id, selectedSales]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (salesSearch) {
+        fetchSales(salesSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [salesSearch, fetchSales]);
 
   useEffect(() => {
     if (open) {
       fetchUsers();
       fetchCustomers();
+      fetchShipmentData();
     } else {
-      // Limpiar búsquedas cuando se cierra
       setTransporterSearch('');
       setCustomerSearch('');
       setShowTransporterOptions(false);
       setShowCustomerOptions(false);
       setShowCancelConfirm(false);
+      setShipment(null);
     }
-  }, [open, fetchUsers, fetchCustomers]);
-
-  // Segundo useEffect para cargar shipment data solo cuando users y customers ya están disponibles
-  useEffect(() => {
-    if (open && shipmentId && users.length > 0 && customers.length > 0) {
-      fetchShipmentData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, shipmentId, users.length, customers.length]);
+  }, [open, fetchUsers, fetchCustomers, fetchShipmentData]);
 
   const handleUpdateShipment = async () => {
     if (!shipmentId) return;
 
-    // TODO: Check permissions
-    // if (!hasPermission('editar_envios')) {
-    //   toast.error('No tienes permisos para editar envíos');
-    //   return;
-    // }
-
     try {
       setLoading(true);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const metadata: any = {
+      const metadata: Record<string, string | number | null> = {
         shipping_state: editForm.shipping_state || null,
         shipping_postal_code: editForm.shipping_postal_code || null,
         shipping_country: editForm.shipping_country || 'Argentina',
@@ -233,8 +293,8 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
         shipping_cost: editForm.shipping_cost !== '' ? parseFloat(editForm.shipping_cost) : 0,
         metadata: metadata,
         current_stage_id: editForm.stage_id,
-
         version: shipment?.version || 1,
+        sale_ids: selectedSales.map(s => s.id),
       };
 
       await shipmentService.updateShipment(shipmentId, shipmentData);
@@ -242,15 +302,17 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       toast.success('Envío actualizado exitosamente');
       onOpenChange(false);
       onSuccess();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error updating shipment:', err);
+      // @ts-expect-error - request hook error handling
       if (err.response && err.response.data && err.response.data.errors) {
+        // @ts-expect-error - request hook error handling
         const validationErrors = err.response.data.errors;
         const firstField = Object.keys(validationErrors)[0];
         const firstErrorMsg = validationErrors[firstField]?.[0];
         toast.error(firstErrorMsg || 'Hay errores de validación. Por favor revise el formulario.');
       } else {
+        // @ts-expect-error - request hook error handling
         toast.error(err.response?.data?.message || 'Error al actualizar el envío');
       }
     } finally {
@@ -268,15 +330,13 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
     try {
       setLoading(true);
-
       await shipmentService.deleteShipment(shipmentId);
-
       toast.success('Envío cancelado exitosamente');
       onOpenChange(false);
       onSuccess();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error cancelling shipment:', err);
+      // @ts-expect-error - request hook error handling
       toast.error(err.response?.data?.message || 'Error al cancelar el envío');
     } finally {
       setLoading(false);
@@ -284,10 +344,17 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     }
   };
 
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+    }).format(amount);
+  };
+
   if (loadingData) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* @ts-expect-error - DialogContent props mismatch typically due to children type */}
+        {/* @ts-expect-error - Radix DialogContent props mismatch */}
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -299,25 +366,23 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* @ts-expect-error - DialogContent props mismatch */}
+      {/* @ts-expect-error - Radix type issues */}
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          {/* @ts-expect-error - DialogTitle children type mismatch */}
           <DialogTitle>Editar Envío {shipment?.reference}</DialogTitle>
-          {/* @ts-expect-error - DialogDescription props mismatch */}
           <DialogDescription>
-            Modifica los detalles del envío. Todos los campos son opcionales excepto la dirección y la ciudad.
+            Modifica los detalles del envío, transportista y pedidos asociados.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Etapa del envío */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Estado/Etapa *</label>
             <Select
               value={editForm.stage_id?.toString() || ''}
               onValueChange={(value) => setEditForm(prev => ({ ...prev, stage_id: parseInt(value) }))}
             >
+              {/* @ts-expect-error - SelectTrigger className */}
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar estado" />
               </SelectTrigger>
@@ -334,13 +399,13 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
             </Select>
           </div>
 
-          {/* Prioridad */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Prioridad</label>
             <Select
               value={editForm.priority}
               onValueChange={(value) => setEditForm(prev => ({ ...prev, priority: value }))}
             >
+              {/* @ts-expect-error - SelectTrigger className */}
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar prioridad" />
               </SelectTrigger>
@@ -353,7 +418,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
             </Select>
           </div>
 
-          {/* Transportista */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Transportista</label>
             <div className="relative">
@@ -416,9 +480,11 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
             </div>
           </div>
 
-          {/* Cliente */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Cliente</label>
+            <label className="text-sm font-medium flex items-center gap-2">
+              <UserIcon className="h-4 w-4 text-muted-foreground" />
+              Cliente del Envío
+            </label>
             <div className="relative">
               <Input
                 value={customerSearch}
@@ -432,7 +498,8 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 }}
                 onFocus={() => setShowCustomerOptions(customerSearch.length >= 1)}
                 onBlur={() => setTimeout(() => setShowCustomerOptions(false), 200)}
-                placeholder="Buscar cliente..."
+                placeholder="Buscar cliente para el envío..."
+                className="bg-white/50 focus:bg-white transition-colors"
               />
               {showCustomerOptions && customers.filter(customer => {
                 const searchLower = customerSearch.toLowerCase();
@@ -442,7 +509,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 const fullName = `${firstName} ${lastName}`.toLowerCase();
                 return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
               }).length > 0 && (
-                  <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                  <div className="absolute left-0 right-0 border rounded-lg bg-white mt-1 max-h-40 overflow-auto z-50 shadow-xl border-slate-200">
                     {customers.filter(customer => {
                       const searchLower = customerSearch.toLowerCase();
                       const firstName = customer.person?.first_name || '';
@@ -459,20 +526,22 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                       return (
                         <div
                           key={customer.id}
-                          className="p-2 cursor-pointer hover:bg-gray-100"
+                          className="p-3 cursor-pointer hover:bg-slate-50 border-b last:border-0 transition-colors"
                           role="button"
                           tabIndex={0}
                           onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
 
-                            // Rellenar los campos del formulario con los datos del cliente
                             setEditForm(prev => ({
                               ...prev,
                               cliente_id: customer.id,
                               shipping_address: customer.person?.address || prev.shipping_address,
+                              // @ts-expect-error - person might not have city/state/postal_code in all types but it exists in DB
                               shipping_city: customer.person?.city || prev.shipping_city,
+                              // @ts-expect-error - person might not have city/state/postal_code in all types but it exists in DB
                               shipping_state: customer.person?.state || prev.shipping_state,
+                              // @ts-expect-error - person might not have city/state/postal_code in all types but it exists in DB
                               shipping_postal_code: customer.person?.postal_code || prev.shipping_postal_code,
                             }));
 
@@ -480,7 +549,8 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                             setShowCustomerOptions(false);
                           }}
                         >
-                          {name}{email ? ` (${email})` : ''}
+                          <div className="font-medium">{name}</div>
+                          {email && <div className="text-xs text-muted-foreground">{email}</div>}
                         </div>
                       );
                     })}
@@ -489,201 +559,275 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
             </div>
           </div>
 
-          {/* Dirección */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Dirección *</label>
-            <Input
-              value={editForm.shipping_address}
-              onChange={(e) => setEditForm(prev => ({ ...prev, shipping_address: e.target.value }))}
-              placeholder="Calle y número"
-              required
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Dirección *</label>
+              <Input
+                value={editForm.shipping_address}
+                onChange={(e) => setEditForm(prev => ({ ...prev, shipping_address: e.target.value }))}
+                placeholder="Calle y número"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Provincia/Estado</label>
+              <Input
+                value={editForm.shipping_state}
+                onChange={(e) => setEditForm(prev => ({ ...prev, shipping_state: e.target.value }))}
+                placeholder="Provincia o estado"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ciudad</label>
+              <Input
+                value={editForm.shipping_city}
+                onChange={(e) => setEditForm(prev => ({ ...prev, shipping_city: e.target.value }))}
+                placeholder="Ciudad"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Código Postal</label>
+              <Input
+                value={editForm.shipping_postal_code}
+                onChange={(e) => setEditForm(prev => ({ ...prev, shipping_postal_code: e.target.value }))}
+                placeholder="CP"
+              />
+            </div>
           </div>
 
-          {/* Provincia/Estado */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Provincia/Estado</label>
-            <Input
-              value={editForm.shipping_state}
-              onChange={(e) => setEditForm(prev => ({ ...prev, shipping_state: e.target.value }))}
-              placeholder="Provincia o estado"
-            />
+          <div className="space-y-4 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <label className="text-base font-semibold flex items-center gap-2">
+                <Package className="h-5 w-5 text-primary" />
+                Pedidos en este Envío
+                <Badge variant="secondary" className="ml-2">
+                  {selectedSales.length}
+                </Badge>
+              </label>
+              {selectedSales.length > 0 && (
+                <div className="text-sm font-medium text-muted-foreground">
+                  Subtotal Pedidos: <span className="text-foreground">{formatCurrency(selectedSales.reduce((sum, s) => sum + (Number(s.total) || 0), 0))}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="relative group/search">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within/search:text-primary transition-colors">
+                <Search className="h-4 w-4" />
+              </div>
+              <Input
+                value={salesSearch}
+                onChange={(e) => {
+                  setSalesSearch(e.target.value);
+                  setShowSalesOptions(true);
+                }}
+                onFocus={() => setShowSalesOptions(true)}
+                onBlur={() => setTimeout(() => setShowSalesOptions(false), 200)}
+                placeholder="Buscar pedido por número, cliente o descripción..."
+                className="pl-10 h-11 bg-slate-50 border-slate-200 hover:border-slate-300 focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all rounded-xl"
+              />
+
+              {showSalesOptions && salesSearch.length >= 2 && (
+                <div className="absolute left-0 right-0 border rounded-xl bg-white mt-2 max-h-64 overflow-auto z-[60] shadow-2xl border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+                  {loadingSales ? (
+                    <div className="p-8 text-center text-sm text-slate-500">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2 text-primary" />
+                      Buscando pedidos...
+                    </div>
+                  ) : foundSales.length > 0 ? (
+                    <div className="p-1">
+                      {foundSales.map((sale: SaleHeader) => (
+                        <div
+                          key={sale.id}
+                          className="p-3 cursor-pointer hover:bg-slate-50 rounded-lg flex items-center justify-between group/item transition-colors"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setSelectedSales(prev => [...prev, sale as SaleHeader]);
+                            setSalesSearch('');
+                            setShowSalesOptions(false);
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-100 group-hover/item:bg-white rounded-lg transition-colors">
+                              <FileText className="h-4 w-4 text-slate-500 group-hover/item:text-primary" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-sm">
+                                #{sale.receipt_number || sale.id}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {typeof sale.customer === 'string'
+                                  ? sale.customer
+                                  : (sale.customer?.person
+                                    ? `${sale.customer.person.first_name || ''} ${sale.customer.person.last_name || ''}`.trim()
+                                    : (sale.customer?.business_name || 'Cliente desconocido'))} • {new Date(sale.date).toLocaleDateString()}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-slate-900">{formatCurrency(Number(sale.total) || 0)}</div>
+                            <Badge variant="outline" className="text-[10px] h-4 py-0 group-hover/item:bg-primary group-hover/item:text-white transition-colors">
+                              {sale.receipt_type ? (typeof sale.receipt_type === 'string' ? sale.receipt_type : (sale.receipt_type.name || sale.receipt_type.description)) : 'Venta'}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-sm text-slate-400 text-center flex flex-col items-center">
+                      <Search className="h-8 w-8 mb-2 opacity-20" />
+                      No se encontraron pedidos con "{salesSearch}"
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedSales.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                {selectedSales.map(sale => (
+                  <div key={sale.id} className="group flex items-start justify-between p-3 border rounded-xl bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-white rounded-lg border border-slate-200 text-primary">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold">
+                          #{sale.receipt_number || sale.id}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex flex-col">
+                          <span>
+                            {typeof sale.customer === 'string'
+                              ? sale.customer
+                              : (sale.customer?.person
+                                ? `${sale.customer.person.first_name || ''} ${sale.customer.person.last_name || ''}`.trim()
+                                : (sale.customer?.business_name || 'Cliente desconocido'))}
+                          </span>
+                          <span className="font-semibold text-emerald-600 mt-1">{formatCurrency(Number(sale.total) || 0)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                      onClick={() => setSelectedSales(prev => prev.filter(s => s.id !== sale.id))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-8 border-2 border-dashed rounded-xl border-slate-200 flex flex-col items-center justify-center text-muted-foreground bg-slate-50/30">
+                <Package className="h-10 w-10 mb-2 opacity-20" />
+                <p className="text-sm">No hay pedidos vinculados a este envío</p>
+                <p className="text-xs">Usa el buscador arriba para agregar uno</p>
+              </div>
+            )}
           </div>
 
-          {/* Ciudad */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Ciudad</label>
-            <Input
-              value={editForm.shipping_city}
-              onChange={(e) => setEditForm(prev => ({ ...prev, shipping_city: e.target.value }))}
-              placeholder="Ciudad"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                Entrega Estimada
+              </label>
+              <Input
+                type="date"
+                value={editForm.estimated_delivery_date}
+                onChange={(e) => setEditForm(prev => ({ ...prev, estimated_delivery_date: e.target.value }))}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                Costo de Envío
+              </label>
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</div>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editForm.shipping_cost}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, shipping_cost: e.target.value }))}
+                  className="pl-7 rounded-xl"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Código Postal */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Código Postal</label>
-            <Input
-              value={editForm.shipping_postal_code}
-              onChange={(e) => setEditForm(prev => ({ ...prev, shipping_postal_code: e.target.value }))}
-              placeholder="CP"
-            />
-          </div>
-
-          {/* País */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">País</label>
-            <Input
-              value={editForm.shipping_country}
-              onChange={(e) => setEditForm(prev => ({ ...prev, shipping_country: e.target.value }))}
-              placeholder="País"
-            />
-          </div>
-
-          {/* Fecha Estimada de Entrega */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Fecha Estimada de Entrega</label>
-            <Input
-              type="date"
-              value={editForm.estimated_delivery_date}
-              onChange={(e) => setEditForm(prev => ({ ...prev, estimated_delivery_date: e.target.value }))}
-            />
-          </div>
-
-          {/* Costo de Envío */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Costo de Envío</label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={editForm.shipping_cost}
-              onChange={(e) => setEditForm(prev => ({ ...prev, shipping_cost: e.target.value }))}
-              placeholder="0.00"
-            />
-          </div>
-
-          {/* Notas */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Notas</label>
+            <label className="text-sm font-medium">Notas/Observaciones</label>
             <Textarea
               value={editForm.notes}
               onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Notas adicionales..."
-              rows={4}
+              placeholder="Información adicional para el envío..."
+              className="min-h-[80px] rounded-xl"
             />
           </div>
-
-          {/* Estado de Pago */}
-          {shipment && shipment.shipping_cost && parseFloat(shipment.shipping_cost.toString()) > 0 && (
-            <div className="space-y-2 pt-4 border-t">
-              <label className="text-sm font-medium">Estado de Pago</label>
-              <div className="flex items-center gap-4">
-                <Badge variant={shipment.is_paid ? 'default' : 'destructive'}>
-                  {shipment.is_paid ? 'Pagado' : 'Pendiente'}
-                </Badge>
-                {!shipment.is_paid && hasPermission('registrar_pago_envio') && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setShowPaymentDialog(true)}
-                  >
-                    Registrar Pago
-                  </Button>
-                )}
-              </div>
-              {shipment.is_paid && shipment.payment_date && (
-                <p className="text-sm text-muted-foreground">
-                  Fecha de pago: {new Date(shipment.payment_date).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Cancelar Envío */}
-          {shipment && hasPermission('cancelar_envio') && shipment.current_stage?.name !== 'Cancelado' && shipment.current_stage?.name !== 'Anulado' && !showCancelConfirm ? (
-            <div className="pt-4 border-t">
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={() => setShowCancelConfirm(true)}
-                className="w-full"
-              >
-                <X className="h-4 w-4 mr-2" />
-                Cancelar Envío
-              </Button>
-            </div>
-          ) : shipment && hasPermission('cancelar_envio') && shipment.current_stage?.name !== 'Cancelado' && shipment.current_stage?.name !== 'Anulado' && (
-            <div className="pt-4 border-t bg-red-50 p-4 rounded">
-              <div className="flex items-start gap-2 mb-3">
-                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-red-900">¿Estás seguro?</h4>
-                  <p className="text-sm text-red-700">Esta acción no se puede deshacer. El envío será marcado como cancelado.</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowCancelConfirm(false)}
-                  className="flex-1"
-                >
-                  No, volver
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={handleCancelShipment}
-                  disabled={loading}
-                  className="flex-1"
-                >
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Sí, cancelar envío
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Botones de acción */}
-        <div className="flex justify-end gap-2 pt-4">
+        <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-100">
           <Button
-            type="button"
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            className="flex-1 rounded-xl border-slate-200 hover:bg-slate-50"
+            onClick={() => setShowCancelConfirm(true)}
             disabled={loading}
           >
-            Cerrar
+            <Trash2 className="h-4 w-4 mr-2" />
+            Cancelar Envío
           </Button>
-          {hasPermission('editar_envios') && (
-            <Button
-              type="button"
-              onClick={handleUpdateShipment}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Guardar Cambios
-            </Button>
-          )}
+
+          <Button
+            className="flex-1 rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+            onClick={handleUpdateShipment}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              'Guardar Cambios'
+            )}
+          </Button>
         </div>
       </DialogContent>
 
-      {/* Payment Dialog */}
-      {shipment && (
-        <PaymentShipmentDialog
-          open={showPaymentDialog}
-          onOpenChange={setShowPaymentDialog}
-          shipmentId={shipmentId}
-          shippingCost={parseShippingCost(shipment.shipping_cost)}
-          onSuccess={() => {
-            fetchShipmentData();
-            onSuccess();
-          }}
-        />
-      )}
+      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        {/* @ts-expect-error - Radix type issues */}
+        <DialogContent className="max-w-md">
+          {/* @ts-expect-error - Radix type issues */}
+          <DialogHeader>
+            {/* @ts-expect-error - Radix type issues */}
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              ¿Confirmas cancelar este envío?
+            </DialogTitle>
+            {/* @ts-expect-error - Radix type issues */}
+            <DialogDescription>
+              Esta acción no se puede deshacer. El envío será eliminado y los pedidos asociados quedarán disponibles para un nuevo envío.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
+              No, volver
+            </Button>
+            <Button variant="destructive" onClick={handleCancelShipment} disabled={loading}>
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sí, cancelar envío'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 };
-

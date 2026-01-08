@@ -74,13 +74,9 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
   if (error || !shipment) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* @ts-ignore */}
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          {/* @ts-ignore */}
           <DialogHeader>
-            {/* @ts-ignore */}
             <DialogTitle>Error al cargar el envío</DialogTitle>
-            {/* @ts-ignore */}
             <DialogDescription>
               {error || 'Envío no encontrado'}
             </DialogDescription>
@@ -92,16 +88,12 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* @ts-ignore */}
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* @ts-ignore */}
         <DialogHeader>
-          {/* @ts-ignore */}
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
             Detalle del Envío: {shipment.tracking_number || shipment.reference || `#${shipment.id}`}
           </DialogTitle>
-          {/* @ts-ignore */}
           <DialogDescription>
             Información completa del envío y sus ventas asociadas
           </DialogDescription>
@@ -202,13 +194,13 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                     <p className="text-base">{shipment.creator?.username || shipment.creator?.email || 'N/A'}</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-start gap-3">
                   <Badge variant={shipment.priority === 'urgent' ? 'destructive' : shipment.priority === 'high' ? 'secondary' : 'outline'} className="mt-1">
                     Prioridad: {shipment.priority === 'low' ? 'Baja' : shipment.priority === 'normal' ? 'Normal' : shipment.priority === 'high' ? 'Alta' : 'Urgente'}
                   </Badge>
                 </div>
-                
+
                 <div className="flex items-start gap-3">
                   <Calendar className="h-5 w-5 text-purple-600 mt-0.5" />
                   <div>
@@ -264,19 +256,19 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
             )}
 
             {/* Transportista y Cliente */}
-              {(() => {
+            {(() => {
               // Obtener el transportista
               const transporter = shipment.transporter;
-              
+
               // Obtener el cliente de las ventas asociadas
-              const clientCustomer = shipment.sales && shipment.sales.length > 0 
-                ? shipment.sales[0].customer 
+              const clientCustomer = shipment.sales && shipment.sales.length > 0
+                ? shipment.sales[0].customer
                 : null;
-              
+
               if (!transporter && !clientCustomer) {
                 return null;
               }
-              
+
               return (
                 <>
                   <Separator />
@@ -312,15 +304,19 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                           <p className="text-base font-medium mb-2">
                             {clientCustomer.person.first_name} {clientCustomer.person.last_name}
                           </p>
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                           {(clientCustomer.person as any).phone && (
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <Phone className="h-3 w-3 text-green-600" />
+                              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                               {(clientCustomer.person as any).phone}
                             </p>
                           )}
+                          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                           {(clientCustomer.person as any).address && (
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-red-600" />
+                              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                               {(clientCustomer.person as any).address}
                             </p>
                           )}
@@ -377,22 +373,26 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                           {(() => {
                             const customer = sale.customer;
                             const person = customer?.person;
-                            
+
                             if (person) {
                               return (
                                 <div className="space-y-1">
                                   <div className="text-sm font-medium">
                                     Cliente: {person.first_name} {person.last_name}
                                   </div>
+                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                   {(person as any).phone && (
                                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                                       <Phone className="h-3 w-3 text-green-600" />
+                                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                       {(person as any).phone}
                                     </div>
                                   )}
+                                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                   {(person as any).address && (
                                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                                       <MapPin className="h-3 w-3 text-red-600" />
+                                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                       {(person as any).address}
                                     </div>
                                   )}
@@ -426,11 +426,11 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                           </div>
                           {sale.payment_status && (
                             <Badge className={
-                              sale.payment_status === 'paid' 
-                                ? 'bg-green-100 text-green-800 hover:bg-green-100' 
-                                : sale.payment_status === 'partial' 
-                                ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' 
-                                : 'bg-red-100 text-red-800 hover:bg-red-100'
+                              sale.payment_status === 'paid'
+                                ? 'bg-green-100 text-green-800 hover:bg-green-100'
+                                : sale.payment_status === 'partial'
+                                  ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100'
+                                  : 'bg-red-100 text-red-800 hover:bg-red-100'
                             }>
                               {sale.payment_status === 'paid' ? (
                                 <>
@@ -481,8 +481,8 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                               {event.from_stage && event.to_stage
                                 ? `Movido de "${event.from_stage.name}" a "${event.to_stage.name}"`
                                 : event.from_stage
-                                ? `Creado en "${event.from_stage.name}"`
-                                : 'Evento del sistema'}
+                                  ? `Creado en "${event.from_stage.name}"`
+                                  : 'Evento del sistema'}
                             </div>
                             {event.user && (
                               <div className="text-sm text-muted-foreground">

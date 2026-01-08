@@ -659,10 +659,10 @@ class SaleService implements SaleServiceInterface
         $from = $request->input('from_date') ?? $request->input('from');
         $to = $request->input('to_date') ?? $request->input('to');
         if ($from) {
-            $query->whereDate('date', '>=', Carbon::parse($from)->startOfDay());
+            $query->where('date', '>=', Carbon::parse($from)->startOfDay()->setTimezone('UTC'));
         }
         if ($to) {
-            $query->whereDate('date', '<=', Carbon::parse($to)->endOfDay());
+            $query->where('date', '<=', Carbon::parse($to)->endOfDay()->setTimezone('UTC'));
         }
         $sales = $query->orderByDesc('date')->get();
         return $sales->map(function ($sale) {

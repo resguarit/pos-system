@@ -472,6 +472,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/kanban', [RepairController::class, 'kanban']);
         Route::get('/{id}', [RepairController::class, 'show'])->whereNumber('id');
         Route::get('/{id}/pdf', [RepairController::class, 'generatePdf'])->whereNumber('id');
+        Route::get('/{id}/reception-certificate', [RepairController::class, 'receptionCertificate'])->whereNumber('id');
         Route::post('/', [RepairController::class, 'store']);
         Route::put('/{id}', [RepairController::class, 'update'])->whereNumber('id');
         Route::delete('/{id}', [RepairController::class, 'destroy'])->whereNumber('id');

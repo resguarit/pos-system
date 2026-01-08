@@ -32,6 +32,8 @@ class UpdateShipmentRequest extends FormRequest
             'notes' => 'nullable|string',
             'current_stage_id' => 'sometimes|integer|exists:shipment_stages,id',
             'shipping_cost' => 'sometimes|numeric|min:0',
+            'sale_ids' => 'sometimes|array',
+            'sale_ids.*' => 'integer|exists:sales_header,id',
         ];
     }
 

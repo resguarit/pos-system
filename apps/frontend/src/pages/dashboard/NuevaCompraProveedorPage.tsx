@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,7 +38,7 @@ export default function NuevaCompraPage() {
   const [selectedProduct, setSelectedProduct] = useState("")
   const [productQuantity, setProductQuantity] = useState(1)
   const [productPrice, setProductPrice] = useState<number | "">("")
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split("T")[0])
+  const [purchaseDate, setPurchaseDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [expectedDate, setExpectedDate] = useState("")
   const [notes, setNotes] = useState("")
   const [orderProducts, setOrderProducts] = useState<

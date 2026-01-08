@@ -36,6 +36,8 @@ class Repair extends Model
         'insurer_id',
         'siniestro_number',
         'insured_customer_id',
+        'policy_number',
+        'device_age',
     ];
 
     public function getActivitylogOptions(): LogOptions

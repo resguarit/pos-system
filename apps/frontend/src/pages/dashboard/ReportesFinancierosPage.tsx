@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -86,7 +87,7 @@ interface MovementsDetail {
 export default function ReportesFinancierosPage() {
   const { request, loading } = useApi()
   const { branches, hasPermission } = useAuth()
-  
+
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
     const today = new Date()
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -95,7 +96,7 @@ export default function ReportesFinancierosPage() {
       to: today
     }
   })
-  
+
   const [selectedBranch, setSelectedBranch] = useState<string>("all")
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [movementsDetail, setMovementsDetail] = useState<MovementsDetail | null>(null)
@@ -111,8 +112,8 @@ export default function ReportesFinancierosPage() {
 
     try {
       const params: any = {
-        from_date: format(dateRange.from, 'yyyy-MM-dd'),
-        to_date: format(dateRange.to, 'yyyy-MM-dd'),
+        from_date: format(dateRange?.from, 'yyyy-MM-dd'),
+        to_date: format(dateRange?.to, 'yyyy-MM-dd'),
       }
 
       if (selectedBranch && selectedBranch !== "all") {
@@ -176,12 +177,13 @@ export default function ReportesFinancierosPage() {
         from = new Date(today)
         to = new Date(today)
         break
-      case 'yesterday':
+      case 'yesterday': {
         const yesterday = new Date(today)
         yesterday.setDate(yesterday.getDate() - 1)
         from = yesterday
         to = yesterday
         break
+      }
       case 'week':
         from = new Date(today)
         from.setDate(from.getDate() - 7)
@@ -189,10 +191,11 @@ export default function ReportesFinancierosPage() {
       case 'month':
         from = new Date(today.getFullYear(), today.getMonth(), 1)
         break
-      case 'quarter':
+      case 'quarter': {
         const quarter = Math.floor(today.getMonth() / 3)
         from = new Date(today.getFullYear(), quarter * 3, 1)
         break
+      }
       case 'year':
         from = new Date(today.getFullYear(), 0, 1)
         break
@@ -222,8 +225,17 @@ export default function ReportesFinancierosPage() {
             selected={dateRange}
             onSelect={setDateRange}
             className="w-full md:w-[300px]"
+            showClearButton={true}
+            onClear={() => {
+              const today = new Date()
+              const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+              setDateRange({
+                from: firstDayOfMonth,
+                to: today
+              })
+            }}
           />
-          
+
           <Select value={selectedBranch} onValueChange={setSelectedBranch}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Sucursal" />
@@ -316,8 +328,8 @@ export default function ReportesFinancierosPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-violet-600">
-                  {summary.income.total > 0 
-                    ? ((summary.balance / summary.income.total) * 100).toFixed(2) 
+                  {summary.income.total > 0
+                    ? ((summary.balance / summary.income.total) * 100).toFixed(2)
                     : '0.00'}%
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
@@ -398,9 +410,9 @@ export default function ReportesFinancierosPage() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="border-t pt-4" />
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Movimientos de Caja (Entradas)</span>
@@ -462,9 +474,9 @@ export default function ReportesFinancierosPage() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="border-t pt-4" />
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold">Total Ingresos</span>
                   <span className="text-lg font-bold text-emerald-600">
@@ -541,9 +553,9 @@ export default function ReportesFinancierosPage() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="border-t pt-4" />
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Movimientos de Caja (Salidas)</span>
@@ -605,9 +617,9 @@ export default function ReportesFinancierosPage() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="border-t pt-4" />
-                
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold">Total Egresos</span>
                   <span className="text-lg font-bold text-red-600">

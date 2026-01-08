@@ -13,8 +13,9 @@ import {
     LayoutGrid,
     List,
     Trash2,
-    Download,
     CheckCircle2,
+    FileText,
+    ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,7 @@ export default function ReparacionesPage() {
         addNote,
         getRepair,
         downloadPdf,
+        downloadReceptionCertificate,
         refresh,
     } = useRepairs();
 
@@ -141,8 +143,8 @@ export default function ReparacionesPage() {
         if (dateRange?.from) {
             setFilters((f) => ({
                 ...f,
-                from_date: format(dateRange.from, "yyyy-MM-dd"),
-                to_date: dateRange.to ? format(dateRange.to, "yyyy-MM-dd") : undefined,
+                from_date: format(dateRange?.from, "yyyy-MM-dd"),
+                to_date: dateRange?.to ? format(dateRange?.to, "yyyy-MM-dd") : undefined,
             }));
         } else {
             setFilters((f) => ({
@@ -245,6 +247,11 @@ export default function ReparacionesPage() {
     // Download PDF
     const handleDownloadPdf = async (repair: Repair) => {
         await downloadPdf(repair.id);
+    };
+
+    // Download Reception Certificate (for insurance)
+    const handleDownloadReceptionCertificate = async (repair: Repair) => {
+        await downloadReceptionCertificate(repair.id);
     };
 
     // Format currency
@@ -398,6 +405,8 @@ export default function ReparacionesPage() {
                         selected={dateRange}
                         onSelect={setDateRange}
                         className="w-full md:w-auto"
+                        showClearButton={true}
+                        onClear={() => setDateRange(undefined)}
                     />
                 </div>
 
@@ -559,15 +568,28 @@ export default function ReparacionesPage() {
                                                                     <Pencil className="h-4 w-4 text-orange-600 group-hover:text-orange-700" />
                                                                 </Button>
                                                             )}
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="hover:bg-amber-100 group"
-                                                                onClick={() => handleDownloadPdf(rep)}
-                                                                title="Descargar PDF"
-                                                            >
-                                                                <Download className="h-4 w-4 text-amber-600 group-hover:text-amber-700" />
-                                                            </Button>
+                                                            <div className="flex items-center">
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="hover:bg-amber-100 group h-8 w-8"
+                                                                    onClick={() => handleDownloadPdf(rep)}
+                                                                    title="Descargar Comprobante de Reparación"
+                                                                >
+                                                                    <FileText className="h-4 w-4 text-amber-600 group-hover:text-amber-700" />
+                                                                </Button>
+                                                                {(rep.is_siniestro || rep.insurer_id) && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="hover:bg-blue-100 group h-8 w-8"
+                                                                        onClick={() => handleDownloadReceptionCertificate(rep)}
+                                                                        title="Descargar Acta de Recepción"
+                                                                    >
+                                                                        <ClipboardCheck className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
                                                             {hasPermission("eliminar_reparaciones") && (
                                                                 <Button
                                                                     variant="ghost"
@@ -602,6 +624,7 @@ export default function ReparacionesPage() {
                         onEdit={handleEdit}
                         onStatusChange={handleStatusChange}
                         onDownloadPdf={handleDownloadPdf}
+                        onDownloadReceptionCertificate={handleDownloadReceptionCertificate}
                         loading={loading}
                     />
                 )}
@@ -631,6 +654,9 @@ export default function ReparacionesPage() {
                     onCancelEdit={() => setEditMode(false)}
                     onDownloadPdf={
                         selectedRepair ? () => handleDownloadPdf(selectedRepair) : undefined
+                    }
+                    onDownloadReceptionCertificate={
+                        selectedRepair ? () => handleDownloadReceptionCertificate(selectedRepair) : undefined
                     }
                     options={options}
                 />

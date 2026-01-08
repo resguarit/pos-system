@@ -20,8 +20,9 @@ class RepairResource extends JsonResource
             'customer' => [
                 'id' => $this->customer?->id,
                 'name' => $this->customer?->person ? trim($this->customer->person->first_name . ' ' . $this->customer->person->last_name) : null,
-                'phone' => $this->customer?->phone,
+                'phone' => $this->customer?->person?->phone ?? $this->customer?->phone,
                 'email' => $this->customer?->email,
+                'address' => $this->customer?->person?->address,
             ],
             'branch' => [
                 'id' => $this->branch?->id,
@@ -61,6 +62,8 @@ class RepairResource extends JsonResource
             // Siniestro (Insurance Claim) fields
             'is_siniestro' => $this->is_siniestro,
             'siniestro_number' => $this->siniestro_number,
+            'policy_number' => $this->policy_number,
+            'device_age' => $this->device_age,
             'insurer' => $this->whenLoaded('insurer', function () {
                 return [
                     'id' => $this->insurer?->id,
@@ -71,8 +74,9 @@ class RepairResource extends JsonResource
                 return [
                     'id' => $this->insuredCustomer?->id,
                     'name' => $this->insuredCustomer?->person ? ($this->insuredCustomer->person->first_name . ' ' . $this->insuredCustomer->person->last_name) : null,
-                    'phone' => $this->insuredCustomer?->phone,
+                    'phone' => $this->insuredCustomer?->person?->phone ?? $this->insuredCustomer?->phone,
                     'email' => $this->insuredCustomer?->email,
+                    'address' => $this->insuredCustomer?->person?->address,
                 ];
             }),
         ];

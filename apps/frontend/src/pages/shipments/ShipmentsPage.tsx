@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { Shipment, ShipmentStage } from '@/types/shipment';
 import { shipmentService } from '@/services/shipmentService';
@@ -18,6 +19,8 @@ import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Fil
 import { toast } from 'sonner';
 import SelectBranchPlaceholder from '@/components/ui/select-branch-placeholder';
 import Pagination from '@/components/ui/pagination';
+import { DatePickerWithRange, DateRange } from '@/components/ui/date-range-picker';
+
 
 /**
  * Clasificación de Estados de Envío basada en el campo 'order' del stage:
@@ -30,7 +33,7 @@ import Pagination from '@/components/ui/pagination';
 export default function ShipmentsPage() {
   const navigate = useNavigate();
   const { hasPermission, isLoading: authLoading } = useAuth();
-  const { request } = useApi() as any;
+  const { request } = useApi();
   const { selectedBranchIds, branches, setSelectedBranchIds } = useBranch();
 
   // Estados principales
@@ -50,12 +53,14 @@ export default function ShipmentsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [perPage, setPerPage] = useState(10);
+  const [perPage] = useState(10);
 
   // Estados para búsqueda de clientes y transportistas
   const [customerSearch, setCustomerSearch] = useState('');
   const [transporterSearch, setTransporterSearch] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [customers, setCustomers] = useState<any[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [users, setUsers] = useState<any[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
@@ -93,7 +98,7 @@ export default function ShipmentsPage() {
   // Estados para recordar la selección original
   const [originalBranchSelection, setOriginalBranchSelection] = useState<string[]>([])
 
-  // Estado para estadísticas del backend
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [backendStats, setBackendStats] = useState<any>(null);
 
   const fetchData = useCallback(async (page: number = 1) => {
@@ -112,12 +117,10 @@ export default function ShipmentsPage() {
 
       if (hasMultipleBranches) {
         // Cargar envíos de múltiples sucursales
-        // @ts-ignore - page is not in ShipmentFilters type but backend accepts it
         await loadMultipleBranchesShipments({ ...filters, per_page: perPage, page });
         // Las estadísticas vienen del hook useMultipleBranchesShipments
       } else {
         // Cargar envíos de una sola sucursal
-        // @ts-ignore - page is not in ShipmentFilters type but backend accepts it
         const shipmentsResponse = await shipmentService.getShipments({ ...filters, per_page: perPage, page });
         const shipmentsData = Array.isArray(shipmentsResponse.data)
           ? shipmentsResponse.data
@@ -278,25 +281,13 @@ export default function ShipmentsPage() {
     };
   }, [shipments, allShipments, consolidatedStats, backendStats, selectedBranchIdsArray.length]);
 
-  if (!hasPermission('ver_envios')) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Sin permisos</h3>
-          <p className="text-gray-600">No tienes permisos para ver envíos.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Render condicional al inicio del componente
-  if (selectedBranchIdsArray.length === 0) {
-    return <SelectBranchPlaceholder />
-  }
-
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
+  const dateRangeValue: DateRange | undefined = useMemo(() => {
+    if (!filters.created_from) return undefined;
+    return {
+      from: new Date(filters.created_from + 'T12:00:00'), // Add time to avoid timezone issues
+      to: filters.created_to ? new Date(filters.created_to + 'T12:00:00') : undefined
+    };
+  }, [filters.created_from, filters.created_to]);
 
   const handleApplyFilters = () => {
     setCurrentPage(1);
@@ -321,6 +312,39 @@ export default function ShipmentsPage() {
     setTimeout(() => fetchData(1), 100);
   };
 
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    if (range?.from) {
+      // Ajustar a medianoche local o string directo YYYY-MM-DD
+      const from = format(range.from, 'yyyy-MM-dd');
+      const to = range.to ? format(range.to, 'yyyy-MM-dd') : '';
+      setFilters(prev => ({ ...prev, created_from: from, created_to: to }));
+    } else {
+      // Si es undefined (limpiar), borrar filtros
+      setFilters(prev => ({ ...prev, created_from: '', created_to: '' }));
+      // Opcional: Auto-refrescar si se desea comportamiento inmediato al limpiar
+    }
+  };
+
+  if (!hasPermission('ver_envios')) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Sin permisos</h3>
+          <p className="text-gray-600">No tienes permisos para ver envíos.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render condicional al inicio del componente
+  if (selectedBranchIdsArray.length === 0) {
+    return <SelectBranchPlaceholder />
+  }
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
   const handleApplyDatePreset = (preset: string) => {
     const today = new Date();
     const yesterday = new Date(today);
@@ -329,17 +353,17 @@ export default function ShipmentsPage() {
     lastWeek.setDate(lastWeek.getDate() - 7);
 
     let from = '';
-    const to = today.toISOString().split('T')[0];
+    const to = format(today, 'yyyy-MM-dd');
 
     switch (preset) {
       case 'today':
-        from = today.toISOString().split('T')[0];
+        from = format(today, 'yyyy-MM-dd');
         break;
       case 'yesterday':
-        from = yesterday.toISOString().split('T')[0];
+        from = format(yesterday, 'yyyy-MM-dd');
         break;
       case 'week':
-        from = lastWeek.toISOString().split('T')[0];
+        from = format(lastWeek, 'yyyy-MM-dd');
         break;
     }
 
@@ -416,7 +440,7 @@ export default function ShipmentsPage() {
             // Ejecutar impresión desde el iframe
             iframe.contentWindow?.focus();
             iframe.contentWindow?.print();
-          } catch (err) {
+          } catch {
             toast.error("No se pudo abrir el diálogo de impresión.");
           }
 
@@ -494,7 +518,7 @@ export default function ShipmentsPage() {
     try {
       await fetchData(currentPage);
       toast.success('Datos actualizados');
-    } catch (error) {
+    } catch {
       toast.error('Error al actualizar datos');
     } finally {
       setLoading(false);
@@ -651,16 +675,12 @@ export default function ShipmentsPage() {
                   value={filters.stage_id || 'all'}
                   onValueChange={(value) => handleFilterChange('stage_id', value === 'all' ? '' : value)}
                 >
-                  {/* @ts-ignore */}
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  {/* @ts-ignore */}
                   <SelectContent>
-                    {/* @ts-ignore */}
                     <SelectItem value="all">Todos</SelectItem>
                     {stages.map((stage) => (
-                      // @ts-ignore
                       <SelectItem key={stage.id} value={stage.id.toString()}>
                         {stage.name}
                       </SelectItem>
@@ -677,19 +697,14 @@ export default function ShipmentsPage() {
                     value={filters.branch || 'all'}
                     onValueChange={(value) => handleFilterChange('branch', value === 'all' ? '' : value)}
                   >
-                    {/* @ts-ignore */}
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    {/* @ts-ignore */}
                     <SelectContent>
-                      {/* @ts-ignore */}
                       <SelectItem value="all">Todas</SelectItem>
                       {selectedBranchIdsArray.map((branchId) => {
                         const branchInfo = getBranchInfo(branchId);
-                        // @ts-ignore
                         return (
-                          // @ts-ignore
                           <SelectItem key={branchId} value={branchId.toString()}>
                             {branchInfo?.description || `Sucursal ${branchId}`}
                           </SelectItem>
@@ -706,21 +721,14 @@ export default function ShipmentsPage() {
                   value={filters.priority || 'all'}
                   onValueChange={(value) => handleFilterChange('priority', value === 'all' ? '' : value)}
                 >
-                  {/* @ts-ignore */}
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  {/* @ts-ignore */}
                   <SelectContent>
-                    {/* @ts-ignore */}
                     <SelectItem value="all">Todas</SelectItem>
-                    {/* @ts-ignore */}
                     <SelectItem value="urgent">Urgente</SelectItem>
-                    {/* @ts-ignore */}
                     <SelectItem value="high">Alta</SelectItem>
-                    {/* @ts-ignore */}
                     <SelectItem value="normal">Normal</SelectItem>
-                    {/* @ts-ignore */}
                     <SelectItem value="low">Baja</SelectItem>
                   </SelectContent>
                 </Select>
@@ -852,24 +860,12 @@ export default function ShipmentsPage() {
 
               <div className="md:col-span-2">
                 <label className="text-sm font-medium mb-2 block">Rango de Fechas</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Desde</label>
-                    <Input
-                      type="date"
-                      value={filters.created_from}
-                      onChange={(e) => handleFilterChange('created_from', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Hasta</label>
-                    <Input
-                      type="date"
-                      value={filters.created_to}
-                      onChange={(e) => handleFilterChange('created_to', e.target.value)}
-                    />
-                  </div>
-                </div>
+                <DatePickerWithRange
+                  selected={dateRangeValue}
+                  onSelect={handleDateRangeChange}
+                  showClearButton={true}
+                  onClear={() => handleDateRangeChange(undefined)}
+                />
               </div>
             </div>
 

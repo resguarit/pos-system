@@ -1483,21 +1483,28 @@ class CashRegisterController extends Controller
 
         switch ($dateRange) {
             case 'today':
-                $query->whereDate($dateField, $now->toDateString());
+                $start = $now->copy()->startOfDay()->setTimezone('UTC');
+                $end = $now->copy()->endOfDay()->setTimezone('UTC');
+                $query->whereBetween($dateField, [$start, $end]);
                 break;
             case 'yesterday':
-                $query->whereDate($dateField, $now->subDay()->toDateString());
+                $yesterday = $now->copy()->subDay();
+                $start = $yesterday->copy()->startOfDay()->setTimezone('UTC');
+                $end = $yesterday->copy()->endOfDay()->setTimezone('UTC');
+                $query->whereBetween($dateField, [$start, $end]);
                 break;
             case 'week':
-                $query->where($dateField, '>=', $now->startOfWeek());
+                $start = $now->copy()->startOfWeek()->setTimezone('UTC');
+                $query->where($dateField, '>=', $start);
                 break;
             case 'month':
-                $query->where($dateField, '>=', $now->startOfMonth());
+                $start = $now->copy()->startOfMonth()->setTimezone('UTC');
+                $query->where($dateField, '>=', $start);
                 break;
             case 'custom':
                 if (!empty($customDates['from']) && !empty($customDates['to'])) {
-                    $from = \Carbon\Carbon::parse($customDates['from'])->startOfDay();
-                    $to = \Carbon\Carbon::parse($customDates['to'])->endOfDay();
+                    $from = \Carbon\Carbon::parse($customDates['from'])->startOfDay()->setTimezone('UTC');
+                    $to = \Carbon\Carbon::parse($customDates['to'])->endOfDay()->setTimezone('UTC');
                     $query->whereBetween($dateField, [$from, $to]);
                 }
                 break;

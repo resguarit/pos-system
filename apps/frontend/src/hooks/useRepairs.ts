@@ -54,6 +54,7 @@ type UseRepairsReturn = {
     addNote: (id: number, note: string) => Promise<boolean>;
     getRepair: (id: number) => Promise<Repair | null>;
     downloadPdf: (id: number) => Promise<void>;
+    downloadReceptionCertificate: (id: number) => Promise<void>;
     refresh: () => void;
 };
 
@@ -110,15 +111,16 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
     };
 
     // Build query params from filters
-    const buildParams = useCallback(() => {
+    const buildParams = useCallback((currentFilters?: RepairFilters) => {
         const params: Record<string, string | number> = { per_page: perPage };
-        const f = filtersRef.current;
+        const f = currentFilters || filtersRef.current;
 
         if (f.search?.trim()) params.search = f.search.trim();
         if (f.status && f.status !== "all") params.status = f.status;
         if (f.priority && f.priority !== "all") params.priority = f.priority;
         if (f.technician_id) params.technician_id = f.technician_id;
-        if (f.insurer_id) params.insurer_id = f.insurer_id;
+        // Fix for 0 IDs or falsy checks: check for undefined
+        if (f.insurer_id !== undefined && f.insurer_id !== null) params.insurer_id = f.insurer_id;
         if (f.from_date) params.from_date = f.from_date;
         if (f.to_date) params.to_date = f.to_date;
         if (f.sort_by) {
@@ -136,10 +138,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
 
     // Fetch repairs list
     const fetchRepairs = useCallback(
-        async (signal?: AbortSignal) => {
+        async (signal?: AbortSignal, filtersOverride?: RepairFilters) => {
             try {
                 setLoading(true);
-                const params = buildParams();
+                const params = buildParams(filtersOverride);
                 const resp = await request({ method: "GET", url: "/repairs", params, signal });
                 const data = Array.isArray(resp?.data)
                     ? resp.data
@@ -233,6 +235,8 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         },
         [request]
     );
+    // ... (rest is createRepair, etc) but allow replace up to fetchInsurers
+
 
     // Create repair
     const createRepair = useCallback(
@@ -354,6 +358,36 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         [request]
     );
 
+    // Download Reception Certificate
+    const downloadReceptionCertificate = useCallback(
+        async (id: number): Promise<void> => {
+            try {
+                const resp = await request({
+                    method: "GET",
+                    url: `/repairs/${id}/reception-certificate`,
+                    responseType: "blob",
+                });
+
+                if (!resp || !(resp instanceof Blob)) {
+                    throw new Error("Respuesta inválida");
+                }
+
+                const blob = new Blob([resp], { type: "application/pdf" });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `acta_recepcion_siniestro_${id}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch {
+                toast.error("No se pudo descargar el acta de recepción");
+            }
+        },
+        [request]
+    );
+
     // Refresh all data
     const refresh = useCallback(() => {
         fetchRepairs();
@@ -379,7 +413,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
 
         const controller = new AbortController();
         const timer = setTimeout(() => {
-            fetchRepairs(controller.signal);
+            fetchRepairs(controller.signal); // Uses filtersRef for search, which is fine (search debounce)
         }, 300);
 
         return () => {
@@ -387,6 +421,27 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
             controller.abort();
         };
     }, [filters.search, autoFetch, fetchRepairs]);
+
+    // Fetch on other filters change immediately
+    useEffect(() => {
+        if (!autoFetch) return;
+
+        const controller = new AbortController();
+        fetchRepairs(controller.signal, filters); // Explicitly pass latest filters to avoid stale closure/ref issues
+
+        return () => controller.abort();
+    }, [
+        filters.status,
+        filters.priority,
+        filters.insurer_id,
+        filters.technician_id,
+        filters.from_date,
+        filters.to_date,
+        filters.sort_by,
+        filters.sort_dir,
+        autoFetch,
+        fetchRepairs
+    ]);
 
     return {
         repairs,
@@ -407,6 +462,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         addNote,
         getRepair,
         downloadPdf,
+        downloadReceptionCertificate,
         refresh,
     };
 }

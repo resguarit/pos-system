@@ -118,7 +118,7 @@ export default function ServicesPage() {
         description: "",
         amount: 0,
         billing_cycle: "monthly",
-        start_date: new Date().toISOString().split("T")[0],
+        start_date: format(new Date(), 'yyyy-MM-dd'),
         status: "active",
     })
 
@@ -156,7 +156,7 @@ export default function ServicesPage() {
             description: "",
             amount: 0,
             billing_cycle: "monthly",
-            start_date: new Date().toISOString().split("T")[0],
+            start_date: format(new Date(), 'yyyy-MM-dd'),
             status: "active",
         })
         setDialogOpen(true)

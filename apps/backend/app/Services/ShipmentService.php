@@ -105,11 +105,11 @@ class ShipmentService implements ShipmentServiceInterface
         }
 
         if (isset($filters['created_from'])) {
-            $query->where('created_at', '>=', $filters['created_from']);
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($filters['created_from'])->startOfDay()->setTimezone('UTC'));
         }
 
         if (isset($filters['created_to'])) {
-            $query->where('created_at', '<=', $filters['created_to']);
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($filters['created_to'])->endOfDay()->setTimezone('UTC'));
         }
 
         $shipments = $query->orderBy('created_at', 'desc')->paginate($perPage);
@@ -226,6 +226,11 @@ class ShipmentService implements ShipmentServiceInterface
             }
 
             $shipment->update($updateData);
+
+            // Update associated sales if provided
+            if (isset($data['sale_ids']) && is_array($data['sale_ids'])) {
+                $shipment->sales()->sync($data['sale_ids']);
+            }
 
             $shipment->incrementVersion();
 

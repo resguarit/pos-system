@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import useApi from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,16 +11,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { toast } from 'sonner';
 import { format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { ArrowLeft, Download, TrendingUp, BarChart3, DollarSign, Users, Target, Award, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Download, TrendingUp, BarChart3, DollarSign, Award, RefreshCw } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import type { DateRange } from '@/components/ui/date-range-picker';
 import * as XLSX from 'xlsx';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 
 interface User {
@@ -92,13 +93,7 @@ interface DailySales {
   total_amount: number;
 }
 
-interface MonthlySales {
-  year: number;
-  month: number;
-  month_key: string;
-  sales_count: number;
-  total_amount: number;
-}
+
 
 interface TopProduct {
   product_id: number;
@@ -109,13 +104,13 @@ interface TopProduct {
   total_amount: number;
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
 
 export default function UserPerformancePage() {
   const { id: userId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { request, loading } = useApi();
-  const { hasPermission, user: currentUser } = useAuth();
+  const { request } = useApi();
+  const { hasPermission } = useAuth();
 
 
   // Estados principales
@@ -131,7 +126,6 @@ export default function UserPerformancePage() {
   } | null>(null);
   const [statistics, setStatistics] = useState<SalesStatistics | null>(null);
   const [dailySales, setDailySales] = useState<DailySales[]>([]);
-  const [monthlySales, setMonthlySales] = useState<MonthlySales[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
@@ -149,7 +143,9 @@ export default function UserPerformancePage() {
   // Estados de paginación
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [perPage] = useState(20);
+
+
+
 
   // Configuración de columnas redimensionables
   const columnConfig = [
@@ -174,28 +170,9 @@ export default function UserPerformancePage() {
     storageKey: 'user-performance-column-widths',
   });
 
-  // Cargar datos iniciales
-  useEffect(() => {
-    if (userId) {
-      fetchUserData();
-      fetchBranches();
-    } else {
-      toast.error('ID de usuario no válido');
-    }
-  }, [userId]);
 
-  // Cargar datos cuando cambien los filtros
-  useEffect(() => {
-    if (userId) {
-      fetchSalesData();
-      fetchStatistics();
-      fetchDailySales();
-      fetchMonthlySales();
-      fetchTopProducts();
-    }
-  }, [userId, currentPage, dateRange, branchFilter]);
 
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
       setLoadingUser(true);
 
@@ -212,14 +189,14 @@ export default function UserPerformancePage() {
       } else {
         toast.error('No se pudieron cargar los datos del usuario');
       }
-    } catch (error) {
+    } catch {
       toast.error('Error al cargar los datos del usuario');
     } finally {
       setLoadingUser(false);
     }
-  };
+  }, [userId, request]);
 
-  const fetchBranches = async () => {
+  const fetchBranches = useCallback(async () => {
     try {
       const response = await request({
         method: 'GET',
@@ -228,12 +205,12 @@ export default function UserPerformancePage() {
       if (response?.data) {
         setBranches(response.data);
       }
-    } catch (error) {
+    } catch {
       // Silently fail - branches are optional
     }
-  };
+  }, [request]);
 
-  const fetchSalesData = async () => {
+  const fetchSalesData = useCallback(async () => {
     // Solo cargar datos de ventas si el usuario tiene el permiso
     if (!hasPermission('ver_ventas_usuario')) {
       return;
@@ -247,8 +224,8 @@ export default function UserPerformancePage() {
       };
 
       if (dateRange?.from && dateRange?.to) {
-        params.from_date = format(dateRange.from, 'yyyy-MM-dd');
-        params.to_date = format(dateRange.to, 'yyyy-MM-dd');
+        params.from_date = format(dateRange?.from, 'yyyy-MM-dd');
+        params.to_date = format(dateRange?.to, 'yyyy-MM-dd');
       }
 
       if (branchFilter !== 'all') {
@@ -275,20 +252,20 @@ export default function UserPerformancePage() {
           setTotalPages(response.pagination.last_page || 1);
         }
       }
-    } catch (error) {
+    } catch {
       toast.error('Error al cargar las ventas');
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [hasPermission, userId, currentPage, dateRange, branchFilter, request]);
 
-  const fetchStatistics = async () => {
+  const fetchStatistics = useCallback(async () => {
     try {
       const params: any = {};
 
       if (dateRange?.from && dateRange?.to) {
-        params.from_date = format(dateRange.from, 'yyyy-MM-dd');
-        params.to_date = format(dateRange.to, 'yyyy-MM-dd');
+        params.from_date = format(dateRange?.from, 'yyyy-MM-dd');
+        params.to_date = format(dateRange?.to, 'yyyy-MM-dd');
       }
 
       if (branchFilter !== 'all') {
@@ -346,18 +323,18 @@ export default function UserPerformancePage() {
 
         setStatistics(mappedStatistics);
       }
-    } catch (error) {
+    } catch {
       toast.error('Error al cargar las estadísticas');
     }
-  };
+  }, [userId, dateRange, branchFilter, request]);
 
-  const fetchDailySales = async () => {
+  const fetchDailySales = useCallback(async () => {
     try {
       const params: any = {};
 
       if (dateRange?.from && dateRange?.to) {
-        params.from_date = format(dateRange.from, 'yyyy-MM-dd');
-        params.to_date = format(dateRange.to, 'yyyy-MM-dd');
+        params.from_date = format(dateRange?.from, 'yyyy-MM-dd');
+        params.to_date = format(dateRange?.to, 'yyyy-MM-dd');
       }
 
       if (branchFilter !== 'all') {
@@ -385,10 +362,10 @@ export default function UserPerformancePage() {
       } else {
         setDailySales([]);
       }
-    } catch (error) {
+    } catch {
       setDailySales([]);
     }
-  };
+  }, [userId, dateRange, branchFilter, request]);
 
   /**
    * Obtiene las ventas mensuales del usuario
@@ -399,37 +376,22 @@ export default function UserPerformancePage() {
       const params: any = {};
 
       if (dateRange?.from && dateRange?.to) {
-        params.from_date = format(dateRange.from, 'yyyy-MM-dd');
-        params.to_date = format(dateRange.to, 'yyyy-MM-dd');
+        params.from_date = format(dateRange?.from, 'yyyy-MM-dd');
+        params.to_date = format(dateRange?.to, 'yyyy-MM-dd');
       }
 
       if (branchFilter !== 'all') {
         params.branch_id = branchFilter;
       }
 
-      const response = await request({
+      await request({
         method: 'GET',
         url: `/users/${userId}/sales/monthly`,
         params,
       });
 
-      if (Array.isArray(response)) {
-        setMonthlySales(response.map((item: any) => ({
-          ...item,
-          sales_count: Number(item.sales_count),
-          total_amount: Number(item.total_amount)
-        })));
-      } else if (response?.data) {
-        setMonthlySales(response.data.map((item: any) => ({
-          ...item,
-          sales_count: Number(item.sales_count),
-          total_amount: Number(item.total_amount)
-        })));
-      } else {
-        setMonthlySales([]);
-      }
-    } catch (error) {
-      setMonthlySales([]);
+    } catch {
+      // monthly sales are optional or can be empty
     }
   };
 
@@ -437,13 +399,13 @@ export default function UserPerformancePage() {
    * Obtiene los productos más vendidos del usuario
    * Principio: Single Responsibility - Solo obtiene productos más vendidos
    */
-  const fetchTopProducts = async () => {
+  const fetchTopProducts = useCallback(async () => {
     try {
       const params: any = {};
 
       if (dateRange?.from && dateRange?.to) {
-        params.from_date = format(dateRange.from, 'yyyy-MM-dd');
-        params.to_date = format(dateRange.to, 'yyyy-MM-dd');
+        params.from_date = format(dateRange?.from, 'yyyy-MM-dd');
+        params.to_date = format(dateRange?.to, 'yyyy-MM-dd');
       }
 
       if (branchFilter !== 'all') {
@@ -473,10 +435,31 @@ export default function UserPerformancePage() {
       } else {
         setTopProducts([]);
       }
-    } catch (error) {
+    } catch {
       setTopProducts([]);
     }
-  };
+  }, [userId, dateRange, branchFilter, request]);
+
+  // Cargar datos iniciales
+  useEffect(() => {
+    if (userId) {
+      fetchUserData();
+      fetchBranches();
+    } else {
+      toast.error('ID de usuario no válido');
+    }
+  }, [userId, fetchUserData, fetchBranches]);
+
+  // Cargar datos cuando cambien los filtros
+  useEffect(() => {
+    if (userId) {
+      fetchSalesData();
+      fetchStatistics();
+      fetchDailySales();
+      fetchMonthlySales();
+      fetchTopProducts();
+    }
+  }, [userId, currentPage, dateRange, branchFilter, fetchSalesData, fetchStatistics, fetchDailySales, fetchMonthlySales, fetchTopProducts]);
 
   const handleExportCSV = async () => {
     try {
@@ -493,8 +476,8 @@ export default function UserPerformancePage() {
       };
 
       if (dateRange?.from && dateRange?.to) {
-        params.from_date = format(dateRange.from, 'yyyy-MM-dd');
-        params.to_date = format(dateRange.to, 'yyyy-MM-dd');
+        params.from_date = format(dateRange?.from, 'yyyy-MM-dd');
+        params.to_date = format(dateRange?.to, 'yyyy-MM-dd');
       }
 
       if (branchFilter !== 'all') {
@@ -550,7 +533,7 @@ export default function UserPerformancePage() {
       } else {
         toast.error('No se pudieron obtener las ventas para exportar.', { id: 'export-toast' });
       }
-    } catch (error) {
+    } catch {
       toast.error('Error al generar la exportación.', { id: 'export-toast' });
     }
   };
@@ -631,6 +614,7 @@ export default function UserPerformancePage() {
               <DatePickerWithRange
                 selected={dateRange}
                 onSelect={setDateRange}
+                showClearButton={true}
               />
             </div>
             <div className="space-y-2 flex-1">
@@ -641,7 +625,7 @@ export default function UserPerformancePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas las sucursales</SelectItem>
-                  {branches.map((branch) => (
+                  {branches.map((branch: { id: number; description: string }) => (
                     <SelectItem key={branch.id} value={branch.id.toString()}>
                       {branch.description}
                     </SelectItem>
@@ -683,7 +667,7 @@ export default function UserPerformancePage() {
               <p className="text-xs text-muted-foreground">
                 {statistics?.total_sales || 0} directas + {statistics?.indirect_sales_count || 0} indirectas
               </p>
-              {statistics?.pending_budget_count! > 0 && (
+              {statistics?.pending_budget_count > 0 && (
                 <p className="text-xs text-amber-600 mt-1">
                   + {statistics?.pending_budget_count} presupuestos pendientes
                 </p>
@@ -732,7 +716,7 @@ export default function UserPerformancePage() {
               <p className="text-xs text-muted-foreground">
                 {commissionPercentage}% sobre ${formatCurrency(statistics?.commissionable_amount || 0)}
               </p>
-              {statistics?.indirect_sales_amount! > 0 && (
+              {statistics?.indirect_sales_amount > 0 && (
                 <p className="text-xs text-green-600 mt-1">
                   (Incluye {formatCurrency(statistics?.indirect_sales_amount || 0)} de indirectas)
                 </p>
@@ -946,156 +930,158 @@ export default function UserPerformancePage() {
         </TabsContent>
 
         {hasPermission('ver_ventas_usuario') && (
-          <TabsContent value="history" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Historial de Ventas</CardTitle>
-                <CardDescription>Lista detallada de todas las ventas</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    {columnConfig.map((column) => (
-                      <ResizableTableHeader
-                        key={column.id}
-                        columnId={column.id}
-                        getResizeHandleProps={getResizeHandleProps}
-                        getColumnHeaderProps={getColumnHeaderProps}
-                        className="font-medium"
-                      >
-                        {column.id === 'receipt_number' && 'Número'}
-                        {column.id === 'receipt_type' && 'Comprobante'}
-                        {column.id === 'customer' && 'Cliente'}
-                        {column.id === 'branch' && 'Sucursal'}
-                        {column.id === 'items_count' && 'Items'}
-                        {column.id === 'subtotal' && 'Subtotal'}
-                        {column.id === 'total_iva_amount' && 'IVA'}
-                        {column.id === 'total' && 'Total'}
-                        {column.id === 'date' && 'Fecha'}
-                        {column.id === 'status' && 'Estado'}
-                      </ResizableTableHeader>
-                    ))}
-                  </TableHeader>
-                  <TableBody>
-                    {loadingData ? (
-                      <TableRow>
-                        <TableCell colSpan={columnConfig.length} className="text-center py-8">
-                          <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                          Cargando ventas...
-                        </TableCell>
-                      </TableRow>
-                    ) : sales.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={columnConfig.length} className="text-center py-8 text-muted-foreground">
-                          No se encontraron ventas para los filtros seleccionados
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      sales.map((sale) => (
-                        <TableRow key={sale.id}>
-                          <ResizableTableCell
-                            columnId="receipt_number"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {sale.receipt_number || sale.id}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="receipt_type"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {sale.receipt_type}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="customer"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {sale.customer}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="branch"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {sale.branch}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="items_count"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {sale.items_count}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="subtotal"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {formatCurrency(sale.subtotal)}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="total_iva_amount"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {formatCurrency(sale.total_iva_amount)}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="total"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {formatCurrency(sale.total)}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="date"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            {formatShortDate(sale.date)}
-                          </ResizableTableCell>
-                          <ResizableTableCell
-                            columnId="status"
-                            getColumnCellProps={getColumnCellProps}
-                          >
-                            <Badge variant={sale.status === 'annulled' ? 'destructive' : 'default'}>
-                              {sale.status === 'annulled' ? 'Anulada' : 'Activa'}
-                            </Badge>
-                          </ResizableTableCell>
+          <TabsContent value="history">
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Historial de Ventas</CardTitle>
+                  <CardDescription>Lista detallada de todas las ventas</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      {columnConfig.map((column) => (
+                        <ResizableTableHeader
+                          key={column.id}
+                          columnId={column.id}
+                          getResizeHandleProps={getResizeHandleProps}
+                          getColumnHeaderProps={getColumnHeaderProps}
+                          className="font-medium"
+                        >
+                          {column.id === 'receipt_number' && 'Número'}
+                          {column.id === 'receipt_type' && 'Comprobante'}
+                          {column.id === 'customer' && 'Cliente'}
+                          {column.id === 'branch' && 'Sucursal'}
+                          {column.id === 'items_count' && 'Items'}
+                          {column.id === 'subtotal' && 'Subtotal'}
+                          {column.id === 'total_iva_amount' && 'IVA'}
+                          {column.id === 'total' && 'Total'}
+                          {column.id === 'date' && 'Fecha'}
+                          {column.id === 'status' && 'Estado'}
+                        </ResizableTableHeader>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {loadingData ? (
+                        <TableRow>
+                          <TableCell colSpan={columnConfig.length} className="text-center py-8">
+                            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
+                            Cargando ventas...
+                          </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-
-                {/* Información de paginación mejorada */}
-                {salesPagination && (
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="text-sm text-muted-foreground">
-                      Mostrando {salesPagination.from} a {salesPagination.to} de {salesPagination.total} ventas
-                      {salesPagination.total > 0 && (
-                        <span className="ml-2">
-                          (Página {salesPagination.current_page} de {salesPagination.last_page})
-                        </span>
+                      ) : sales.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={columnConfig.length} className="text-center py-8 text-muted-foreground">
+                            No se encontraron ventas para los filtros seleccionados
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        sales.map((sale) => (
+                          <TableRow key={sale.id}>
+                            <ResizableTableCell
+                              columnId="receipt_number"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {sale.receipt_number || sale.id}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="receipt_type"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {sale.receipt_type}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="customer"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {sale.customer}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="branch"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {sale.branch}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="items_count"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {sale.items_count}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="subtotal"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {formatCurrency(sale.subtotal)}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="total_iva_amount"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {formatCurrency(sale.total_iva_amount)}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="total"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {formatCurrency(sale.total)}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="date"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              {formatShortDate(sale.date)}
+                            </ResizableTableCell>
+                            <ResizableTableCell
+                              columnId="status"
+                              getColumnCellProps={getColumnCellProps}
+                            >
+                              <Badge variant={sale.status === 'annulled' ? 'destructive' : 'default'}>
+                                {sale.status === 'annulled' ? 'Anulada' : 'Activa'}
+                              </Badge>
+                            </ResizableTableCell>
+                          </TableRow>
+                        ))
                       )}
+                    </TableBody>
+                  </Table>
+
+                  {/* Información de paginación mejorada */}
+                  {salesPagination && (
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="text-sm text-muted-foreground">
+                        Mostrando {salesPagination.from} a {salesPagination.to} de {salesPagination.total} ventas
+                        {salesPagination.total > 0 && (
+                          <span className="ml-2">
+                            (Página {salesPagination.current_page} de {salesPagination.last_page})
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToPage(currentPage - 1)}
+                          disabled={currentPage === 1 || loadingData}
+                          className="cursor-pointer"
+                        >
+                          Anterior
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => goToPage(currentPage + 1)}
+                          disabled={currentPage >= totalPages || loadingData}
+                          className="cursor-pointer"
+                        >
+                          Siguiente
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => goToPage(currentPage - 1)}
-                        disabled={currentPage === 1 || loadingData}
-                        className="cursor-pointer"
-                      >
-                        Anterior
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => goToPage(currentPage + 1)}
-                        disabled={currentPage >= totalPages || loadingData}
-                        className="cursor-pointer"
-                      >
-                        Siguiente
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         )}
       </Tabs>

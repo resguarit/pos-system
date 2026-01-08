@@ -5,17 +5,26 @@
     <meta charset="utf-8">
     <title>Orden de Reparación #{{ $repair->code }}</title>
     <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+
         body {
-            font-family: sans-serif;
-            font-size: 11px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            line-height: 1.4;
+            height: 26.7cm;
+            /* A4 height 29.7cm - margins (1.5cm * 2) */
+            position: relative;
         }
 
         .header-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .header-table td {
@@ -28,12 +37,12 @@
 
         .logo {
             max-height: 60px;
-            max-width: 140px;
+            max-width: 130px;
         }
 
         .company-info {
-            font-size: 9px;
-            line-height: 1.4;
+            font-size: 13px;
+            line-height: 1.5;
         }
 
         .order-info {
@@ -41,35 +50,36 @@
         }
 
         .order-number {
-            font-size: 18px;
+            font-size: 24px;
             font-weight: bold;
             border: 2px solid #000;
-            padding: 5px 15px;
+            padding: 10px 26px;
             display: inline-block;
         }
 
         .section-title {
             font-weight: bold;
+            font-size: 16px;
             margin-top: 15px;
             margin-bottom: 8px;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 2px solid #ccc;
             padding-bottom: 3px;
         }
 
         .data-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
 
         .data-table td {
-            padding: 3px 5px;
+            padding: 6px 10px;
             vertical-align: top;
         }
 
         .label {
             font-weight: bold;
-            width: 150px;
+            width: 160px;
         }
 
         .problem-section {
@@ -79,32 +89,55 @@
 
         .problem-title {
             font-weight: bold;
-            margin-bottom: 5px;
+            font-size: 17px;
+            margin-bottom: 10px;
         }
 
         .problem-content {
-            padding-left: 10px;
-            min-height: 40px;
+            padding-left: 15px;
+            font-size: 16px;
+            min-height: 50px;
         }
 
         .diagnosis-section {
-            margin-top: 20px;
-            margin-bottom: 20px;
+            margin-top: 15px;
+            margin-bottom: 15px;
         }
 
         .diagnosis-title {
             font-weight: bold;
-            margin-bottom: 5px;
+            font-size: 17px;
+            margin-bottom: 10px;
         }
 
         .diagnosis-content {
+            border-bottom: 2px dotted #999;
+            font-size: 16px;
+            padding-bottom: 10px;
             min-height: 60px;
-            border-bottom: 1px dotted #999;
+        }
+
+        .footer-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
         }
 
         .signature-section {
-            margin-top: 50px;
-            page-break-inside: avoid;
+            margin-top: 0;
+        }
+
+        .terms {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #000;
+            border-top: 2px solid #000;
+            padding-top: 10px;
+            text-align: justify;
+            line-height: 1.6;
+            margin-bottom: 20px;
         }
 
         .signature-table {
@@ -113,31 +146,25 @@
         }
 
         .signature-table td {
-            width: 33%;
+            width: 33.33%;
             text-align: center;
-            padding-top: 40px;
+            padding-top: 50px;
+            border: none;
         }
 
         .signature-line {
             border-top: 1px solid #000;
-            margin: 0 20px;
+            margin: 0 15px;
             padding-top: 5px;
-            font-size: 10px;
-        }
-
-        .terms {
-            margin-top: 30px;
-            font-size: 8px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
+            font-size: 11px;
+            font-weight: bold;
         }
 
         .footer {
             margin-top: 10px;
-            font-size: 8px;
+            font-size: 10px;
             text-align: center;
-            color: #999;
+            color: #666;
         }
     </style>
 </head>
@@ -169,6 +196,7 @@
                 @endif
             </td>
             <td class="company-info">
+                <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">RESGUAR IT</div>
                 <strong>{{ $repair->branch->description ?? 'Sucursal' }}</strong><br>
                 @if($repair->branch->address)
                     {{ $repair->branch->address }}<br>
@@ -249,33 +277,36 @@
         <div class="diagnosis-content">{{ $repair->diagnosis ?? '' }}</div>
     </div>
 
-    {{-- FIRMA --}}
-    <div class="signature-section">
-        <table class="signature-table">
-            <tr>
-                <td>
-                    <div class="signature-line">Firma</div>
-                </td>
-                <td>
-                    <div class="signature-line">Aclaración</div>
-                </td>
-                <td>
-                    <div class="signature-line">DNI</div>
-                </td>
-            </tr>
-        </table>
-    </div>
+    {{-- FOOTER CONTAINER --}}
+    <div class="footer-container">
+        {{-- FIRMA --}}
+        <div class="signature-section">
+            <table class="signature-table">
+                <tr>
+                    <td>
+                        <div class="signature-line">Firma</div>
+                    </td>
+                    <td>
+                        <div class="signature-line">Aclaración</div>
+                    </td>
+                    <td>
+                        <div class="signature-line">DNI</div>
+                    </td>
+                </tr>
+            </table>
+        </div>
 
-    {{-- TÉRMINOS --}}
-    <div class="terms">
-        <strong>IMPORTANTE:</strong> Para retirar el producto deberá presentarse con este comprobante.
-        Si no es retirado después de los 90 días, se considerará abandonado conforme a los artículos 2525 y 2526 del
-        Código Civil.
-        La empresa no se responsabiliza por la pérdida total o parcial de los datos almacenados en el equipo.
-    </div>
+        {{-- TÉRMINOS --}}
+        <div class="terms">
+            <strong>IMPORTANTE:</strong> Para retirar el producto deberá presentarse con este comprobante.
+            Si no es retirado después de los 90 días, se considerará abandonado conforme a los artículos 2525 y 2526 del
+            Código Civil.
+            La empresa no se responsabiliza por la pérdida total o parcial de los datos almacenados en el equipo.
+        </div>
 
-    <div class="footer">
-        Fecha y Hora de Impresión: {{ now()->format('d/m/Y H:i:s') }}
+        <div class="footer">
+            Fecha y Hora de Impresión: {{ now()->format('d/m/Y H:i:s') }}
+        </div>
     </div>
 </body>
 

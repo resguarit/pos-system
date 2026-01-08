@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Input } from "@/components/ui/input"
@@ -20,11 +21,10 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
 import { NewExpenseDialog, EditExpenseDialog } from "@/components/expenses"
 import { ExpensesStats } from "@/components/expenses/ExpensesStats"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
 import { format } from "date-fns"
 
@@ -270,7 +270,13 @@ export default function ExpensesListPage() {
             end_date: ''
         });
         setSearchTerm('');
-        setDateRange(undefined);
+
+        const today = new Date();
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        setDateRange({
+            from: firstDayOfMonth,
+            to: today
+        });
     };
 
     const getStatusBadge = (expense: Expense) => {

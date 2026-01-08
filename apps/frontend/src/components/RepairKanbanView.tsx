@@ -1,8 +1,6 @@
-import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Tooltip,
     TooltipContent,
@@ -28,6 +26,7 @@ import {
     CheckCircle,
     Package,
     Truck,
+    ClipboardCheck,
 } from "lucide-react";
 import type { Repair, RepairStatus, RepairPriority, KanbanColumn } from "@/types/repairs";
 import { cn } from "@/lib/utils";
@@ -94,6 +93,7 @@ type RepairKanbanViewProps = {
     onEdit: (repair: Repair) => void;
     onStatusChange: (repairId: number, newStatus: RepairStatus) => void;
     onDownloadPdf: (repair: Repair) => void;
+    onDownloadReceptionCertificate: (repair: Repair) => void;
     loading?: boolean;
 };
 
@@ -103,12 +103,14 @@ function RepairCard({
     onEdit,
     onStatusChange,
     onDownloadPdf,
+    onDownloadReceptionCertificate,
 }: {
     repair: Repair;
     onView: () => void;
     onEdit: () => void;
     onStatusChange: (status: RepairStatus) => void;
     onDownloadPdf: () => void;
+    onDownloadReceptionCertificate: () => void;
 }) {
     const priorityConfig = PRIORITY_CONFIG[repair.priority];
 
@@ -149,8 +151,14 @@ function RepairCard({
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={onDownloadPdf}>
                                 <FileText className="h-4 w-4 mr-2" />
-                                Descargar PDF
+                                Comprobante de Reparación
                             </DropdownMenuItem>
+                            {(repair.is_siniestro || repair.insurer_id) && (
+                                <DropdownMenuItem onClick={onDownloadReceptionCertificate}>
+                                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                                    Acta de Recepción
+                                </DropdownMenuItem>
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
@@ -239,12 +247,14 @@ function KanbanColumnComponent({
     onEdit,
     onStatusChange,
     onDownloadPdf,
+    onDownloadReceptionCertificate,
 }: {
     column: KanbanColumn;
     onView: (repair: Repair) => void;
     onEdit: (repair: Repair) => void;
     onStatusChange: (repairId: number, newStatus: RepairStatus) => void;
     onDownloadPdf: (repair: Repair) => void;
+    onDownloadReceptionCertificate: (repair: Repair) => void;
 }) {
     const config = STATUS_CONFIG[column.id];
 
@@ -284,6 +294,7 @@ function KanbanColumnComponent({
                                 onEdit={() => onEdit(repair)}
                                 onStatusChange={(status) => onStatusChange(repair.id, status)}
                                 onDownloadPdf={() => onDownloadPdf(repair)}
+                                onDownloadReceptionCertificate={() => onDownloadReceptionCertificate(repair)}
                             />
                         ))}
                     </>
@@ -299,6 +310,7 @@ export default function RepairKanbanView({
     onEdit,
     onStatusChange,
     onDownloadPdf,
+    onDownloadReceptionCertificate,
     loading,
 }: RepairKanbanViewProps) {
     if (loading) {
@@ -324,6 +336,7 @@ export default function RepairKanbanView({
                     onEdit={onEdit}
                     onStatusChange={onStatusChange}
                     onDownloadPdf={onDownloadPdf}
+                    onDownloadReceptionCertificate={onDownloadReceptionCertificate}
                 />
             ))}
         </div>

@@ -74,7 +74,7 @@ class CashRegisterService implements CashRegisterServiceInterface
 
         $openRegisters = $this->getOpenCashRegistersForBranches($branchIds);
         $closedBranchIds = $this->getClosedBranchIds($branchIds, $openRegisters);
-        
+
         return $this->buildStatusResponse($branchIds, $openRegisters, $closedBranchIds);
     }
 
@@ -182,7 +182,7 @@ class CashRegisterService implements CashRegisterServiceInterface
                         ))
                     )
                 )) as calculated_expected_cash_balance'),
-                
+
                 DB::raw('COALESCE(cash_registers.cash_difference,
                     CASE 
                         WHEN cash_registers.final_amount IS NOT NULL THEN 
@@ -226,11 +226,11 @@ class CashRegisterService implements CashRegisterServiceInterface
         }
 
         if ($request->has('from_date')) {
-            $query->whereDate('opened_at', '>=', $request->input('from_date'));
+            $query->where('opened_at', '>=', Carbon::parse($request->input('from_date'))->startOfDay()->setTimezone('UTC'));
         }
 
         if ($request->has('to_date')) {
-            $query->whereDate('opened_at', '<=', $request->input('to_date'));
+            $query->where('opened_at', '<=', Carbon::parse($request->input('to_date'))->endOfDay()->setTimezone('UTC'));
         }
 
         return $query->orderByDesc('opened_at')->paginate(15);

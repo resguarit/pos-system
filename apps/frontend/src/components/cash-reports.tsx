@@ -4,10 +4,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Calendar, FileText, Download, Loader2 } from 'lucide-react'
+import { Calendar, FileText, Download, Loader2, X } from 'lucide-react'
 import useApi from '@/hooks/useApi'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { format, startOfMonth } from 'date-fns'
 
 interface CashReportsProps {
   currentBranchId?: number
@@ -16,17 +16,17 @@ interface CashReportsProps {
 export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
   const { request } = useApi()
   const [isLoading, setIsLoading] = useState(false)
-  
+
   // Estados para el reporte de movimientos
   const [movementsReport, setMovementsReport] = useState({
-    fromDate: format(new Date(), 'yyyy-MM-dd'),
+    fromDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     toDate: format(new Date(), 'yyyy-MM-dd'),
     format: 'pdf',
   })
 
   // Estados para el reporte de cierres
   const [closuresReport, setClosuresReport] = useState({
-    fromDate: format(new Date(), 'yyyy-MM-dd'),
+    fromDate: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     toDate: format(new Date(), 'yyyy-MM-dd'),
     userId: 'all',
     format: 'pdf',
@@ -42,15 +42,18 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
   const generateMovementsReport = async () => {
     setIsLoading(true)
     try {
+      const params: Record<string, string | number | undefined> = {
+        branch_id: currentBranchId,
+        format: movementsReport.format,
+      }
+      // Solo agregar fechas si tienen valor
+      if (movementsReport.fromDate) params.from_date = movementsReport.fromDate
+      if (movementsReport.toDate) params.to_date = movementsReport.toDate
+
       const response = await request({
         method: 'GET',
         url: '/cash-registers/reports/movements',
-        params: {
-          branch_id: currentBranchId,
-          from_date: movementsReport.fromDate,
-          to_date: movementsReport.toDate,
-          format: movementsReport.format,
-        },
+        params,
         responseType: 'blob',
       })
 
@@ -59,20 +62,21 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      
-      const extension = movementsReport.format === 'pdf' ? 'pdf' : 
-                      movementsReport.format === 'excel' ? 'xlsx' : 'csv'
+
+      const extension = movementsReport.format === 'pdf' ? 'pdf' :
+        movementsReport.format === 'excel' ? 'xlsx' : 'csv'
       link.download = `reporte_movimientos_${movementsReport.fromDate}_${movementsReport.toDate}.${extension}`
-      
+
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
 
       toast.success('Reporte de movimientos generado exitosamente')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating movements report:', error)
-      toast.error(error.response?.data?.message || 'Error al generar el reporte de movimientos')
+      const message = error instanceof Error ? error.message : 'Error al generar el reporte de movimientos'
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -81,13 +85,14 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
   const generateClosuresReport = async () => {
     setIsLoading(true)
     try {
-      const params: any = {
+      const params: Record<string, string | number | undefined> = {
         branch_id: currentBranchId,
-        from_date: closuresReport.fromDate,
-        to_date: closuresReport.toDate,
         format: closuresReport.format,
       }
-      
+      // Solo agregar fechas si tienen valor
+      if (closuresReport.fromDate) params.from_date = closuresReport.fromDate
+      if (closuresReport.toDate) params.to_date = closuresReport.toDate
+
       if (closuresReport.userId !== 'all') {
         params.user_id = closuresReport.userId
       }
@@ -104,20 +109,21 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      
-      const extension = closuresReport.format === 'pdf' ? 'pdf' : 
-                      closuresReport.format === 'excel' ? 'xlsx' : 'csv'
+
+      const extension = closuresReport.format === 'pdf' ? 'pdf' :
+        closuresReport.format === 'excel' ? 'xlsx' : 'csv'
       link.download = `reporte_cierres_${closuresReport.fromDate}_${closuresReport.toDate}.${extension}`
-      
+
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
 
       toast.success('Reporte de cierres generado exitosamente')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating closures report:', error)
-      toast.error(error.response?.data?.message || 'Error al generar el reporte de cierres')
+      const message = error instanceof Error ? error.message : 'Error al generar el reporte de cierres'
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -143,20 +149,21 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      
-      const extension = financialReport.format === 'pdf' ? 'pdf' : 
-                      financialReport.format === 'excel' ? 'xlsx' : 'csv'
+
+      const extension = financialReport.format === 'pdf' ? 'pdf' :
+        financialReport.format === 'excel' ? 'xlsx' : 'csv'
       link.download = `reporte_financiero_${financialReport.period}.${extension}`
-      
+
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
 
       toast.success('Reporte financiero generado exitosamente')
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error generating financial report:', error)
-      toast.error(error.response?.data?.message || 'Error al generar el reporte financiero')
+      const message = error instanceof Error ? error.message : 'Error al generar el reporte financiero'
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -196,6 +203,22 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
                   onChange={(e) => setMovementsReport(prev => ({ ...prev, toDate: e.target.value }))}
                 />
               </div>
+              {(movementsReport.fromDate || movementsReport.toDate) && (
+                <div className="col-span-2 flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMovementsReport(prev => ({ ...prev, fromDate: '', toDate: '' }));
+                    }}
+                    title="Limpiar fechas"
+                    className="h-8 text-xs"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Limpiar
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Formato</Label>
@@ -268,6 +291,22 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
                   onChange={(e) => setClosuresReport(prev => ({ ...prev, toDate: e.target.value }))}
                 />
               </div>
+              {(closuresReport.fromDate || closuresReport.toDate) && (
+                <div className="col-span-2 flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setClosuresReport(prev => ({ ...prev, fromDate: '', toDate: '' }));
+                    }}
+                    title="Limpiar fechas"
+                    className="h-8 text-xs"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Limpiar
+                  </Button>
+                </div>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Usuario</Label>

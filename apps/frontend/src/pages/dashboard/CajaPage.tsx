@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect, useMemo, useRef } from "react"
+import { format, startOfWeek, startOfMonth, subDays } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -39,6 +40,7 @@ import { useBranch } from "@/context/BranchContext"
 import { useAuth } from "@/context/AuthContext"
 import CashRegisterStatusBadge from "@/components/cash-register-status-badge"
 import SelectBranchPlaceholder from "@/components/ui/select-branch-placeholder"
+import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
 
 // Componentes extraídos
 import { StatCard } from "@/components/cash/StatCard"
@@ -331,8 +333,8 @@ export default function CajaPage() {
             const backendFilters = {
               date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
               custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-                from: customDateRange.from.toISOString(),
-                to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+                from: format(customDateRange.from, 'yyyy-MM-dd'),
+                to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
               } : undefined,
               search: multiBranchSearchTerm || undefined,
               movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
@@ -349,8 +351,8 @@ export default function CajaPage() {
           const backendFilters = {
             date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
             custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-              from: customDateRange.from.toISOString(),
-              to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+              from: format(customDateRange.from, 'yyyy-MM-dd'),
+              to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
             } : undefined,
             search: multiBranchSearchTerm || undefined,
             movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
@@ -376,8 +378,8 @@ export default function CajaPage() {
             const backendFilters = {
               date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
               custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-                from: customDateRange.from.toISOString(),
-                to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+                from: format(customDateRange.from, 'yyyy-MM-dd'),
+                to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
               } : undefined,
               search: multiBranchSearchTerm || undefined,
               movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
@@ -430,8 +432,8 @@ export default function CajaPage() {
         const backendFilters = {
           date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
           custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-            from: customDateRange.from.toISOString(),
-            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+            from: format(customDateRange.from, 'yyyy-MM-dd'),
+            to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
           } : undefined,
           search: multiBranchSearchTerm || undefined,
           movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
@@ -450,8 +452,8 @@ export default function CajaPage() {
       const backendFilters = {
         date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
         custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-          from: customDateRange.from.toISOString(),
-          to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+          from: format(customDateRange.from, 'yyyy-MM-dd'),
+          to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
         } : undefined
       }
 
@@ -566,8 +568,8 @@ export default function CajaPage() {
         const backendFilters = {
           date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
           custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-            from: customDateRange.from.toISOString(),
-            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+            from: format(customDateRange.from, 'yyyy-MM-dd'),
+            to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
           } : undefined,
           search: multiBranchSearchTerm || undefined,
           movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
@@ -620,8 +622,8 @@ export default function CajaPage() {
         const backendFilters = {
           date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
           custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-            from: customDateRange.from.toISOString(),
-            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+            from: format(customDateRange.from, 'yyyy-MM-dd'),
+            to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
           } : undefined,
           search: multiBranchSearchTerm || undefined,
           movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
@@ -824,8 +826,8 @@ export default function CajaPage() {
       const backendFilters = {
         date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
         custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-          from: customDateRange.from.toISOString(),
-          to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+          from: format(customDateRange.from, 'yyyy-MM-dd'),
+          to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
         } : undefined
       }
       await loadMultipleBranchesData(backendFilters)
@@ -1004,6 +1006,49 @@ export default function CajaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRangeFilter, customDateRange, multiBranchSearchTerm, multiBranchMovementTypeFilter, branchFilter, selectedBranchIdsArray.length])
 
+  // Helper para calcular fechas basado en el filtro
+  const calculateDateRange = () => {
+    const today = new Date()
+    let from: Date | undefined
+    let to: Date | undefined
+
+    switch (dateRangeFilter) {
+      case 'today':
+        from = today
+        to = today
+        break
+      case 'yesterday': {
+        const yesterday = subDays(today, 1)
+        from = yesterday
+        to = yesterday
+        break
+      }
+      case 'week':
+        from = startOfWeek(today, { weekStartsOn: 1 })
+        to = today
+        break
+      case 'month':
+        from = startOfMonth(today)
+        to = today
+        break
+      case 'custom':
+        if (customDateRange?.from) {
+          from = customDateRange.from
+          to = customDateRange.to || customDateRange.from
+        }
+        break
+    }
+    return { from, to }
+  }
+
+  // Efecto para recargar el historial cuando cambian los filtros (Single Branch)
+  useEffect(() => {
+    if (selectedBranchIdsArray.length === 1 && currentBranchId && canViewHistory) {
+      const { from, to } = calculateDateRange()
+      loadRegisterHistory(currentBranchId, from, to)
+    }
+  }, [dateRangeFilter, customDateRange, selectedBranchIdsArray.length, currentBranchId, canViewHistory])
+
   // Refrescar datos (caja actual + historial)
   const handleRefresh = async () => {
     if (selectedBranchIdsArray.length === 0) return
@@ -1020,7 +1065,8 @@ export default function CajaPage() {
       if (currentBranchId) {
         await loadCurrentCashRegister(currentBranchId)
         if (canViewHistory) {
-          await loadRegisterHistory(currentBranchId)
+          const { from, to } = calculateDateRange()
+          await loadRegisterHistory(currentBranchId, from, to)
         }
         if (currentRegister?.id && canViewMovements) {
           await loadMovements(currentRegister.id, 1, movementsPerPage)
@@ -1033,8 +1079,8 @@ export default function CajaPage() {
         const backendFilters = {
           date_range: dateRangeFilter !== 'all' ? dateRangeFilter : undefined,
           custom_dates: dateRangeFilter === 'custom' && customDateRange?.from ? {
-            from: customDateRange.from.toISOString(),
-            to: customDateRange.to?.toISOString() || customDateRange.from.toISOString()
+            from: format(customDateRange.from, 'yyyy-MM-dd'),
+            to: customDateRange.to ? format(customDateRange.to, 'yyyy-MM-dd') : format(customDateRange.from, 'yyyy-MM-dd')
           } : undefined,
           search: multiBranchSearchTerm || undefined,
           movement_type: multiBranchMovementTypeFilter !== 'all' ? multiBranchMovementTypeFilter : undefined,
@@ -1465,22 +1511,19 @@ export default function CajaPage() {
                     {dateRangeFilter === 'custom' && (
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Fechas personalizadas
+                          Rango de fechas
                         </label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="date"
-                            value={customDateRange?.from ? customDateRange.from.toISOString().split('T')[0] : ''}
-                            onChange={(e) => setCustomDateRange(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : undefined }))}
-                            className="flex-1"
-                          />
-                          <Input
-                            type="date"
-                            value={customDateRange?.to ? customDateRange.to.toISOString().split('T')[0] : ''}
-                            onChange={(e) => setCustomDateRange(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : undefined }))}
-                            className="flex-1"
-                          />
-                        </div>
+                        <DatePickerWithRange
+                          className="w-full"
+                          selected={customDateRange as DateRange}
+                          onSelect={(range) => {
+                            if (range) {
+                              setCustomDateRange({ from: range.from, to: range.to })
+                            } else {
+                              setCustomDateRange({ from: undefined, to: undefined })
+                            }
+                          }}
+                        />
                       </div>
                     )}
                   </div>
@@ -1923,22 +1966,19 @@ export default function CajaPage() {
                     {dateRangeFilter === 'custom' && (
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Fechas personalizadas
+                          Rango de fechas
                         </label>
-                        <div className="flex gap-2">
-                          <Input
-                            type="date"
-                            value={customDateRange?.from ? customDateRange.from.toISOString().split('T')[0] : ''}
-                            onChange={(e) => setCustomDateRange(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : undefined }))}
-                            className="flex-1"
-                          />
-                          <Input
-                            type="date"
-                            value={customDateRange?.to ? customDateRange.to.toISOString().split('T')[0] : ''}
-                            onChange={(e) => setCustomDateRange(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : undefined }))}
-                            className="flex-1"
-                          />
-                        </div>
+                        <DatePickerWithRange
+                          className="w-full"
+                          selected={customDateRange as DateRange}
+                          onSelect={(range) => {
+                            if (range) {
+                              setCustomDateRange({ from: range.from, to: range.to })
+                            } else {
+                              setCustomDateRange({ from: undefined, to: undefined })
+                            }
+                          }}
+                        />
                       </div>
                     )}
                   </div>

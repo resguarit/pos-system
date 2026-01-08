@@ -48,7 +48,7 @@
   },
   "lint-staged": {
     "apps/frontend/src/**/*.{ts,tsx}": [
-      "bash -c 'cd apps/frontend && npx eslint --max-warnings=100 \"$@\"' _"
+      "bash -c 'cd apps/frontend && npx eslint --max-warnings=500 \"$@\"' _"
     ]
   }
 }

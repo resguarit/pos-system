@@ -65,18 +65,18 @@ class ShipmentController extends Controller
             // Obtener branch_id del usuario
             $user = Auth::user();
             $branchId = $user->branch_id ?? null;
-            
+
             $stats = null;
             if ($branchId) {
                 $allShipments = Shipment::with('currentStage')
                     ->where('branch_id', $branchId)
                     ->get();
-                
+
                 // Contar por estado de manera precisa
                 $totalPending = 0;
                 $totalInProcess = 0;
                 $totalCompleted = 0;
-                
+
                 foreach ($allShipments as $shipment) {
                     $stage = $shipment->currentStage;
                     if ($stage) {
@@ -94,7 +94,7 @@ class ShipmentController extends Controller
                         }
                     }
                 }
-                
+
                 $stats = [
                     'total' => $allShipments->count(),
                     'total_pending' => $totalPending,
@@ -146,7 +146,7 @@ class ShipmentController extends Controller
 
         $branchIds = $request->input('branch_ids');
         $filters = $request->only(['stage_id', 'reference', 'created_from', 'created_to', 'priority', 'city', 'customer', 'transporter', 'per_page']);
-        
+
         try {
             // Obtener todos los envíos de las sucursales especificadas
             $query = Shipment::with(['currentStage', 'creator.person', 'sales.customer.person', 'sales.receiptType'])
@@ -167,7 +167,12 @@ class ShipmentController extends Controller
                 $query->where('created_at', '>=', $filters['created_from']);
             }
             if (!empty($filters['created_to'])) {
-                $query->where('created_at', '<=', $filters['created_to']);
+                // Append end-of-day time to include entire day
+                $createdTo = $filters['created_to'];
+                if (strlen($createdTo) === 10) { // Date only format YYYY-MM-DD
+                    $createdTo .= ' 23:59:59';
+                }
+                $query->where('created_at', '<=', $createdTo);
             }
 
             // Aplicar filtros de prioridad
@@ -198,25 +203,25 @@ class ShipmentController extends Controller
 
             $perPage = $filters['per_page'] ?? 15;
             $shipments = $query->orderBy('created_at', 'desc')->paginate($perPage);
-            
+
             // Eager load transporter users
             foreach ($shipments->items() as $shipment) {
                 if (isset($shipment->metadata['transportista_id'])) {
                     $shipment->transporter = User::with('person')->find($shipment->metadata['transportista_id']);
                 }
             }
-            
+
             // Calcular estadísticas consolidadas
             // Obtener todos los envíos de las sucursales especificadas con eager loading
             $allShipments = Shipment::with('currentStage')
                 ->whereIn('branch_id', $branchIds)
                 ->get();
-            
+
             // Contar por estado de manera más precisa
             $totalPending = 0;
             $totalInProcess = 0;
             $totalCompleted = 0;
-            
+
             foreach ($allShipments as $shipment) {
                 $stage = $shipment->currentStage;
                 if ($stage) {
@@ -238,7 +243,7 @@ class ShipmentController extends Controller
                     }
                 }
             }
-            
+
             $stats = [
                 'total' => $allShipments->count(),
                 'total_pending' => $totalPending,
@@ -523,7 +528,7 @@ class ShipmentController extends Controller
     {
         try {
             $user = Auth::user();
-            
+
             // Check if user has permission to print or view shipments
             if (!$user->hasPermission('imprimir_etiqueta_envio') && !$user->hasPermission('ver_envios')) {
                 throw new PermissionDeniedException('No tienes permiso para imprimir etiquetas de envío');

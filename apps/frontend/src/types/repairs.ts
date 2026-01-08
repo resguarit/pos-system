@@ -6,6 +6,7 @@ export type Repair = {
     name: string | null;
     phone?: string | null;
     email?: string | null;
+    address?: string | null;
   };
   branch?: { id: number; description?: string | null };
   category?: { id: number; name?: string | null };
@@ -38,6 +39,8 @@ export type Repair = {
     email?: string | null;
   };
   insured_customer_id?: number | null;
+  policy_number?: string | null;
+  device_age?: number | null;
   created_at?: string;
   updated_at?: string;
 };

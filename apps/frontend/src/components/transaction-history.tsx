@@ -1,13 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Search, Eye, Calendar } from 'lucide-react'
+import { Search, Eye, Calendar, X } from 'lucide-react'
 import useApi from '@/hooks/useApi'
 import { toast } from 'sonner'
-import { format } from 'date-fns'
+import { format, startOfMonth } from 'date-fns'
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import Pagination from '@/components/ui/pagination'
@@ -42,7 +43,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
   const [isLoading, setIsLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'entry' | 'exit'>('all')
-  const [dateFrom, setDateFrom] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -84,16 +85,22 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
       let total = 0
       let combined: Transaction[] = []
 
+      // Construir params - solo incluir fechas si tienen valor
+      const buildParams = (pageNum: number) => {
+        const params: Record<string, any> = {
+          page: pageNum,
+          per_page: perPage,
+        }
+        if (dateFrom) params.from_date = dateFrom
+        if (dateTo) params.to_date = dateTo
+        return params
+      }
+
       // First request to get total
       const firstResp = await request({
         method: 'GET',
         url: `/sales/history/branch/${currentBranchId}`,
-        params: {
-          from_date: dateFrom,
-          to_date: dateTo,
-          page,
-          per_page: perPage,
-        },
+        params: buildParams(page),
       })
 
       const firstPayload = (firstResp && (firstResp as any).data) ? (firstResp as any).data : firstResp
@@ -112,12 +119,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
         const resp = await request({
           method: 'GET',
           url: `/sales/history/branch/${currentBranchId}`,
-          params: {
-            from_date: dateFrom,
-            to_date: dateTo,
-            page,
-            per_page: perPage,
-          },
+          params: buildParams(page),
         })
         const payload = (resp && (resp as any).data) ? (resp as any).data : resp
         const items = Array.isArray(payload?.data)
@@ -267,6 +269,20 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
                 <option value="exit">Solo salidas</option>
               </select>
             </div>
+            {(dateFrom || dateTo) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setDateFrom('');
+                  setDateTo('');
+                }}
+                title="Limpiar fechas"
+                className="h-9 w-9"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
 

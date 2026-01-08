@@ -173,20 +173,54 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
 
   const fetchProducts = async () => {
     try {
-      const resp = await request({
+      let allProducts: Product[] = []
+      let currentPage = 1
+      let lastPage = 1
+
+      // Fetch first page to get pagination info
+      const firstResp = await request({
         method: "GET",
-        url: "/products?include=category,supplier&for_admin=true",
+        url: `/products?include=category,supplier&for_admin=true&page=${currentPage}`,
       })
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = resp as any
-      const productList = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data?.data?.data)
-            ? data.data.data
+      const firstData = firstResp as any
+
+      // Extract products from first page
+      const firstPageProducts = Array.isArray(firstData)
+        ? firstData
+        : Array.isArray(firstData?.data)
+          ? firstData.data
+          : Array.isArray(firstData?.data?.data)
+            ? firstData.data.data
             : []
-      setProducts(productList)
+
+      allProducts = [...firstPageProducts]
+
+      // Get pagination info
+      lastPage = firstData?.last_page ?? firstData?.data?.last_page ?? 1
+
+      // Fetch remaining pages if any
+      for (currentPage = 2; currentPage <= lastPage; currentPage++) {
+        const pageResp = await request({
+          method: "GET",
+          url: `/products?include=category,supplier&for_admin=true&page=${currentPage}`,
+        })
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pageData = pageResp as any
+        const pageProducts = Array.isArray(pageData)
+          ? pageData
+          : Array.isArray(pageData?.data)
+            ? pageData.data
+            : Array.isArray(pageData?.data?.data)
+              ? pageData.data.data
+              : []
+
+        allProducts = [...allProducts, ...pageProducts]
+      }
+
+      setProducts(allProducts)
     } catch (err) {
       console.error("Error al cargar productos:", err)
     }

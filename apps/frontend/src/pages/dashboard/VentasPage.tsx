@@ -73,7 +73,7 @@ export default function VentasPage() {
   });
   const [usingServerPagination, setUsingServerPagination] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange>({
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: new Date(),
   });
@@ -125,7 +125,7 @@ export default function VentasPage() {
     pagination: budgetPagination
   } = useBudgets({
     branchIds: budgetBranchIds,
-    toDate: dateRange.to ? format(dateRange.to, 'yyyy-MM-dd') : undefined,
+    toDate: dateRange?.to ? format(dateRange?.to, 'yyyy-MM-dd') : undefined,
     search: debouncedSearch,
     page: currentBudgetPage,
     limit: 99999
@@ -147,9 +147,9 @@ export default function VentasPage() {
   const handleConvertToSale = async (budgetId: number, receiptTypeId: number, cashRegisterId?: number, paymentMethodId?: number) => {
     const result = await convertToSale(budgetId, receiptTypeId, cashRegisterId, paymentMethodId);
     // Refresh sales list after successful conversion
-    if (dateRange.from && dateRange.to) {
-      await fetchSales(dateRange.from, dateRange.to, currentPage, debouncedSearch);
-      await fetchStats(dateRange.from, dateRange.to);
+    if (dateRange?.from && dateRange?.to) {
+      await fetchSales(dateRange?.from, dateRange?.to, currentPage, debouncedSearch);
+      await fetchStats(dateRange?.from, dateRange?.to);
     }
     return result;
   };
@@ -179,14 +179,17 @@ export default function VentasPage() {
 
   // Debounced fetch on date range changes
   useEffect(() => {
-    const isFromValid = dateRange.from instanceof Date && !isNaN(dateRange.from.getTime());
-    const isToValid = dateRange.to instanceof Date && !isNaN(dateRange.to.getTime());
+    // Si dateRange tiene fechas, validarlas primero
+    if (dateRange) {
+      const isFromValid = dateRange?.from instanceof Date && !isNaN(dateRange?.from.getTime());
+      const isToValid = dateRange?.to instanceof Date && !isNaN(dateRange?.to.getTime());
 
-    if (!isFromValid || !isToValid) {
-      const today = new Date();
-      const firstOfMonth = startOfMonth(today);
-      setDateRange({ from: firstOfMonth, to: today });
-      return; // wait for next render with valid dates
+      if (!isFromValid || !isToValid) {
+        const today = new Date();
+        const firstOfMonth = startOfMonth(today);
+        setDateRange({ from: firstOfMonth, to: today });
+        return; // wait for next render with valid dates
+      }
     }
 
     setPageLoading(true);
@@ -194,8 +197,8 @@ export default function VentasPage() {
     setAllSales([]); // Limpiar caché cuando cambien las fechas
     const timer = setTimeout(() => {
       Promise.all([
-        fetchSales(dateRange.from!, dateRange.to!, 1, searchTerm),
-        fetchStats(dateRange.from!, dateRange.to!)
+        fetchSales(dateRange?.from, dateRange?.to, 1, searchTerm),
+        fetchStats(dateRange?.from, dateRange?.to)
       ]).finally(() => {
         setPageLoading(false);
       });
@@ -203,7 +206,7 @@ export default function VentasPage() {
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange.from, dateRange.to, searchTerm]);
+  }, [dateRange?.from, dateRange?.to, searchTerm]);
 
   useEffect(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -226,8 +229,8 @@ export default function VentasPage() {
     setPageLoading(true);
     setAllSales([]); // Limpiar caché cuando cambie la sucursal
     Promise.all([
-      fetchSales(dateRange.from!, dateRange.to!, 1, searchTerm),
-      fetchStats(dateRange.from!, dateRange.to!),
+      fetchSales(dateRange?.from, dateRange?.to, 1, searchTerm),
+      fetchStats(dateRange?.from, dateRange?.to),
     ]).finally(() => setPageLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectionChangeToken]);
@@ -238,7 +241,7 @@ export default function VentasPage() {
       setPageLoading(true);
       setCurrentPage(1);
       setAllSales([]);
-      fetchSales(dateRange.from!, dateRange.to!, 1, searchTerm).finally(() => {
+      fetchSales(dateRange?.from, dateRange?.to, 1, searchTerm).finally(() => {
         setPageLoading(false);
       });
     }, 300); // Debounce de 300ms
@@ -610,9 +613,9 @@ export default function VentasPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const apiParams: any = {};
 
-          if (dateRange.from && dateRange.to) {
-            apiParams.from_date = format(dateRange.from, "yyyy-MM-dd");
-            apiParams.to_date = format(dateRange.to, "yyyy-MM-dd");
+          if (dateRange?.from && dateRange?.to) {
+            apiParams.from_date = format(dateRange?.from, "yyyy-MM-dd");
+            apiParams.to_date = format(dateRange?.to, "yyyy-MM-dd");
           }
 
           // Incluir filtro de sucursales si hay selección
@@ -668,7 +671,7 @@ export default function VentasPage() {
       setAnnulledSales([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, dateRange.from, dateRange.to, searchTerm, selectionChangeToken]);
+  }, [statusFilter, dateRange?.from, dateRange?.to, searchTerm, selectionChangeToken]);
 
   // Determinar qué ventas mostrar según el filtro
   const filteredSales = (() => {
@@ -720,6 +723,11 @@ export default function VentasPage() {
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange({ from: range?.from ?? new Date(), to: range?.to ?? new Date() });
+  };
+
+  // Función para limpiar el filtro de fechas y volver al mes actual
+  const clearDateRange = () => {
+    setDateRange(undefined);
   };
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -857,8 +865,8 @@ export default function VentasPage() {
     }
 
     // Recargar estadísticas para reflejar cambios
-    if (dateRange.from && dateRange.to) {
-      fetchStats(dateRange.from, dateRange.to);
+    if (dateRange?.from && dateRange?.to) {
+      fetchStats(dateRange?.from, dateRange?.to);
     }
   };
 
@@ -955,8 +963,8 @@ export default function VentasPage() {
     setCurrentPage(1);
     setAllSales([]); // Limpiar caché para forzar nueva carga
     Promise.all([
-      fetchSales(dateRange.from, dateRange.to, 1),
-      fetchStats(dateRange.from, dateRange.to),
+      fetchSales(dateRange?.from, dateRange?.to, 1),
+      fetchStats(dateRange?.from, dateRange?.to),
     ]);
   };
 
@@ -966,7 +974,7 @@ export default function VentasPage() {
 
       // Si el backend pagina, solicitar la página directamente
       if (usingServerPagination) {
-        fetchSales(dateRange.from, dateRange.to, pageNumber, searchTerm);
+        fetchSales(dateRange?.from, dateRange?.to, pageNumber, searchTerm);
         return;
       }
 
@@ -977,7 +985,7 @@ export default function VentasPage() {
         const paginatedSales = allSales.slice(startIndex, endIndex);
         setSales(paginatedSales);
       } else {
-        fetchSales(dateRange.from, dateRange.to, pageNumber, searchTerm);
+        fetchSales(dateRange?.from, dateRange?.to, pageNumber, searchTerm);
       }
 
     }
@@ -996,8 +1004,8 @@ export default function VentasPage() {
     setPageLoading(true);
     setAllSales([]); // Limpiar caché para forzar nueva carga
     Promise.all([
-      fetchSales(dateRange.from, dateRange.to, 1), // Empezar desde página 1
-      fetchStats(dateRange.from, dateRange.to),
+      fetchSales(dateRange?.from, dateRange?.to, 1), // Empezar desde página 1
+      fetchStats(dateRange?.from, dateRange?.to),
     ]).finally(() => setPageLoading(false));
   };
 
@@ -1202,6 +1210,8 @@ export default function VentasPage() {
                   selected={dateRange}
                   onSelect={handleDateRangeChange}
                   className="md:w-auto"
+                  showClearButton={true}
+                  onClear={clearDateRange}
                 />
               </div>
             </div>

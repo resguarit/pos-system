@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,7 +25,7 @@ type SummaryResponse = {
 };
 
 function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return format(date, 'yyyy-MM-dd');
 }
 function formatAmount(amount?: number, currency?: string) {
   if (amount == null) return "-";
@@ -35,7 +37,7 @@ const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
 const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
 export default function PurchaseOrdersPage() {
-  const [ purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [from, setFrom] = useState<string>(formatDate(firstDay));
   const [to, setTo] = useState<string>(formatDate(lastDay));
   const [totals, setTotals] = useState<CurrencyTotals>({});
@@ -92,16 +94,16 @@ export default function PurchaseOrdersPage() {
 
   const handleCompleteWithPayment = async (paymentMethodId: number) => {
     if (!orderToComplete?.id) return;
-    
+
     try {
       await purchaseOrderService.finalize(orderToComplete.id, paymentMethodId);
-      toast.success("Orden completada", { 
-        description: "La orden de compra se completó y el stock se actualizó correctamente." 
+      toast.success("Orden completada", {
+        description: "La orden de compra se completó y el stock se actualizó correctamente."
       });
       loadPurchaseOrders();
     } catch (err: any) {
-      toast.error("Error al completar la orden", { 
-        description: err.message || "Error al completar la orden de compra" 
+      toast.error("Error al completar la orden", {
+        description: err.message || "Error al completar la orden de compra"
       });
       throw err; // Re-throw para que el modal maneje el error
     }
@@ -273,7 +275,7 @@ export default function PurchaseOrdersPage() {
         <EditPurchaseOrderDialog open={showEditDialog} onOpenChange={setShowEditDialog} purchaseOrderId={selectedId} onSaved={loadPurchaseOrders} />
       )}
       <ViewPurchaseOrderDialog open={showViewDialog} onOpenChange={setShowViewDialog} purchaseOrderId={selectedId || 0} />
-      
+
       {orderToComplete && (
         <CompleteOrderDialog
           open={showCompleteDialog}

@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
@@ -37,7 +39,7 @@ export default function CustomerPurchasesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [receiptTypeFilter, setReceiptTypeFilter] = useState("all")
   const [branchFilter, setBranchFilter] = useState("all")
-  const [dateRange, setDateRange] = useState<DateRange>({ from: new Date(), to: new Date() })
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfMonth(new Date()), to: new Date() })
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)
@@ -181,20 +183,20 @@ export default function CustomerPurchasesPage() {
     const matchesBranch = branchFilter === "all" ||
       (typeof purchase.branch === 'object' ? purchase.branch?.id?.toString() === branchFilter : false);
     let matchesDate = true;
-    if (dateRange && dateRange.from instanceof Date) {
+    if (dateRange && dateRange?.from instanceof Date) {
       const purchaseDate = new Date(purchase.date);
-      const fromDate = new Date(dateRange.from);
+      const fromDate = new Date(dateRange?.from);
       fromDate.setHours(0, 0, 0, 0);
-      if (dateRange.to instanceof Date) {
-        const toDate = new Date(dateRange.to);
+      if (dateRange?.to instanceof Date) {
+        const toDate = new Date(dateRange?.to);
         toDate.setHours(23, 59, 59, 999);
         matchesDate = purchaseDate >= fromDate && purchaseDate <= toDate;
       } else {
         matchesDate = purchaseDate >= fromDate;
       }
-    } else if (dateRange && dateRange.to instanceof Date) {
+    } else if (dateRange && dateRange?.to instanceof Date) {
       const purchaseDate = new Date(purchase.date);
-      const toDate = new Date(dateRange.to);
+      const toDate = new Date(dateRange?.to);
       toDate.setHours(23, 59, 59, 999);
       matchesDate = purchaseDate <= toDate;
     }
@@ -427,7 +429,7 @@ export default function CustomerPurchasesPage() {
             </Select>
           )}
 
-          <DatePickerWithRange className="w-full md:w-auto" selected={dateRange} onSelect={range => setDateRange(range ?? { from: new Date(), to: new Date() })} />
+          <DatePickerWithRange className="w-full md:w-auto" selected={dateRange} onSelect={range => setDateRange(range ?? { from: startOfMonth(new Date()), to: new Date() })} showClearButton={true} onClear={() => setDateRange(undefined)} />
         </div>
       </div>
 
