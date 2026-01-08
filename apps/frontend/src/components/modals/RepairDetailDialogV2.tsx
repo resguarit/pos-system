@@ -481,6 +481,16 @@ export default function RepairDetailDialogV2({
                                                                 <Input value={editData.siniestro_number ?? repair.siniestro_number ?? ""} onChange={(e) => setEditData((d) => ({ ...d, siniestro_number: e.target.value }))} />
                                                             </div>
                                                         </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-2">
+                                                                <Label>Nº de Póliza</Label>
+                                                                <Input value={editData.policy_number ?? repair.policy_number ?? ""} onChange={(e) => setEditData((d) => ({ ...d, policy_number: e.target.value }))} />
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label>Antigüedad del equipo (años)</Label>
+                                                                <Input type="number" min="0" value={editData.device_age ?? repair.device_age ?? ""} onChange={(e) => setEditData((d) => ({ ...d, device_age: e.target.value }))} />
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
