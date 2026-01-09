@@ -61,17 +61,32 @@ class AuthController extends Controller
 
             $user->load(['branches', 'role.permissions', 'person']);
 
+            // Verificar restricción de sesión única
+            if ($user->role && $user->role->single_session_only) {
+                $existingTokensCount = $user->tokens()->count();
+                $forceLogout = $request->boolean('force_logout', false);
+
+                // Si hay sesiones activas y no se forzó el cierre, pedir confirmación
+                if ($existingTokensCount > 0 && !$forceLogout) {
+                    Auth::logout();
+                    return response()->json([
+                        'message' => 'Ya existe una sesión activa en otro dispositivo',
+                        'error_code' => 'SESSION_CONFLICT',
+                        'active_sessions' => $existingTokensCount
+                    ], 409); // 409 Conflict
+                }
+
+                // Si se forzó el cierre, eliminar tokens anteriores
+                if ($forceLogout) {
+                    $user->tokens()->delete();
+                }
+            }
+
             // Actualizar last_login_at
             $user->update(['last_login_at' => now()]);
 
             // Registrar auditoría de login
             User::logLogin($user);
-
-            // Si el rol tiene restricción de sesión única, revocar todos los tokens anteriores
-            // Esto asegura que solo pueda haber una sesión activa por usuario
-            if ($user->role && $user->role->single_session_only) {
-                $user->tokens()->delete();
-            }
 
             $token = $user->createToken('auth_token')->plainTextToken;
 

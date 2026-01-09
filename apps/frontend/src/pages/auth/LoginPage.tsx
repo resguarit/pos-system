@@ -7,13 +7,24 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
-import { Lock, User, Loader2 } from 'lucide-react';
+import { Lock, User, Loader2, Smartphone } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showSessionConflict, setShowSessionConflict] = useState(false);
   const { login, isAuthenticated } = useAuth();
 
   // Redirigir si ya está autenticado
@@ -23,33 +34,53 @@ export default function LoginPage() {
     }
   }, [isAuthenticated, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performLogin = async (forceLogout = false) => {
     setIsLoading(true);
-
     try {
       const response = await api.post('/login', {
         email,
         password,
+        force_logout: forceLogout,
       });
 
       if (response.data.token) {
         login(response.data.token);
         toast.success('Inicio de sesión exitoso');
-        // La navegación se hará automáticamente por el useEffect de arriba
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { status?: number; data?: { message?: string; error_code?: string; schedule?: string; active_sessions?: number } } };
       console.error('Login error:', error);
-      if (error.response?.status === 401) {
+
+      if (axiosError.response?.status === 409 && axiosError.response?.data?.error_code === 'SESSION_CONFLICT') {
+        // Mostrar modal de confirmación para cerrar sesión anterior
+        setShowSessionConflict(true);
+      } else if (axiosError.response?.status === 401) {
         toast.error('Credenciales incorrectas');
-      } else if (error.response?.status === 403) {
-        toast.error(error.response?.data?.message || 'Tu cuenta está desactivada. Contacta al administrador.');
+      } else if (axiosError.response?.status === 403) {
+        if (axiosError.response?.data?.error_code === 'SCHEDULE_RESTRICTED') {
+          toast.error('Acceso no permitido en este horario', {
+            description: axiosError.response?.data?.schedule || 'Consulta con el administrador sobre tu horario de acceso.',
+            duration: 8000,
+          });
+        } else {
+          toast.error(axiosError.response?.data?.message || 'Tu cuenta está desactivada. Contacta al administrador.');
+        }
       } else {
         toast.error('Error al iniciar sesión. Inténtalo de nuevo.');
       }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performLogin(false);
+  };
+
+  const handleForceLogin = async () => {
+    setShowSessionConflict(false);
+    await performLogin(true);
   };
 
   // Si ya está autenticado, mostrar mensaje de carga
@@ -65,63 +96,88 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Iniciar Sesión</CardTitle>
-          <CardDescription>
-            Ingresa tus credenciales para acceder al sistema POS
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="pl-10"
-                />
+    <>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Iniciar Sesión</CardTitle>
+            <CardDescription>
+              Ingresa tus credenciales para acceder al sistema POS
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="tu@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="pl-10"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={isLoading}
-                  className="pl-10"
-                />
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    className="pl-10"
+                  />
+                </div>
               </div>
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Iniciando sesión...
+                  </>
+                ) : (
+                  'Iniciar Sesión'
+                )}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+      </div>
+
+      {/* Modal de conflicto de sesión */}
+      <AlertDialog open={showSessionConflict} onOpenChange={setShowSessionConflict}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-orange-100 rounded-full">
+                <Smartphone className="h-6 w-6 text-orange-600" />
+              </div>
+              <AlertDialogTitle>Sesión activa en otro dispositivo</AlertDialogTitle>
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Iniciando sesión...
-                </>
-              ) : (
-                'Iniciar Sesión'
-              )}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+            <AlertDialogDescription>
+              Ya tienes una sesión iniciada en otro dispositivo. ¿Deseas cerrar esa sesión e iniciar aquí?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleForceLogin}>
+              Cerrar sesión anterior e iniciar aquí
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
