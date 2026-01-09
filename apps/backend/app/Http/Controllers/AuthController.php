@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
+use App\Services\ScheduleService;
 
 class AuthController extends Controller
 {
@@ -37,6 +38,21 @@ class AuthController extends Controller
                 ], 403);
             }
 
+            // Cargar rol para verificar horario de acceso
+            $user->load('role');
+
+            // Verificar restricción de horario de acceso
+            $scheduleService = new ScheduleService();
+            if (!$scheduleService->isAccessAllowed($user)) {
+                $scheduleMessage = $scheduleService->getScheduleMessage($user);
+                Auth::logout();
+                return response()->json([
+                    'message' => 'Acceso no permitido en este horario',
+                    'schedule' => $scheduleMessage,
+                    'error_code' => 'SCHEDULE_RESTRICTED'
+                ], 403);
+            }
+
             $user->load(['branches', 'role.permissions', 'person']);
 
             // Actualizar last_login_at
@@ -44,6 +60,12 @@ class AuthController extends Controller
 
             // Registrar auditoría de login
             User::logLogin($user);
+
+            // Si el rol tiene restricción de sesión única, revocar todos los tokens anteriores
+            // Esto asegura que solo pueda haber una sesión activa por usuario
+            if ($user->role && $user->role->single_session_only) {
+                $user->tokens()->delete();
+            }
 
             $token = $user->createToken('auth_token')->plainTextToken;
 

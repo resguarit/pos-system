@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Interfaces\RoleServiceInterface;
 use App\Interfaces\PermissionServiceInterface;
+use App\Services\ScheduleService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -53,6 +54,7 @@ class RoleController extends Controller
                     'permissions_count' => $role->permissions_count,
                     'is_system' => $role->is_system ?? false,
                     'active' => $role->active ?? true,
+                    'access_schedule' => $role->access_schedule,
                     'created_at' => $role->created_at,
                     'updated_at' => $role->updated_at,
                     'deleted_at' => $role->deleted_at,
@@ -71,8 +73,30 @@ class RoleController extends Controller
     {
         $validatedData = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
-            'description' => 'nullable|string|max:500'
+            'description' => 'nullable|string|max:500',
+            'single_session_only' => 'nullable|boolean',
+            'access_schedule' => 'nullable|array',
+            'access_schedule.enabled' => 'nullable|boolean',
+            'access_schedule.timezone' => 'nullable|string',
+            'access_schedule.days' => 'nullable|array',
+            'access_schedule.days.*' => 'integer|min:1|max:7',
+            'access_schedule.start_time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'access_schedule.end_time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/']
         ]);
+
+        // Validar schedule adicional si está habilitado
+        if (isset($validatedData['access_schedule'])) {
+            $scheduleService = new ScheduleService();
+            $scheduleErrors = $scheduleService->validateSchedule($validatedData['access_schedule']);
+            if (!empty($scheduleErrors)) {
+                return response()->json([
+                    'status' => 422,
+                    'success' => false,
+                    'message' => 'Error en la configuración de horario',
+                    'errors' => $scheduleErrors
+                ], 422);
+            }
+        }
 
         try {
             $role = $this->roleService->createRole($validatedData);
@@ -85,6 +109,7 @@ class RoleController extends Controller
                 'permissions_count' => $role->permissions_count,
                 'is_system' => $role->is_system ?? false,
                 'active' => $role->active ?? true,
+                'access_schedule' => $role->access_schedule,
                 'created_at' => $role->created_at,
                 'updated_at' => $role->updated_at,
                 'deleted_at' => $role->deleted_at,
@@ -108,7 +133,7 @@ class RoleController extends Controller
     {
         // Verificar si es el rol Admin antes de permitir cambios
         $role = \App\Models\Role::findOrFail($id);
-        
+
         if (strtolower($role->name) === 'admin') {
             return response()->json([
                 'status' => 403,
@@ -119,8 +144,30 @@ class RoleController extends Controller
 
         $validatedData = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $id,
-            'description' => 'nullable|string|max:500'
+            'description' => 'nullable|string|max:500',
+            'single_session_only' => 'nullable|boolean',
+            'access_schedule' => 'nullable|array',
+            'access_schedule.enabled' => 'nullable|boolean',
+            'access_schedule.timezone' => 'nullable|string',
+            'access_schedule.days' => 'nullable|array',
+            'access_schedule.days.*' => 'integer|min:1|max:7',
+            'access_schedule.start_time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/'],
+            'access_schedule.end_time' => ['nullable', 'string', 'regex:/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/']
         ]);
+
+        // Validar schedule adicional si está habilitado
+        if (isset($validatedData['access_schedule'])) {
+            $scheduleService = new ScheduleService();
+            $scheduleErrors = $scheduleService->validateSchedule($validatedData['access_schedule']);
+            if (!empty($scheduleErrors)) {
+                return response()->json([
+                    'status' => 422,
+                    'success' => false,
+                    'message' => 'Error en la configuración de horario',
+                    'errors' => $scheduleErrors
+                ], 422);
+            }
+        }
 
         try {
             $this->roleService->updateRole($id, $validatedData);
@@ -132,6 +179,7 @@ class RoleController extends Controller
                 'permissions_count' => $role->permissions_count,
                 'is_system' => $role->is_system ?? false,
                 'active' => $role->active ?? true,
+                'access_schedule' => $role->access_schedule,
                 'created_at' => $role->created_at,
                 'updated_at' => $role->updated_at,
                 'deleted_at' => $role->deleted_at,
@@ -155,7 +203,7 @@ class RoleController extends Controller
     {
         // Verificar si es el rol Admin antes de permitir eliminación
         $role = \App\Models\Role::findOrFail($id);
-        
+
         if (strtolower($role->name) === 'admin') {
             return response()->json([
                 'status' => 403,
@@ -187,9 +235,9 @@ class RoleController extends Controller
         // Agregar filtro de búsqueda si está presente
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%$search%")
-                  ->orWhere('description', 'like', "%$search%");
+                    ->orWhere('description', 'like', "%$search%");
             });
         }
 
@@ -268,7 +316,7 @@ class RoleController extends Controller
     {
         try {
             $exists = $this->roleService->checkNameExists($name);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);

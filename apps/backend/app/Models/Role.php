@@ -17,10 +17,14 @@ class Role extends Model
         'name',
         'description',
         'active',
+        'access_schedule',
+        'single_session_only',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'access_schedule' => 'array',
+        'single_session_only' => 'boolean',
     ];
 
     /**

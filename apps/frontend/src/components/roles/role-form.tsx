@@ -1,6 +1,5 @@
 import type React from "react"
 import features from "@/config/features"
-import { PERMISSIONS_CONFIG, getActivePermissions } from "@/config/permissions"
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import axios from "axios";
@@ -19,9 +18,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 // Hooks y Contexto
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
+import { useAuth } from "@/context/AuthContext"
 
 // Iconos
 import { ArrowLeft, Save, Loader2, Info } from "lucide-react"
+
+// Componente de restricción de horarios
+import ScheduleRestrictionConfig, { type AccessSchedule } from "./ScheduleRestrictionConfig"
 
 // --- Interfaces ---
 interface Module {
@@ -148,12 +151,15 @@ function getFeatureForModule(moduleName: string): boolean {
 export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const navigate = useNavigate();
   const { request } = useApi();
+  const { hasPermission } = useAuth();
   const { dispatch } = useEntityContext();
 
   const [formData, setFormData] = useState({
     name: "",
     description: "",
     permissions: [] as string[],
+    access_schedule: null as AccessSchedule | null,
+    single_session_only: false,
   });
 
   const [modules, setModules] = useState<Module[]>([]);
@@ -232,6 +238,8 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
             name: roleData.name || "",
             description: roleData.description || "",
             permissions: assignedPermsIds,
+            access_schedule: roleData.access_schedule || null,
+            single_session_only: roleData.single_session_only || false,
           });
           setIsSystem(!!roleData.is_system);
 
@@ -332,14 +340,18 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
     }
     setIsSubmitting(true);
     try {
-      const payload = {
-        name: formData.name,
-        description: formData.description,
-        permissions: formData.permissions.map(Number),
-      };
       if (roleId) {
-        // Actualizar información del rol
-        await request({ method: 'PUT', url: `/roles/${roleId}`, data: { name: formData.name, description: formData.description } });
+        // Actualizar información del rol (ahora incluye access_schedule y single_session_only)
+        await request({
+          method: 'PUT',
+          url: `/roles/${roleId}`,
+          data: {
+            name: formData.name,
+            description: formData.description,
+            access_schedule: formData.access_schedule,
+            single_session_only: formData.single_session_only
+          }
+        });
         // Actualizar permisos del rol
         await request({ method: 'PUT', url: `/roles/${roleId}/permissions`, data: { permissions: formData.permissions.map(Number) } });
         toast.success("Rol actualizado con éxito.");
@@ -347,7 +359,17 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         // Marcar que hubo cambios en roles para forzar recarga de permisos
         localStorage.setItem('roles_updated', Date.now().toString());
       } else {
-        await request({ method: 'POST', url: '/roles', data: payload });
+        await request({
+          method: 'POST',
+          url: '/roles',
+          data: {
+            name: formData.name,
+            description: formData.description,
+            permissions: formData.permissions.map(Number),
+            access_schedule: formData.access_schedule,
+            single_session_only: formData.single_session_only,
+          }
+        });
         toast.success("Rol creado con éxito.");
 
         // Marcar que hubo cambios en roles
@@ -360,7 +382,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData.name, formData.description, formData.permissions, roleId, request, navigate]);
+  }, [formData.name, formData.description, formData.permissions, formData.access_schedule, formData.single_session_only, roleId, request, navigate]);
 
   // Ref para el scroll top
   const topRef = useRef<HTMLDivElement>(null);
@@ -441,6 +463,18 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Restricción de Horario - Solo si tiene permiso */}
+          {hasPermission('gestionar_horarios_roles') && (
+            <ScheduleRestrictionConfig
+              value={formData.access_schedule}
+              onChange={(schedule) => setFormData(prev => ({ ...prev, access_schedule: schedule }))}
+              singleSessionOnly={formData.single_session_only}
+              onSingleSessionChange={(value) => setFormData(prev => ({ ...prev, single_session_only: value }))}
+              disabled={viewOnly || isSubmitting || isSystem}
+              isAdmin={formData.name.toLowerCase() === 'admin'}
+            />
+          )}
 
           <Card>
             <CardHeader>
