@@ -86,4 +86,23 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Interceptor de respuesta para manejar errores 401 (token revocado/expirado)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token inválido o revocado - limpiar sesión y redirigir a login
+      const isLoginRequest = error.config?.url?.includes('/login');
+      if (!isLoginRequest) {
+        localStorage.clear();
+        // Redirigir a login (evitar loop infinito si ya estamos en login)
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;
