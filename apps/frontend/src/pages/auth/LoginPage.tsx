@@ -61,9 +61,10 @@ export default function LoginPage() {
       const errorData = axiosError.response?.data;
       const status = axiosError.response?.status;
 
-      console.error('Login error:', error);
+      console.error('Login error details:', { status, errorData, error });
 
-      if (status === 409 && errorData?.error_code === 'SESSION_CONFLICT') {
+      // Si es 409, asumimos conflicto de sesión (único caso 409 en login)
+      if (status === 409) {
         setShowSessionConflict(true);
       } else if (status === 401) {
         toast.error('Credenciales incorrectas');
