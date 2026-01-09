@@ -11,6 +11,13 @@ use App\Services\ScheduleService;
 
 class AuthController extends Controller
 {
+    protected ScheduleService $scheduleService;
+
+    public function __construct(ScheduleService $scheduleService)
+    {
+        $this->scheduleService = $scheduleService;
+    }
+
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -42,9 +49,8 @@ class AuthController extends Controller
             $user->load('role');
 
             // Verificar restricción de horario de acceso
-            $scheduleService = new ScheduleService();
-            if (!$scheduleService->isAccessAllowed($user)) {
-                $scheduleMessage = $scheduleService->getScheduleMessage($user);
+            if (!$this->scheduleService->isAccessAllowed($user)) {
+                $scheduleMessage = $this->scheduleService->getScheduleMessage($user);
                 Auth::logout();
                 return response()->json([
                     'message' => 'Acceso no permitido en este horario',

@@ -12,11 +12,13 @@ class RoleController extends Controller
 {
     protected $roleService;
     protected $permissionService;
+    protected ScheduleService $scheduleService;
 
-    public function __construct(RoleServiceInterface $roleService, PermissionServiceInterface $permissionService)
+    public function __construct(RoleServiceInterface $roleService, PermissionServiceInterface $permissionService, ScheduleService $scheduleService)
     {
         $this->roleService = $roleService;
         $this->permissionService = $permissionService;
+        $this->scheduleService = $scheduleService;
     }
 
     public function index(): JsonResponse
@@ -86,8 +88,7 @@ class RoleController extends Controller
 
         // Validar schedule adicional si está habilitado
         if (isset($validatedData['access_schedule'])) {
-            $scheduleService = new ScheduleService();
-            $scheduleErrors = $scheduleService->validateSchedule($validatedData['access_schedule']);
+            $scheduleErrors = $this->scheduleService->validateSchedule($validatedData['access_schedule']);
             if (!empty($scheduleErrors)) {
                 return response()->json([
                     'status' => 422,
@@ -157,8 +158,7 @@ class RoleController extends Controller
 
         // Validar schedule adicional si está habilitado
         if (isset($validatedData['access_schedule'])) {
-            $scheduleService = new ScheduleService();
-            $scheduleErrors = $scheduleService->validateSchedule($validatedData['access_schedule']);
+            $scheduleErrors = $this->scheduleService->validateSchedule($validatedData['access_schedule']);
             if (!empty($scheduleErrors)) {
                 return response()->json([
                     'status' => 422,

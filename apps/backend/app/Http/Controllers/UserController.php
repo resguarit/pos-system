@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\UserService;
 use App\Services\SaleService;
+use App\Services\ScheduleService;
 use Illuminate\Http\Response;
 use App\Models\Branch;
 use Illuminate\Http\Request;
@@ -16,11 +17,13 @@ class UserController extends Controller
 {
     protected $userService;
     protected $saleService;
+    protected ScheduleService $scheduleService;
 
-    public function __construct(UserService $userService, SaleService $saleService)
+    public function __construct(UserService $userService, SaleService $saleService, ScheduleService $scheduleService)
     {
         $this->userService = $userService;
         $this->saleService = $saleService;
+        $this->scheduleService = $scheduleService;
     }
 
     public function index(Request $request)
@@ -159,6 +162,16 @@ class UserController extends Controller
     {
         $user = $request->user();
         $user->load(['person', 'role.permissions', 'branches']);
+
+        // Verificar restricción de horario de acceso
+        if (!$this->scheduleService->isAccessAllowed($user)) {
+            $scheduleMessage = $this->scheduleService->getScheduleMessage($user);
+            return response()->json([
+                'message' => 'Acceso no permitido en este horario',
+                'schedule' => $scheduleMessage,
+                'error_code' => 'SCHEDULE_RESTRICTED'
+            ], 403);
+        }
 
         // Obtener todos los permisos del usuario (a través de su único rol)
         $permissions = $user->role && $user->role->permissions
