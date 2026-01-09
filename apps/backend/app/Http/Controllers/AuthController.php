@@ -8,14 +8,17 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
 use App\Services\ScheduleService;
+use App\Services\SessionService;
 
 class AuthController extends Controller
 {
     protected ScheduleService $scheduleService;
+    protected SessionService $sessionService;
 
-    public function __construct(ScheduleService $scheduleService)
+    public function __construct(ScheduleService $scheduleService, SessionService $sessionService)
     {
         $this->scheduleService = $scheduleService;
+        $this->sessionService = $sessionService;
     }
 
     public function login(Request $request)
@@ -62,24 +65,16 @@ class AuthController extends Controller
             $user->load(['branches', 'role.permissions', 'person']);
 
             // Verificar restricción de sesión única
-            if ($user->role && $user->role->single_session_only) {
-                $existingTokensCount = $user->tokens()->count();
-                $forceLogout = $request->boolean('force_logout', false);
+            $forceLogout = $request->boolean('force_logout', false);
+            $sessionCheck = $this->sessionService->checkSessionAccess($user, $forceLogout);
 
-                // Si hay sesiones activas y no se forzó el cierre, pedir confirmación
-                if ($existingTokensCount > 0 && !$forceLogout) {
-                    Auth::logout();
-                    return response()->json([
-                        'message' => 'Ya existe una sesión activa en otro dispositivo',
-                        'error_code' => 'SESSION_CONFLICT',
-                        'active_sessions' => $existingTokensCount
-                    ], 409); // 409 Conflict
-                }
-
-                // Si se forzó el cierre, eliminar tokens anteriores
-                if ($forceLogout) {
-                    $user->tokens()->delete();
-                }
+            if ($sessionCheck['status'] === SessionService::SESSION_CONFLICT) {
+                Auth::logout();
+                return response()->json([
+                    'message' => 'Ya existe una sesión activa en otro dispositivo',
+                    'error_code' => 'SESSION_CONFLICT',
+                    'active_sessions' => $sessionCheck['active_sessions']
+                ], 409);
             }
 
             // Actualizar last_login_at

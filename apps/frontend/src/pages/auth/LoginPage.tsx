@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
 import { Lock, User, Loader2, Smartphone } from 'lucide-react';
+import { AxiosError } from 'axios';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,6 +19,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+// Interface para errores de la API de login
+interface LoginErrorResponse {
+  message?: string;
+  error_code?: 'SCHEDULE_RESTRICTED' | 'SESSION_CONFLICT';
+  schedule?: string;
+  active_sessions?: number;
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -47,23 +56,25 @@ export default function LoginPage() {
         login(response.data.token);
         toast.success('Inicio de sesión exitoso');
       }
-    } catch (error: unknown) {
-      const axiosError = error as { response?: { status?: number; data?: { message?: string; error_code?: string; schedule?: string; active_sessions?: number } } };
+    } catch (error) {
+      const axiosError = error as AxiosError<LoginErrorResponse>;
+      const errorData = axiosError.response?.data;
+      const status = axiosError.response?.status;
+
       console.error('Login error:', error);
 
-      if (axiosError.response?.status === 409 && axiosError.response?.data?.error_code === 'SESSION_CONFLICT') {
-        // Mostrar modal de confirmación para cerrar sesión anterior
+      if (status === 409 && errorData?.error_code === 'SESSION_CONFLICT') {
         setShowSessionConflict(true);
-      } else if (axiosError.response?.status === 401) {
+      } else if (status === 401) {
         toast.error('Credenciales incorrectas');
-      } else if (axiosError.response?.status === 403) {
-        if (axiosError.response?.data?.error_code === 'SCHEDULE_RESTRICTED') {
+      } else if (status === 403) {
+        if (errorData?.error_code === 'SCHEDULE_RESTRICTED') {
           toast.error('Acceso no permitido en este horario', {
-            description: axiosError.response?.data?.schedule || 'Consulta con el administrador sobre tu horario de acceso.',
+            description: errorData?.schedule || 'Consulta con el administrador sobre tu horario de acceso.',
             duration: 8000,
           });
         } else {
-          toast.error(axiosError.response?.data?.message || 'Tu cuenta está desactivada. Contacta al administrador.');
+          toast.error(errorData?.message || 'Tu cuenta está desactivada. Contacta al administrador.');
         }
       } else {
         toast.error('Error al iniciar sesión. Inténtalo de nuevo.');
