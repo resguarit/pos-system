@@ -139,7 +139,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         setSuppliers(suppliersData as unknown as Supplier[]);
         setBranches(branchesData as unknown as Branch[]);
         setPaymentMethods(paymentMethodsData as unknown as PaymentMethod[]);
-      } catch (err) {
+      } catch {
         // Error loading data
         setError('Error al cargar los datos');
       }
@@ -155,7 +155,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
       if (selectedCurrency) {
         setLoading(true);
         try {
-          const params: any = {
+          const params: { per_page: number; currency: string; search?: string } = {
             per_page: 20,
             currency: selectedCurrency
           };
@@ -203,16 +203,18 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
           setLowStockSuggestions([])
           return
         }
-        // Traer stock de la sucursal seleccionada
+        // Traer stock de la sucursal seleccionada (incluye producto relacionado)
         const resp = await api.get('/stocks', { params: { branch_id: form.branch_id } })
-        const stocks: any[] = resp.data?.data || resp.data || []
+        const stocks: { min_stock?: number; product?: Product; current_stock?: number; quantity?: number; stock?: number }[] = resp.data?.data || resp.data || []
         const supplierId = String(form.supplier_id)
 
-        // Unir con productos y filtrar por proveedor y stock bajo
+        // Usar el producto que viene directamente en el stock (relación del backend)
+        // y filtrar por proveedor y stock bajo
         const suggestions = stocks
-          .filter(s => typeof s.min_stock !== 'undefined' && s.min_stock != null)
+          .filter(s => typeof s.min_stock !== 'undefined' && s.min_stock != null && s.product)
           .map(s => {
-            const product = products.find(p => String(p.id) === String(s.product_id ?? s.product?.id))
+            // Usar el producto que viene de la relación del backend
+            const product = s.product as Product
             const current = Number(
               s.current_stock ?? s.quantity ?? s.stock ?? 0
             )
@@ -221,9 +223,9 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
           })
           .filter(x =>
             x.product &&
-            String((x.product as any).supplier_id ?? '') === supplierId &&
+            String((x.product as Product & { supplier_id?: number | string }).supplier_id ?? '') === supplierId &&
             x.stock < x.min_stock &&
-            (x.product.currency || 'ARS') === selectedCurrency // Filtrar por moneda
+            ((x.product as Product & { currency?: string }).currency || 'ARS') === selectedCurrency // Filtrar por moneda
           )
           .map(x => ({
             product: x.product as Product,
@@ -233,13 +235,13 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
           }))
 
         setLowStockSuggestions(suggestions)
-      } catch (e) {
+      } catch {
         // Error cargando sugerencias de stock bajo
         setLowStockSuggestions([])
       }
     }
     loadLowStock()
-  }, [open, form.supplier_id, form.branch_id, selectedCurrency, products])
+  }, [open, form.supplier_id, form.branch_id, selectedCurrency])
 
   const handleFormChange = (field: string, value: string | Date) => {
     setForm({ ...form, [field]: value });
@@ -362,7 +364,8 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         currency: selectedCurrency as 'ARS' | 'USD',
         order_date: format(form.order_date, 'yyyy-MM-dd'),
         notes: form.notes || '',
-        items: items.map(({ product, ...rest }) => rest), // Remove extra 'product' prop
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        items: items.map(({ product: _product, ...rest }) => rest), // Remove extra 'product' prop
         payment_method_id: parseInt(selectedPaymentMethod),
         affects_cash_register: affectsCashRegister,
       });
@@ -385,11 +388,12 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
       });
       setSelectedPaymentMethod('');
       setAffectsCashRegister(true); // Reset a true por defecto
-    } catch (err: any) {
-      if (err?.response?.data?.message) {
-        setError(err.response.data.message);
-      } else if (err?.message) {
-        setError(err.message);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string };
+      if (error?.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error?.message) {
+        setError(error.message);
       } else {
         setError('Error al crear la orden de compra');
       }

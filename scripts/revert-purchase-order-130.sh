@@ -28,6 +28,19 @@ PURCHASE_ORDER_ID=130
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$SCRIPT_DIR/../apps/backend"
 
+# Detectar PHP 8.2+ (necesario para Laravel)
+PHP_BIN="php"
+for php_path in /usr/local/lsws/lsphp82/bin/php /usr/bin/php8.2 /usr/bin/php82 /opt/php82/bin/php /usr/local/bin/php8.2; do
+    if [ -x "$php_path" ]; then
+        PHP_BIN="$php_path"
+        break
+    fi
+done
+
+echo "🐘 Usando PHP: $PHP_BIN"
+$PHP_BIN -v | head -1
+echo ""
+
 # Verificar si es ejecución real o dry run
 DRY_RUN="true"
 if [[ "${1:-}" == "--execute" ]]; then
@@ -42,7 +55,7 @@ echo ""
 cd "$BACKEND_DIR"
 
 # Ejecutar todo el script en un solo bloque PHP para evitar problemas
-php artisan tinker <<EOF
+$PHP_BIN artisan tinker <<EOF
 \$PURCHASE_ORDER_ID = $PURCHASE_ORDER_ID;
 \$DRY_RUN = $DRY_RUN;
 
