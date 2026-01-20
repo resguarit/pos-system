@@ -164,7 +164,7 @@ if (\$DRY_RUN) {
 echo "🔴 EJECUTANDO REVERSIÓN...\n";
 echo "==============================================\n";
 
-DB::beginTransaction();
+\Illuminate\Support\Facades\DB::beginTransaction();
 try {
     // 1. Revertir stock
     echo "📦 Revirtiendo stock...\n";
@@ -193,7 +193,7 @@ try {
     \$currentNotes = \$order->notes ?? '';
     \$newNotes = \$currentNotes . "\n\n[REVERTIDA " . date('Y-m-d H:i:s') . "] - Script de reversión ejecutado";
     
-    DB::table('purchase_orders')->where('id', \$PURCHASE_ORDER_ID)->update([
+    \Illuminate\Support\Facades\DB::table('purchase_orders')->where('id', \$PURCHASE_ORDER_ID)->update([
         'status' => 'cancelled',
         'notes' => \$newNotes,
         'updated_at' => now(),
@@ -202,7 +202,7 @@ try {
     
     // 5. Registrar en activity log
     echo "\n📋 Registrando en log de auditoría...\n";
-    DB::table('activity_log')->insert([
+    \Illuminate\Support\Facades\DB::table('activity_log')->insert([
         'log_name' => 'purchase_order',
         'description' => 'Order reverted via script',
         'subject_type' => 'App\\Models\\PurchaseOrder',
@@ -219,11 +219,11 @@ try {
     ]);
     echo "   ✅ Registrado en activity log\n";
     
-    DB::commit();
+    \Illuminate\Support\Facades\DB::commit();
     echo "\n✅ REVERSIÓN COMPLETADA EXITOSAMENTE\n";
     
 } catch (Exception \$e) {
-    DB::rollBack();
+    \Illuminate\Support\Facades\DB::rollBack();
     echo "❌ ERROR: " . \$e->getMessage() . "\n";
     echo "Todos los cambios han sido revertidos (rollback)\n";
     exit(1);
