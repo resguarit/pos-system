@@ -371,7 +371,7 @@ export default function UserPerformancePage() {
    * Obtiene las ventas mensuales del usuario
    * Principio: Single Responsibility - Solo obtiene ventas mensuales
    */
-  const fetchMonthlySales = async () => {
+  const fetchMonthlySales = useCallback(async () => {
     try {
       const params: any = {};
 
@@ -393,7 +393,7 @@ export default function UserPerformancePage() {
     } catch {
       // monthly sales are optional or can be empty
     }
-  };
+  }, [userId, dateRange, branchFilter, request]);
 
   /**
    * Obtiene los productos más vendidos del usuario
