@@ -14,7 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { NewPurchaseOrderDialog } from "@/components/new-purchase-order-dialog"
 import { ViewPurchaseOrderDialog } from "@/components/view-purchase-order-dialog"
 import EditPurchaseOrderDialog from "@/components/edit-purchase-order-dialog"
-import { getPurchaseOrders, finalizePurchaseOrder, cancelPurchaseOrder, getPurchaseSummaryByCurrency } from "@/lib/api/purchaseOrderService"
+import { CancelPurchaseOrderDialog } from "@/components/cancel-purchase-order-dialog"
+import { getPurchaseOrders, finalizePurchaseOrder, getPurchaseSummaryByCurrency } from "@/lib/api/purchaseOrderService"
 import type { PurchaseOrder as APIPurchaseOrder } from "@/lib/api/purchaseOrderService"
 import { toast } from "sonner"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
@@ -65,6 +66,9 @@ export default function PurchaseOrderPage() {
   const [viewPurchaseOrderDialogOpen, setViewPurchaseOrderDialogOpen] = useState(false)
   const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<number | null>(null)
   const [editPurchaseOrderDialogOpen, setEditPurchaseOrderDialogOpen] = useState(false)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [cancelOrderId, setCancelOrderId] = useState<number | null>(null)
+  const [cancelOrderStatus, setCancelOrderStatus] = useState<string>('')
   const [purchaseOrders, setPurchaseOrders] = useState<APIPurchaseOrder[]>([])
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState("all")
@@ -263,14 +267,21 @@ export default function PurchaseOrderPage() {
     }
   }
 
-  const handleCancelPurchaseOrder = async (orderId: number) => {
-    try {
-      await cancelPurchaseOrder(orderId)
+  const handleCancelPurchaseOrder = (order: APIPurchaseOrder) => {
+    if (!order.id) return
+    setCancelOrderId(order.id)
+    setCancelOrderStatus(order.status || 'pending')
+    setCancelDialogOpen(true)
+  }
+
+  const handleCancelDialogComplete = async () => {
+    const wasCompleted = cancelOrderStatus === 'completed'
+    if (wasCompleted) {
+      toast.success("Orden de compra cancelada y revertida exitosamente")
+    } else {
       toast.success("Orden de compra cancelada")
-      await refreshCards()
-    } catch (error) {
-      toast.error("Error al cancelar la orden de compra")
     }
+    await refreshCards()
   }
 
   const handleViewPurchaseOrder = (order: APIPurchaseOrder) => {
@@ -610,7 +621,7 @@ export default function PurchaseOrderPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleCancelPurchaseOrder(order.id!)}
+                                onClick={() => handleCancelPurchaseOrder(order)}
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                 title="Cancelar"
                               >
@@ -618,6 +629,18 @@ export default function PurchaseOrderPage() {
                               </Button>
                             )}
                           </>
+                        )}
+                        {/* Cancel button for completed orders */}
+                        {order.status === 'completed' && hasPermission('cancelar_ordenes_compra') && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleCancelPurchaseOrder(order)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Cancelar y Revertir"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
                     </ResizableTableCell>
@@ -659,6 +682,13 @@ export default function PurchaseOrderPage() {
           onSaved={handlePurchaseOrderSaved}
         />
       )}
+      <CancelPurchaseOrderDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        orderId={cancelOrderId}
+        orderStatus={cancelOrderStatus}
+        onCancelled={handleCancelDialogComplete}
+      />
     </BranchRequiredWrapper>
   )
 }

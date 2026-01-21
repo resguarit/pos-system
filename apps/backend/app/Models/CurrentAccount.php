@@ -20,6 +20,7 @@ class CurrentAccount extends Model
 
     protected $fillable = [
         'customer_id',
+        'supplier_id',
         'credit_limit',
         'current_balance',
         'status',
@@ -51,6 +52,22 @@ class CurrentAccount extends Model
     }
 
     /**
+     * Relación con proveedor
+     */
+    public function supplier(): BelongsTo
+    {
+        return $this->belongsTo(Supplier::class);
+    }
+
+    /**
+     * Obtener el propietario de la cuenta (Customer o Supplier)
+     */
+    public function getOwnerAttribute()
+    {
+        return $this->customer ?? $this->supplier;
+    }
+
+    /**
      * Relación con movimientos
      */
     public function movements(): HasMany
@@ -64,6 +81,14 @@ class CurrentAccount extends Model
     public function sales(): HasMany
     {
         return $this->hasMany(SaleHeader::class, 'customer_id', 'customer_id');
+    }
+
+    /**
+     * Relación con compras asociadas (para proveedores)
+     */
+    public function purchaseOrders(): HasMany
+    {
+        return $this->hasMany(PurchaseOrder::class, 'supplier_id', 'supplier_id');
     }
 
     /**
@@ -91,7 +116,7 @@ class CurrentAccount extends Model
             }
             return (float) $value;
         }
-        
+
         // No hay atributo definido, retornar null (límite infinito por defecto)
         return null;
     }
@@ -102,12 +127,12 @@ class CurrentAccount extends Model
     public function hasAvailableCredit(float $amount): bool
     {
         $creditLimit = $this->credit_limit;
-        
+
         // Si credit_limit es NULL, significa límite infinito
         if ($creditLimit === null) {
             return true;
         }
-        
+
         return ($this->current_balance + $amount) <= $creditLimit;
     }
 
@@ -117,12 +142,12 @@ class CurrentAccount extends Model
     public function getAvailableCreditAttribute(): ?float
     {
         $creditLimit = $this->credit_limit;
-        
+
         // Si credit_limit es NULL, significa límite infinito
         if ($creditLimit === null) {
             return null; // Representa límite infinito
         }
-        
+
         // Balance positivo = deuda del cliente
         // Crédito disponible = Límite - Deuda
         // Si es negativo, significa que está sobregirado
@@ -138,7 +163,7 @@ class CurrentAccount extends Model
         if ($this->credit_limit === null) {
             return false;
         }
-        
+
         return $this->current_balance >= $this->credit_limit;
     }
 
@@ -151,7 +176,7 @@ class CurrentAccount extends Model
         if ($this->credit_limit === null) {
             return false;
         }
-        
+
         return $this->current_balance > $this->credit_limit;
     }
 
@@ -164,7 +189,7 @@ class CurrentAccount extends Model
         if ($this->credit_limit === null || $this->credit_limit <= 0) {
             return null;
         }
-        
+
         return min(100, ($this->current_balance / $this->credit_limit) * 100);
     }
 
@@ -173,7 +198,7 @@ class CurrentAccount extends Model
      */
     public function getStatusTextAttribute(): string
     {
-        return match($this->status) {
+        return match ($this->status) {
             'active' => 'Activa',
             'suspended' => 'Suspendida',
             'closed' => 'Cerrada',
@@ -301,7 +326,7 @@ class CurrentAccount extends Model
     {
         return $query->where('current_balance', '>', 0);
     }
-    
+
     /**
      * Scope para cuentas que excedieron su límite de crédito
      */
@@ -340,7 +365,7 @@ class CurrentAccount extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['customer_id', 'credit_limit', 'current_balance', 'status', 'notes'])
+            ->logOnly(['customer_id', 'supplier_id', 'credit_limit', 'current_balance', 'status', 'notes'])
             ->useLogName('current_account')
             ->logOnlyDirty();
     }

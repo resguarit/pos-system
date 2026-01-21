@@ -1,8 +1,8 @@
 // Tipos para Cuentas Corrientes
 export interface CurrentAccount {
   id: number;
-  customer_id: number;
-  customer: {
+  customer_id?: number | null;
+  customer?: {
     id: number;
     person_id: number;
     email: string | null;
@@ -28,6 +28,17 @@ export interface CurrentAccount {
       updated_at: string;
       deleted_at: string | null;
     };
+  };
+  supplier_id?: number | null;
+  supplier?: {
+    id: number;
+    name: string;
+    contact_name: string | null;
+    phone: string;
+    email: string;
+    cuit: string;
+    address: string;
+    status: string;
   };
   credit_limit: number | null;
   current_balance: number;

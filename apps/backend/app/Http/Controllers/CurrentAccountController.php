@@ -905,4 +905,27 @@ class CurrentAccountController extends Controller
             ], 400);
         }
     }
+    /**
+     * Procesar pago a proveedor
+     */
+    public function processSupplierPayment(Request $request, int $accountId): JsonResponse
+    {
+        try {
+            $movement = $this->currentAccountService->processSupplierPayment($accountId, $request->all());
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'message' => 'Pago a proveedor procesado exitosamente',
+                'data' => $movement
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al procesar pago a proveedor: ' . $e->getMessage());
+            return response()->json([
+                'status' => 400,
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
 }

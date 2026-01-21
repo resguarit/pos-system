@@ -204,6 +204,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/{id}', [PurchaseOrderController::class, 'destroy']);
         Route::patch('/{id}/finalize', [PurchaseOrderController::class, 'finalize']);
         Route::patch('/{id}/cancel', [PurchaseOrderController::class, 'cancel']);
+        Route::get('/{id}/cancel-preview', [PurchaseOrderController::class, 'cancelPreview']);
         Route::get('/{id}/pdf', [PurchaseOrderController::class, 'downloadPdf'])->whereNumber('id');
     });
 
@@ -353,6 +354,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Cash Register Routes
     Route::prefix('cash-registers')->group(function () {
+        Route::get('/', [CashRegisterController::class, 'index']);
         Route::post('/open', [CashRegisterController::class, 'open']);
         Route::post('/{id}/close', [CashRegisterController::class, 'close']);
         Route::get('/current', [CashRegisterController::class, 'current']);
@@ -432,6 +434,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Estadísticas y reportes (con parámetro)
         Route::get('/{accountId}/statistics', [CurrentAccountController::class, 'statistics']);
         Route::get('/{accountId}/export-movements', [CurrentAccountController::class, 'exportMovements']);
+        Route::post('/{accountId}/supplier-payments', [CurrentAccountController::class, 'processSupplierPayment']);
     });
 
     // Rutas globales para actualización masiva de precios (todas las cuentas)

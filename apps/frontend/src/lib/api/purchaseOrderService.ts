@@ -6,6 +6,12 @@ export interface PurchaseOrderItem {
   quantity: number;
   purchase_price: number;
 }
+export interface PurchaseOrderPayment {
+  purchase_order_id?: number;
+  payment_method_id: number;
+  amount: number;
+  payment_method?: { id: number; name: string };
+}
 export interface PurchaseOrder {
   id?: number;
   supplier_id?: number;
@@ -20,8 +26,9 @@ export interface PurchaseOrder {
   total_amount?: number | string;
   total?: string;
   items?: PurchaseOrderItem[];
-  payment_method_id?: number;
-  payment_method?: { id: number; name: string };
+  payments?: PurchaseOrderPayment[];
+  payment_method_id?: number; // Deprecated
+  payment_method?: { id: number; name: string }; // Deprecated
   affects_cash_register?: boolean;
 }
 export interface CreatePurchaseOrder {
@@ -31,7 +38,8 @@ export interface CreatePurchaseOrder {
   order_date: string; // yyyy-MM-dd
   notes?: string;
   items: PurchaseOrderItem[];
-  payment_method_id?: number;
+  payments?: { payment_method_id: number; amount: number }[];
+  payment_method_id?: number; // Optional for backward compatibility but discouraged
   affects_cash_register?: boolean;
 }
 export interface PurchaseSummaryByCurrency {
@@ -40,6 +48,37 @@ export interface PurchaseSummaryByCurrency {
   totals: {
     [key: string]: number;
   };
+}
+
+export interface CancelPreviewStockChange {
+  product_id: number;
+  product_name: string;
+  quantity_to_revert: number;
+  current_stock: number;
+  stock_after_revert: number;
+  will_be_negative: boolean;
+}
+
+export interface CancelPreviewCashMovement {
+  id: number;
+  amount: number;
+  payment_method: string;
+  affects_balance: boolean;
+  description: string;
+}
+
+export interface CancelPreviewData {
+  order: {
+    id: number;
+    supplier_name: string;
+    branch_name: string;
+    order_date: string;
+    total_amount: number | string;
+    currency: string;
+  };
+  stock_changes: CancelPreviewStockChange[];
+  cash_movements: CancelPreviewCashMovement[];
+  cash_movement?: CancelPreviewCashMovement | null; // Deprecated
 }
 
 /**
@@ -184,6 +223,19 @@ const purchaseOrderService = {
       throw error;
     }
   },
+
+  /**
+   * Obtiene el preview de cancelación para órdenes completadas
+   */
+  async getCancelPreview(id: number): Promise<CancelPreviewData> {
+    try {
+      const response = await api.get<CancelPreviewData>(`/purchase-orders/${id}/cancel-preview`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error al obtener preview de cancelación para orden ${id}:`, error);
+      throw error;
+    }
+  },
 };
 
 // ====================================================================
@@ -205,3 +257,4 @@ export const cancelPurchaseOrder = purchaseOrderService.cancel;
 export const getPurchaseOrderPdfUrl = purchaseOrderService.getPdfUrl;
 export const openPurchaseOrderPdf = purchaseOrderService.openPdf;
 export const getPurchaseSummaryByCurrency = purchaseOrderService.getSummaryByCurrency;
+export const getCancelPreview = purchaseOrderService.getCancelPreview;

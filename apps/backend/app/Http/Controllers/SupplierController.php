@@ -17,15 +17,15 @@ class SupplierController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $query = \App\Models\Supplier::query();
+        $query = \App\Models\Supplier::query()->with('currentAccount');
 
         // Agregar filtro de búsqueda si está presente
         if ($request->has('search') && $request->search) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%$search%")
-                  ->orWhere('contact_name', 'like', "%$search%")
-                  ->orWhere('email', 'like', "%$search%");
+                    ->orWhere('contact_name', 'like', "%$search%")
+                    ->orWhere('email', 'like', "%$search%");
             });
         }
 
@@ -148,7 +148,7 @@ class SupplierController extends Controller
     {
         try {
             $exists = $this->supplierService->checkNameExists($name);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);

@@ -20,6 +20,8 @@ import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import paymentMethodService, { type PaymentMethod } from '@/lib/api/paymentMethodService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PurchaseOrderPaymentSection, type PurchaseOrderPaymentState } from './purchase-order-payment-section';
+import { useNewPurchaseOrder } from '@/contexts/new-purchase-order-context';
 
 export interface NewPurchaseOrderDialogProps {
   open: boolean;
@@ -51,23 +53,23 @@ interface Product {
 }
 
 export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselectedBranchId, disableBranchSelection = false }: NewPurchaseOrderDialogProps) => {
-  const [form, setForm] = useState({
-    supplier_id: '',
-    branch_id: '',
-    order_date: new Date(),
-    notes: '',
-  });
+  /* Context State */
+  const {
+    state,
+    setForm,
+    setSelectedCurrency,
+    setItems,
+    setNewItem,
+    setPayments,
+    setAffectsCashRegister,
+    resetOrder,
+    updateForm,
+    updateNewItem
+  } = useNewPurchaseOrder();
 
-  const [selectedCurrency, setSelectedCurrency] = useState<'ARS' | 'USD' | ''>(''); // Nueva estado para moneda
+  const { form, selectedCurrency, items, newItem, payments, affectsCashRegister } = state;
 
-  // Extended item type for display purposes
-  const [items, setItems] = useState<(PurchaseOrderItem & { product?: Product })[]>([]);
-  const [newItem, setNewItem] = useState({
-    product_id: '',
-    quantity: '',
-    purchase_price: '',
-  });
-
+  /* Local State (UI only) */
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -75,8 +77,6 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
   const [productSearch, setProductSearch] = useState('');
   const [showProductSearch, setShowProductSearch] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
-  const [affectsCashRegister, setAffectsCashRegister] = useState(true); // Por defecto true
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,26 +91,14 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
   };
 
   // Reset form cuando se abre el dialog
+  // Reset form ONLY IF it's empty and we have a preselected branch, OR if we want to ensure some defaults.
+  // Actually, for persistence, we DON'T want to reset on open unless specifically desired.
+  // However, we might want to set the branch if it's missing.
   useEffect(() => {
-    if (open) {
-      setForm({
-        supplier_id: '',
-        branch_id: preselectedBranchId ? preselectedBranchId.toString() : '',
-        order_date: new Date(),
-        notes: '',
-      });
-      setSelectedCurrency('');
-      setItems([]);
-      setNewItem({
-        product_id: '',
-        quantity: '',
-        purchase_price: '',
-      });
-      setSelectedPaymentMethod('');
-      setAffectsCashRegister(true); // Reset a true por defecto
-      setError(null);
+    if (open && !form.branch_id && preselectedBranchId) {
+      updateForm('branch_id', preselectedBranchId.toString());
     }
-  }, [open, preselectedBranchId]);
+  }, [open, preselectedBranchId, form.branch_id]);
   const [lowStockSuggestions, setLowStockSuggestions] = useState<{
     product: Product;
     stock: number;
@@ -243,12 +231,12 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
     loadLowStock()
   }, [open, form.supplier_id, form.branch_id, selectedCurrency])
 
-  const handleFormChange = (field: string, value: string | Date) => {
-    setForm({ ...form, [field]: value });
+  const handleFormChange = (field: keyof typeof form, value: any) => {
+    updateForm(field, value);
   };
 
-  const handleNewItemChange = (field: string, value: string) => {
-    setNewItem({ ...newItem, [field]: value });
+  const handleNewItemChange = (field: keyof typeof newItem, value: string) => {
+    updateNewItem(field, value);
   };
 
   const addItem = async () => {
@@ -336,7 +324,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
   };
 
   const calculateTotal = () => {
-    return items.reduce((total, item) => total + (item.quantity * item.purchase_price), 0);
+    return items.reduce((total, item) => total + (Number(item.quantity) * Number(item.purchase_price)), 0);
   };
 
   const getProductName = (productId: number) => {
@@ -351,10 +339,47 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.supplier_id || !form.branch_id || !selectedCurrency || items.length === 0 || !selectedPaymentMethod) {
-      setError('Complete todos los campos requeridos (incluyendo moneda), agregue al menos un producto y seleccione método de pago');
+    if (!form.supplier_id || !form.branch_id || !selectedCurrency || items.length === 0 || payments.length === 0) {
+      setError('Complete todos los campos requeridos, agregue al menos un producto y al menos un pago');
       return;
     }
+
+    // Validar que los pagos cubran exactamente el total
+    const totalOrder = calculateTotal();
+    const totalPayments = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+    // Permitir una pequeña diferencia por redondeo (0.01)
+    if (Math.abs(totalOrder - totalPayments) > 0.05) {
+      if (totalPayments < totalOrder) {
+        setError(`Falta cubrir $${(totalOrder - totalPayments).toFixed(2)} para completar el total de la orden.`);
+      } else {
+        setError(`El total de pagos excede el monto de la orden por $${(totalPayments - totalOrder).toFixed(2)}.`);
+      }
+      return;
+    }
+
+    /* 
+    // Comentario anterior sobre el backend...
+     */
+    // Si queremos ser estrictos:
+    // const total = calculateTotal();
+    // const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    // if (Math.abs(total - paid) > 0.01) { ... }
+
+    // Por ahora permitimos guardar (quizás es un pago parcial? pero el status es completed... 
+    // Si es completed debería estar pagado. Si no, debería ser pending?
+    // Pero el dialogo crea y completa? O solo crea pending?
+    // Interface dice status: 'pending'. 
+    // Pero si afectamos caja, asumimos que se paga? 
+    // La logica original ponia status = 'pending'. Así que los pagos se guardan pero no mueven caja hasta completar?
+    // NO. El servicio crea la orden como PENDING.
+    // Solo al completar (finalize) se mueven cajas.
+    // PERO este dialogo solo crea.
+    // ENTONCES: ¿Los pagos que guardamos aquí son "como se pagará"?
+    // Si.
+    // Si la orden nace pending, los pagos quedan guardados.
+    // Luego al finalizar se usarán.
+
     setLoading(true);
     setError(null);
     try {
@@ -366,7 +391,10 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         notes: form.notes || '',
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         items: items.map(({ product: _product, ...rest }) => rest), // Remove extra 'product' prop
-        payment_method_id: parseInt(selectedPaymentMethod),
+        payments: payments.map(p => ({
+          payment_method_id: parseInt(p.payment_method_id),
+          amount: parseFloat(p.amount) || 0
+        })),
         affects_cash_register: affectsCashRegister,
       });
       toast.success("Orden de compra creada", {
@@ -374,20 +402,10 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
       });
       onSaved();
       onOpenChange(false);
-      setForm({
-        supplier_id: '',
-        branch_id: '',
-        order_date: new Date(),
-        notes: '',
-      });
-      setItems([]);
-      setNewItem({
-        product_id: '',
-        quantity: '',
-        purchase_price: '',
-      });
-      setSelectedPaymentMethod('');
-      setAffectsCashRegister(true); // Reset a true por defecto
+      onSaved();
+      onOpenChange(false);
+      resetOrder();
+      setProductSearch(''); // Reset local UI state
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } }; message?: string };
       if (error?.response?.data?.message) {
@@ -428,11 +446,14 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
       return
     }
 
-    setItems(prev => [...prev, {
+    const newItemToAdd = {
       product_id: pid,
       quantity: editingSuggestion.quantity,
-      purchase_price: editingSuggestion.price
-    }])
+      purchase_price: editingSuggestion.price,
+      product: editingSuggestion.product // Add product detail for display if needed
+    };
+
+    setItems([...items, newItemToAdd]);
 
     setEditingSuggestion(null)
     toast.success('Producto agregado', {
@@ -764,47 +785,6 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
               </Popover>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="payment_method_id">Método de Pago *</Label>
-              <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Seleccione un método de pago" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60 overflow-y-auto">
-                  {paymentMethods.map((pm) => (
-                    <SelectItem key={pm.id} value={pm.id.toString()}>
-                      {pm.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Checkbox para afectar caja registradora - Alineado con inputs */}
-            <div className="space-y-2">
-              <Label className="invisible block">Afecta Caja</Label>
-              <div className="flex items-center gap-2 h-10">
-                <Checkbox
-                  id="affects_cash_register"
-                  checked={affectsCashRegister}
-                  onCheckedChange={(checked) => setAffectsCashRegister(checked === true)}
-                  className={cn(
-                    "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 data-[state=checked]:text-white",
-                    !affectsCashRegister && "border-red-600"
-                  )}
-                />
-                <Label
-                  htmlFor="affects_cash_register"
-                  className="text-sm cursor-pointer whitespace-nowrap"
-                >
-                  {affectsCashRegister ? (
-                    <span className="text-green-700 font-medium">Afecta balance de caja</span>
-                  ) : (
-                    <span className="text-red-600 font-medium">No afecta balance de caja</span>
-                  )}
-                </Label>
-              </div>
-            </div>
           </div>
 
 
@@ -928,7 +908,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
                   </TableHeader>
                   <TableBody>
                     {items.map((item, index) => {
-                      const product = products.find(p => p.id === item.product_id);
+                      const product = item.product || products.find(p => p.id === item.product_id);
                       const currentPrice = product ? Number(product.unit_price) : 0;
                       const orderPrice = item.purchase_price;
                       const isPriceChanged = Math.abs(currentPrice - orderPrice) > 0.01;
@@ -1001,6 +981,47 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
             )}
           </div>
 
+          <div className="space-y-4 pt-4 border-t mt-4">
+            <h3 className="text-lg font-semibold">Pagos</h3>
+            <PurchaseOrderPaymentSection
+              payments={payments}
+              paymentMethods={paymentMethods}
+              total={calculateTotal()}
+              onAddPayment={() => setPayments([...payments, { payment_method_id: '', amount: '' }])}
+              onRemovePayment={(idx) => setPayments(payments.filter((_, i) => i !== idx))}
+              onUpdatePayment={(idx, field, value) => {
+                const newPayments = [...payments]
+                newPayments[idx] = { ...newPayments[idx], [field]: value }
+                setPayments(newPayments)
+              }}
+            />
+
+            {/* Checkbox para afectar caja registradora */}
+            <div className="flex items-center gap-2 mt-2">
+              <Checkbox
+                id="affects_cash_register"
+                checked={affectsCashRegister}
+                onCheckedChange={(checked) => setAffectsCashRegister(checked === true)}
+                className={cn(
+                  "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 data-[state=checked]:text-white",
+                  !affectsCashRegister && "border-red-600"
+                )}
+              />
+              <Label
+                htmlFor="affects_cash_register"
+                className="text-sm cursor-pointer"
+              >
+                {affectsCashRegister ? (
+                  <span className="text-green-700 font-medium">Esta orden afecta el balance de caja</span>
+                ) : (
+                  <span className="text-red-600 font-medium">Esta orden NO afecta el balance de caja</span>
+                )}
+              </Label>
+            </div>
+
+
+          </div>
+
           {error && (
             <div className="text-red-500 text-sm">{error}</div>
           )}
@@ -1023,7 +1044,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         </form>
       </DialogContent>
 
-    </Dialog>
+    </Dialog >
   );
 };
 

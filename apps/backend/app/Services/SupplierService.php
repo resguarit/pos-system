@@ -8,16 +8,19 @@ use App\Models\Person; // Add this
 use App\Services\PersonService; // Add this
 use Illuminate\Support\Facades\DB; // Add this
 use Illuminate\Support\Facades\Log; // Add this
-use Exception; // Add this
+use App\Interfaces\CurrentAccountServiceInterface; // Add this
+use Exception;
 
 class SupplierService implements SupplierServiceInterface
 {
-    protected $personService; // Add this property
+    protected $personService;
+    protected $currentAccountService; // Add this property
 
-    // Modify the constructor to inject PersonService
-    public function __construct(PersonService $personService)
+    // Modify the constructor to inject PersonService and CurrentAccountService
+    public function __construct(PersonService $personService, CurrentAccountServiceInterface $currentAccountService)
     {
         $this->personService = $personService;
+        $this->currentAccountService = $currentAccountService;
     }
 
     public function getAllSuppliers()
@@ -26,29 +29,29 @@ class SupplierService implements SupplierServiceInterface
         return Supplier::with('person')->withCount('products')->get();
     }
 
-    public function createSupplier(array $data): Supplier // Add return type
+    public function createSupplier(array $data): Supplier
     {
         DB::beginTransaction();
         try {
             $person = null;
             // Check if person data is provided to create/link a person
             if (!empty($data['first_name']) && !empty($data['last_name'])) {
-                 // Use PersonService to create the person
-                 $person = $this->personService->createPerson([
+                // Use PersonService to create the person
+                $person = $this->personService->createPerson([
                     'first_name' => $data['first_name'],
                     'last_name' => $data['last_name'],
                     'cuit' => $data['cuit'] ?? null,
                     'address' => $data['address'] ?? null,
                     'phone' => $data['phone'] ?? null,
                     // 'person_type_id' => ... // Set appropriate type ID if needed
-                 ]);
-                 $data['person_id'] = $person->id;
+                ]);
+                $data['person_id'] = $person->id;
             } elseif (!empty($data['person_id'])) {
-                 // Link to an existing person if only person_id is provided
-                 $person = $this->personService->findPersonById($data['person_id']);
-                 if (!$person) {
-                     throw new Exception("Person with ID {$data['person_id']} not found.");
-                 }
+                // Link to an existing person if only person_id is provided
+                $person = $this->personService->findPersonById($data['person_id']);
+                if (!$person) {
+                    throw new Exception("Person with ID {$data['person_id']} not found.");
+                }
             }
 
             // Create the supplier, ensuring person_id is included
@@ -68,6 +71,22 @@ class SupplierService implements SupplierServiceInterface
 
             $supplier = Supplier::create($supplierData);
 
+            // Automatically create a current account for the new supplier
+            try {
+                $this->currentAccountService->createAccount([
+                    'supplier_id' => $supplier->id,
+                    'current_balance' => 0,
+                    'status' => 'active',
+                    'notes' => 'Cuenta corriente creada automáticamente al registrar el proveedor',
+                ]);
+            } catch (Exception $e) {
+                // Log warning but don't fail supplier creation if account creation fails?
+                // Or should we fail? Given the requirement "every time a supplier is created...", we should probably fail transaction.
+                // However, createAccount throws if exists. Since this is a NEW supplier, it shouldn't exist.
+                // Re-throwing ensures consistency.
+                Log::warning("Could not create current account for new supplier ID {$supplier->id}: " . $e->getMessage());
+                throw $e;
+            }
 
             DB::commit();
             return $supplier->load('person'); // Eager load person
@@ -76,13 +95,17 @@ class SupplierService implements SupplierServiceInterface
             Log::error("Error creating supplier: " . $e->getMessage());
             throw $e; // Re-throw exception
         }
-    }    public function getSupplierById(int $id): ?Supplier // Add type hints and return type
+    }
+    public function getSupplierById(int $id): ?Supplier // Add type hints and return type
     {
         // Find or fail is okay, but find allows checking if null
-        return Supplier::with(['person', 'products' => function($query) {
-            $query->select('id', 'code', 'description', 'unit_price', 'supplier_id', 'status')
-                  ->where('deleted_at', null);
-        }])->withCount('products')->find($id);
+        return Supplier::with([
+            'person',
+            'products' => function ($query) {
+                $query->select('id', 'code', 'description', 'unit_price', 'supplier_id', 'status')
+                    ->where('deleted_at', null);
+            }
+        ])->withCount('products')->find($id);
     }
 
     public function updateSupplier(int $id, array $data): Supplier // Add type hints and return type
@@ -107,22 +130,22 @@ class SupplierService implements SupplierServiceInterface
 
 
             if ($person && !empty($personUpdateData)) {
-                 // Use PersonService to update the associated person
-                 $this->personService->updatePerson($person, $personUpdateData);
-                 // Refresh person data in case it's used as fallback
-                 $person->refresh();
+                // Use PersonService to update the associated person
+                $this->personService->updatePerson($person, $personUpdateData);
+                // Refresh person data in case it's used as fallback
+                $person->refresh();
             } elseif (!$person && !empty($personUpdateData['first_name']) && !empty($personUpdateData['last_name'])) {
-                 // If no person was associated, but now data is provided, create and link a new person
-                 $person = $this->personService->createPerson($personUpdateData);
-                 $data['person_id'] = $person->id; // Ensure the supplier gets linked
+                // If no person was associated, but now data is provided, create and link a new person
+                $person = $this->personService->createPerson($personUpdateData);
+                $data['person_id'] = $person->id; // Ensure the supplier gets linked
             } elseif (isset($data['person_id']) && $data['person_id'] !== $supplier->person_id) {
-                 // If person_id is explicitly changed, link to the new person
-                 $newPerson = $this->personService->findPersonById($data['person_id']);
-                 if (!$newPerson && !is_null($data['person_id'])) { // Allow unlinking by passing null
-                     throw new Exception("New Person with ID {$data['person_id']} not found.");
-                 }
-                 $person = $newPerson; // Update local variable for supplier data fallback
-                 $data['person_id'] = $person ? $person->id : null; // Ensure correct ID or null is set
+                // If person_id is explicitly changed, link to the new person
+                $newPerson = $this->personService->findPersonById($data['person_id']);
+                if (!$newPerson && !is_null($data['person_id'])) { // Allow unlinking by passing null
+                    throw new Exception("New Person with ID {$data['person_id']} not found.");
+                }
+                $person = $newPerson; // Update local variable for supplier data fallback
+                $data['person_id'] = $person ? $person->id : null; // Ensure correct ID or null is set
             }
 
             // Prepare supplier update data
@@ -138,9 +161,9 @@ class SupplierService implements SupplierServiceInterface
             ], fn($value) => !is_null($value));
 
             // Handle explicit person_id change even if null
-             if (array_key_exists('person_id', $data)) {
+            if (array_key_exists('person_id', $data)) {
                 $supplierUpdateData['person_id'] = $data['person_id'];
-             }
+            }
 
 
             if (!empty($supplierUpdateData)) {

@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import paymentMethodService from '@/lib/api/paymentMethodService';
 import type { PaymentMethod } from '@/lib/api/paymentMethodService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { PurchaseOrderPaymentSection, type PurchaseOrderPaymentState } from './purchase-order-payment-section';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Supplier { id: number; name: string; contact_name?: string }
@@ -39,6 +40,7 @@ interface EditablePurchaseOrderItem {
   product_id: number;
   quantity: number | string;
   purchase_price: number | string;
+  product?: Product;
 }
 
 export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId, onSaved }: EditPurchaseOrderDialogProps) {
@@ -62,7 +64,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+  const [payments, setPayments] = useState<PurchaseOrderPaymentState[]>([]);
   const [selectedCurrency, setSelectedCurrency] = useState<'ARS' | 'USD'>('ARS');
   const [affectsCashRegister, setAffectsCashRegister] = useState(true); // Por defecto true
 
@@ -95,13 +97,33 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
           order_date: (order as any).order_date ? new Date((order as any).order_date) : ((order as any).created_at ? new Date((order as any).created_at) : new Date()),
           notes: (order as any).notes || '',
         })
-        setSelectedPaymentMethod(String((order as any).payment_method_id ?? (order as any).payment_method?.id ?? ''));
         setAffectsCashRegister((order as any).affects_cash_register !== false); // Por defecto true si no existe
         setPaymentMethods(paymentMethodsData as unknown as PaymentMethod[]);
+
+        // Load payments
+        const orderPayments = (order as any).payments || [];
+        if (orderPayments.length > 0) {
+          setPayments(orderPayments.map((p: any) => ({
+            payment_method_id: String(p.payment_method_id),
+            amount: String(p.amount)
+          })));
+        } else {
+          // Fallback for legacy orders
+          const legacyPmId = (order as any).payment_method_id ?? (order as any).payment_method?.id;
+          if (legacyPmId) {
+            setPayments([{
+              payment_method_id: String(legacyPmId),
+              amount: String((order as any).total_amount || 0)
+            }]);
+          } else {
+            setPayments([]);
+          }
+        }
         const mapped: EditablePurchaseOrderItem[] = ((order as any).items || []).map((it: any) => ({
           product_id: Number(it.product_id || it.product?.id),
           quantity: Number(it.quantity),
           purchase_price: Number(it.purchase_price),
+          product: productsData.find((p: any) => p.id === Number(it.product_id || it.product?.id))
         }))
         setItems(mapped)
 
@@ -201,10 +223,25 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.supplier_id || !form.branch_id || !selectedPaymentMethod || !selectedCurrency || items.length === 0) {
-      setError('Seleccione proveedor, sucursal, método de pago, moneda y agregue al menos un producto')
+    if (!form.supplier_id || !form.branch_id || !selectedCurrency || items.length === 0 || payments.length === 0) {
+      setError('Seleccione proveedor, sucursal, moneda, agregue al menos un producto y un pago')
       return
     }
+
+    // Validar que los pagos cubran exactamente el total
+    const totalOrder = calculateTotal();
+    const totalPayments = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+    // Permitir una pequeña diferencia por redondeo (0.01)
+    if (Math.abs(totalOrder - totalPayments) > 0.05) {
+      if (totalPayments < totalOrder) {
+        setError(`Falta cubrir $${(totalOrder - totalPayments).toFixed(2)} para completar el total de la orden.`);
+      } else {
+        setError(`El total de pagos excede el monto de la orden por $${(totalPayments - totalOrder).toFixed(2)}.`);
+      }
+      return;
+    }
+
     setLoading(true)
     setError(null)
     try {
@@ -213,15 +250,18 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         branch_id: parseInt(form.branch_id, 10),
         order_date: format(form.order_date, 'yyyy-MM-dd'),
         notes: form.notes || '',
-        payment_method_id: parseInt(selectedPaymentMethod),
+        payments: payments.map(p => ({
+          payment_method_id: parseInt(p.payment_method_id),
+          amount: parseFloat(p.amount) || 0
+        })),
         affects_cash_register: affectsCashRegister,
       }
       if (items.length > 0) {
         payload.items = items.map(item => ({
-          ...item,
+          product_id: item.product_id,
           quantity: Number(item.quantity) || 0,
           purchase_price: Number(item.purchase_price) || 0
-        })).filter(item => item.quantity > 0)
+        })).filter((item: any) => item.quantity > 0)
       }
       await purchaseOrderService.update(purchaseOrderId, payload)
       toast.success('Orden de compra actualizada', { description: 'Los cambios fueron guardados.' })
@@ -352,66 +392,10 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                 )}
               </Popover>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="payment_method_id">Método de Pago *</Label>
-              <Select value={selectedPaymentMethod} onValueChange={setSelectedPaymentMethod} disabled={isReadOnly}>
-                <SelectTrigger disabled={isReadOnly}>
-                  <SelectValue placeholder="Seleccione un método de pago" />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods.map((pm) => (
-                    <SelectItem key={pm.id} value={pm.id.toString()}>
-                      {pm.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+
           </div>
 
-          {/* Checkbox para afectar caja */}
-          <div className="space-y-3 p-4 border rounded-lg bg-gray-50">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1">
-                <Label className="text-base font-semibold">¿Afecta el balance de la caja?</Label>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Controla si esta orden de compra impacta en el saldo de la caja registradora
-                </p>
-              </div>
-              <div className={cn(
-                "flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all",
-                affectsCashRegister
-                  ? "bg-green-50 border-green-300"
-                  : "bg-orange-50 border-orange-300"
-              )}>
-                {affectsCashRegister ? (
-                  <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
-                ) : (
-                  <AlertCircle className="h-6 w-6 text-orange-600 flex-shrink-0" />
-                )}
-                <Checkbox
-                  id="affects_cash_register"
-                  checked={affectsCashRegister}
-                  onCheckedChange={(checked: boolean) => setAffectsCashRegister(checked)}
-                  disabled={isReadOnly}
-                  className={cn(
-                    "h-5 w-5",
-                    affectsCashRegister ? "border-green-600" : "border-orange-600"
-                  )}
-                />
-                <Label
-                  htmlFor="affects_cash_register"
-                  className={cn(
-                    "font-semibold cursor-pointer text-base whitespace-nowrap",
-                    affectsCashRegister ? "text-green-700" : "text-orange-700",
-                    isReadOnly && "cursor-default"
-                  )}
-                >
-                  {affectsCashRegister ? "SÍ afecta" : "NO afecta"}
-                </Label>
-              </div>
-            </div>
-          </div>
+
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notas</Label>
@@ -510,7 +494,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                   </TableHeader>
                   <TableBody>
                     {items.map((item, index) => {
-                      const product = products.find(p => p.id === item.product_id);
+                      const product = item.product || products.find(p => p.id === item.product_id);
                       const currentPrice = product ? Number(product.unit_price) : 0;
                       const orderPrice = item.purchase_price;
                       const isPriceChanged = Math.abs(currentPrice - Number(orderPrice)) > 0.01;
@@ -642,6 +626,47 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                 </Table>
               </div>
             )}
+          </div>
+
+          <div className="space-y-4 pt-4 border-t mt-4">
+            <h3 className="text-lg font-semibold">Pagos</h3>
+            <PurchaseOrderPaymentSection
+              payments={payments}
+              paymentMethods={paymentMethods}
+              total={calculateTotal()}
+              onAddPayment={() => setPayments([...payments, { payment_method_id: '', amount: '' }])}
+              onRemovePayment={(idx) => setPayments(payments.filter((_, i) => i !== idx))}
+              onUpdatePayment={(idx, field, value) => {
+                const newPayments = [...payments]
+                newPayments[idx] = { ...newPayments[idx], [field]: value }
+                setPayments(newPayments)
+              }}
+              readOnly={isReadOnly}
+            />
+
+            {/* Checkbox para afectar caja registradora */}
+            <div className="flex items-center gap-2 mt-2">
+              <Checkbox
+                id="affects_cash_register"
+                checked={affectsCashRegister}
+                onCheckedChange={(checked) => setAffectsCashRegister(checked === true)}
+                className={cn(
+                  "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600 data-[state=checked]:text-white",
+                  !affectsCashRegister && "border-red-600"
+                )}
+                disabled={isReadOnly}
+              />
+              <Label
+                htmlFor="affects_cash_register"
+                className="text-sm cursor-pointer"
+              >
+                {affectsCashRegister ? (
+                  <span className="text-green-700 font-medium">Esta orden afecta el balance de caja</span>
+                ) : (
+                  <span className="text-red-600 font-medium">Esta orden NO afecta el balance de caja</span>
+                )}
+              </Label>
+            </div>
           </div>
 
           {error && <div className="text-red-500 text-sm">{error}</div>}

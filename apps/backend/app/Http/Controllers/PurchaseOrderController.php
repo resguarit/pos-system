@@ -55,7 +55,7 @@ class PurchaseOrderController extends Controller
     public function index(Request $request)
     {
         try {
-            $query = PurchaseOrder::with(['supplier', 'branch', 'items.product', 'paymentMethod']);
+            $query = PurchaseOrder::with(['supplier', 'branch', 'items.product', 'paymentMethod', 'payments.paymentMethod']);
 
             // Filtro por moneda
             if ($request->has('currency') && $request->currency) {
@@ -101,7 +101,10 @@ class PurchaseOrderController extends Controller
             'currency' => 'required|in:ARS,USD',
             'order_date' => 'required|date',
             'notes' => 'nullable|string',
-            'payment_method_id' => 'required|exists:payment_methods,id',
+            'payment_method_id' => 'nullable|exists:payment_methods,id', // Made nullable for multiple payments
+            'payments' => 'nullable|array',
+            'payments.*.payment_method_id' => 'required|exists:payment_methods,id',
+            'payments.*.amount' => 'required|numeric|min:0',
             'affects_cash_register' => 'nullable|boolean',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -111,7 +114,7 @@ class PurchaseOrderController extends Controller
 
         try {
             $purchaseOrder = $this->purchaseOrderService->createPurchaseOrder($validatedData);
-            return response()->json($purchaseOrder->load(['supplier', 'branch', 'items.product', 'paymentMethod']), 201);
+            return response()->json($purchaseOrder->load(['supplier', 'branch', 'items.product', 'paymentMethod', 'payments.paymentMethod']), 201);
         } catch (Exception $e) {
             Log::error("Error creating purchase order: " . $e->getMessage());
             return response()->json(['message' => 'Error creating purchase order', 'error' => $e->getMessage()], 500);
@@ -121,7 +124,7 @@ class PurchaseOrderController extends Controller
     public function show($id)
     {
         try {
-            $purchaseOrder = PurchaseOrder::with(['supplier', 'branch', 'items.product', 'paymentMethod'])->findOrFail($id);
+            $purchaseOrder = PurchaseOrder::with(['supplier', 'branch', 'items.product', 'paymentMethod', 'payments.paymentMethod'])->findOrFail($id);
             return response()->json($purchaseOrder);
         } catch (Exception $e) {
             Log::error("Error fetching purchase order {$id}: " . $e->getMessage());
@@ -136,7 +139,10 @@ class PurchaseOrderController extends Controller
             'branch_id' => 'sometimes|required|exists:branches,id',
             'order_date' => 'sometimes|required|date',
             'notes' => 'nullable|string',
-            'payment_method_id' => 'sometimes|required|exists:payment_methods,id',
+            'payment_method_id' => 'sometimes|nullable|exists:payment_methods,id',
+            'payments' => 'nullable|array',
+            'payments.*.payment_method_id' => 'required|exists:payment_methods,id',
+            'payments.*.amount' => 'required|numeric|min:0',
             'affects_cash_register' => 'nullable|boolean',
             'items' => 'sometimes|required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
@@ -146,7 +152,7 @@ class PurchaseOrderController extends Controller
 
         try {
             $purchaseOrder = $this->purchaseOrderService->updatePurchaseOrder($id, $validatedData);
-            return response()->json($purchaseOrder->load(['supplier', 'branch', 'items.product', 'paymentMethod']));
+            return response()->json($purchaseOrder->load(['supplier', 'branch', 'items.product', 'paymentMethod', 'payments.paymentMethod']));
         } catch (Exception $e) {
             Log::error("Error updating purchase order {$id}: " . $e->getMessage());
             return response()->json(['message' => 'Error updating purchase order', 'error' => $e->getMessage()], 500);
@@ -172,7 +178,7 @@ class PurchaseOrderController extends Controller
     public function downloadPdf(Request $request, $id)
     {
         try {
-            $order = PurchaseOrder::with(['supplier', 'branch', 'items.product'])->findOrFail($id);
+            $order = PurchaseOrder::with(['supplier', 'branch', 'items.product', 'payments.paymentMethod'])->findOrFail($id);
             $showPricesParam = $request->query('show_prices', '1');
             $showPrices = in_array(strtolower((string) $showPricesParam), ['1', 'true', 'yes', 'si'], true);
             $pdf = Pdf::loadView('purchase-order-pdf', [
@@ -191,15 +197,46 @@ class PurchaseOrderController extends Controller
     {
         try {
             $order = PurchaseOrder::findOrFail($id);
+
             if ($order->status === 'cancelled') {
                 return response()->json(['message' => 'La orden ya está cancelada'], 400);
             }
+
+            // If the order is completed, use the service method that reverts everything
+            if ($order->status === 'completed') {
+                $cancelledOrder = $this->purchaseOrderService->cancelCompletedPurchaseOrder($id);
+                return response()->json([
+                    'message' => 'Orden completada cancelada y revertida correctamente',
+                    'order' => $cancelledOrder,
+                    'reverted' => true,
+                ]);
+            }
+
+            // For pending orders, just change the status
             $order->status = 'cancelled';
             $order->save();
-            return response()->json(['message' => 'Orden cancelada correctamente', 'order' => $order]);
+            return response()->json([
+                'message' => 'Orden cancelada correctamente',
+                'order' => $order,
+                'reverted' => false,
+            ]);
         } catch (Exception $e) {
             Log::error('Error cancelando orden de compra: ' . $e->getMessage());
             return response()->json(['message' => 'Error cancelando orden', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get preview data for cancelling a completed purchase order
+     */
+    public function cancelPreview(Request $request, $id)
+    {
+        try {
+            $preview = $this->purchaseOrderService->getCancellationPreview($id);
+            return response()->json($preview);
+        } catch (Exception $e) {
+            Log::error('Error obteniendo preview de cancelación: ' . $e->getMessage());
+            return response()->json(['message' => 'Error obteniendo preview', 'error' => $e->getMessage()], 400);
         }
     }
 

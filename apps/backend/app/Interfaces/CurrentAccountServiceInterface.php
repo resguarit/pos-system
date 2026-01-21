@@ -179,4 +179,8 @@ interface CurrentAccountServiceInterface
      * Generar reporte de cuentas corrientes
      */
     public function generateAccountsReport(array $filters = []): array;
+    /**
+     * Procesar pago a proveedor
+     */
+    public function processSupplierPayment(int $accountId, array $paymentData): CurrentAccountMovement;
 }

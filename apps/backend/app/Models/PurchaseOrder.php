@@ -44,7 +44,7 @@ class PurchaseOrder extends Model
                 "La orden actual es {$this->currency}, se intentó cambiar a {$attributes['currency']}"
             );
         }
-        
+
         return parent::update($attributes, $options);
     }
 
@@ -74,6 +74,11 @@ class PurchaseOrder extends Model
     public function paymentMethod()
     {
         return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(PurchaseOrderPayment::class);
     }
 
     public function calculateTotal()
@@ -108,13 +113,13 @@ class PurchaseOrder extends Model
     public function validateProductsCurrency(array $productIds)
     {
         $orderCurrency = $this->currency;
-        
+
         foreach ($productIds as $productId) {
             $product = Product::find($productId);
             if (!$product) {
                 throw new \Exception("Producto con ID {$productId} no encontrado");
             }
-            
+
             $productCurrency = $product->currency ?? 'ARS';
             if ($productCurrency !== $orderCurrency) {
                 throw new \Exception(
@@ -135,7 +140,7 @@ class PurchaseOrder extends Model
             if (!$product) {
                 throw new \Exception("Producto con ID {$item['product_id']} no encontrado");
             }
-            
+
             $productCurrency = $product->currency ?? 'ARS';
             if ($productCurrency !== $currency) {
                 throw new \Exception(

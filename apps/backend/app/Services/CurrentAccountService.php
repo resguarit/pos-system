@@ -37,17 +37,32 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         $validatedData = $this->validateAccountData($data);
 
         return DB::transaction(function () use ($validatedData) {
-            // Verificar que el cliente existe
-            $customer = Customer::findOrFail($validatedData['customer_id']);
+            // Verificar que el cliente o proveedor existe
+            if (isset($validatedData['customer_id'])) {
+                $customer = Customer::findOrFail($validatedData['customer_id']);
+                $exists = CurrentAccount::where('customer_id', $validatedData['customer_id'])->exists();
+                if ($exists)
+                    throw new Exception('Ya existe una cuenta para este cliente');
+            } elseif (isset($validatedData['supplier_id'])) {
+                $supplier = \App\Models\Supplier::findOrFail($validatedData['supplier_id']);
+                $exists = CurrentAccount::where('supplier_id', $validatedData['supplier_id'])->exists();
+                if ($exists)
+                    throw new Exception('Ya existe una cuenta para este proveedor');
+            } else {
+                throw new Exception('Debe especificar customer_id o supplier_id');
+            }
 
             // Verificar que no existe ya una cuenta corriente para este cliente
-            $existingAccount = CurrentAccount::where('customer_id', $validatedData['customer_id'])->first();
-            if ($existingAccount) {
-                throw new Exception('Ya existe una cuenta corriente para este cliente');
+            if (isset($validatedData['customer_id'])) {
+                $existingAccount = CurrentAccount::where('customer_id', $validatedData['customer_id'])->first();
+                if ($existingAccount) {
+                    throw new Exception('Ya existe una cuenta corriente para este cliente');
+                }
             }
 
             $accountData = [
-                'customer_id' => $validatedData['customer_id'],
+                'customer_id' => $validatedData['customer_id'] ?? null,
+                'supplier_id' => $validatedData['supplier_id'] ?? null,
                 'credit_limit' => $validatedData['credit_limit'] ?? null, // NULL = límite infinito
                 'current_balance' => 0,
                 'status' => 'active',
@@ -62,9 +77,12 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     /**
      * Obtener cuenta corriente por ID
      */
+    /**
+     * Obtener cuenta corriente por ID
+     */
     public function getAccountById(int $id): ?CurrentAccount
     {
-        return CurrentAccount::with(['customer.person', 'movements.movementType'])
+        return CurrentAccount::with(['customer.person', 'supplier', 'movements.movementType'])
             ->find($id);
     }
 
@@ -84,7 +102,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
      */
     public function getAllAccounts(array $filters = []): Collection
     {
-        $query = CurrentAccount::with(['customer.person']);
+        $query = CurrentAccount::with(['customer.person', 'supplier']);
 
         // Aplicar filtros usando el SearchService
         $this->applyFilters($query, $filters);
@@ -144,6 +162,13 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 ['first_name', 'last_name', 'phone', 'documento', 'cuit'],
                 'customer.person'
             );
+
+            // Also search in suppliers
+            $query->orWhereHas('supplier', function ($q) use ($filters) {
+                $q->where('name', 'like', "%{$filters['search']}%")
+                    ->orWhere('contact_name', 'like', "%{$filters['search']}%")
+                    ->orWhere('cuit', 'like', "%{$filters['search']}%");
+            });
         }
     }
 
@@ -153,7 +178,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
      */
     public function getAccountsPaginated(Request $request): LengthAwarePaginator
     {
-        $query = CurrentAccount::with(['customer.person']);
+        $query = CurrentAccount::with(['customer.person', 'supplier']);
 
         // Convertir Request a array para usar el método applyFilters
         $filters = $request->all();
@@ -1008,13 +1033,15 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function validateAccountData(array $data, ?int $id = null): array
     {
         $rules = [
-            'customer_id' => 'required|integer|exists:customers,id',
+            'customer_id' => 'required_without:supplier_id|nullable|integer|exists:customers,id',
+            'supplier_id' => 'required_without:customer_id|nullable|integer|exists:suppliers,id',
             'credit_limit' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
         ];
 
         if ($id) {
-            $rules['customer_id'] = 'sometimes|integer|exists:customers,id';
+            $rules['customer_id'] = 'sometimes|nullable|integer|exists:customers,id';
+            $rules['supplier_id'] = 'sometimes|nullable|integer|exists:suppliers,id';
         }
 
         return Validator::make($data, $rules)->validate();
@@ -1124,5 +1151,96 @@ class CurrentAccountService implements CurrentAccountServiceInterface
      * @param int $accountId ID de la cuenta corriente
      * @return SupportCollection Colección de cargos administrativos pendientes con información de pagos
      */
+
+
+    /**
+     * Procesar pago a proveedor (Reduce la deuda)
+     */
+    public function processSupplierPayment(int $accountId, array $paymentData): CurrentAccountMovement
+    {
+        return DB::transaction(function () use ($accountId, $paymentData) {
+            $account = CurrentAccount::with('supplier')->findOrFail($accountId);
+
+            if (!$account->isActive()) {
+                throw new Exception("Cuenta corriente no activa. No se puede operar.");
+            }
+
+            $amount = (float) ($paymentData['amount'] ?? 0);
+            $paymentMethodId = $paymentData['payment_method_id'] ?? null;
+            $cashRegisterId = $paymentData['cash_register_id'] ?? null;
+
+            if ($amount <= 0) {
+                throw new Exception("El monto debe ser mayor a 0");
+            }
+
+            if (!$paymentMethodId) {
+                throw new Exception("Debe especificar un método de pago");
+            }
+
+            $movementType = MovementType::where('name', 'Pago a Proveedor')
+                ->where('is_current_account_movement', true)
+                ->first();
+
+            if (!$movementType) {
+                // Fallback
+                $movementType = MovementType::where('operation_type', 'entrada')
+                    ->where('is_current_account_movement', true)
+                    ->first();
+            }
+
+            if (!$movementType) {
+                throw new Exception("No se encontró tipo de movimiento para Pago a Proveedor");
+            }
+
+            // Validar caja si es efectivo
+            if ($cashRegisterId) {
+                $cashRegister = \App\Models\CashRegister::find($cashRegisterId);
+                if (!$cashRegister || $cashRegister->status !== 'open') {
+                    throw new Exception("Caja no válida o cerrada");
+                }
+            }
+
+            $description = $paymentData['description'] ?? "Pago a proveedor";
+
+            $movement = $this->createMovement([
+                'current_account_id' => $accountId,
+                'movement_type_id' => $movementType->id,
+                'amount' => $amount,
+                'description' => $description,
+                'user_id' => auth()->id(),
+                'cash_register_id' => $cashRegisterId,
+                'payment_method_id' => $paymentMethodId,
+                'metadata' => [
+                    'notes' => $paymentData['notes'] ?? null
+                ]
+            ]);
+
+            // Crear movimiento de caja (Salida de dinero de nuestro negocio)
+            if ($cashRegisterId) {
+                $cashMovementType = MovementType::where('name', 'Pago a Proveedor')
+                    ->where('is_cash_movement', true)
+                    ->where('operation_type', 'salida')
+                    ->first();
+
+                if (!$cashMovementType) {
+                    $cashMovementType = MovementType::where('operation_type', 'salida')
+                        ->where('is_cash_movement', true)
+                        ->first();
+                }
+
+                \App\Models\CashMovement::create([
+                    'cash_register_id' => $cashRegisterId,
+                    'movement_type_id' => $cashMovementType->id,
+                    'payment_method_id' => $paymentMethodId,
+                    'amount' => $amount,
+                    'description' => "Pago a proveedor: " . ($account->supplier->name ?? 'Desconocido'),
+                    'user_id' => auth()->id(),
+                    'affects_balance' => true
+                ]);
+            }
+
+            return $movement;
+        });
+    }
 
 }

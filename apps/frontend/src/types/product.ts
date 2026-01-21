@@ -43,6 +43,11 @@ export interface Supplier {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  current_account?: {
+    id: number;
+    current_balance: string | number;
+    // Add other fields if needed
+  };
 }
 
 export interface Branch {

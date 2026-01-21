@@ -72,16 +72,16 @@ export class CurrentAccountService {
   // Consultas específicas
   static async getByCustomer(customerId: number): Promise<CurrentAccount | null> {
     try {
-    const response = await api.get(`${this.baseUrl}/customer/${customerId}`);
+      const response = await api.get(`${this.baseUrl}/customer/${customerId}`);
       // El backend retorna { status: 200, success: true, data: account | null }
       const data = response?.data?.data;
-      
+
       // Si data es null o undefined, retornar null
       if (!data) {
         console.log(`[CurrentAccountService] Cliente ${customerId} no tiene cuenta corriente`);
         return null;
       }
-      
+
       return data;
     } catch (error: any) {
       // Si el error es 404 o no se encuentra, retornar null en lugar de lanzar error
@@ -188,6 +188,10 @@ export class CurrentAccountService {
     const response = await api.get(`${this.baseUrl}/reports/generate`, { params: filters });
     return this.handleResponse(response);
   }
+  static async processSupplierPayment(accountId: number, data: ProcessPaymentData): Promise<CurrentAccountMovement> {
+    const response = await api.post(`${this.baseUrl}/${accountId}/supplier-payments`, data);
+    return this.handleResponse(response);
+  }
 }
 
 // Servicio para tipos de movimiento
@@ -211,14 +215,14 @@ export class MovementTypeService {
 
   static async getInflowTypes(): Promise<MovementType[]> {
     const allTypes = await this.getAll();
-    return allTypes.filter(type => 
+    return allTypes.filter(type =>
       type.is_current_account_movement && type.operation_type === 'entrada'
     );
   }
 
   static async getOutflowTypes(): Promise<MovementType[]> {
     const allTypes = await this.getAll();
-    return allTypes.filter(type => 
+    return allTypes.filter(type =>
       type.is_current_account_movement && type.operation_type === 'salida'
     );
   }

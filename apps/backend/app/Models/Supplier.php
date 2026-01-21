@@ -33,4 +33,12 @@ class Supplier extends Model
     {
         return $this->hasMany(Product::class, 'supplier_id');
     }
+
+    /**
+     * Get the current account associated with the supplier.
+     */
+    public function currentAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(CurrentAccount::class);
+    }
 }

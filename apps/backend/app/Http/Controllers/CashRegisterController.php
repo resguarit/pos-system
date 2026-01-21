@@ -26,6 +26,28 @@ class CashRegisterController extends Controller
         $this->messageService = $messageService;
     }
 
+    public function index(Request $request): JsonResponse
+    {
+        $query = CashRegister::with(['branch', 'user']);
+
+        // Filter by status if provided
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Filter by branch if provided
+        if ($request->filled('branch_id')) {
+            $query->where('branch_id', $request->input('branch_id'));
+        }
+
+        $cashRegisters = $query->orderBy('opened_at', 'desc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $cashRegisters
+        ]);
+    }
+
     public function open(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [

@@ -40,7 +40,7 @@ class CurrentAccountResource extends JsonResource
         return [
             'id' => $this->id,
             'customer_id' => $this->customer_id,
-            'customer' => [
+            'customer' => $this->customer ? [
                 'id' => $this->customer->id,
                 'person_id' => $this->customer->person_id,
                 'email' => $this->customer->email,
@@ -69,7 +69,18 @@ class CurrentAccountResource extends JsonResource
                     'updated_at' => $this->customer->person->updated_at?->format('Y-m-d H:i:s'),
                     'deleted_at' => $this->customer->person->deleted_at,
                 ] : null,
-            ],
+            ] : null,
+            'supplier_id' => $this->supplier_id,
+            'supplier' => $this->supplier ? [
+                'id' => $this->supplier->id,
+                'name' => $this->supplier->name,
+                'contact_name' => $this->supplier->contact_name,
+                'email' => $this->supplier->email,
+                'phone' => $this->supplier->phone,
+                'address' => $this->supplier->address,
+                'cuit' => $this->supplier->cuit,
+                'status' => $this->supplier->status,
+            ] : null,
             'credit_limit' => $this->credit_limit,
             'current_balance' => $this->current_balance,
             'total_pending_debt' => $totalPendingDebt, // Total de deuda pendiente (ventas + cargos administrativos)

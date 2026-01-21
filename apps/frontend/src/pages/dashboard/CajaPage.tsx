@@ -997,10 +997,10 @@ export default function CajaPage() {
     return filteredMovements
   }, [allMovements, multipleCashRegisters, selectedBranchIdsArray.length])
 
-  // Resetear página cuando cambien los filtros (solo para múltiples sucursales)
+  // Resetear página cuando cambien los filtros (para una o múltiples sucursales)
   useEffect(() => {
     // Si cambiaron los filtros (no la página), resetear a página 1
-    if (selectedBranchIdsArray.length > 1 && movementsPage > 1) {
+    if (movementsPage > 1) {
       setMovementsPage(1)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

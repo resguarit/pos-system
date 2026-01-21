@@ -14,6 +14,7 @@ import { CashRegisterProvider } from "@/context/CashRegisterContext"
 import { SystemConfigProvider } from "@/context/SystemConfigContext"
 import EnterSubmitProvider from "@/components/enter-submit-provider"
 import { CartProvider } from "@/context/CartContext"
+import { NewPurchaseOrderProvider } from "@/contexts/new-purchase-order-context"
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -27,9 +28,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   <CashRegisterProvider>
                     <SystemConfigProvider>
                       <CartProvider>
-                        <App />
-                        <Toaster />
-                        <EnterSubmitProvider />
+                        <NewPurchaseOrderProvider>
+                          <App />
+                          <Toaster />
+                          <EnterSubmitProvider />
+                        </NewPurchaseOrderProvider>
                       </CartProvider>
                     </SystemConfigProvider>
                   </CashRegisterProvider>

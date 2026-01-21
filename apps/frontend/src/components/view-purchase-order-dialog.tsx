@@ -205,17 +205,28 @@ export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }:
             </Card>
           </div>
 
-          {/* Método de Pago */}
-          <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+          {/* Pagos */}
+          <div className="grid grid-cols-1 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Método de Pago</CardTitle>
+                <CardTitle className="text-sm font-medium">Pagos</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-sm font-medium">
-                  {purchaseOrder.payment_method?.name || 'N/A'}
-                </div>
+                {purchaseOrder.payments && purchaseOrder.payments.length > 0 ? (
+                  <div className="space-y-2">
+                    {purchaseOrder.payments.map((payment, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-sm border-b pb-2 last:border-0 last:pb-0">
+                        <span className="font-medium">{payment.payment_method?.name || 'Método desconocido'}</span>
+                        <span>${parseFloat(payment.amount.toString()).toLocaleString('es-ES', { minimumFractionDigits: 2 })} {getOrderCurrency()}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm font-medium">
+                    {purchaseOrder.payment_method?.name || 'N/A'} (Legacy)
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

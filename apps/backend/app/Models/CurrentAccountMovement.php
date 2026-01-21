@@ -24,6 +24,7 @@ class CurrentAccountMovement extends Model
         'description',
         'reference',
         'sale_id',
+        'purchase_order_id',
         'balance_before',
         'balance_after',
         'metadata',
@@ -61,6 +62,14 @@ class CurrentAccountMovement extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(SaleHeader::class, 'sale_id');
+    }
+
+    /**
+     * Relación con orden de compra (opcional)
+     */
+    public function purchaseOrder(): BelongsTo
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'purchase_order_id');
     }
 
     /**
@@ -116,8 +125,8 @@ class CurrentAccountMovement extends Model
      */
     public function getCustomerNameAttribute(): string
     {
-        return $this->currentAccount && $this->currentAccount->customer 
-            ? $this->currentAccount->customer->full_name 
+        return $this->currentAccount && $this->currentAccount->customer
+            ? $this->currentAccount->customer->full_name
             : 'Cliente desconocido';
     }
 
@@ -126,7 +135,7 @@ class CurrentAccountMovement extends Model
      */
     public function scopeEntradas($query)
     {
-        return $query->whereHas('movementType', function($q) {
+        return $query->whereHas('movementType', function ($q) {
             $q->where('operation_type', 'entrada');
         });
     }
@@ -136,7 +145,7 @@ class CurrentAccountMovement extends Model
      */
     public function scopeSalidas($query)
     {
-        return $query->whereHas('movementType', function($q) {
+        return $query->whereHas('movementType', function ($q) {
             $q->where('operation_type', 'salida');
         });
     }
@@ -154,7 +163,7 @@ class CurrentAccountMovement extends Model
      */
     public function scopeByCustomer($query, int $customerId)
     {
-        return $query->whereHas('currentAccount', function($q) use ($customerId) {
+        return $query->whereHas('currentAccount', function ($q) use ($customerId) {
             $q->where('customer_id', $customerId);
         });
     }
@@ -204,9 +213,9 @@ class CurrentAccountMovement extends Model
      */
     public function scopePayments($query)
     {
-        return $query->whereHas('movementType', function($q) {
+        return $query->whereHas('movementType', function ($q) {
             $q->where('name', 'like', '%pago%')
-              ->orWhere('name', 'like', '%payment%');
+                ->orWhere('name', 'like', '%payment%');
         });
     }
 
@@ -215,9 +224,9 @@ class CurrentAccountMovement extends Model
      */
     public function scopePurchases($query)
     {
-        return $query->whereHas('movementType', function($q) {
+        return $query->whereHas('movementType', function ($q) {
             $q->where('name', 'like', '%compra%')
-              ->orWhere('name', 'like', '%purchase%');
+                ->orWhere('name', 'like', '%purchase%');
         });
     }
 
@@ -267,7 +276,7 @@ class CurrentAccountMovement extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['current_account_id', 'movement_type_id', 'amount', 'description', 'reference', 'sale_id'])
+            ->logOnly(['current_account_id', 'movement_type_id', 'amount', 'description', 'reference', 'sale_id', 'purchase_order_id'])
             ->useLogName('current_account_movement')
             ->logOnlyDirty();
     }
