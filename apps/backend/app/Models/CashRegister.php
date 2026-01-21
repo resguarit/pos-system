@@ -280,8 +280,13 @@ class CashRegister extends Model
             }
         }
 
-        $this->total_income = $totalIncome;
-        $this->total_expenses = $totalExpenses;
+        // Robustness: Only update if columns exist (prevents crash for lagging clients)
+        if (\Illuminate\Support\Facades\Schema::hasColumn('cash_registers', 'total_income')) {
+            $this->total_income = (float) $totalIncome;
+        }
+        if (\Illuminate\Support\Facades\Schema::hasColumn('cash_registers', 'total_expenses')) {
+            $this->total_expenses = (float) $totalExpenses;
+        }
 
         // Guardamos los cambios en la base de datos sin disparar otros eventos
         $this->saveQuietly();
