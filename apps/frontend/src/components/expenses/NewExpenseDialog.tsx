@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -10,7 +9,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
     Select,
     SelectContent,
@@ -18,25 +16,109 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Plus } from 'lucide-react';
+import { 
+    Loader2, 
+    Plus, 
+    ArrowLeft, 
+    Zap,
+    Wallet,
+    Building,
+    Wifi,
+    Shield,
+    Landmark,
+    Briefcase,
+    Sparkles,
+    Megaphone,
+    Percent,
+    Package,
+    Car,
+    Paperclip,
+    Laptop,
+    HelpCircle,
+    Truck,
+    Hammer,
+    Palmtree,
+    Users,
+    FileText,
+    ShoppingBag,
+    Box,
+    Receipt,
+    GraduationCap,
+    Utensils,
+    TruckIcon
+} from 'lucide-react';
 import { toast } from 'sonner';
-import useApi from '@/hooks/useApi';
 import { useBranch } from '@/context/BranchContext';
+import { useSystemConfigContext } from '@/context/SystemConfigContext';
+import useApi from '@/hooks/useApi';
+import { expensesService, ExpenseCategory, Expense } from '@/lib/api/expensesService';
 
-interface ExpenseCategory {
-    id: number;
-    name: string;
-}
+// Icon mapping from icon ID to component
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?: string }>> = {
+    'users': Users,
+    'building': Building,
+    'wifi': Wifi,
+    'shield': Shield,
+    'landmark': Landmark,
+    'briefcase': Briefcase,
+    'sparkles': Sparkles,
+    'megaphone': Megaphone,
+    'percent': Percent,
+    'package': Package,
+    'car': Car,
+    'paperclip': Paperclip,
+    'laptop': Laptop,
+    'truck': TruckIcon,
+    'hammer': Hammer,
+    'palmtree': Palmtree,
+    'wallet': Wallet,
+    'shopping-bag': ShoppingBag,
+    'box': Box,
+    'receipt': Receipt,
+    'utensils': Utensils,
+    'graduation-cap': GraduationCap,
+};
 
-interface Employee {
-    id: number;
-    person: {
-        first_name: string;
-        last_name: string;
-    };
-}
+// Helper to get icon by ID or fallback to name-based inference
+const getCategoryIcon = (iconId: string | undefined | null, name: string, size: string = "h-4 w-4", color?: string) => {
+    const props = { className: size, ...(color && { color }) };
+    
+    // First try to use the stored icon ID
+    if (iconId && ICON_MAP[iconId]) {
+        const IconComponent = ICON_MAP[iconId];
+        return <IconComponent {...props} />;
+    }
+    
+    // Fallback to name-based inference
+    const normalized = name.toLowerCase();
+    
+    if (normalized.includes('sueldo') || normalized.includes('salario')) return <Users {...props} />;
+    if (normalized.includes('alquiler') || normalized.includes('local')) return <Building {...props} />;
+    if (normalized.includes('internet') || normalized.includes('telecom')) return <Wifi {...props} />;
+    if (normalized.includes('seguro')) return <Shield {...props} />;
+    if (normalized.includes('impuesto') || normalized.includes('tasa') || normalized.includes('afip')) return <Landmark {...props} />;
+    if (normalized.includes('honorario') || normalized.includes('contador') || normalized.includes('abogado')) return <Briefcase {...props} />;
+    if (normalized.includes('limpieza')) return <Sparkles {...props} />;
+    if (normalized.includes('publicidad') || normalized.includes('marketing')) return <Megaphone {...props} />;
+    if (normalized.includes('comision')) return <Percent {...props} />;
+    if (normalized.includes('embalaje') || normalized.includes('packaging')) return <Package {...props} />;
+    if (normalized.includes('viatico') || normalized.includes('viaje')) return <Car {...props} />;
+    if (normalized.includes('oficina') || normalized.includes('libreria')) return <Paperclip {...props} />;
+    if (normalized.includes('software') || normalized.includes('licencia') || normalized.includes('sistema')) return <Laptop {...props} />;
+    if (normalized.includes('flete') || normalized.includes('envio') || normalized.includes('transporte')) return <TruckIcon {...props} />;
+    if (normalized.includes('mantenimiento') || normalized.includes('reparacion')) return <Hammer {...props} />;
+    if (normalized.includes('aguinaldo') || normalized.includes('vacaciones')) return <Palmtree {...props} />;
+    if (normalized.includes('social') || normalized.includes('sindicato')) return <Users {...props} />;
+    if (normalized.includes('banco') || normalized.includes('financiero')) return <Wallet {...props} />;
+    if (normalized.includes('mercaderia') || normalized.includes('compra')) return <ShoppingBag {...props} />;
+    if (normalized.includes('insumo')) return <Box {...props} />;
+    if (normalized.includes('comida') || normalized.includes('refrigerio')) return <Utensils {...props} />;
+    if (normalized.includes('capacitacion') || normalized.includes('curso')) return <GraduationCap {...props} />;
+    
+    // Default fallback
+    return <Receipt {...props} />;
+};
 
 interface NewExpenseDialogProps {
     open: boolean;
@@ -52,7 +134,7 @@ interface ExpenseFormData {
     category_id: string;
     employee_id: string;
     payment_method_id: string;
-    branch_id: string;
+    branch_id: string; // branch_id
     status: string;
     is_recurring: boolean;
     recurrence_interval: string;
@@ -75,106 +157,81 @@ const initialFormData: ExpenseFormData = {
 };
 
 export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDialogProps) {
-    const { request } = useApi();
+    const { request } = useApi(); // Use useApi hook
     const { selectedBranchIds, branches } = useBranch();
+    const { config } = useSystemConfigContext();
+    const [step, setStep] = useState<1 | 2>(1); // 1: Seleccionar Tipo, 2: Detalles
 
-    const [formData, setFormData] = useState<ExpenseFormData>(initialFormData);
-    const [categories, setCategories] = useState<ExpenseCategory[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    // Data
+    const [categoriesTree, setCategoriesTree] = useState<ExpenseCategory[]>([]);
+    const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
     const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+
+    // Selection State
+    const [selectedParentCategory, setSelectedParentCategory] = useState<ExpenseCategory | null>(null);
+    const [selectedSubCategory, setSelectedSubCategory] = useState<ExpenseCategory | null>(null);
+
+    // Form State
+    const [formData, setFormData] = useState<ExpenseFormData>(initialFormData);
     const [loading, setLoading] = useState(false);
-
     const [errors, setErrors] = useState<Record<string, string>>({});
-
-    // Estados para búsqueda de empleado
-    const [employeeSearch, setEmployeeSearch] = useState('');
-    const [showEmployeeOptions, setShowEmployeeOptions] = useState(false);
-
-    // Estados para búsqueda de categoría
-    const [categorySearch, setCategorySearch] = useState('');
-    const [showCategoryOptions, setShowCategoryOptions] = useState(false);
-
-    // Fetch categories, employees and payment methods when dialog opens
 
     useEffect(() => {
         if (open) {
-            fetchCategories();
-            fetchEmployees();
-            fetchPaymentMethods();
-
+            loadInitialData();
             // Set default branch if only one selected
             if (selectedBranchIds.length === 1) {
                 setFormData(prev => ({ ...prev, branch_id: selectedBranchIds[0] }));
             }
         } else {
-            // Reset form when dialog closes
-            setFormData(initialFormData);
-            setErrors({});
-            setEmployeeSearch('');
-            setShowEmployeeOptions(false);
-            setCategorySearch('');
-            setShowCategoryOptions(false);
+            resetForm();
         }
     }, [open, selectedBranchIds]);
 
-    const fetchCategories = async () => {
+    const resetForm = () => {
+        setFormData(initialFormData);
+        setErrors({});
+        setStep(1);
+        setSelectedParentCategory(null);
+        setSelectedSubCategory(null);
+    };
+
+    const loadInitialData = async () => {
         try {
-            const response = await request({ method: 'GET', url: '/expense-categories?active=true' });
-            if (response?.success) {
-                setCategories(response.data || []);
-            }
+            // Load Payment Methods using API directly as service might not have it exposed
+            const fetchPaymentMethods = async () => {
+                try {
+                    const response = await request({ method: 'GET', url: '/payment-methods?active=true' });
+                    if (response?.data) return response.data;
+                    return [];
+                } catch (e) { return []; }
+            };
+
+            const [tree, recent, pms] = await Promise.all([
+                expensesService.getCategoriesTree(),
+                expensesService.getRecentExpenses(),
+                fetchPaymentMethods(),
+            ]);
+
+            setCategoriesTree(tree.data || []);
+            setRecentExpenses(recent.data || []);
+            setPaymentMethods(pms || []);
         } catch (error) {
-            console.error('Error fetching categories:', error);
+            console.error("Error loading data", error);
         }
     };
 
-    const fetchEmployees = async () => {
-        try {
-            const response = await request({ method: 'GET', url: '/employees?status=active' });
-            if (response?.success) {
-                setEmployees(response.data || []);
-            }
-        } catch (error) {
-            console.error('Error fetching employees:', error);
-        }
-    };
-
-    const fetchPaymentMethods = async () => {
-        try {
-            const response = await request({ method: 'GET', url: '/payment-methods?active=true' });
-            // The API returns { data: [...] } without success field
-            if (response?.data) {
-                setPaymentMethods(response.data || []);
-            }
-        } catch (error) {
-            console.error('Error fetching payment methods:', error);
-        }
-    };
+    // Let's use useApi hook as in original file for things not in service
+    // But since I want to clean up, I will assume I can put everything in service.
+    // For now I'll use a placeholder for PMs fetch
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
-
-        if (!formData.description.trim()) {
-            newErrors.description = 'La descripción es requerida';
-        }
-        if (!formData.amount || parseFloat(formData.amount) <= 0) {
-            newErrors.amount = 'El monto debe ser mayor a 0';
-        }
-        if (!formData.date) {
-            newErrors.date = 'La fecha es requerida';
-        }
-        if (!formData.category_id) {
-            newErrors.category_id = 'La categoría es requerida';
-        }
-        if (!formData.branch_id) {
-            newErrors.branch_id = 'La sucursal es requerida';
-        }
-        if (!formData.branch_id) {
-            newErrors.branch_id = 'La sucursal es requerida';
-        }
-        if (!formData.payment_method_id) {
-            newErrors.payment_method_id = 'El método de pago es requerido';
-        }
+        if (!formData.amount || parseFloat(formData.amount) <= 0) newErrors.amount = 'Monto inválido';
+        if (!formData.date) newErrors.date = 'Fecha requerida';
+        if (!formData.category_id) newErrors.category_id = 'Categoría requerida';
+        if (!formData.branch_id) newErrors.branch_id = 'Sucursal requerida';
+        if (!formData.payment_method_id) newErrors.payment_method_id = 'Método de pago requerido';
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -182,367 +239,343 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
         if (!validateForm()) return;
 
         try {
             setLoading(true);
-
             const payload = {
-                description: formData.description,
+                ...formData,
                 amount: parseFloat(formData.amount),
-                date: formData.date,
-                due_date: formData.due_date || null,
                 category_id: parseInt(formData.category_id),
-                employee_id: formData.employee_id && formData.employee_id !== 'none' ? parseInt(formData.employee_id) : null,
-                payment_method_id: formData.payment_method_id ? parseInt(formData.payment_method_id) : null,
                 branch_id: parseInt(formData.branch_id),
-                status: formData.status,
-                is_recurring: formData.is_recurring,
+                employee_id: formData.employee_id ? parseInt(formData.employee_id) : null,
+                payment_method_id: formData.payment_method_id ? parseInt(formData.payment_method_id) : null,
                 recurrence_interval: formData.is_recurring ? formData.recurrence_interval : null,
-                notes: formData.notes || null,
             };
 
-            const response = await request({
-                method: 'POST',
-                url: '/expenses',
-                data: payload,
-            });
-
-            if (response?.success) {
-                toast.success('Gasto creado correctamente');
-                onOpenChange(false);
-                onSuccess();
-            }
+            await expensesService.createExpense(payload);
+            toast.success('Gasto registrado correctamente');
+            onSuccess();
+            onOpenChange(false);
         } catch (error: any) {
-            console.error('Error creating expense:', error);
-            toast.error(error?.response?.data?.message || 'Error al crear el gasto');
+            console.error(error);
+            toast.error('Error al registrar gasto');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleClose = () => {
-        setFormData(initialFormData);
-        setErrors({});
-        onOpenChange(false);
+    const handleQuickAdd = (expense: Expense) => {
+        setFormData({
+            ...initialFormData,
+            amount: expense.amount.toString(),
+            category_id: expense.category_id.toString(),
+            description: expense.description, // Optional: copy description or leave blank? User wanted fast recurring.
+            // Maybe keeping description is good for "recurring" feeling.
+            branch_id: selectedBranchIds.length === 1 ? selectedBranchIds[0] : (expense.branch_id?.toString() || ''),
+            payment_method_id: expense.payment_method_id?.toString() || '',
+            status: 'pending',
+            date: new Date().toISOString().split('T')[0],
+        });
+
+        // Find category objects for UI state
+        // This is complex because we need to search the tree.
+        // For simplicity we just set the ID and go to step 2 directly
+
+        // Try to find category in tree to set UI state correctly
+        let foundParent = null;
+        let foundSub = null;
+
+        // Recursive search
+        const findCat = (cats: ExpenseCategory[]): boolean => {
+            for (const cat of cats) {
+                if (cat.id === expense.category_id) {
+                    // It's this one. If it has parent, we need parent.
+                    if (cat.parent_id) {
+                        // Find parent in top level (assuming 2 levels max for now)
+                        foundParent = categoriesTree.find(p => p.id === cat.parent_id);
+                        foundSub = cat;
+                    } else {
+                        foundParent = cat;
+                    }
+                    return true;
+                }
+                if (cat.children && findCat(cat.children)) return true;
+            }
+            return false;
+        };
+
+        findCat(categoriesTree);
+
+        if (foundParent) setSelectedParentCategory(foundParent);
+        if (foundSub) setSelectedSubCategory(foundSub);
+
+        setStep(2);
+    };
+
+    const handleCategorySelect = (category: ExpenseCategory) => {
+        if (category.children && category.children.length > 0) {
+            setSelectedParentCategory(category);
+            // Stay in step 1 effectively but showing subcategories? 
+            // Or move to step 1.5? 
+            // Let's handle it within step 1 view
+        } else {
+            // It's a leaf category (or subcategory selected directly if we support that)
+            setSelectedSubCategory(category);
+            setFormData(prev => ({ ...prev, category_id: category.id.toString() }));
+            setStep(2);
+        }
     };
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Plus className="h-5 w-5" />
-                        Nuevo Gasto
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col p-0 gap-0 shadow-2xl">
+                <DialogHeader className="p-4 border-b bg-background sticky top-0 z-10">
+                    <DialogTitle className="flex items-center gap-3 text-lg font-semibold text-foreground">
+                        {step === 2 && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 -ml-2" onClick={() => setStep(1)}>
+                                <ArrowLeft className="h-5 w-5" />
+                            </Button>
+                        )}
+                        {step === 1 ? 'Nuevo Registro de Gasto' : (selectedSubCategory?.name || selectedParentCategory?.name)}
                     </DialogTitle>
-                    <DialogDescription>
-                        Complete los datos para registrar un nuevo gasto
-                    </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Descripción */}
-                    <div className="space-y-2">
-                        <Label htmlFor="description">Descripción <span className="text-red-500">*</span></Label>
-                        <Input
-                            id="description"
-                            value={formData.description}
-                            onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                            placeholder="Descripción del gasto"
-                            className={errors.description ? 'border-red-500' : ''}
-                        />
-                        {errors.description && <p className="text-sm text-red-500">{errors.description}</p>}
-                    </div>
-
-                    {/* Monto y Fecha */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="amount">Monto <span className="text-red-500">*</span></Label>
-                            <Input
-                                id="amount"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={formData.amount}
-                                onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                                placeholder="0.00"
-                                className={errors.amount ? 'border-red-500' : ''}
-                            />
-                            {errors.amount && <p className="text-sm text-red-500">{errors.amount}</p>}
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="date">Fecha <span className="text-red-500">*</span></Label>
-                            <Input
-                                id="date"
-                                type="date"
-                                value={formData.date}
-                                onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                                className={errors.date ? 'border-red-500' : ''}
-                            />
-                            {errors.date && <p className="text-sm text-red-500">{errors.date}</p>}
-                        </div>
-                    </div>
-
-                    {/* Categoría y Sucursal */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Categoría <span className="text-red-500">*</span></Label>
-                            <div className="relative">
-                                <Input
-                                    value={categorySearch}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        setCategorySearch(v);
-                                        setShowCategoryOptions(true);
-                                        if (!v) {
-                                            setFormData(prev => ({ ...prev, category_id: '' }));
-                                        }
-                                    }}
-                                    onFocus={() => setShowCategoryOptions(true)}
-                                    onBlur={() => setTimeout(() => setShowCategoryOptions(false), 200)}
-                                    placeholder="Buscar categoría..."
-                                    className={errors.category_id ? 'border-red-500' : ''}
-                                />
-                                {showCategoryOptions && categories.filter(cat => {
-                                    const searchLower = categorySearch.toLowerCase();
-                                    return cat.name.toLowerCase().includes(searchLower);
-                                }).length > 0 && (
-                                        <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                                            {categories.filter(cat => {
-                                                const searchLower = categorySearch.toLowerCase();
-                                                return cat.name.toLowerCase().includes(searchLower);
-                                            }).map((cat) => (
-                                                <div
-                                                    key={cat.id}
-                                                    className="p-2 cursor-pointer hover:bg-gray-100"
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    onMouseDown={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setFormData(prev => ({ ...prev, category_id: cat.id.toString() }));
-                                                        setCategorySearch(cat.name);
-                                                        setShowCategoryOptions(false);
-                                                    }}
-                                                >
-                                                    {cat.name}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                            </div>
-                            {errors.category_id && <p className="text-sm text-red-500">{errors.category_id}</p>}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Sucursal <span className="text-red-500">*</span></Label>
-                            <Select
-                                value={formData.branch_id}
-                                onValueChange={(value) => setFormData(prev => ({ ...prev, branch_id: value }))}
-                            >
-                                <SelectTrigger className={errors.branch_id ? 'border-red-500' : ''}>
-                                    <SelectValue placeholder="Seleccionar sucursal" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {branches
-                                        .filter(b => selectedBranchIds.includes(String(b.id)))
-                                        .map((branch) => (
-                                            <SelectItem key={branch.id} value={branch.id.toString()}>
-                                                {branch.description}
-                                            </SelectItem>
-                                        ))}
-                                </SelectContent>
-                            </Select>
-                            {errors.branch_id && <p className="text-sm text-red-500">{errors.branch_id}</p>}
-                        </div>
-                    </div>
-
-                    {/* Estado y Empleado */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label>Estado</Label>
-                            <Select
-                                value={formData.status}
-                                onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="pending">Pendiente</SelectItem>
-                                    <SelectItem value="approved">Aprobado</SelectItem>
-                                    <SelectItem value="paid">Pagado</SelectItem>
-                                    <SelectItem value="cancelled">Cancelado</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>Empleado (opcional)</Label>
-                            <div className="relative">
-                                <Input
-                                    value={employeeSearch}
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        setEmployeeSearch(v);
-                                        setShowEmployeeOptions(!!v && v.length >= 1);
-                                        if (!v) {
-                                            setFormData(prev => ({ ...prev, employee_id: '' }));
-                                        }
-                                    }}
-                                    onFocus={() => setShowEmployeeOptions(employeeSearch.length >= 1)}
-                                    onBlur={() => setTimeout(() => setShowEmployeeOptions(false), 200)}
-                                    placeholder="Buscar empleado..."
-                                />
-                                {showEmployeeOptions && employees.filter(emp => {
-                                    const searchLower = employeeSearch.toLowerCase();
-                                    const fullName = `${emp.person.first_name} ${emp.person.last_name}`.toLowerCase();
-                                    return fullName.includes(searchLower);
-                                }).length > 0 && (
-                                        <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                                            <div
-                                                className="p-2 cursor-pointer hover:bg-gray-100 text-gray-500 italic"
-                                                role="button"
-                                                tabIndex={0}
-                                                onMouseDown={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    setFormData(prev => ({ ...prev, employee_id: '' }));
-                                                    setEmployeeSearch('');
-                                                    setShowEmployeeOptions(false);
-                                                }}
+                {/* Content Area with Scroll */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    {step === 1 ? (
+                        <div className="space-y-6">
+                            {/* Recent Expenses Section */}
+                            {recentExpenses.length > 0 && !selectedParentCategory && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                                        <Zap className="h-4 w-4" style={{ color: config?.primary_color || '#F59E0B', fill: config?.primary_color || '#F59E0B' }} />
+                                        <span>Recientes</span>
+                                    </div>
+                                    <div className="flex gap-3 overflow-x-auto pb-4 -mx-6 px-6 scrollbar-hide">
+                                        {recentExpenses.map((expense) => (
+                                            <button
+                                                key={expense.id}
+                                                onClick={() => handleQuickAdd(expense)}
+                                                className="flex flex-col items-start gap-1 p-3 min-w-[140px] rounded-xl border bg-card hover:border-primary hover:shadow-md transition-all group shrink-0 text-left"
                                             >
-                                                Sin asignar
+                                                <div className="flex items-center justify-between w-full">
+                                                    <span className="text-primary">
+                                                        {getCategoryIcon(expense.category?.icon, expense.category?.name || 'Gasto', "h-5 w-5", config?.primary_color)}
+                                                    </span>
+                                                    <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
+                                                        ${expense.amount}
+                                                    </span>
+                                                </div>
+                                                <span className="text-xs font-medium text-foreground line-clamp-1 mt-1">
+                                                    {expense.category?.name}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Categories Grid */}
+                            {!selectedParentCategory ? (
+                                <div className="space-y-3">
+                                    <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                                        Categorías
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                        {categoriesTree.map((category) => (
+                                            <button
+                                                key={category.id}
+                                                onClick={() => handleCategorySelect(category)}
+                                                className="flex flex-col items-center justify-center p-4 rounded-xl border bg-card hover:border-primary/50 hover:bg-muted/50 hover:shadow-lg transition-all text-center group gap-3 aspect-[4/3] relative overflow-hidden"
+                                            >
+                                                <div className="absolute inset-0 bg-gradient-to-br from-transparent to-muted/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                <div className="text-foreground/80 group-hover:scale-110 transition-all duration-300 drop-shadow-sm">
+                                                    {getCategoryIcon(category.icon, category.name, "h-8 w-8", config?.primary_color)}
+                                                </div>
+                                                <div className="font-semibold text-sm leading-tight text-foreground/90 group-hover:text-primary transition-colors">
+                                                    {category.name}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                                    <div className="flex items-center justify-between p-4 rounded-lg bg-primary/5 border border-primary/10">
+                                        <div className="flex items-center gap-3">
+                                            <span>
+                                                {getCategoryIcon(selectedParentCategory.icon, selectedParentCategory.name, "h-8 w-8", config?.primary_color)}
+                                            </span>
+                                            <div>
+                                                <h3 className="font-bold text-lg text-primary">
+                                                    {selectedParentCategory.name}
+                                                </h3>
+                                                <p className="text-xs text-muted-foreground">Selecciona una subcategoría</p>
                                             </div>
-                                            {employees.filter(emp => {
-                                                const searchLower = employeeSearch.toLowerCase();
-                                                const fullName = `${emp.person.first_name} ${emp.person.last_name}`.toLowerCase();
-                                                return fullName.includes(searchLower);
-                                            }).map((emp) => {
-                                                const name = `${emp.person.first_name} ${emp.person.last_name}`;
-                                                return (
-                                                    <div
-                                                        key={emp.id}
-                                                        className="p-2 cursor-pointer hover:bg-gray-100"
-                                                        role="button"
-                                                        tabIndex={0}
-                                                        onMouseDown={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setFormData(prev => ({ ...prev, employee_id: emp.id.toString() }));
-                                                            setEmployeeSearch(name);
-                                                            setShowEmployeeOptions(false);
-                                                        }}
-                                                    >
-                                                        {name}
-                                                    </div>
-                                                );
-                                            })}
                                         </div>
-                                    )}
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => setSelectedParentCategory(null)}
+                                            className="uppercase text-xs font-bold"
+                                        >
+                                            Cambiar Categoría
+                                        </Button>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                                        {selectedParentCategory.children?.map((subCat) => (
+                                            <button
+                                                key={subCat.id}
+                                                onClick={() => {
+                                                    setSelectedSubCategory(subCat);
+                                                    setFormData(prev => ({ ...prev, category_id: subCat.id.toString() }));
+                                                    setStep(2);
+                                                }}
+                                                className="flex flex-col items-center justify-center p-4 rounded-xl border bg-card hover:border-primary hover:bg-primary/5 hover:shadow-md transition-all text-center group min-h-[100px] gap-2"
+                                            >
+                                                <div className="text-foreground/70 group-hover:text-primary transition-colors mb-1">
+                                                    {getCategoryIcon(subCat.icon, subCat.name, "h-6 w-6", config?.primary_color)}
+                                                </div>
+                                                <div className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors uppercase tracking-tight">
+                                                    {subCat.name}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="max-w-2xl mx-auto py-2">
+                        <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+
+                            <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border">
+                                <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center text-primary shadow-sm">
+                                    {getCategoryIcon(selectedSubCategory?.icon || selectedParentCategory?.icon, selectedSubCategory?.name || selectedParentCategory?.name || 'Gasto', "h-6 w-6", config?.primary_color)}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{selectedParentCategory?.name}</div>
+                                    <div className="font-bold text-lg text-foreground">{selectedSubCategory?.name}</div>
+                                </div>
+                                <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>
+                                    Cambiar
+                                </Button>
                             </div>
-                        </div>
-                    </div>
 
-                    {/* Método de Pago */}
-                    <div className="space-y-2">
-                        <Label>Método de Pago <span className="text-red-500">*</span></Label>
-                        <Select
-                            value={formData.payment_method_id}
-                            onValueChange={(value) => setFormData(prev => ({ ...prev, payment_method_id: value }))}
-                        >
-                            <SelectTrigger className={errors.payment_method_id ? 'border-red-500' : ''}>
-                                <SelectValue placeholder="Seleccionar método de pago" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {paymentMethods.map((pm) => (
-                                    <SelectItem key={pm.id} value={pm.id.toString()}>
-                                        {pm.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        {errors.payment_method_id && <p className="text-sm text-red-500">{errors.payment_method_id}</p>}
-                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Monto</Label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-lg">$</span>
+                                        <Input
+                                            type="number"
+                                            className={`pl-8 text-lg font-bold h-12 ${errors.amount ? 'border-red-500' : ''}`}
+                                            placeholder="0.00"
+                                            value={formData.amount}
+                                            onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Fecha</Label>
+                                    <Input
+                                        type="date"
+                                        className={`h-12 text-sm ${errors.date ? 'border-red-500' : ''}`}
+                                        value={formData.date}
+                                        onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                                    />
+                                </div>
+                            </div>
 
-                    {/* Fecha de Vencimiento */}
-                    <div className="space-y-2">
-                        <Label htmlFor="due_date">Fecha de Vencimiento (opcional)</Label>
-                        <Input
-                            id="due_date"
-                            type="date"
-                            value={formData.due_date}
-                            onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                        />
-                    </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold uppercase text-muted-foreground">Descripción</Label>
+                                <Input
+                                    className="h-12 text-sm"
+                                    placeholder="Nota opcional..."
+                                    value={formData.description}
+                                    onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                                />
+                            </div>
 
-                    {/* Gasto Recurrente */}
-                    <div className="flex items-center justify-between rounded-lg border p-3">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="is_recurring">Gasto Recurrente</Label>
-                            <p className="text-sm text-muted-foreground">
-                                Marcar si este gasto se repite periódicamente
-                            </p>
-                        </div>
-                        <Switch
-                            id="is_recurring"
-                            checked={formData.is_recurring}
-                            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_recurring: checked }))}
-                        />
-                    </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Sucursal</Label>
+                                    <Select
+                                        value={formData.branch_id}
+                                        onValueChange={v => setFormData(prev => ({ ...prev, branch_id: v }))}
+                                    >
+                                        <SelectTrigger className={`h-12 text-sm ${errors.branch_id ? 'border-red-500' : ''}`}>
+                                            <SelectValue placeholder="Elegir Sucursal" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {branches.filter(b => selectedBranchIds.includes(b.id.toString())).map(b => (
+                                                <SelectItem key={b.id} value={b.id.toString()}>{b.description}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Medio de Pago</Label>
+                                    <Select
+                                        value={formData.payment_method_id}
+                                        onValueChange={v => setFormData(prev => ({ ...prev, payment_method_id: v }))}
+                                    >
+                                        <SelectTrigger className={`h-12 text-sm ${errors.payment_method_id ? 'border-red-500' : ''}`}>
+                                            <SelectValue placeholder="Elegir Medio de Pago" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {paymentMethods.map(pm => (
+                                                <SelectItem key={pm.id} value={pm.id.toString()}>{pm.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
 
-                    {formData.is_recurring && (
-                        <div className="space-y-2">
-                            <Label>Frecuencia</Label>
-                            <Select
-                                value={formData.recurrence_interval}
-                                onValueChange={(value) => setFormData(prev => ({ ...prev, recurrence_interval: value }))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="daily">Diario</SelectItem>
-                                    <SelectItem value="weekly">Semanal</SelectItem>
-                                    <SelectItem value="monthly">Mensual</SelectItem>
-                                    <SelectItem value="yearly">Anual</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center justify-between rounded-xl border p-4 bg-muted/10">
+                                <div className="leading-tight">
+                                    <Label className="text-sm font-bold">Gasto Recurrente</Label>
+                                    <p className="text-xs text-muted-foreground mt-1">Repetir este gasto automáticamente</p>
+                                </div>
+                                <Switch
+                                    checked={formData.is_recurring}
+                                    onCheckedChange={c => setFormData(prev => ({ ...prev, is_recurring: c }))}
+                                />
+                            </div>
+
+                            {formData.is_recurring && (
+                                <div className="space-y-2 animate-in slide-in-from-top-2 p-4 rounded-xl border border-dashed border-primary/20 bg-primary/5">
+                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Frecuencia</Label>
+                                    <Select
+                                        value={formData.recurrence_interval}
+                                        onValueChange={v => setFormData(prev => ({ ...prev, recurrence_interval: v }))}
+                                    >
+                                        <SelectTrigger className="h-10 text-sm bg-background">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="daily">Diario</SelectItem>
+                                            <SelectItem value="weekly">Semanal</SelectItem>
+                                            <SelectItem value="monthly">Mensual</SelectItem>
+                                            <SelectItem value="yearly">Anual</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            <DialogFooter className="mt-8 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur pb-2">
+                                <Button type="submit" size="lg" disabled={loading} className="w-full text-base font-bold shadow-lg hover:shadow-xl transition-all">
+                                    {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Plus className="mr-2 h-5 w-5" />}
+                                    Registrar Gasto
+                                </Button>
+                            </DialogFooter>
+                        </form>
                         </div>
                     )}
-
-                    {/* Notas */}
-                    <div className="space-y-2">
-                        <Label htmlFor="notes">Notas (opcional)</Label>
-                        <Textarea
-                            id="notes"
-                            value={formData.notes}
-                            onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                            placeholder="Notas adicionales..."
-                            rows={3}
-                        />
-                    </div>
-
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
-                            Cancelar
-                        </Button>
-                        <Button type="submit" disabled={loading}>
-                            {loading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Guardando...
-                                </>
-                            ) : (
-                                <>
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Crear Gasto
-                                </>
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </form>
+                </div>
             </DialogContent>
         </Dialog>
     );

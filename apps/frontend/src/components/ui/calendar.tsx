@@ -1,21 +1,52 @@
-import * as React from "react";
-import ReactCalendar from "react-calendar";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import "cally";
+import React, { useEffect, useRef, useMemo } from "react";
+import type { CalendarDate, CalendarRange, CalendarMonth } from "cally";
+import { format, parse, isValid, startOfDay, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
-import { format } from "date-fns";
-
 import { cn } from "@/lib/utils";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-// Importemos los estilos de react-calendar
-import "react-calendar/dist/Calendar.css";
+// Add TypeScript definitions for cally web components
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      "calendar-date": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          value?: string;
+          min?: string;
+          max?: string;
+          locale?: string;
+          firstDayOfWeek?: number;
+          showOutsideDays?: boolean;
+          isDateDisallowed?: (date: Date) => boolean;
+        },
+        HTMLElement
+      > & { ref?: React.RefObject<CalendarDate> };
+      "calendar-range": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement> & {
+          value?: string;
+          min?: string;
+          max?: string;
+          locale?: string;
+          firstDayOfWeek?: number;
+          showOutsideDays?: boolean;
+          isDateDisallowed?: (date: Date) => boolean;
+        },
+        HTMLElement
+      > & { ref?: React.RefObject<CalendarRange> };
+      "calendar-month": React.DetailedHTMLProps<
+        React.HTMLAttributes<HTMLElement>,
+        HTMLElement
+      > & { ref?: React.RefObject<CalendarMonth> };
+    }
+  }
+}
 
-// Extendemos el tipo para que coincida con lo que espera la aplicación
 export type CalendarProps = {
   className?: string;
   classNames?: Record<string, string>;
-  // Permitir Date | null para el modo single, y formato de rangos parciales con 'to' opcional
   selected?: Date | Date[] | { from: Date; to?: Date } | null;
-  onSelect?: (date: Date | null | { from: Date; to?: Date }) => void;
+  onSelect?: (date: any) => void;
   onDayClick?: (date: Date) => void;
   disabled?: (date: Date) => boolean;
   defaultMonth?: Date;
@@ -24,238 +55,166 @@ export type CalendarProps = {
   initialFocus?: boolean;
   fromDate?: Date;
   toDate?: Date;
+  months?: number; // Added to support showing multiple months
 };
 
-/**
- * Componente Calendar personalizado que utiliza react-calendar con soporte completo para español
- */
-function Calendar({
+function formatDate(date: Date): string {
+  return format(date, "yyyy-MM-dd");
+}
+
+function parseDate(dateStr: string): Date {
+  return parse(dateStr, "yyyy-MM-dd", new Date());
+}
+
+import { usePrimaryColor } from "@/hooks/usePrimaryColor";
+
+export function Calendar({
   className,
   selected,
   onSelect,
   disabled,
   mode = "single",
-  defaultMonth
-}: CalendarProps) {  // Convertir el formato seleccionado al formato que espera react-calendar
-  const convertSelected = React.useMemo(() => {
-    if (!selected) return undefined;
-    
-    if (mode === "range" && selected && typeof selected === "object" && "from" in selected) {
-      // Para rangos aseguramos que tenemos valores válidos
-      const range = [];
-      
-      if (selected.from instanceof Date && !isNaN(selected.from.getTime())) {
-        range.push(selected.from);
-      }
-      
-      if (selected.to instanceof Date && !isNaN(selected.to.getTime())) {
-        range.push(selected.to);
-      }
-      
-      // Si solo hay una fecha, la devolvemos para la vista de rango incompleto
-      if (range.length === 1) return range[0];
-      
-      // Si hay dos fechas, devolvemos el rango completo
-      if (range.length === 2) return range as [Date, Date];
-      
-      return undefined;
+  defaultMonth,
+  showOutsideDays = true,
+  fromDate,
+  toDate,
+  months = 1,
+}: CalendarProps) {
+  const ref = useRef<CalendarDate | CalendarRange>(null);
+  const primaryColor = usePrimaryColor();
+
+  // Convert external 'selected' prop (Date objects) to internal string value for Cally
+  const internalValue = useMemo(() => {
+    if (!selected) return "";
+
+    if (mode === "range" && typeof selected === "object" && "from" in selected) {
+      const from = selected.from instanceof Date && isValid(selected.from) ? formatDate(selected.from) : "";
+      const to = selected.to instanceof Date && isValid(selected.to) ? formatDate(selected.to) : "";
+      return from && to ? `${from}/${to}` : from;
     }
-    
-    if (Array.isArray(selected)) {
-      return selected.filter(date => date instanceof Date && !isNaN(date.getTime()));
+
+    if (mode === "single" && selected instanceof Date && isValid(selected)) {
+      return formatDate(selected);
     }
-    
-    // Para modo single, verificamos que sea una fecha válida
-    if (selected instanceof Date && !isNaN((selected as Date).getTime())) {
-      return selected as Date;
+
+    // TODO: Support multiple dates if needed (Cally 'multiple' mode uses space-separated strings)
+    if (mode === "multiple" && Array.isArray(selected)) {
+      return selected.map(d => formatDate(d)).join(" ");
     }
-    
-    return undefined;
+
+    return "";
   }, [selected, mode]);
-  
-  // Manejar el cambio de fecha según el modo
-  const handleDateChange = (value: Date | Date[] | [Date, Date]) => {
+
+  // Handle value changes from Cally
+  const handleChange = (e: Event) => {
     if (!onSelect) return;
-    
+    const target = e.target as CalendarDate | CalendarRange;
+    const value = target.value;
+
     if (mode === "range") {
-      if (Array.isArray(value) && value.length === 2) {
-        // Verificamos que ambas fechas sean válidas
-        const from = new Date(value[0]);
-        const to = new Date(value[1]);
-        
-        if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
-          onSelect({ from, to } as any);
-        }
+      // value is "YYYY-MM-DD/YYYY-MM-DD" or "YYYY-MM-DD"
+      const [start, end] = value.split("/");
+      const from = start ? parseDate(start) : undefined;
+      const to = end ? parseDate(end) : undefined;
+
+      // Only fire if we have at least a start date
+      if (from) {
+        onSelect({ from, to });
+      } else {
+        onSelect(undefined);
       }
+    } else if (mode === "single") {
+      const date = value ? parseDate(value) : undefined;
+      onSelect(date);
     } else if (mode === "multiple") {
-      // Para selecciones múltiples, filtramos solo fechas válidas
-      if (Array.isArray(value)) {
-        const validDates = value.filter(date => date instanceof Date && !isNaN(date.getTime()));
-        onSelect(validDates as any);
-      }
-    } else {
-      // Modo single - verificamos que sea una fecha válida
-      if (value instanceof Date && !isNaN((value as Date).getTime())) {
-        onSelect(value as Date);
-      }
+      const dates = value ? value.split(" ").map(parseDate) : [];
+      onSelect(dates);
     }
   };
-  // Nombres de los días en español - En mayúsculas para mejor visibilidad
-  const weekdayLabels = ['DO', 'LU', 'MA', 'MI', 'JU', 'VI', 'SÁ'];return (    <div className={cn("p-3 w-full", className)}>      <ReactCalendar
-        className={cn(
-          "border-none shadow-none font-sans w-full",
-          // Estilos personalizados para que coincida con el tema de la aplicación
-          "react-calendar--custom-theme"
-        )}
-        onChange={handleDateChange as any}
-        value={convertSelected as any}
-        selectRange={mode === "range"}
-        allowPartialRange={true}
-        minDate={new Date(1970, 0, 1)} // Evitar fechas anteriores a la época Unix
-        formatShortWeekday={(_, date) => weekdayLabels[date.getDay()]}
-        formatMonthYear={(_, date) => 
-          format(date, 'MMMM yyyy', { locale: es }).toUpperCase()
-        }
-        locale="es-ES"
-        nextLabel={<ChevronRight className="h-4 w-4" />}
-        prevLabel={<ChevronLeft className="h-4 w-4" />}
-        next2Label={null}
-        prev2Label={null}
-        calendarType="gregory" 
-        showNeighboringMonth={true}
-        view="month"
-        tileDisabled={disabled ? ({ date }) => !!disabled?.(date) : undefined}
-        defaultActiveStartDate={defaultMonth}
-        minDetail="month"
-        maxDetail="month"
-      />
-        {/* Aplicamos estilos personalizados para que coincida con el tema */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .react-calendar--custom-theme {
-          width: 100%;
-          max-width: 100%;
-          background: transparent;
-          font-family: inherit;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__viewContainer {
-          width: 100%;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__month-view {
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    element.addEventListener("change", handleChange);
+    return () => {
+      element.removeEventListener("change", handleChange);
+    };
+  }, [onSelect, mode]);
+
+  // Sync value to ref if it changes
+  useEffect(() => {
+    if (ref.current && ref.current.value !== internalValue) {
+      ref.current.value = internalValue;
+    }
+  }, [internalValue]);
+
+  const CalendarComponent = mode === "range" ? "calendar-range" : "calendar-date";
+  // Check if mode is 'multiple' differently because cally supports it on calendar-date via boolean attribute, 
+  // but React props might be tricky. Actually cally's calendar-date has 'multiple' attribute.
+
+  // Custom disallowed date function
+  const isDateDisallowed = (date: Date) => {
+    if (disabled) return disabled(date);
+    return false;
+  };
+
+  // Determine accent color style
+  const accentColor = primaryColor;
+
+  return (
+    <div
+      className={cn(
+        "p-3 bg-white dark:bg-gray-900 rounded-lg border shadow-sm w-fit inline-block",
+        className
+      )}
+    >
+      <style>{`
+        calendar-date, calendar-range {
+          display: inline-block;
           width: 100%;
         }
         
-        .react-calendar--custom-theme .react-calendar__month-view__days {
-          display: grid !important;
-          grid-template-columns: repeat(7, 1fr);
-          width: 100%;
+        .cally-months-container {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
         }
-        
-        .react-calendar--custom-theme .react-calendar__navigation {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          margin-bottom: 0.5rem;
-          position: relative;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__navigation button {
-          min-width: 2rem;
-          height: 2rem;
-          background: none;
-          border-radius: 0.375rem;
-          opacity: 0.5;
-          transition: opacity 0.2s;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__navigation button:enabled:hover,
-        .react-calendar--custom-theme .react-calendar__navigation button:enabled:focus {
-          opacity: 1;
-          background-color: rgba(0, 0, 0, 0.05);
-        }
-          .react-calendar--custom-theme .react-calendar__navigation__label {
-          font-weight: 500;
-          font-size: 0.875rem;
-          opacity: 1;
-          pointer-events: none;
-          flex-grow: 1;
-          text-transform: uppercase;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__navigation__prev-button {
-          position: absolute;
-          left: 0.25rem;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__navigation__next-button {
-          position: absolute;
-          right: 0.25rem;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__month-view__weekdays {
-          font-size: 0.75rem;
-          font-weight: normal;
-          text-transform: uppercase;
-          color: var(--muted-foreground, #64748b);
-        }
-        
-        .react-calendar--custom-theme .react-calendar__month-view__weekdays__weekday {
-          padding: 0.25rem;
-          text-decoration: none;
-          text-align: center;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__month-view__weekdays abbr {
-          text-decoration: none;
-        }
-          .react-calendar--custom-theme .react-calendar__tile {
-          aspect-ratio: 1 / 1;
-          max-width: 2.5rem;
-          height: 2.5rem;
-          padding: 0;
-          background: none;
-          font-size: 0.875rem;
-          line-height: 2.5rem;
-          text-align: center;
-          border-radius: 0.375rem;
-          margin-bottom: 0.25rem;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__tile--now {
-          background-color: var(--accent, #f1f5f9);
-          color: var(--accent-foreground, #0f172a);
-        }
-        
-        .react-calendar--custom-theme .react-calendar__tile--active,
-        .react-calendar--custom-theme .react-calendar__tile--hasActive {
-          background-color: var(--primary, #0f172a);
-          color: var(--primary-foreground, #ffffff);
-        }
-        
-        .react-calendar--custom-theme .react-calendar__tile:enabled:hover,
-        .react-calendar--custom-theme .react-calendar__tile:enabled:focus {
-          background-color: rgba(0, 0, 0, 0.05);
-        }
-        
-        .react-calendar--custom-theme .react-calendar__tile--active:enabled:hover,
-        .react-calendar--custom-theme .react-calendar__tile--active:enabled:focus {
-          background-color: var(--primary, #0f172a);
-        }
-        
-        .react-calendar--custom-theme .react-calendar__month-view__days__day--neighboringMonth {
-          color: var(--muted-foreground, #64748b);
-          opacity: 0.5;
-        }
-        
-        .react-calendar--custom-theme .react-calendar__tile:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }      `}} />
+      `}</style>
+
+      {/* @ts-ignore */}
+      <CalendarComponent
+        ref={ref as any}
+        value={internalValue}
+        min={fromDate ? formatDate(fromDate) : undefined}
+        max={toDate ? formatDate(toDate) : undefined}
+        locale="es-AR"
+        firstDayOfWeek={1}
+        showOutsideDays={showOutsideDays}
+        isDateDisallowed={isDateDisallowed}
+        class="block"
+        style={{
+          "--color-accent": accentColor,
+          "--color-text-on-accent": "#ffffff",
+        } as React.CSSProperties}
+      >
+        {/* Navigation Buttons must be direct children to be slotted correctly */}
+        <button slot="previous" className="p-2 hover:bg-accent rounded-md cursor-pointer text-foreground inline-flex items-center justify-center">
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <button slot="next" className="p-2 hover:bg-accent rounded-md cursor-pointer text-foreground inline-flex items-center justify-center">
+          <ChevronRight className="h-4 w-4" />
+        </button>
+
+        <div className="cally-months-container mt-2">
+          {Array.from({ length: months }).map((_, i) => (
+            <calendar-month key={i} offset={i}></calendar-month>
+          ))}
+        </div>
+      </CalendarComponent>
     </div>
   );
 }
 
 Calendar.displayName = "Calendar";
-
-export { Calendar };

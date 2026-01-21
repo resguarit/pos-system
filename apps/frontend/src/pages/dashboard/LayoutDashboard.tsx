@@ -44,7 +44,12 @@ function DashboardHeader() {
   );
 }
 
+import { useSystemConfig } from "@/hooks/useSystemConfig";
+
 export default function DashboardLayout() {
+  // Load system configuration (including primary color)
+  useSystemConfig();
+
   return (
     <SidebarProvider className="h-svh overflow-hidden">
       <div className="flex h-full w-full bg-gray-50 overflow-hidden">

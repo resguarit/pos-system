@@ -19,7 +19,7 @@ class ExpenseController extends Controller
 
     public function index(Request $request)
     {
-        $query = Expense::with(['category', 'employee.person', 'branch', 'paymentMethod', 'user']);
+        $query = Expense::with(['category.parent', 'employee.person', 'branch', 'paymentMethod', 'user']);
 
         // Search functionality
         if ($request->has('search') && $request->search) {
@@ -80,6 +80,23 @@ class ExpenseController extends Controller
         return response()->json([
             'success' => true,
             'data' => $stats
+        ]);
+    }
+
+    public function recent(Request $request)
+    {
+        $expenses = Expense::where('user_id', auth()->id())
+            ->with(['category', 'category.parent'])
+            ->latest()
+            ->take(50) // Take enough recent expenses to find uniques
+            ->get()
+            ->unique('category_id') // Deduplicate by category
+            ->take(6) // Take top 6 unique categories
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $expenses
         ]);
     }
 

@@ -4,7 +4,9 @@ export interface ExpenseCategory {
     id: number;
     name: string;
     description?: string;
+    icon?: string;
     parent_id?: number;
+    parent?: ExpenseCategory;
     active: boolean;
     children?: ExpenseCategory[];
 }
@@ -65,6 +67,14 @@ export const expensesService = {
     // Categories
     getCategories: async (params?: any) => {
         const response = await api.get('/expense-categories', { params });
+        return response.data;
+    },
+    getCategoriesTree: async () => {
+        const response = await api.get('/expense-categories/tree');
+        return response.data;
+    },
+    getRecentExpenses: async () => {
+        const response = await api.get('/expenses/recent');
         return response.data;
     },
     createCategory: async (data: any) => {

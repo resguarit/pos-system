@@ -104,7 +104,17 @@ export default function ExpensesList() {
                                 <tr key={expense.id} className="border-t">
                                     <td className="p-4">{format(new Date(expense.date), "dd/MM/yyyy")}</td>
                                     <td className="p-4">{expense.description}</td>
-                                    <td className="p-4">{expense.category?.name || "-"}</td>
+                                    <td className="p-4">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xl">{expense.category?.icon || expense.category?.parent?.icon || '📄'}</span>
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">{expense.category?.name || "-"}</span>
+                                                {expense.category?.parent && (
+                                                    <span className="text-xs text-muted-foreground">{expense.category.parent.name}</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
                                     <td className="p-4 font-medium">${Number(expense.amount).toFixed(2)}</td>
                                     {showBranchColumn && (
                                         <td className="p-4">

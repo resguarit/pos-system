@@ -75,7 +75,7 @@ export const useAfip = () => {
         method: 'GET',
         url: '/afip/certificates/valid',
       })
-      
+
       const data = response?.data || []
       setValidCertificates(data)
       return data
@@ -100,7 +100,7 @@ export const useAfip = () => {
         method: 'GET',
         url: `/afip/certificates/check?cuit=${cleanCuit}`,
       })
-      
+
       return {
         has_certificate: response?.has_certificate || false,
         is_valid: response?.is_valid || false,
@@ -159,12 +159,12 @@ export const useAfip = () => {
         return data
       } catch (error: any) {
         console.error('Error al obtener tipos de comprobantes:', error)
-        
+
         // No mostrar error si simplemente no hay tipos configurados
         if (error?.response?.data?.message?.includes('Sin Resultados')) {
           return []
         }
-        
+
         toast.error('Error al obtener tipos de comprobantes', {
           description: error?.response?.data?.message || 'No se pudieron cargar los tipos de comprobantes desde AFIP',
         })
@@ -197,7 +197,7 @@ export const useAfip = () => {
         return data
       } catch (error: any) {
         console.error('Error al obtener puntos de venta:', error)
-        
+
         if (options.suppressError) {
           return null
         }
@@ -206,9 +206,9 @@ export const useAfip = () => {
         if (error?.response?.data?.message?.includes('Sin Resultados')) {
           return []
         }
-        
+
         const errorMessage = error?.response?.data?.message || 'No se pudieron cargar los puntos de venta desde AFIP';
-        const friendlyMessage = errorMessage.includes('Could not connect to host') 
+        const friendlyMessage = errorMessage.includes('Could not connect to host')
           ? 'No se pudo conectar con AFIP. Verifique su conexión o intente más tarde.'
           : errorMessage;
 

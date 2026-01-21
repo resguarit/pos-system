@@ -50,11 +50,29 @@ class ExpenseCategoryController extends Controller
         ]);
     }
 
+    public function tree()
+    {
+        $categories = ExpenseCategory::whereNull('parent_id')
+            ->with([
+                'children' => function ($query) {
+                    $query->where('active', true);
+                }
+            ])
+            ->where('active', true)
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $categories
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
+            'icon' => 'nullable|string|max:50',
             'parent_id' => 'nullable|exists:expense_categories,id',
             'active' => 'boolean',
         ]);
@@ -82,6 +100,7 @@ class ExpenseCategoryController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
+            'icon' => 'nullable|string|max:50',
             'parent_id' => 'nullable|exists:expense_categories,id',
             'active' => 'boolean',
         ]);

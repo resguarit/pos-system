@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Percent, AlertTriangle } from "lucide-react"
+import { Trash2 } from "lucide-react"
+import { Percent } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, roundToTwoDecimals, calculatePaymentStatus } from '@/utils/sale-calculations'
 import type { PaymentMethod } from '@/types/sale'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 
 interface Payment {
   payment_method_id: string
@@ -45,9 +46,7 @@ export function PaymentSection({
     return sum + (parseFloat(p.amount || '0') || 0)
   }, 0)
 
-  // Ya no debounceamos aquí porque se hace en el padre
   const diff = pendingAmount !== undefined ? pendingAmount : roundToTwoDecimals(total - paid)
-  // Para el status usamos el valor directo para mostrar feedback inmediato si se necesitara (aunque el padre controla el diff)
   const paymentStatus = calculatePaymentStatus(total, paid)
   const hasPending = paymentStatus.status === 'pending'
   const hasChange = paymentStatus.status === 'change'

@@ -541,6 +541,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Expenses Module Routes
     Route::prefix('expenses')->group(function () {
         Route::get('/', [ExpenseController::class, 'index']);
+        Route::get('/recent', [ExpenseController::class, 'recent']);
         Route::get('/stats', [ExpenseController::class, 'stats']);
         Route::post('/', [ExpenseController::class, 'store']);
         Route::get('/{expense}', [ExpenseController::class, 'show']);
@@ -567,6 +568,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('expense-categories')->group(function () {
+        Route::get('/tree', [ExpenseCategoryController::class, 'tree']);
         Route::get('/', [ExpenseCategoryController::class, 'index']);
         Route::post('/', [ExpenseCategoryController::class, 'store']);
         Route::get('/{expenseCategory}', [ExpenseCategoryController::class, 'show']);

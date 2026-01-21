@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -13,26 +14,21 @@ import { ProtectedRoute } from "@/components/ProtectedRoute"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import CashRegisterProtectedButton from "@/components/cash-register-protected-button"
 import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus"
-import { useCustomerBalance } from "@/hooks/useCustomerBalance"
 import CustomerForm from "@/components/customers/customer-form"
 import { Loader2, ArrowLeft } from "lucide-react"
 import type { CartItem } from "@/types/combo"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useSaleTotals } from "@/hooks/useSaleTotals"
 import { useCustomerSearch, type CustomerOption } from "@/hooks/useCustomerSearch"
-import { formatCurrency, roundToTwoDecimals, extractProductId, calculatePaymentDiscount } from '@/utils/sale-calculations'
-import { useDebouncedValue } from '@/hooks/useDebouncedValue'
-import { useSaleValidation } from '@/hooks/useSaleValidation'
+import { formatCurrency, roundToTwoDecimals, extractProductId } from '@/utils/sale-calculations'
 import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
-import { SaleItemsTable } from "@/components/sale/SaleItemsTable"
 import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
 import { DebtAlertDialog } from "@/components/sale/DebtAlertDialog"
 import type { PaymentMethod, ReceiptType, SaleData, SaleHeader } from '@/types/sale'
 import { useAfip } from "@/hooks/useAfip"
-import type { ApiResponse } from "@/types/api"
-import { clearCartStorage } from "@/utils/cart-storage"
-import { useCartContext } from "@/context/CartContext"
+
+const CART_STORAGE_KEY = 'pos_cart'
 
 export default function CompleteSalePage() {
   const location = useLocation()
@@ -40,18 +36,16 @@ export default function CompleteSalePage() {
   const { request } = useApi()
   const { selectedBranch, branches } = useBranch()
   const { user, hasPermission } = useAuth()
-  // Obtener branchId desde location.state
+  
+  // Obtener datos del carrito y branchId desde location.state
+  const initialCart = (location.state?.cart as CartItem[]) || []
   const stateBranchId = location.state?.branchId
-
+  
   // Usar la sucursal del state si está disponible, sino usar la del contexto
-  const activeBranch = stateBranchId
+  const activeBranch = stateBranchId 
     ? branches.find(b => b.id === stateBranchId) || selectedBranch
     : selectedBranch
-
-  // Extract convertedFromBudgetId if present
-  const convertedFromBudgetId = location.state?.convertedFromBudgetId as number | undefined
-  const convertedFromBudgetTotal = location.state?.convertedFromBudgetTotal as number | undefined
-
+  
   // Debug: verificar qué sucursal se está usando
   console.log('CompleteSalePage - Branch info:', {
     stateBranchId,
@@ -59,44 +53,30 @@ export default function CompleteSalePage() {
     activeBranchName: activeBranch?.description,
     selectedBranchId: selectedBranch?.id
   })
-
+  
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
   const { checkCuitCertificate } = useAfip()
 
-  const { cart, setCart } = useCartContext()
-
-  // Sync cart from location state if provided
-  useEffect(() => {
-    const passedCart = (location.state?.cart as CartItem[]) || []
-    if (passedCart.length > 0) {
-      setCart(passedCart)
-    }
-  }, [location.state, setCart]) // Depend only on location state changes
+  const [cart, setCart] = useState<CartItem[]>(initialCart)
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([])
   const [receiptTypeId, setReceiptTypeId] = useState<number | undefined>(undefined)
-  const [payments, setPayments] = useState<Array<{ payment_method_id: string; amount: string }>>(() => {
-    const budgetPayments = location.state?.convertedFromBudgetPayments
-    if (budgetPayments && Array.isArray(budgetPayments) && budgetPayments.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return budgetPayments.map((bp: any) => ({
-        payment_method_id: String(bp.payment_method_id),
-        amount: String(bp.amount)
-      }))
-    }
-    return [{ payment_method_id: '', amount: '' }]
-  })
+  const [payments, setPayments] = useState<Array<{ payment_method_id: string; amount: string }>>([
+    { payment_method_id: '', amount: '' }
+  ])
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false)
   const [isProcessingSale, setIsProcessingSale] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [completedSale, setCompletedSale] = useState<SaleHeader | null>(null)
   const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('')
   const [globalDiscountValue, setGlobalDiscountValue] = useState<string>('')
+  const [customerBalance, setCustomerBalance] = useState<number | null>(null)
+  const [loadingBalance, setLoadingBalance] = useState(false)
   const [showDebtDialog, setShowDebtDialog] = useState(false)
   const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false)
   const [pendingChangeAmount, setPendingChangeAmount] = useState(0)
-
+  const [lockedPaymentDiscount, setLockedPaymentDiscount] = useState<number | null>(null)
 
   // Hook personalizado para búsqueda de clientes
   const {
@@ -109,13 +89,6 @@ export default function CompleteSalePage() {
     setShowCustomerOptions,
   } = useCustomerSearch()
 
-  // Hook para saldo del cliente
-  const {
-    balance: customerBalance,
-    loadingBalance,
-    fetchBalance,
-  } = useCustomerBalance(selectedCustomer?.id)
-
   // Calcular totales usando hook personalizado
   const globalDiscount = useMemo(() => ({
     type: globalDiscountType,
@@ -124,61 +97,85 @@ export default function CompleteSalePage() {
 
   const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = useSaleTotals(cart, globalDiscount)
 
-  // Estado para el descuento de pago (congelado hasta que se cambie método o agregue fila)
-  const [totalPaymentDiscount, setTotalPaymentDiscount] = useState(0)
+  // Función para calcular el descuento real basado en montos ingresados
+  const calculateRealDiscount = useCallback(() => {
+    let totalDiscount = 0
+    payments.forEach(p => {
+      if (!p.payment_method_id) return
+      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
+      const rate = (method?.discount_percentage || 0) / 100
+      if (rate <= 0) return
+      const amount = parseFloat(p.amount || '0') || 0
+      totalDiscount += amount * rate
+    })
+    return roundToTwoDecimals(totalDiscount)
+  }, [payments, paymentMethods])
 
-  // Recalcular el descuento con una lista de pagos específica
-  const recalculateDiscount = useCallback((currentPayments: typeof payments) => {
-    const newVal = calculatePaymentDiscount(total, currentPayments, paymentMethods)
-    setTotalPaymentDiscount(newVal)
-  }, [total, paymentMethods])
+  // Calcular descuento anticipado (cuando hay métodos con descuento sin monto)
+  const calculateAnticipatedDiscount = useCallback(() => {
+    const discountedPayments = payments.filter(p => {
+      if (!p.payment_method_id) return false
+      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
+      return (method?.discount_percentage || 0) > 0
+    })
 
-  // Si cambia el total base (por ítems o d. global), actualizar el descuento de pago
-  useEffect(() => {
-    recalculateDiscount(payments)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [total, recalculateDiscount])
+    if (discountedPayments.length === 0) return 0
+
+    // Calcular cuánto ya se pagó en métodos SIN descuento
+    const paidWithoutDiscount = payments.reduce((sum, p) => {
+      if (!p.payment_method_id) return sum
+      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
+      if ((method?.discount_percentage || 0) > 0) return sum
+      return sum + (parseFloat(p.amount || '0') || 0)
+    }, 0)
+    
+    const remainingToPay = Math.max(total - paidWithoutDiscount, 0)
+    
+    // Aplicar el descuento más alto de los métodos seleccionados
+    const maxRate = Math.max(...discountedPayments.map(p => {
+      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
+      return (method?.discount_percentage || 0) / 100
+    }))
+    
+    return roundToTwoDecimals(remainingToPay * maxRate)
+  }, [payments, paymentMethods, total])
+
+  // El descuento efectivo es el bloqueado si existe, sino el anticipado inicial
+  const totalPaymentDiscount = useMemo(() => {
+    if (lockedPaymentDiscount !== null) {
+      return lockedPaymentDiscount
+    }
+    // Sin descuento bloqueado, calcular anticipado
+    return calculateAnticipatedDiscount()
+  }, [lockedPaymentDiscount, calculateAnticipatedDiscount])
 
   // Total final después de aplicar descuentos de métodos de pago  
   const finalTotal = useMemo(() => {
-    // Si viene de presupuesto, usar el total del presupuesto directamente
-    // Esto respeta el descuento ya calculado en el momento de crear el presupuesto
-    if (convertedFromBudgetTotal !== undefined && convertedFromBudgetTotal > 0) {
-      return roundToTwoDecimals(convertedFromBudgetTotal)
-    }
     return roundToTwoDecimals(total - totalPaymentDiscount)
-  }, [total, totalPaymentDiscount, convertedFromBudgetTotal])
+  }, [total, totalPaymentDiscount])
 
   // Si no hay carrito, redirigir al POS
   useEffect(() => {
-    const passedCart = (location.state?.cart as CartItem[]) || []
-    // Only redirect if both context cart and passed cart are empty
-    if (cart.length === 0 && passedCart.length === 0) {
+    if (initialCart.length === 0) {
       toast.error("No hay productos en el carrito")
       navigate("/dashboard/pos")
     }
-  }, [cart.length, navigate, location.state])
+  }, [initialCart.length, navigate])
 
   // Cargar métodos de pago y tipos de comprobante
   useEffect(() => {
     fetchPaymentMethods()
     fetchReceiptTypes()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBranch])
 
   const fetchPaymentMethods = useCallback(async () => {
     try {
       const response = await request({ method: 'GET', url: '/pos/payment-methods' })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const apiData = Array.isArray(response) ? response :
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        Array.isArray((response as any)?.data?.data) ? (response as any).data.data :
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          Array.isArray((response as any)?.data) ? (response as any).data : []
+        Array.isArray(response?.data?.data) ? response.data.data :
+          Array.isArray(response?.data) ? response.data : []
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const filteredMethods = apiData
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((item: any): PaymentMethod => ({
           id: item.id,
           name: item.name || item.description,
@@ -187,65 +184,14 @@ export default function CompleteSalePage() {
 
       setPaymentMethods(filteredMethods)
     } catch (err) {
-      console.error(err)
       setPaymentMethods([])
       toast.error("Error al cargar los métodos de pago.")
     }
   }, [request])
 
-
-  // Fallback: Si venimos de un presupuesto pero los pagos no llegaron por navegación,
-  // intentamos buscarlos directamente al backend.
-  const fetchedBudgetFallbackRef = useRef(false)
-
-  useEffect(() => {
-    // Solo ejecutar si:
-    // 1. Es una conversión de presupuesto
-    // 2. No hemos ejecutado el fallback aún
-    // 3. Los pagos actuales están vacíos/default
-    if (convertedFromBudgetId && !fetchedBudgetFallbackRef.current) {
-      const isDefault = payments.length === 1 && payments[0].payment_method_id === '' && payments[0].amount === ''
-
-      if (isDefault) {
-        fetchedBudgetFallbackRef.current = true // Marcar como ejecutado para evitar loops
-
-        const fetchBudgetDetails = async () => {
-          try {
-            // Usamos el endpoint de ventas ya que el presupuesto es un SaleHeader
-            const response = await request({ method: 'GET', url: `/sales/${convertedFromBudgetId}` })
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const budgetData = (response as any).data || response // Manejar wrapper si existe
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            if (budgetData?.sale_payments && Array.isArray(budgetData.sale_payments) && budgetData.sale_payments.length > 0) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const mappedPayments = budgetData.sale_payments.map((bp: any) => ({
-                payment_method_id: String(bp.payment_method_id),
-                amount: String(bp.amount)
-              }))
-
-              setPayments(mappedPayments)
-              // Recalcular descuentos si es necesario
-              recalculateDiscount(mappedPayments)
-              toast.info("Métodos de pago del presupuesto recuperados")
-
-              console.log("Pagos recuperados vía fallback:", mappedPayments)
-            }
-          } catch (error) {
-            console.error("Error fetching budget fallback:", error)
-          }
-        }
-
-        fetchBudgetDetails()
-      }
-    }
-  }, [convertedFromBudgetId, payments, request, recalculateDiscount])
-
   const fetchReceiptTypes = useCallback(async () => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const branchCuit = (activeBranch as any)?.cuit
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const enabledReceiptTypes = (activeBranch as any)?.enabled_receipt_types
 
       // Debug: mostrar datos de la sucursal
@@ -267,19 +213,13 @@ export default function CompleteSalePage() {
 
       // Obtener todos los tipos de comprobantes del backend
       const response = await request({ method: 'GET', url: '/receipt-types' })
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allTypes = Array.isArray(response) ? response :
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        Array.isArray((response as any)?.data?.data) ? (response as any).data.data :
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          Array.isArray((response as any)?.data) ? (response as any).data : []
+        Array.isArray(response?.data?.data) ? response.data.data :
+          Array.isArray(response?.data) ? response.data : []
 
       // Mapear y filtrar SOLO facturas (no notas de crédito/débito/recibos)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mappedTypes = allTypes
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((item: any) => FACTURA_CODES.includes(item.afip_code))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((item: any): ReceiptType => ({
           id: item.id,
           name: item.description || item.name,
@@ -288,7 +228,7 @@ export default function CompleteSalePage() {
 
       // Si la sucursal NO tiene CUIT, solo mostrar tipos internos
       if (!branchCuit || branchCuit.length !== 11) {
-        availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(String(t.afip_code)))
+        availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(t.afip_code))
         console.log('Sucursal sin CUIT: mostrando solo tipos internos', availableTypes)
       }
       else {
@@ -297,7 +237,7 @@ export default function CompleteSalePage() {
 
         if (!certStatus.has_certificate || !certStatus.is_valid) {
           // Tiene CUIT pero no certificado válido -> Solo tipos internos
-          availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(String(t.afip_code)))
+          availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(t.afip_code))
           console.log(`Sucursal con CUIT ${branchCuit} pero SIN certificado válido: mostrando solo tipos internos`, availableTypes)
         }
         // Si tiene CUIT y tipos habilitados configurados, filtrar por los habilitados
@@ -351,39 +291,37 @@ export default function CompleteSalePage() {
       setReceiptTypes([])
       toast.error("Error al cargar los tipos de comprobante.")
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request, activeBranch, checkCuitCertificate, hasPermission])
+  }, [request, activeBranch])
 
   const addPayment = useCallback(() => {
-    setPayments(prev => {
-      const newPayments = [...prev, { payment_method_id: '', amount: '' }]
-      // Al agregar pago, recalculamos descuento sobre la nueva estructura
-      recalculateDiscount(newPayments)
-      return newPayments
-    })
-  }, [recalculateDiscount])
+    // Recalcular y bloquear el descuento basado en los montos actuales
+    const newDiscount = calculateRealDiscount()
+    setLockedPaymentDiscount(newDiscount)
+    setPayments(prev => [...prev, { payment_method_id: '', amount: '' }])
+  }, [calculateRealDiscount])
 
   const removePayment = useCallback((idx: number) => {
     setPayments(prev => {
       const newPayments = prev.filter((_, i) => i !== idx)
-      // Al quitar pago, recalculamos
-      recalculateDiscount(newPayments)
+      // Calcular usando la nueva lista filtrada
+      const newDiscount = calculateAnticipatedDiscount(newPayments)
+      setLockedPaymentDiscount(newDiscount)
       return newPayments
     })
-  }, [recalculateDiscount])
+  }, [calculateAnticipatedDiscount])
 
   const updatePayment = useCallback((idx: number, field: string, value: string) => {
     setPayments(prev => {
       const updated = prev.map((p, i) => i === idx ? { ...p, [field]: value } : p)
-
-      // SOLO recalcular si cambia el MÉTODO DE PAGO
-      // Si cambia el monto, NO recalculamos (para evitar saltos en la UI)
+      // Si cambia el método de pago, calcular usando la lista 'updated' INMEDIATAMENTE
       if (field === 'payment_method_id') {
-        recalculateDiscount(updated)
+        const newDiscount = calculateAnticipatedDiscount(updated)
+        setLockedPaymentDiscount(newDiscount)
       }
       return updated
     })
-  }, [recalculateDiscount])
+    // Si cambia el monto, NO recalculamos (el comportamiento original se mantiene)
+  }, [calculateAnticipatedDiscount])
 
 
   const formatDate = useCallback((dateString: string | null | undefined): string => {
@@ -463,7 +401,6 @@ export default function CompleteSalePage() {
             product_id: productId,
             quantity: item.quantity,
             unit_price: Number(item.price || 0),
-            sale_price: Number(item.sale_price || 0),
             ...(item.discount_type && (item.discount_value ?? 0) > 0
               ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
               : {}),
@@ -487,14 +424,9 @@ export default function CompleteSalePage() {
         }),
       }
 
-      if (convertedFromBudgetId) {
-        saleData.converted_from_budget_id = convertedFromBudgetId
-      }
-
       const saleResponse = await request({ url: '/pos/sales', method: 'POST', data: saleData })
 
       // Check if the sale is pending approval
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const saleStatus = (saleResponse as any)?.status || (saleResponse as any)?.data?.status
 
       if (saleStatus === 'pending') {
@@ -506,23 +438,17 @@ export default function CompleteSalePage() {
         toast.success('¡Venta realizada con éxito!')
       }
 
-
-
       try {
-        const saleResponseData = saleResponse as ApiResponse<SaleHeader> | SaleHeader
-        // Handle both wrapped and unwrapped responses (just in case backend varies)
-        const saleId = 'id' in saleResponseData ? saleResponseData.id : saleResponseData.data?.id
-
+        const saleId = (saleResponse as any)?.id || (saleResponse as any)?.data?.id
         if (saleId) {
           const saleDetails = await request({
             method: 'GET',
             url: `/sales/${saleId}?include=items,customer,receipt_type,saleFiscalCondition,branch,saleIvas`
           })
+          const normalizedSale = (saleDetails as any)?.data ?? saleDetails
+          setCompletedSale(normalizedSale)
 
-          const normalizedSale = (saleDetails as ApiResponse<SaleHeader>).data ?? saleDetails
-          setCompletedSale(normalizedSale as SaleHeader)
-
-          clearCartStorage()
+          localStorage.removeItem(CART_STORAGE_KEY)
           navigate("/dashboard/pos", { state: { completedSale: normalizedSale } })
           return
         }
@@ -530,23 +456,20 @@ export default function CompleteSalePage() {
         console.error('Error al obtener detalles de la venta:', err)
       }
 
-      clearCartStorage()
+      localStorage.removeItem(CART_STORAGE_KEY)
       navigate("/dashboard/pos")
 
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error("Error del backend:", err?.response?.data)
-      const errorData = err?.response?.data as ApiResponse
-      const errors = errorData?.errors
+      const errors = err?.response?.data?.errors
       let errorMessage = 'Ocurrió un error inesperado.'
-
       if (errors) {
         errorMessage = Object.keys(errors).map(key => {
           return `${key}: ${errors[key].join(', ')}`
         }).join('; ')
-      } else if (errorData?.message) {
-        errorMessage = errorData.message
+      } else if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message
       }
       toast.error('Error al procesar la venta', {
         description: errorMessage,
@@ -572,41 +495,31 @@ export default function CompleteSalePage() {
     cart,
     payments,
     request,
-    convertedFromBudgetId,
-    convertedFromBudgetTotal,
-    totalPaymentDiscount,
+    navigate,
   ])
 
   // Calcular monto pendiente explícitamente - DEBE estar ANTES de hasChange
-  // Calcular monto pendiente explícitamente - DEBE estar ANTES de hasChange
-  // Usamos debounce de 2 segundos para evitar que el 'Falta' salte mientras se escribe
-  const debouncedPayments = useDebouncedValue(payments, 2000)
   const pendingAmount = useMemo(() => {
-    const paid = debouncedPayments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
+    const paid = payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
     return roundToTwoDecimals(finalTotal - paid)
-  }, [finalTotal, debouncedPayments])
+  }, [finalTotal, payments])
 
   const diff = useMemo(() => pendingAmount, [pendingAmount])
 
-  // useSaleValidation hook
-  const {
-    hasCashPayment,
-    hasChange,
-    changeAmount,
-    hasCurrentAccountPayment,
-    canConfirm,
-    confirmDisabledReason
-  } = useSaleValidation({
-    cart,
-    receiptTypeId,
-    diff,
-    payments,
-    paymentMethods,
-    activeBranch,
-    selectedCustomer
-  })
+  // Definir hasChange y changeAmount basado en diff
+  const hasChange = useMemo(() => diff < 0, [diff])
+  const changeAmount = useMemo(() => roundToTwoDecimals(Math.abs(diff)), [diff])
 
-  // Re-implement handleConfirmSale using valdiation logic
+  // Detectar si HAY AL MENOS UN método de pago en Efectivo
+  const hasCashPayment = useMemo(() => {
+    return payments.some(p => {
+      if (!p.payment_method_id) return false
+      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
+      return paymentMethod?.name?.toLowerCase().includes('efectivo') || 
+             paymentMethod?.name?.toLowerCase().includes('cash')
+    })
+  }, [payments, paymentMethods])
+
   const handleConfirmSale = useCallback(async () => {
     if (isProcessingSale) return
 
@@ -639,24 +552,101 @@ export default function CompleteSalePage() {
 
     // Proceder con la venta
     await processSale()
-  }, [isProcessingSale, hasChange, changeAmount, processSale, diff, hasCashPayment])
+  }, [isProcessingSale, hasChange, changeAmount, processSale, diff, hasCashPayment, finalTotal])
 
-  const handleCustomerSelect = useCallback(async (customer: CustomerOption) => {
+  // Validaciones
+  const allPaymentsValid = useMemo(() => {
+    return payments
+      .filter(p => p.amount && parseFloat(p.amount || '0') > 0)
+      .every(p => p.payment_method_id)
+  }, [payments])
+
+  const hasCurrentAccountPayment = useMemo(() => {
+    return payments.some(p => {
+      const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
+      return paymentMethod && paymentMethod.name === 'Cuenta Corriente' && parseFloat(p.amount || '0') > 0
+    })
+  }, [payments, paymentMethods])
+
+  const currentAccountPaymentValid = !hasCurrentAccountPayment || selectedCustomer !== null
+
+  const paid = useMemo(() => {
+    return payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
+  }, [payments])
+
+  const canConfirm = useMemo(() => {
+    // Validación básica
+    if (cart.length === 0 || receiptTypeId === undefined || activeBranch === null) {
+      return false
+    }
+    
+    // Validar pagos
+    if (!allPaymentsValid || !currentAccountPaymentValid) {
+      return false
+    }
+    
+    // Si el pago es exacto, permitir
+    if (diff === 0) {
+      return true
+    }
+    
+    // Si hay cambio (diff < 0)
+    if (diff < 0) {
+      // Solo permitir si hay método de Efectivo
+      return hasCashPayment
+    }
+    
+    // Si hay falta de pago (diff > 0), no permitir
+    return false
+  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment])
+
+  const confirmDisabledReason = useMemo(() => {
+    if (cart.length === 0) return 'El carrito está vacío'
+    if (receiptTypeId === undefined) return 'Debe seleccionar un tipo de comprobante'
+    if (diff > 0) return `Falta ${formatCurrency(diff)} para completar el pago`
+    if (!allPaymentsValid) return 'Debe completar todos los métodos de pago'
+    if (!currentAccountPaymentValid) return 'Debe seleccionar un cliente para usar Cuenta Corriente'
+    if (activeBranch === null) return 'Debe seleccionar una sucursal'
+    if (diff < 0 && !hasCashPayment) {
+      const mainPaymentMethod = paymentMethods.find(pm => pm.id.toString() === payments[0]?.payment_method_id)
+      return `${mainPaymentMethod?.name || 'Este método de pago'} requiere monto exacto. No se permite cambio.`
+    }
+    return ''
+  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment, paymentMethods, payments])
+
+  const handleCustomerSelect = useCallback((customer: CustomerOption) => {
     setSelectedCustomer(customer)
     setCustomerSearch(customer.name)
     setShowCustomerOptions(false)
-
+    
+    // Cargar el saldo del cliente
     if (customer.id) {
-      const newBalance = await fetchBalance(customer.id)
-      if (newBalance && newBalance > 0) {
-        setShowDebtDialog(true)
-      }
+      setLoadingBalance(true)
+      request({ 
+        method: 'GET', 
+        url: `/customers/${customer.id}/current-account-balance` 
+      })
+        .then((response) => {
+          const balance = response?.balance ?? response?.data?.balance ?? 0
+          setCustomerBalance(balance)
+          
+          // Mostrar alerta si tiene deuda
+          if (balance > 0) {
+            setShowDebtDialog(true)
+          }
+        })
+        .catch((error) => {
+          console.error('Error al cargar saldo del cliente:', error)
+          setCustomerBalance(null)
+        })
+        .finally(() => {
+          setLoadingBalance(false)
+        })
     }
-  }, [setSelectedCustomer, setCustomerSearch, setShowCustomerOptions, fetchBalance])
+  }, [setSelectedCustomer, setCustomerSearch, setShowCustomerOptions, request])
 
   // ... (resto del código)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleNewCustomerSuccess = useCallback((cust: any) => {
     const hasCuit = cust.person?.cuit
     const hasDni = cust.person?.documento
@@ -675,7 +665,7 @@ export default function CompleteSalePage() {
     toast.success("Cliente agregado y seleccionado")
   }, [setSelectedCustomer, setCustomerSearch])
 
-  if (cart.length === 0) {
+  if (initialCart.length === 0) {
     return null
   }
 
@@ -685,13 +675,7 @@ export default function CompleteSalePage() {
         <div className="mb-6">
           <Button
             variant="ghost"
-            onClick={() => navigate("/dashboard/pos", {
-              state: {
-                convertedFromBudgetId,
-                convertedFromBudgetTotal,
-                cart // Also pass cart back just in case, though localStorage handles it
-              }
-            })}
+            onClick={() => navigate("/dashboard/pos")}
             className="mb-4"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -700,14 +684,7 @@ export default function CompleteSalePage() {
 
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Completar Venta</CardTitle>
-                {convertedFromBudgetId && (
-                  <div className="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-200">
-                    Convirtiendo desde Presupuesto {location.state?.convertedFromBudgetNumber || `#${convertedFromBudgetId}`}
-                  </div>
-                )}
-              </div>
+              <CardTitle>Completar Venta</CardTitle>
               <CardDescription>
                 Completa los detalles de la venta y selecciona los métodos de pago.
               </CardDescription>
@@ -734,7 +711,6 @@ export default function CompleteSalePage() {
                       <SelectTrigger>
                         <SelectValue placeholder="Seleccionar..." />
                       </SelectTrigger>
-                      {/* @ts-expect-error - UI component props mismatch */}
                       <SelectContent className="max-h-60 overflow-y-auto" style={{ maxHeight: 300, overflowY: 'auto' }}>
                         {receiptTypes.map(rt => (
                           <SelectItem key={rt.id} value={rt.id.toString()}>
@@ -749,11 +725,9 @@ export default function CompleteSalePage() {
                     <div className="grid grid-cols-4 gap-2 items-end">
                       <Label className="col-span-4">Descuento global</Label>
                       <Select value={globalDiscountType} onValueChange={(v) => setGlobalDiscountType(v as 'percent' | 'amount' | '')}>
-                        {/* @ts-expect-error - UI component props mismatch */}
                         <SelectTrigger className="col-span-2">
                           <SelectValue placeholder="Tipo" />
                         </SelectTrigger>
-                        {/* @ts-expect-error - UI component props mismatch */}
                         <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
                           <SelectItem value="percent">Porcentaje %</SelectItem>
                           <SelectItem value="amount">Monto $</SelectItem>
@@ -804,17 +778,86 @@ export default function CompleteSalePage() {
                   El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos por ítem se aplican antes del IVA, el descuento global se aplica sobre el total con IVA. Cálculo con hasta 2 decimales.
                 </p>
 
-                <SaleItemsTable
-                  cart={cart}
-                  hasPermission={hasPermission}
-                  onUpdateItem={(idx, changes) => {
-                    setCart((prev) => prev.map((ci, i) =>
-                      i === idx
-                        ? { ...ci, ...changes }
-                        : ci
-                    ))
-                  }}
-                />
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead className="text-center">Cant.</TableHead>
+                        <TableHead className="text-right">P. Unit (sin IVA)</TableHead>
+                        <TableHead className="text-right">Subt. (sin IVA)</TableHead>
+                        <TableHead className="text-right">Desc. (importe)</TableHead>
+                        <TableHead className="text-right">IVA</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-right">Desc. Tipo</TableHead>
+                        <TableHead className="text-right">Desc. Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cart.map((item, idx) => {
+                        const base = roundToTwoDecimals((item.price || 0) * item.quantity)
+                        const itemDiscRaw = item.discount_type === 'percent'
+                          ? roundToTwoDecimals(base * ((item.discount_value || 0) / 100))
+                          : roundToTwoDecimals(Number(item.discount_value || 0))
+                        const safeDisc = Math.max(0, Math.min(itemDiscRaw, base))
+                        const net = roundToTwoDecimals(base - safeDisc)
+                        const iva = roundToTwoDecimals(net * ((item.iva_rate || 0) / 100))
+                        const tot = roundToTwoDecimals(net + iva)
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell>{item.name}</TableCell>
+                            <TableCell className="text-center">{item.quantity}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.price)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(base)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(safeDisc)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(iva)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(tot)}</TableCell>
+                            <TableCell className="text-right">
+                              <Select
+                                value={item.discount_type || ''}
+                                onValueChange={(v) => {
+                                  setCart((prev) => prev.map((ci, i) =>
+                                    i === idx
+                                      ? { ...ci, discount_type: v as 'percent' | 'amount', discount_value: ci.discount_value ?? 0 }
+                                      : ci
+                                  ))
+                                }}
+                                disabled={!hasPermission('aplicar_descuentos')}
+                              >
+                                <SelectTrigger className="w-[130px]">
+                                  <SelectValue placeholder="Tipo" />
+                                </SelectTrigger>
+                                <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
+                                  <SelectItem value="percent">% Porcentaje</SelectItem>
+                                  <SelectItem value="amount">$ Monto</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Input
+                                className="w-[120px] ml-auto"
+                                type="number"
+                                min={0}
+                                step={0.01}
+                                placeholder={item.discount_type === 'percent' ? '0.00' : '0.00'}
+                                value={item.discount_value?.toString() || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setCart((prev) => prev.map((ci, i) =>
+                                    i === idx
+                                      ? { ...ci, discount_value: val === '' ? undefined : Number(val) }
+                                      : ci
+                                  ))
+                                }}
+                                disabled={!hasPermission('aplicar_descuentos')}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
 
               <div className="flex justify-end gap-4 pt-4 border-t">
@@ -829,7 +872,6 @@ export default function CompleteSalePage() {
                     className="cursor-pointer"
                     onClick={handleConfirmSale}
                     disabled={!canConfirm || isProcessingSale}
-                    title={!canConfirm ? confirmDisabledReason : undefined}
                   >
                     {isProcessingSale ? (
                       <>
@@ -875,10 +917,8 @@ export default function CompleteSalePage() {
 
       {/* Diálogo de confirmación de cambio */}
       <Dialog open={showChangeConfirmDialog} onOpenChange={setShowChangeConfirmDialog}>
-        {/* @ts-expect-error - UI component props mismatch */}
         <DialogContent className="max-w-md">
           <DialogHeader>
-            {/* @ts-expect-error - UI component props mismatch */}
             <DialogTitle className="text-lg flex items-center gap-2">
               💰 Confirmar Cambio a Entregar
             </DialogTitle>
@@ -889,7 +929,7 @@ export default function CompleteSalePage() {
               <p className="text-center text-sm text-blue-700 font-medium mb-3">Cambio a Entregar al Cliente</p>
               <p className="text-center text-4xl font-bold text-blue-600">{formatCurrency(pendingChangeAmount)}</p>
             </div>
-
+            
             {/* Instructions */}
             <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
               <p className="text-sm font-semibold text-amber-900">⚠️ Antes de continuar:</p>

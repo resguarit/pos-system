@@ -13,6 +13,7 @@ interface AfipAuthorizationResult {
 
 interface UseAfipAuthorizationReturn {
   authorizeSale: (sale: SaleHeader) => Promise<AfipAuthorizationResult | null>;
+  canAuthorize: (sale: SaleHeader) => { can: boolean; reason?: string };
   isAuthorizing: boolean;
   error: string | null;
 }
@@ -22,18 +23,52 @@ interface UseAfipAuthorizationReturn {
  * 
  * @returns Funciones y estado para autorizar ventas con AFIP
  */
+import { useAfipContext } from "@/context/AfipContext";
+import { useBranch } from "@/context/BranchContext";
+
+// ... existing imports
+
 export function useAfipAuthorization(): UseAfipAuthorizationReturn {
   const { request } = useApi();
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { hasCertificateForCuit } = useAfipContext();
+  const { branches } = useBranch();
+
   /**
    * Valida si una venta puede ser autorizada con AFIP
    */
   const canAuthorize = (sale: SaleHeader): { can: boolean; reason?: string } => {
+    // Verificar certificado de la sucursal
+    let branchCuit: string | undefined;
+
+    // Intentar obtener el CUIT del objeto branch de la venta
+    if (typeof sale.branch === 'object' && sale.branch !== null) {
+      if ('cuit' in sale.branch && sale.branch.cuit) {
+        branchCuit = sale.branch.cuit;
+      } else if ('id' in sale.branch && sale.branch.id) {
+        const branch = branches.find(b => b.id === (sale.branch as any).id);
+        branchCuit = branch?.cuit;
+      }
+    } else if (typeof sale.branch === 'string') {
+      // Si es un string (nombre de la sucursal), buscar por descripción
+      const branch = branches.find(b => b.description === sale.branch);
+      branchCuit = branch?.cuit;
+    }
+
+    if (!branchCuit || !hasCertificateForCuit(branchCuit)) {
+      return { can: false, reason: 'La sucursal no posee un certificado AFIP válido configurado.' };
+    }
+
     // Verificar que no sea presupuesto
     const receiptType = sale.receipt_type;
-    if (receiptType?.afip_code === '016' || receiptType?.name?.toLowerCase().includes('presupuesto')) {
+    // ... rest of validation logic
+    if (receiptType && (typeof receiptType !== 'string')) {
+      if (receiptType.afip_code === '016' || receiptType.name?.toLowerCase().includes('presupuesto')) {
+        return { can: false, reason: 'Los presupuestos no requieren autorización AFIP' };
+      }
+    } else if (typeof receiptType === 'string' && receiptType.toLowerCase().includes('presupuesto')) { // Fallback for string
       return { can: false, reason: 'Los presupuestos no requieren autorización AFIP' };
     }
 
@@ -120,6 +155,7 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
 
   return {
     authorizeSale,
+    canAuthorize,
     isAuthorizing,
     error,
   };

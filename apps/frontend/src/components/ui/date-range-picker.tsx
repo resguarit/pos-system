@@ -116,6 +116,7 @@ export function DatePickerWithRange({ className, selected, onSelect, align = "st
     // Cerrar el calendario después de seleccionar el rango completo
     setTimeout(() => setOpen(false), 100);
   }, [selected, onSelect, setOpen]);
+
   return (
     <div className={cn("grid gap-2", className)}>
       <div className="flex items-center gap-1">
@@ -142,32 +143,21 @@ export function DatePickerWithRange({ className, selected, onSelect, align = "st
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className={cn("w-auto p-0", isMobile ? "max-w-[320px]" : "min-w-[600px]")}
+            className={cn("w-auto p-0", isMobile ? "max-w-[320px]" : "w-auto")}
             align={align}
             side={side}
             sideOffset={5}
           >
-            <div className={cn(isMobile ? "" : "grid grid-cols-2 gap-2")}>
-              <Calendar
-                initialFocus mode="range"
-                defaultMonth={selected?.from || new Date()}
-                selected={selected}
-                onSelect={handleSelect}
-                className="w-full"
-              />
-
-              {/* Si no está en móvil, muestra un segundo calendario */}
-              {!isMobile && (
-                <Calendar
-                  mode="range"
-                  defaultMonth={selected?.from
-                    ? new Date(selected.from.getFullYear(), selected.from.getMonth() + 1)
-                    : new Date(new Date().getFullYear(), new Date().getMonth() + 1)} selected={selected}
-                  onSelect={handleSelect}
-                  className="w-full"
-                />
-              )}
-            </div>
+            {/* SIMPLIFIED: Using single Calendar with months prop */}
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={selected?.from || new Date()}
+              selected={selected}
+              onSelect={handleSelect}
+              months={1} // Always show 1 month as requested
+              className="w-full"
+            />
           </PopoverContent>
         </Popover>
         {showClearButton && selected && (

@@ -12,42 +12,140 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Plus, FolderPlus } from 'lucide-react';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { 
+    Loader2, 
+    Plus, 
+    FolderPlus,
+    Users,
+    Building,
+    Wifi,
+    Shield,
+    Landmark,
+    Briefcase,
+    Sparkles,
+    Megaphone,
+    Percent,
+    Package,
+    Car,
+    Paperclip,
+    Laptop,
+    Truck,
+    Hammer,
+    Palmtree,
+    Wallet,
+    ShoppingBag,
+    Box,
+    Receipt,
+    Utensils,
+    GraduationCap,
+    type LucideIcon
+} from 'lucide-react';
 import { toast } from 'sonner';
 import useApi from '@/hooks/useApi';
+
+// Available icons for categories
+const CATEGORY_ICONS: { id: string; icon: LucideIcon; label: string }[] = [
+    { id: 'users', icon: Users, label: 'Personal' },
+    { id: 'building', icon: Building, label: 'Edificio' },
+    { id: 'wifi', icon: Wifi, label: 'Internet' },
+    { id: 'shield', icon: Shield, label: 'Seguros' },
+    { id: 'landmark', icon: Landmark, label: 'Impuestos' },
+    { id: 'briefcase', icon: Briefcase, label: 'Profesional' },
+    { id: 'sparkles', icon: Sparkles, label: 'Limpieza' },
+    { id: 'megaphone', icon: Megaphone, label: 'Marketing' },
+    { id: 'percent', icon: Percent, label: 'Comisiones' },
+    { id: 'package', icon: Package, label: 'Embalaje' },
+    { id: 'car', icon: Car, label: 'Viáticos' },
+    { id: 'paperclip', icon: Paperclip, label: 'Oficina' },
+    { id: 'laptop', icon: Laptop, label: 'Software' },
+    { id: 'truck', icon: Truck, label: 'Fletes' },
+    { id: 'hammer', icon: Hammer, label: 'Mantenimiento' },
+    { id: 'palmtree', icon: Palmtree, label: 'Vacaciones' },
+    { id: 'wallet', icon: Wallet, label: 'Finanzas' },
+    { id: 'shopping-bag', icon: ShoppingBag, label: 'Compras' },
+    { id: 'box', icon: Box, label: 'Insumos' },
+    { id: 'receipt', icon: Receipt, label: 'General' },
+    { id: 'utensils', icon: Utensils, label: 'Comida' },
+    { id: 'graduation-cap', icon: GraduationCap, label: 'Capacitación' },
+];
+
+interface ParentCategory {
+    id: number;
+    name: string;
+}
 
 interface NewCategoryDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
+    parentCategory?: ParentCategory | null;
 }
 
 interface CategoryFormData {
     name: string;
     description: string;
     active: boolean;
+    parent_id: string;
+    icon: string;
 }
 
 const initialFormData: CategoryFormData = {
     name: '',
     description: '',
     active: true,
+    parent_id: '',
+    icon: 'receipt',
 };
 
-export function NewCategoryDialog({ open, onOpenChange, onSuccess }: NewCategoryDialogProps) {
+export function NewCategoryDialog({ open, onOpenChange, onSuccess, parentCategory }: NewCategoryDialogProps) {
     const { request } = useApi();
 
     const [formData, setFormData] = useState<CategoryFormData>(initialFormData);
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [parentCategories, setParentCategories] = useState<ParentCategory[]>([]);
+
+    // Load parent categories
+    useEffect(() => {
+        const loadParentCategories = async () => {
+            try {
+                const response = await request({
+                    method: 'GET',
+                    url: '/expense-categories',
+                    params: { parent_only: true, limit: 100 }
+                });
+                if (response?.data) {
+                    // Only include categories without parent (top-level)
+                    const topLevel = response.data.filter((c: any) => !c.parent_id);
+                    setParentCategories(topLevel);
+                }
+            } catch (error) {
+                console.error('Error loading parent categories:', error);
+            }
+        };
+
+        if (open) {
+            loadParentCategories();
+        }
+    }, [open, request]);
 
     // Reset form when dialog opens/closes
     useEffect(() => {
         if (!open) {
             setFormData(initialFormData);
             setErrors({});
+        } else if (parentCategory) {
+            setFormData(prev => ({ ...prev, parent_id: parentCategory.id.toString() }));
         }
-    }, [open]);
+    }, [open, parentCategory]);
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
@@ -72,6 +170,8 @@ export function NewCategoryDialog({ open, onOpenChange, onSuccess }: NewCategory
                 name: formData.name.trim(),
                 description: formData.description.trim() || null,
                 active: formData.active,
+                parent_id: formData.parent_id ? parseInt(formData.parent_id) : null,
+                icon: formData.icon,
             };
 
             const response = await request({
@@ -108,15 +208,68 @@ export function NewCategoryDialog({ open, onOpenChange, onSuccess }: NewCategory
                     {/* @ts-ignore */}
                     <DialogTitle className="flex items-center gap-2">
                         <FolderPlus className="h-5 w-5" />
-                        Nueva Categoría de Gasto
+                        {parentCategory ? `Nueva Subcategoría de "${parentCategory.name}"` : 'Nueva Categoría de Gasto'}
                     </DialogTitle>
                     {/* @ts-ignore */}
                     <DialogDescription>
-                        Cree una nueva categoría para organizar los gastos
+                        {parentCategory ? 'Cree una subcategoría dentro de la categoría seleccionada' : 'Cree una nueva categoría para organizar los gastos'}
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {!parentCategory && (
+                        <div className="space-y-2">
+                            {/* @ts-ignore */}
+                            <Label htmlFor="parent_id">Categoría Padre (opcional)</Label>
+                            <Select
+                                value={formData.parent_id}
+                                onValueChange={(value) => setFormData(prev => ({ ...prev, parent_id: value === 'none' ? '' : value }))}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Sin categoría padre (categoría principal)" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[200px]">
+                                    <ScrollArea className="h-[200px]">
+                                        <SelectItem value="none">Sin categoría padre (categoría principal)</SelectItem>
+                                        {parentCategories.map((cat) => (
+                                            <SelectItem key={cat.id} value={cat.id.toString()}>
+                                                {cat.name}
+                                            </SelectItem>
+                                        ))}
+                                    </ScrollArea>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                Seleccione una categoría padre para crear una subcategoría
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Icon Selector */}
+                    <div className="space-y-2">
+                        {/* @ts-ignore */}
+                        <Label>Icono</Label>
+                        <div className="grid grid-cols-6 gap-2 p-3 border rounded-lg max-h-[120px] overflow-y-auto">
+                            {CATEGORY_ICONS.map(({ id, icon: Icon, label }) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, icon: id }))}
+                                    className={`flex flex-col items-center justify-center p-2 rounded-md transition-all hover:bg-muted ${
+                                        formData.icon === id 
+                                            ? 'bg-primary/10 border-2 border-primary ring-1 ring-primary' 
+                                            : 'border border-transparent hover:border-muted-foreground/20'
+                                    }`}
+                                    title={label}
+                                >
+                                    <Icon className={`h-5 w-5 ${formData.icon === id ? 'text-primary' : 'text-muted-foreground'}`} />
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Seleccione un icono para identificar la categoría
+                        </p>
+                    </div>
                     <div className="space-y-2">
                         {/* @ts-ignore */}
                         <Label htmlFor="name">Nombre <span className="text-red-500">*</span></Label>
@@ -171,7 +324,7 @@ export function NewCategoryDialog({ open, onOpenChange, onSuccess }: NewCategory
                             ) : (
                                 <>
                                     <Plus className="mr-2 h-4 w-4" />
-                                    Crear Categoría
+                                    {parentCategory || formData.parent_id ? 'Crear Subcategoría' : 'Crear Categoría'}
                                 </>
                             )}
                         </Button>

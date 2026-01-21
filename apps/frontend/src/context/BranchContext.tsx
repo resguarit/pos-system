@@ -59,16 +59,16 @@ export function BranchProvider({ children }: BranchProviderProps) {
       try {
         // Obtener IDs de sucursales del usuario (normalizar a string)
         const userBranchIds = (user?.branches || []).map((b: any) => String(b.id));
-        
+
         if (userBranchIds.length === 0) {
           setBranches([]);
           return;
         }
-        
+
         // Obtener datos completos de sucursales desde la API
         const response = await request({ method: 'GET', url: '/branches' });
         const allBranches = response?.data || response || [];
-        
+
         // Filtrar solo las sucursales del usuario y que estén activas
         const list = allBranches
           .filter((b: any) => {
@@ -83,7 +83,7 @@ export function BranchProvider({ children }: BranchProviderProps) {
             enabled_receipt_types: b.enabled_receipt_types,
             ...b,
           }));
-        
+
         setBranches(list);
       } catch (error) {
         console.error('Error loading branches:', error);
@@ -135,10 +135,10 @@ export function BranchProvider({ children }: BranchProviderProps) {
       validUrlIds.length > 0
         ? validUrlIds
         : validLsIds.length > 0
-        ? validLsIds
-        : branches[0]
-        ? [String(branches[0].id)]
-        : [];
+          ? validLsIds
+          : branches[0]
+            ? [String(branches[0].id)]
+            : [];
 
     setSelectedBranchIdsState(initialIds);
 

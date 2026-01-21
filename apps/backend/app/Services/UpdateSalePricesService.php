@@ -60,9 +60,9 @@ class UpdateSalePricesService
      */
     public function getSaleUpdatePreview(int $saleId): array
     {
-        $sale = SaleHeader::with(['items.product', 'customer.person'])->findOrFail($saleId);
+        $sale = SaleHeader::with(['items.product', 'customer.person', 'currentAccountMovements'])->findOrFail($saleId);
 
-        $oldTotal = (float) $sale->total;
+        $originalTotal = (float) $sale->total;
         $newSubtotal = 0;
         $newTotalIva = 0;
         $paidAmount = (float) $sale->paid_amount;
@@ -128,6 +128,18 @@ class UpdateSalePricesService
 
         $newTotal = $newSubtotal + $newTotalIva + (float) $sale->iibb + (float) $sale->internal_tax;
 
+        // Calcular el total efectivo actual (original + recargos previos)
+        $movementType = MovementType::where('name', 'Recargo')->first();
+        $totalPreviousSurcharges = 0;
+
+        if ($movementType) {
+            $totalPreviousSurcharges = (float) $sale->currentAccountMovements
+                ->where('movement_type_id', $movementType->id)
+                ->sum('amount');
+        }
+
+        $currentEffectiveTotal = $originalTotal + $totalPreviousSurcharges;
+
         // Get customer name
         $customerName = '';
         if ($sale->customer && $sale->customer->person) {
@@ -139,11 +151,13 @@ class UpdateSalePricesService
             'receipt_number' => $sale->receipt_number,
             'customer_name' => $customerName,
             'items' => $items,
-            'old_total' => $oldTotal,
+            'original_total' => $originalTotal,
+            'previous_surcharges' => $totalPreviousSurcharges,
+            'old_total' => $currentEffectiveTotal,
             'new_total' => $newTotal,
-            'difference' => $newTotal - $oldTotal,
+            'difference' => $newTotal - $currentEffectiveTotal,
             'paid_amount' => $paidAmount,
-            'old_pending' => $oldTotal - $paidAmount,
+            'old_pending' => $currentEffectiveTotal - $paidAmount,
             'new_pending' => $newTotal - $paidAmount,
         ];
     }
@@ -164,7 +178,7 @@ class UpdateSalePricesService
             $this->validateSaleCanBeUpdated($sale);
 
             // Calcular valores nuevos sin modificar la venta
-            $oldTotal = (float) $sale->total;
+            $originalTotal = (float) $sale->total;
             $newSubtotal = 0;
             $newTotalIva = 0;
 
@@ -214,9 +228,20 @@ class UpdateSalePricesService
 
             $newTotal = $newSubtotal + $newTotalIva + (float) $sale->iibb + (float) $sale->internal_tax;
 
-            $difference = $newTotal - $oldTotal;
+            // Calcular el total efectivo actual (original + recargos previos)
+            $movementType = MovementType::where('name', 'Recargo')->first();
+            $totalPreviousSurcharges = 0;
 
-            // Si la diferencia es positiva, crear movimiento de recargo
+            if ($movementType) {
+                $totalPreviousSurcharges = (float) $sale->currentAccountMovements
+                    ->where('movement_type_id', $movementType->id)
+                    ->sum('amount');
+            }
+
+            $currentEffectiveTotal = $originalTotal + $totalPreviousSurcharges;
+            $difference = $newTotal - $currentEffectiveTotal;
+
+            // Solo aplicar recargo si hay una diferencia real con el total efectivo actual
             if ($difference > 0.01) {
                 $this->createSurchargeMovement($sale, $difference);
 
@@ -224,7 +249,9 @@ class UpdateSalePricesService
                 Log::info("Recargo aplicado por actualización de precios", [
                     'sale_id' => $sale->id,
                     'receipt_number' => $sale->receipt_number,
-                    'old_total' => $oldTotal,
+                    'original_total' => $originalTotal,
+                    'previous_surcharges' => $totalPreviousSurcharges,
+                    'current_effective_total' => $currentEffectiveTotal,
                     'new_total' => $newTotal,
                     'surcharge_amount' => $difference,
                 ]);
@@ -233,7 +260,7 @@ class UpdateSalePricesService
                     'success' => true,
                     'sale_id' => $sale->id,
                     'receipt_number' => $sale->receipt_number,
-                    'old_total' => $oldTotal,
+                    'old_total' => $currentEffectiveTotal,
                     'new_total' => $newTotal,
                     'difference' => $difference,
                     'message' => 'Recargo aplicado correctamente'
@@ -242,7 +269,10 @@ class UpdateSalePricesService
 
             return [
                 'success' => false,
-                'message' => 'No hay diferencia de precio para aplicar'
+                'message' => 'No hay diferencia de precio para aplicar',
+                'old_total' => $currentEffectiveTotal,
+                'new_total' => $newTotal,
+                'difference' => 0
             ];
         });
     }

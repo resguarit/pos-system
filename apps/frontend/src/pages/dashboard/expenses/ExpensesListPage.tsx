@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { Search, Pencil, Trash2, RotateCw, Plus, X, DollarSign } from "lucide-react"
+import { Search, Pencil, Trash2, RotateCw, Plus, X, DollarSign, Users, Building, Wifi, Shield, Landmark, Briefcase, Sparkles, Megaphone, Percent, Package, Car, Paperclip, Laptop, Truck, Hammer, Palmtree, Wallet, ShoppingBag, Box, Receipt, Utensils, GraduationCap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
 import Pagination from "@/components/ui/pagination"
@@ -24,9 +24,76 @@ import {
 
 import { NewExpenseDialog, EditExpenseDialog } from "@/components/expenses"
 import { ExpensesStats } from "@/components/expenses/ExpensesStats"
+import { useSystemConfigContext } from "@/context/SystemConfigContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
 import { format } from "date-fns"
+
+// Icon mapping from icon ID to component
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?: string }>> = {
+    'users': Users,
+    'building': Building,
+    'wifi': Wifi,
+    'shield': Shield,
+    'landmark': Landmark,
+    'briefcase': Briefcase,
+    'sparkles': Sparkles,
+    'megaphone': Megaphone,
+    'percent': Percent,
+    'package': Package,
+    'car': Car,
+    'paperclip': Paperclip,
+    'laptop': Laptop,
+    'truck': Truck,
+    'hammer': Hammer,
+    'palmtree': Palmtree,
+    'wallet': Wallet,
+    'shopping-bag': ShoppingBag,
+    'box': Box,
+    'receipt': Receipt,
+    'utensils': Utensils,
+    'graduation-cap': GraduationCap,
+};
+
+// Helper to get icon by ID or fallback to name-based inference
+const getCategoryIcon = (iconId: string | undefined | null, name: string, size: string = "h-4 w-4", color?: string) => {
+    const props = { className: size, ...(color && { color }) };
+    
+    // First try to use the stored icon ID
+    if (iconId && ICON_MAP[iconId]) {
+        const IconComponent = ICON_MAP[iconId];
+        return <IconComponent {...props} />;
+    }
+    
+    // Fallback to name-based inference
+    const normalized = name.toLowerCase();
+    
+    if (normalized.includes('sueldo') || normalized.includes('salario')) return <Users {...props} />;
+    if (normalized.includes('alquiler') || normalized.includes('local')) return <Building {...props} />;
+    if (normalized.includes('internet') || normalized.includes('telecom')) return <Wifi {...props} />;
+    if (normalized.includes('seguro')) return <Shield {...props} />;
+    if (normalized.includes('impuesto') || normalized.includes('tasa') || normalized.includes('afip')) return <Landmark {...props} />;
+    if (normalized.includes('honorario') || normalized.includes('contador') || normalized.includes('abogado')) return <Briefcase {...props} />;
+    if (normalized.includes('limpieza')) return <Sparkles {...props} />;
+    if (normalized.includes('publicidad') || normalized.includes('marketing')) return <Megaphone {...props} />;
+    if (normalized.includes('comision')) return <Percent {...props} />;
+    if (normalized.includes('embalaje') || normalized.includes('packaging')) return <Package {...props} />;
+    if (normalized.includes('viatico') || normalized.includes('viaje')) return <Car {...props} />;
+    if (normalized.includes('oficina') || normalized.includes('libreria')) return <Paperclip {...props} />;
+    if (normalized.includes('software') || normalized.includes('licencia') || normalized.includes('sistema')) return <Laptop {...props} />;
+    if (normalized.includes('flete') || normalized.includes('envio') || normalized.includes('transporte')) return <Truck {...props} />;
+    if (normalized.includes('mantenimiento') || normalized.includes('reparacion')) return <Hammer {...props} />;
+    if (normalized.includes('aguinaldo') || normalized.includes('vacaciones')) return <Palmtree {...props} />;
+    if (normalized.includes('social') || normalized.includes('sindicato')) return <Users {...props} />;
+    if (normalized.includes('banco') || normalized.includes('financiero')) return <Wallet {...props} />;
+    if (normalized.includes('mercaderia') || normalized.includes('compra')) return <ShoppingBag {...props} />;
+    if (normalized.includes('insumo')) return <Box {...props} />;
+    if (normalized.includes('comida') || normalized.includes('refrigerio')) return <Utensils {...props} />;
+    if (normalized.includes('capacitacion') || normalized.includes('curso')) return <GraduationCap {...props} />;
+    
+    // Default fallback
+    return <Receipt {...props} />;
+};
 
 interface Expense {
     id: number;
@@ -39,6 +106,7 @@ interface Expense {
     category: {
         id: number;
         name: string;
+        icon?: string;
     };
     employee_id: number | null;
     employee?: {
@@ -62,6 +130,7 @@ interface Branch {
 export default function ExpensesListPage() {
     const { request, loading } = useApi();
     const { hasPermission } = useAuth();
+    const { config } = useSystemConfigContext();
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [searchTerm, setSearchTerm] = useState("")
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
@@ -102,8 +171,8 @@ export default function ExpensesListPage() {
 
     // Column configuration
     const columnConfig = [
-        { id: 'description', minWidth: 200, maxWidth: 400, defaultWidth: 250 },
-        { id: 'category', minWidth: 150, maxWidth: 250, defaultWidth: 180 },
+        { id: 'category', minWidth: 180, maxWidth: 300, defaultWidth: 220 },
+        { id: 'description', minWidth: 180, maxWidth: 400, defaultWidth: 230 },
         { id: 'amount', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: 'date', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
@@ -398,8 +467,8 @@ export default function ExpensesListPage() {
                             <Table ref={tableRef} className="w-full">
                                 <TableHeader>
                                     <TableRow>
-                                        <ResizableTableHeader columnId="description" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Descripción</ResizableTableHeader>
                                         <ResizableTableHeader columnId="category" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Categoría</ResizableTableHeader>
+                                        <ResizableTableHeader columnId="description" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Descripción</ResizableTableHeader>
                                         <ResizableTableHeader columnId="amount" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Monto</ResizableTableHeader>
                                         <ResizableTableHeader columnId="date" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Fecha</ResizableTableHeader>
                                         <ResizableTableHeader columnId="status" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Estado</ResizableTableHeader>
@@ -409,8 +478,16 @@ export default function ExpensesListPage() {
                                 <TableBody>
                                     {expenses.map((expense) => (
                                         <TableRow key={expense.id}>
+                                            <ResizableTableCell columnId="category" getColumnCellProps={getColumnCellProps}>
+                                                <div className="flex items-center gap-2">
+                                                    <span>
+                                                        {getCategoryIcon(expense.category?.icon, expense.category?.name || '', "h-4 w-4", config?.primary_color)}
+                                                    </span>
+                                                    <span className="font-medium">{expense.category?.name || '-'}</span>
+                                                </div>
+                                            </ResizableTableCell>
                                             <ResizableTableCell columnId="description" getColumnCellProps={getColumnCellProps}>
-                                                <div className="font-medium">{expense.description}</div>
+                                                <div className="text-muted-foreground">{expense.description || '-'}</div>
                                                 {expense.is_recurring && (
                                                     <div className="mt-1">
                                                         {(() => {
@@ -435,9 +512,6 @@ export default function ExpensesListPage() {
                                                         })()}
                                                     </div>
                                                 )}
-                                            </ResizableTableCell>
-                                            <ResizableTableCell columnId="category" getColumnCellProps={getColumnCellProps}>
-                                                {expense.category?.name || '-'}
                                             </ResizableTableCell>
                                             <ResizableTableCell columnId="amount" getColumnCellProps={getColumnCellProps}>
                                                 ${Number(expense.amount).toLocaleString()}
