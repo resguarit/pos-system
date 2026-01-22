@@ -82,6 +82,10 @@ class PermissionSeeder extends Seeder
             ['name' => 'editar_clientes', 'description' => 'Editar cliente', 'module' => 'clientes'],
             ['name' => 'eliminar_clientes', 'description' => 'Eliminar cliente', 'module' => 'clientes'],
 
+            // Servicios
+            ['name' => 'ver_servicios', 'description' => 'Ver servicios y estado por cliente', 'module' => 'servicios'],
+            ['name' => 'editar_servicios', 'description' => 'Crear, editar o eliminar servicios y suscripciones', 'module' => 'servicios'],
+
             // Órdenes de Compra
             ['name' => 'ver_ordenes_compra', 'description' => 'Ver órdenes de compra e historial', 'module' => 'compras'],
             ['name' => 'crear_ordenes_compra', 'description' => 'Crear orden de compra', 'module' => 'compras'],

@@ -1,15 +1,11 @@
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, ChevronDown, Download, LineChart, TrendingUp, Users } from 'lucide-react'
+import { Calendar, Download, LineChart, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import SalesChart from "@/components/sales-chart"
 import ProductsChart from "@/components/products-chart"
 import { TopProductsTable } from "@/components/top-products-table"
-import SalesBranchChart from "@/components/sales-branch-chart"
 import api from "@/lib/api"
 import { useBranches } from "@/hooks/useBranches"
 import { useAuth } from "@/hooks/useAuth"
@@ -71,6 +67,7 @@ export default function AnalisisVentasPage() {
         // Ordenar por ingresos descendente
         const sortedProducts = [...salesByProduct].sort((a, b) => Number(b.total_revenue) - Number(a.total_revenue))
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const productsData = [
           ["Producto", "Cantidad Vendida", "Ingresos Totales", "Precio Promedio Unitario"],
           ...sortedProducts.map(p => {

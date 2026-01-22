@@ -57,6 +57,7 @@ import StockTransfersPage from '@/pages/dashboard/StockTransfersPage'
 import ExpensesListPage from '@/pages/dashboard/expenses/ExpensesListPage'
 import EmployeesPage from '@/pages/dashboard/expenses/EmployeesPage'
 import ExpenseCategoriesPage from '@/pages/dashboard/expenses/ExpenseCategoriesPage'
+import ServicesPage from '@/pages/dashboard/ServicesPage'
 import features from '@/config/features'
 
 
@@ -120,6 +121,8 @@ function App() {
           {features.usuarios && <Route path="usuarios/:id/desempeno" element={<ProtectedRoute permissions={['ver_estadisticas_usuario']}><UserPerformancePage /></ProtectedRoute>} />}
           {features.usuarios && <Route path="usuarios/nuevo" element={<ProtectedRoute permissions={['crear_usuarios']}><NuevoUsuarioPage /></ProtectedRoute>} />}
           {features.ventas && <Route path="ventas" element={<ProtectedRoute permissions={['ver_ventas']}><VentasPage /></ProtectedRoute>} />}
+
+          {features.services && <Route path="servicios" element={<ProtectedRoute permissions={['ver_servicios']}><ServicesPage /></ProtectedRoute>} />}
 
 
           {features.shipments && <Route path="envios" element={<ProtectedRoute permissions={['ver_envios']}><ShipmentsPage /></ProtectedRoute>} />}

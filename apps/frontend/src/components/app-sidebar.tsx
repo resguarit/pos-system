@@ -3,7 +3,6 @@ import {
   BarChart3,
   Briefcase,
   Building2,
-  CheckCircle,
   ChevronRight,
   CircleDollarSign,
   ClipboardList,
@@ -48,7 +47,6 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
 import features from "@/config/features"
@@ -111,7 +109,7 @@ export function AppSidebar({ className }: { className?: string }) {
       title: "Servicios",
       url: "/dashboard/servicios",
       icon: Globe,
-      visible: features.services && hasPermission('ver_clientes'),
+      visible: features.services && hasPermission('ver_servicios'),
       isActive: pathname.startsWith("/dashboard/servicios"),
       items: [],
     },

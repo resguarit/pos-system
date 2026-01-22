@@ -7,7 +7,6 @@ import { UpdateExchangeRateDialog } from '@/components/UpdateExchangeRateDialog'
 import { cn } from '@/lib/utils';
 
 import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 
 interface ExchangeRateDisplayProps {
   className?: string;

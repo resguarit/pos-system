@@ -120,6 +120,11 @@ function getFeatureForModule(moduleName: string): boolean {
     'auditoría': 'auditorias',
     'auditorias': 'auditorias',
     'metodos_pago': 'metodosPago',
+
+    // Servicios
+    'servicios': 'services',
+    'service types': 'services',
+    'service_types': 'services',
     'métodos de pago': 'metodosPago',
     'metodos de pago': 'metodosPago',
     'gastos': 'gastos',
@@ -197,7 +202,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         const permissionsData = permsRes.data || [];
 
         if (permissionsData.length > 0) {
-          const grouped = permissionsData.reduce((acc: Record<string, Module>, perm: any) => {
+          const grouped = permissionsData.reduce((acc: Record<string, Module>, perm: { id: number; name: string; description: string; module?: string }) => {
             // Filtrar permisos del flujo de envíos que ya no se usan
             const flowPermissions = [
               'crear_etapas_envio',
@@ -230,7 +235,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
           if (signal.aborted) return;
 
           const roleData = roleDetailsRes.data || roleDetailsRes;
-          const assignedPermsIds = (assignedPermsRes.data || []).map((p: any) => String(p.id));
+          const assignedPermsIds = (assignedPermsRes.data || []).map((p: { id: number }) => String(p.id));
 
           // Almacenar el nombre inicial en el ref para la validación
           initialNameRef.current = roleData.name || "";
@@ -246,7 +251,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
 
           dispatch({ type: 'SET_ENTITY', entityType: 'roles', id: roleId, entity: { ...roleData, permissions: assignedPermsIds } });
         }
-      } catch (error: any) {
+      } catch (error) {
         if (!axios.isCancel(error)) {
           toast.error("Error al cargar datos", { description: "No se pudieron obtener los datos para el formulario de roles." });
         }
@@ -377,8 +382,8 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         localStorage.setItem('roles_updated', Date.now().toString());
       }
       navigate('/dashboard/roles');
-    } catch (error: any) {
-      const errorMsg = error.response?.data?.message || "Ocurrió un error inesperado.";
+    } catch (error) {
+      const errorMsg = (error as { response?: { data?: { message?: string } } }).response?.data?.message || "Ocurrió un error inesperado.";
       toast.error("Error al guardar", { description: errorMsg });
     } finally {
       setIsSubmitting(false);
@@ -406,8 +411,12 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
     );
   }
 
-  // Filtrar módulos basado en las features habilitadas
-  const filteredModules = modules.filter(module => getFeatureForModule(module.name));
+  // Filtrar módulos basado en las features habilitadas, pero mostrar módulos que ya tengan permisos asignados
+  const filteredModules = modules.filter(module => {
+    const modulePermissionIds = module.permissions.map(p => p.id);
+    const hasAssignedPermission = modulePermissionIds.some(id => formData.permissions.includes(id));
+    return getFeatureForModule(module.name) || hasAssignedPermission;
+  });
 
   return (
     <div ref={topRef} className="w-full p-4 pt-6 md:p-8">

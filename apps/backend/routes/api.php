@@ -281,7 +281,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('stocks')->group(function () {
-        Route::middleware('has_permission:ver_stock')->group(function () {
+        // Lectura de stock (solo requiere autenticación, no permiso específico)
+        Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [StockController::class, 'index']);
             Route::get('/{id}', [StockController::class, 'show']);
             Route::post('/by-product-branch', [StockController::class, 'getByProductAndBranch']);
@@ -353,13 +354,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('has_permission:eliminar_clientes')->delete('/{id}', [CustomerController::class, 'destroy']);
 
         // Services routes linked to customers
-        Route::prefix('{customerId}/services')->middleware('has_permission:ver_clientes')->group(function () {
+        Route::prefix('{customerId}/services')->middleware('has_permission:ver_servicios')->group(function () {
             Route::get('/', [ClientServiceController::class, 'index']);
-            Route::middleware('has_permission:editar_clientes')->post('/', [ClientServiceController::class, 'store']);
+            Route::middleware('has_permission:editar_servicios')->post('/', [ClientServiceController::class, 'store']);
         });
     });
 
-    Route::prefix('client-services')->middleware('has_permission:ver_clientes')->group(function () {
+    Route::prefix('client-services')->middleware('has_permission:ver_servicios')->group(function () {
         // Stats route - must be before {id} routes
         Route::get('/stats', [ApiClientServiceController::class, 'stats']);
         Route::get('/customers-with-services', [ApiClientServiceController::class, 'customersWithServices']);
@@ -368,7 +369,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [ApiClientServiceController::class, 'index']);
         Route::get('/{clientService}', [ApiClientServiceController::class, 'show']);
 
-        Route::middleware('has_permission:editar_clientes')->group(function () {
+        Route::middleware('has_permission:editar_servicios')->group(function () {
             Route::post('/', [ApiClientServiceController::class, 'store']);
             Route::put('/{clientService}', [ApiClientServiceController::class, 'update']);
             Route::delete('/{clientService}', [ApiClientServiceController::class, 'destroy']);
@@ -377,11 +378,11 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Service Types (Catalog)
-    Route::prefix('service-types')->middleware('has_permission:ver_clientes')->group(function () {
+    Route::prefix('service-types')->middleware('has_permission:ver_servicios')->group(function () {
         Route::get('/', [ServiceTypeController::class, 'index']);
         Route::get('/{serviceType}', [ServiceTypeController::class, 'show']);
 
-        Route::middleware('has_permission:editar_clientes')->group(function () {
+        Route::middleware('has_permission:editar_servicios')->group(function () {
             Route::post('/', [ServiceTypeController::class, 'store']);
             Route::put('/{serviceType}', [ServiceTypeController::class, 'update']);
             Route::delete('/{serviceType}', [ServiceTypeController::class, 'destroy']);
@@ -624,7 +625,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Combos Routes
     Route::prefix('combos')->group(function () {
-        Route::middleware('has_permission:gestionar_combos')->group(function () {
+        // Lectura de combos (sin permisos específicos requeridos)
+        Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [ComboController::class, 'index']);
             Route::get('/statistics', [ComboController::class, 'statistics']);
             Route::get('/available-in-branch', [ComboController::class, 'getAvailableInBranch']);
