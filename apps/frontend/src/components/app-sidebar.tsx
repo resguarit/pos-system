@@ -378,6 +378,9 @@ export function AppSidebar({ className }: { className?: string }) {
 
                 // If no subitems, render as a single link (for standalone entries como "Servicios")
                 if (visibleItems.length === 0 && group.url && group.url !== "#") {
+                  // Skip if group itself is not visible
+                  if (group.visible === false) return null
+                  
                   return (
                     <SidebarMenuItem key={group.title}>
                       <SidebarMenuButton asChild isActive={pathname.startsWith(group.url)} tooltip={group.title}>

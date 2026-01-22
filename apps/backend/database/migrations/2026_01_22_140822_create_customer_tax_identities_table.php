@@ -19,6 +19,11 @@ return new class extends Migration {
                 $table->string('cuit', 20)->nullable();
                 $table->string('business_name')->nullable()->comment('Razon Social or Alias');
                 $table->foreignId('fiscal_condition_id')->nullable()->constrained('fiscal_conditions')->onDelete('set null');
+                // Bank fields
+                $table->string('cbu', 22)->nullable()->comment('CBU bancario');
+                $table->string('cbu_alias', 50)->nullable()->comment('Alias del CBU');
+                $table->string('bank_name', 100)->nullable()->comment('Nombre del banco');
+                $table->string('account_holder', 255)->nullable()->comment('Titular de la cuenta');
                 $table->boolean('is_default')->default(false);
                 $table->timestamps();
                 $table->softDeletes();

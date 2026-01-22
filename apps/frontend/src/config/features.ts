@@ -13,7 +13,7 @@ const defaultFeatures = {
 
   configuracionSistema: true,
   cuentasCorrientes: true,
-  services: false,
+  services: true,
 
   historialVentas: true,
   inventario: true,
@@ -22,8 +22,8 @@ const defaultFeatures = {
   proveedores: true,
   purchaseOrders: true,
   transferencias: true,
-  reportesInventario: false,
-  reportesFinancieros: true,
+//  reportesInventario: false,
+//  reportesFinancieros: true,
 
   sucursales: true,
 

@@ -126,7 +126,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('products')->group(function () {
-        Route::middleware('has_permission:ver_productos')->group(function () {
+        // Lectura de productos (solo requiere autenticación)
+        Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [ProductController::class, 'index']);
             Route::get('/check-code/{code}', [ProductController::class, 'checkCode']);
             Route::get('/check-description/{description}', [ProductController::class, 'checkDescription']);
@@ -253,9 +254,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('has_permission:cancelar_transferencias')->patch('/{id}/cancel', [StockTransferController::class, 'cancel']);
     });
 
-    Route::prefix('settings')->middleware('has_permission:ver_configuracion_sistema')->group(function () {
-        Route::get('/', [SettingController::class, 'index']);
-        Route::get('/system', [SettingController::class, 'getSystem']); // Migrated
+    Route::prefix('settings')->group(function () {
+        // Lectura de settings (solo requiere autenticación)
+        Route::middleware('auth:sanctum')->group(function () {
+            Route::get('/', [SettingController::class, 'index']);
+            Route::get('/system', [SettingController::class, 'getSystem']); // Migrated
+            // Generic key route at the end
+            Route::get('/{key}', [SettingController::class, 'get']); // Migrated
+        });
 
         Route::middleware('has_permission:editar_configuracion_sistema')->group(function () {
             Route::post('/', [SettingController::class, 'update']); // Was store/update
@@ -264,10 +270,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/system', [SettingController::class, 'updateSystem']); // Migrated
         });
 
-        Route::get('/public', [SettingController::class, 'getPublicSettings'])->withoutMiddleware(['auth:sanctum', 'has_permission']);
-
-        // Generic key route at the end
-        Route::get('/{key}', [SettingController::class, 'get']); // Migrated
+        // Ruta pública sin autenticación (para login page, etc.)
+        Route::get('/public', [SettingController::class, 'getPublicSettings'])->withoutMiddleware(['auth:sanctum']);
     });
 
     Route::prefix('ivas')->middleware('has_permission:ver_configuracion_sistema')->group(function () {
@@ -342,7 +346,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('customers')->group(function () {
-        Route::middleware('has_permission:ver_clientes')->group(function () {
+        // Lectura de clientes (solo requiere autenticación)
+        Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [CustomerController::class, 'index']);
             Route::get('/check-name/{firstName}/{lastName}', [CustomerController::class, 'checkName']);
             Route::get('/{id}', [CustomerController::class, 'show']);
