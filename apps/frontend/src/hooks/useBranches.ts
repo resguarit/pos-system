@@ -10,6 +10,7 @@ export interface Branch {
   address?: string;
   phone?: string;
   email?: string;
+  status?: boolean;
 }
 
 /**

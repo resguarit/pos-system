@@ -12,7 +12,10 @@ class PermissionSeeder extends Seeder
         $permissions = [
             // Dashboard
             ['name' => 'ver_dashboard', 'description' => 'Ver panel principal', 'module' => 'dashboard'],
-            ['name' => 'ver_estadisticas', 'description' => 'Ver estadísticas del sistema', 'module' => 'dashboard'],
+
+            // Análisis de Ventas
+            ['name' => 'ver_estadisticas', 'description' => 'Ver estadísticas del sistema', 'module' => 'analisis_ventas'],
+            ['name' => 'exportar_estadisticas', 'description' => 'Exportar estadísticas y reportes', 'module' => 'analisis_ventas'],
 
             // Ventas
             ['name' => 'ver_ventas', 'description' => 'Ver listado de ventas', 'module' => 'ventas'],
@@ -113,6 +116,7 @@ class PermissionSeeder extends Seeder
             // Configuración del Sistema
             ['name' => 'ver_configuracion_sistema', 'description' => 'Ver configuración del sistema', 'module' => 'configuracion'],
             ['name' => 'editar_configuracion_sistema', 'description' => 'Editar configuración del sistema (logo, título, empresa, etc.)', 'module' => 'configuracion'],
+            ['name' => 'gestionar_tipo_cambio', 'description' => 'Gestionar tasa de cambio (USD/ARS)', 'module' => 'configuracion'],
 
             // Auditoría
             ['name' => 'ver_auditorias', 'description' => 'Ver registros de auditoría del sistema', 'module' => 'auditoria'],

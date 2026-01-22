@@ -7,6 +7,7 @@ use App\Interfaces\CurrentAccountServiceInterface;
 use App\Models\Customer;
 use App\Models\Person;
 use App\Models\CurrentAccount;
+use App\Models\CustomerTaxIdentity;
 use App\Exceptions\ConflictException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log; // import Log facade
@@ -22,12 +23,12 @@ class CustomerService implements CustomerServiceInterface
     }
     public function getAllCustomers()
     {
-        return Customer::with(['person.fiscalCondition'])->get();
+        return Customer::with(['person.fiscalCondition', 'taxIdentities.fiscalCondition'])->get();
     }
 
     public function getCustomerById($id)
     {
-        return Customer::with(['person.fiscalCondition'])->find($id);
+        return Customer::with(['person.fiscalCondition', 'taxIdentities.fiscalCondition'])->find($id);
     }
 
     public function createCustomer(array $data)
@@ -60,6 +61,9 @@ class CustomerService implements CustomerServiceInterface
                 'notes' => $data['notes'] ?? null,
             ]);
 
+            // Handle tax identities
+            $this->syncTaxIdentities($customer, $data);
+
             // Crear cuenta corriente automáticamente
             $currentAccountData = [
                 'customer_id' => $customer->id,
@@ -69,7 +73,7 @@ class CustomerService implements CustomerServiceInterface
 
             $this->currentAccountService->createAccount($currentAccountData);
 
-            return $customer->load('person');
+            return $customer->load(['person', 'taxIdentities.fiscalCondition']);
         });
     }
     public function updateCustomer($id, array $data)
@@ -104,8 +108,104 @@ class CustomerService implements CustomerServiceInterface
                 'notes' => $data['notes'] ?? $customer->notes,
             ]);
 
-            return $customer->load('person');
+            // Handle tax identities
+            $this->syncTaxIdentities($customer, $data);
+
+            return $customer->load(['person', 'taxIdentities.fiscalCondition']);
         });
+    }
+
+    /**
+     * Sync tax identities for a customer.
+     * 
+     * @param Customer $customer
+     * @param array $data
+     * @return void
+     */
+    protected function syncTaxIdentities(Customer $customer, array $data): void
+    {
+        // If tax_identities array is provided, sync them
+        if (isset($data['tax_identities']) && is_array($data['tax_identities'])) {
+            $existingIds = [];
+            $hasDefault = false;
+
+            foreach ($data['tax_identities'] as $index => $identityData) {
+                // Skip empty entries
+                if (empty($identityData['cuit']) && empty($identityData['business_name'])) {
+                    continue;
+                }
+
+                $identityFields = [
+                    'cuit' => $identityData['cuit'] ?? null,
+                    'business_name' => $identityData['business_name'] ?? null,
+                    'fiscal_condition_id' => $identityData['fiscal_condition_id'] ?? 1,
+                    'is_default' => (bool) ($identityData['is_default'] ?? false),
+                    'cbu' => $identityData['cbu'] ?? null,
+                    'cbu_alias' => $identityData['cbu_alias'] ?? null,
+                    'bank_name' => $identityData['bank_name'] ?? null,
+                    'account_holder' => $identityData['account_holder'] ?? null,
+                ];
+
+                // Ensure at least one is default
+                if ($identityFields['is_default']) {
+                    $hasDefault = true;
+                }
+
+                if (!empty($identityData['id'])) {
+                    // Update existing
+                    $identity = CustomerTaxIdentity::find($identityData['id']);
+                    if ($identity && $identity->customer_id === $customer->id) {
+                        $identity->update($identityFields);
+                        $existingIds[] = $identity->id;
+                    }
+                } else {
+                    // Create new
+                    $identity = $customer->taxIdentities()->create($identityFields);
+                    $existingIds[] = $identity->id;
+                }
+            }
+
+            // If no default was set, make the first one default
+            if (!$hasDefault && count($existingIds) > 0) {
+                CustomerTaxIdentity::where('id', $existingIds[0])->update(['is_default' => true]);
+            }
+
+            // Ensure only one default
+            if ($hasDefault) {
+                $defaultIdentity = $customer->taxIdentities()
+                    ->whereIn('id', $existingIds)
+                    ->where('is_default', true)
+                    ->first();
+                
+                if ($defaultIdentity) {
+                    $customer->taxIdentities()
+                        ->where('id', '!=', $defaultIdentity->id)
+                        ->update(['is_default' => false]);
+                }
+            }
+
+            // Delete tax identities that are no longer in the list
+            $customer->taxIdentities()
+                ->whereNotIn('id', $existingIds)
+                ->delete();
+        } 
+        // Backward compatibility: if no tax_identities but cuit is provided, create/update default
+        elseif (!empty($data['cuit'])) {
+            $defaultIdentity = $customer->taxIdentities()->where('is_default', true)->first();
+            
+            $identityData = [
+                'cuit' => $data['cuit'],
+                'business_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '')),
+                'fiscal_condition_id' => $data['fiscal_condition_id'] ?? 1,
+                'is_default' => true,
+            ];
+
+            if ($defaultIdentity) {
+                $defaultIdentity->update($identityData);
+            } else {
+                $customer->taxIdentities()->create($identityData);
+            }
+        }
     }
 
     public function deleteCustomer($id)
@@ -135,6 +235,9 @@ class CustomerService implements CustomerServiceInterface
             if ($currentAccount) {
                 $currentAccount->delete();
             }
+
+            // Delete tax identities (will be soft deleted due to cascade)
+            $customer->taxIdentities()->delete();
 
             // Eliminar cliente
             $customer->delete();

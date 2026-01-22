@@ -92,6 +92,7 @@ function getFeatureForModule(moduleName: string): boolean {
     'análisis de ventas': 'analisisventas',
     'analisis de ventas': 'analisisventas',
     'analisisventas': 'analisisventas',
+    'analisis_ventas': 'analisisventas',
     'reportes de inventario': 'reportesInventario',
     'reportesInventario': 'reportesInventario',
     'reportes': 'reportesFinancieros', // Módulo del backend

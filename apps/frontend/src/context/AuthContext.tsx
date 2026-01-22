@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import api from '@/lib/api';
 import { getAuthToken, saveAuthToken } from '@/lib/auth';
 import type { User } from '@/types/user';
+import { isPermissionDisabledByFeature } from '@/config/permissions';
 
 // --- Definición del Contexto ---
 interface AuthContextType {
@@ -124,6 +125,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Verifica si el usuario tiene un permiso específico.
    */
   const hasPermission = (permission: string): boolean => {
+    // 1. Verificar si la feature asociada está deshabilitada (prioridad sobre todo, incluso admin)
+    if (isPermissionDisabledByFeature(permission)) {
+      return false;
+    }
+
     if (!user || !user.permissions) {
       return false;
     }

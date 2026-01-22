@@ -10,13 +10,26 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowLeft, Loader2, Save } from "lucide-react"
+import { ArrowLeft, Loader2, Save, Plus, Trash2, ChevronDown } from "lucide-react"
 import useApi from "@/hooks/useApi"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import ClientServicesList from "./client-services-list"
+
+interface TaxIdentity {
+  id?: number
+  cuit: string
+  business_name: string
+  fiscal_condition_id: string
+  is_default: boolean
+  cbu: string
+  cbu_alias: string
+  bank_name: string
+  account_holder: string
+}
 
 interface Customer {
   id: number
@@ -47,12 +60,7 @@ interface Customer {
     updated_at: string
     deleted_at: string | null
   }
-}
-
-interface DocumentType {
-  id: number
-  name: string
-  code: string
+  tax_identities?: TaxIdentity[]
 }
 
 interface CustomerFormProps {
@@ -69,8 +77,6 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
   const { request } = useApi()
   const { state, dispatch } = useEntityContext()
 
-  const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([])
-
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -86,9 +92,11 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     credit_limit: "",
     active: true,
     notes: "",
-    document_type_id: "",
     documento: "",
   })
+
+  // Tax identities state for multiple CUITs
+  const [taxIdentities, setTaxIdentities] = useState<TaxIdentity[]>([])
 
   const [isLoading, setIsLoading] = useState(false)
 
@@ -99,27 +107,6 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
   useEffect(() => {
     const controller = new AbortController();
     const signal = controller.signal;
-
-    async function fetchDocumentTypes() {
-      try {
-        const response = await request({ method: "GET", url: "/document-types", signal })
-        if (response && response.data) {
-          setDocumentTypes(response.data)
-        } else if (response && Array.isArray(response)) {
-          setDocumentTypes(response)
-        } else {
-          console.error("Formato de respuesta inesperado para tipos de documento:", response)
-          setDocumentTypes([]);
-        }
-      } catch (error: any) {
-        if (error.name !== 'AbortError') {
-          console.error("Error cargando tipos de documento:", error)
-          setDocumentTypes([]);
-        }
-      }
-    }
-
-    fetchDocumentTypes()
 
     if (customerData) {
       populateFormWithCustomerData(customerData)
@@ -147,13 +134,13 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         dispatch({ type: 'SET_ENTITY', entityType: 'customers', id, entity: customer });
         populateFormWithCustomerData(customer);
       } else {
-        toast.error("Error", {
-          description: "No se pudo cargar la información del cliente",
+        toast.error("No se pudo cargar el cliente", {
+          description: "Verificá tu conexión e intentá de nuevo.",
         })
       }
     } catch (err) {
-      toast.error("Error", {
-        description: "No se pudo cargar la información del cliente",
+      toast.error("Error de conexión", {
+        description: "No se pudo cargar el cliente. Revisá tu conexión a internet.",
       })
     } finally {
       setIsLoading(false)
@@ -184,9 +171,35 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         : "",
       active: customer.active,
       notes: customer.notes ?? "",
-      document_type_id: customer.person.document_type_id ? customer.person.document_type_id.toString() : "",
       documento: customer.person.documento || "",
     });
+
+    // Populate tax identities
+    if (customer.tax_identities && customer.tax_identities.length > 0) {
+      setTaxIdentities(customer.tax_identities.map((ti: any) => ({
+        id: ti.id,
+        cuit: ti.cuit || "",
+        business_name: ti.business_name || "",
+        fiscal_condition_id: (ti.fiscal_condition_id ?? "1").toString(),
+        is_default: ti.is_default || false,
+        cbu: ti.cbu || "",
+        cbu_alias: ti.cbu_alias || "",
+        bank_name: ti.bank_name || "",
+        account_holder: ti.account_holder || "",
+      })));
+    } else if (customer.person.cuit) {
+      // Backward compatibility: create a tax identity from person data
+      setTaxIdentities([{
+        cuit: customer.person.cuit || "",
+        business_name: `${customer.person.first_name || ""} ${customer.person.last_name || ""}`.trim(),
+        fiscal_condition_id: (customer.person.fiscal_condition_id ?? "1").toString(),
+        is_default: true,
+        cbu: "",
+        cbu_alias: "",
+        bank_name: "",
+        account_holder: "",
+      }]);
+    }
   }
   // --- FIN DE MODIFICACIÓN ---
 
@@ -208,8 +221,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         (firstName !== (customerData?.person?.first_name || '') ||
           lastName !== (customerData?.person?.last_name || ''))) {
         setNameError("Esta combinación de nombre y apellido ya existe");
-        toast.error("Esta combinación de nombre y apellido ya existe", {
-          description: "Por favor, verifica los datos del cliente."
+        toast.error("Cliente duplicado", {
+          description: "Ya existe un cliente con este nombre y apellido."
         });
       } else {
         setNameError("");
@@ -246,6 +259,44 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
+  // Tax Identity management functions
+  const addTaxIdentity = () => {
+    const newIdentity: TaxIdentity = {
+      cuit: "",
+      business_name: "",
+      fiscal_condition_id: "1",
+      is_default: taxIdentities.length === 0, // First one is default
+      cbu: "",
+      cbu_alias: "",
+      bank_name: "",
+      account_holder: "",
+    }
+    setTaxIdentities([...taxIdentities, newIdentity])
+  }
+
+  const removeTaxIdentity = (index: number) => {
+    const updated = taxIdentities.filter((_, i) => i !== index)
+    // If we removed the default, make the first one default
+    if (taxIdentities[index].is_default && updated.length > 0) {
+      updated[0].is_default = true
+    }
+    setTaxIdentities(updated)
+  }
+
+  const updateTaxIdentity = (index: number, field: keyof TaxIdentity, value: string | boolean) => {
+    const updated = [...taxIdentities]
+    updated[index] = { ...updated[index], [field]: value }
+    setTaxIdentities(updated)
+  }
+
+  const setDefaultTaxIdentity = (index: number) => {
+    const updated = taxIdentities.map((ti, i) => ({
+      ...ti,
+      is_default: i === index
+    }))
+    setTaxIdentities(updated)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -259,8 +310,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
 
     if (errors.length > 0) {
-      toast.error("Campos obligatorios faltantes", {
-        description: errors.join(", ")
+      toast.error("Completá los campos requeridos", {
+        description: errors.join(". ")
       })
       return
     }
@@ -268,6 +319,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     setIsLoading(true)
 
     try {
+      // Get default tax identity's CUIT and fiscal_condition for backward compatibility
+      const defaultTaxIdentity = taxIdentities.find(ti => ti.is_default) || taxIdentities[0]
+      
       const customerData = {
         email: formData.email,
         active: formData.active,
@@ -279,12 +333,28 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         state: formData.state,
         postal_code: formData.postal_code,
         phone: formData.phone,
-        cuit: formData.cuit,
-        fiscal_condition_id: formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1,
+        // Backward compatibility: use default tax identity's CUIT if available
+        cuit: defaultTaxIdentity?.cuit || formData.cuit,
+        fiscal_condition_id: defaultTaxIdentity?.fiscal_condition_id 
+          ? parseInt(defaultTaxIdentity.fiscal_condition_id, 10) 
+          : (formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1),
         person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,
         credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
-        document_type_id: formData.document_type_id ? parseInt(formData.document_type_id, 10) : null,
+        // Siempre DNI (document_type_id = 1) cuando hay documento
+        document_type_id: formData.documento ? 1 : null,
         documento: formData.documento || null,
+        // New: include tax identities array
+        tax_identities: taxIdentities.length > 0 ? taxIdentities.map(ti => ({
+          id: ti.id,
+          cuit: ti.cuit || null,
+          business_name: ti.business_name || null,
+          fiscal_condition_id: ti.fiscal_condition_id ? parseInt(ti.fiscal_condition_id, 10) : 1,
+          is_default: ti.is_default,
+          cbu: ti.cbu || null,
+          cbu_alias: ti.cbu_alias || null,
+          bank_name: ti.bank_name || null,
+          account_holder: ti.account_holder || null,
+        })) : undefined,
       }
 
       const response = await request({
@@ -303,10 +373,10 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           });
         }
 
-        toast.success(customerId ? "Cliente actualizado" : "Cliente creado", {
+        toast.success(customerId ? "¡Cliente actualizado!" : "¡Cliente creado!", {
           description: customerId
-            ? "Los datos del cliente han sido actualizados correctamente"
-            : "El nuevo cliente ha sido creado correctamente",
+            ? `Los cambios de "${formData.first_name}" fueron guardados.`
+            : `"${formData.first_name}" fue agregado a tu lista de clientes.`,
         })
 
         // Ejecutar callback si viene desde POS u otra vista embebida
@@ -319,9 +389,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           navigate("/dashboard/clientes")
         }
       } else {
-        const errorMessage =
-          response?.message || (customerId ? "No se pudo actualizar el cliente" : "No se pudo crear el cliente")
-        toast.error(customerId ? "Error al actualizar" : "Error al crear", {
+        const errorMessage = response?.message || "Ocurrió un problema al guardar los datos."
+        toast.error("No se pudo guardar", {
           description: errorMessage,
         })
       }
@@ -334,16 +403,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         // Get first error message from each field
         const errorMessages = Object.values(validationErrors)
           .map((fieldErrors: any) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
-          .join('\n');
+          .join('. ');
 
-        toast.error("Error de validación", {
+        toast.error("Verificá los datos ingresados", {
           description: errorMessages,
         })
       } else {
-        const errorMessage =
-          err?.response?.data?.message ||
-          (customerId ? "No se pudo actualizar el cliente" : "No se pudo crear el cliente")
-        toast.error(customerId ? "Error al actualizar" : "Error al crear", {
+        const errorMessage = err?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
+        toast.error("No se pudo guardar el cliente", {
           description: errorMessage,
         })
       }
@@ -459,40 +526,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="document_type_id">Tipo de Documento</Label>
-                          {viewOnly ? (
-                            <Input
-                              value={documentTypes.find((dt) => dt.id.toString() === formData.document_type_id)?.name || ""}
-                              disabled
-                              readOnly
-                            />
-                          ) : (
-                            <Select
-                              value={formData.document_type_id}
-                              onValueChange={(value) => handleSelectChange("document_type_id", value)}
-                              disabled={isLoading}
-                            >
-                              <SelectTrigger id="document_type_id" className="cursor-pointer">
-                                <SelectValue placeholder="Seleccionar tipo de documento" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {documentTypes.map((dt) => (
-                                  <SelectItem key={dt.id} value={dt.id.toString()}>
-                                    {dt.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="documento">Número de Documento</Label>
+                          <Label htmlFor="documento">DNI</Label>
                           <Input
                             id="documento"
                             name="documento"
                             value={formData.documento}
                             onChange={handleInputChange}
                             disabled={viewOnly || isLoading}
+                            placeholder="Número de documento"
                           />
                         </div>
                         <div className="space-y-2">
@@ -516,7 +557,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             disabled={viewOnly || isLoading}
                           />
                         </div>
-                        <div className="space-y-2 md:col-span-2">
+                        <div className="space-y-2">
                           <Label htmlFor="address">Dirección</Label>
                           <Input
                             id="address"
@@ -588,40 +629,12 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                       <CardDescription>
                         {viewOnly
                           ? "Datos fiscales y financieros del cliente."
-                          : "Completa los datos fiscales y financieros del cliente."}
+                          : "Completa los datos fiscales y financieros del cliente. Puedes agregar múltiples CUITs/Razones Sociales."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {/* ... existing fiscal content ... */}
+                      {/* Person Type Selection */}
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="cuit">CUIT/CUIL</Label>
-                          <Input
-                            id="cuit"
-                            name="cuit"
-                            value={formData.cuit}
-                            onChange={handleInputChange}
-                            disabled={viewOnly || isLoading}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="fiscal_condition_id">Condición Fiscal</Label>
-                          <Select
-                            value={formData.fiscal_condition_id}
-                            onValueChange={(value) => handleSelectChange("fiscal_condition_id", value)}
-                            disabled={viewOnly || isLoading}
-                          >
-                            <SelectTrigger id="fiscal_condition_id" className="cursor-pointer">
-                              <SelectValue placeholder="Seleccionar condición fiscal" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="1">Consumidor Final</SelectItem>
-                              <SelectItem value="2">Responsable Inscripto</SelectItem>
-                              <SelectItem value="3">Monotributista</SelectItem>
-                              <SelectItem value="4">Exento</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="person_type_id">Tipo de Persona</Label>
                           {viewOnly ? (
@@ -663,6 +676,191 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             Dejar vacío para permitir crédito ilimitado
                           </p>
                         </div>
+                      </div>
+
+                      <Separator className="my-4" />
+
+                      {/* Tax Identities Section */}
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h3 className="text-lg font-medium">Identidades Fiscales (CUITs)</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {formData.person_type_id === "2" 
+                                ? "Una persona jurídica puede tener múltiples razones sociales/CUITs." 
+                                : "Datos fiscales del cliente."}
+                            </p>
+                          </div>
+                          {!viewOnly && (
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="sm"
+                              onClick={addTaxIdentity}
+                              disabled={isLoading}
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              Agregar CUIT
+                            </Button>
+                          )}
+                        </div>
+
+                        {taxIdentities.length === 0 ? (
+                          <div className="rounded-lg border border-dashed p-6 text-center">
+                            <p className="text-sm text-muted-foreground mb-2">
+                              No hay identidades fiscales registradas.
+                            </p>
+                            {!viewOnly && (
+                              <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm"
+                                onClick={addTaxIdentity}
+                                disabled={isLoading}
+                              >
+                                <Plus className="mr-2 h-4 w-4" />
+                                Agregar primer CUIT
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {taxIdentities.map((identity, index) => (
+                              <Collapsible key={index} className="group">
+                                <div className={`rounded-lg border ${identity.is_default ? "border-primary bg-primary/5" : "bg-background"}`}>
+                                  {/* Header row - always visible */}
+                                  <div className="flex items-center gap-3 p-4">
+                                    <input
+                                      type="radio"
+                                      name="default-identity"
+                                      checked={identity.is_default}
+                                      onChange={() => !viewOnly && setDefaultTaxIdentity(index)}
+                                      disabled={viewOnly || isLoading}
+                                      className="h-4 w-4 cursor-pointer accent-primary shrink-0"
+                                      title={identity.is_default ? "Predeterminado" : "Marcar como predeterminado"}
+                                    />
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1 min-w-0">
+                                      <Input
+                                        value={identity.cuit}
+                                        onChange={(e) => updateTaxIdentity(index, "cuit", e.target.value)}
+                                        disabled={viewOnly || isLoading}
+                                        placeholder="CUIT/CUIL"
+                                        className="h-9"
+                                      />
+                                      <Input
+                                        value={identity.business_name}
+                                        onChange={(e) => updateTaxIdentity(index, "business_name", e.target.value)}
+                                        disabled={viewOnly || isLoading}
+                                        placeholder="Razón Social / Alias"
+                                        className="h-9"
+                                      />
+                                      <Select
+                                        value={identity.fiscal_condition_id}
+                                        onValueChange={(value) => updateTaxIdentity(index, "fiscal_condition_id", value)}
+                                        disabled={viewOnly || isLoading}
+                                      >
+                                        <SelectTrigger className="h-9 cursor-pointer">
+                                          <SelectValue placeholder="Condición fiscal" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="1">Consumidor Final</SelectItem>
+                                          <SelectItem value="2">Responsable Inscripto</SelectItem>
+                                          <SelectItem value="3">Monotributista</SelectItem>
+                                          <SelectItem value="4">Exento</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <CollapsibleTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                                        >
+                                          <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+                                        </Button>
+                                      </CollapsibleTrigger>
+                                      {!viewOnly && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removeTaxIdentity(index)}
+                                          disabled={isLoading}
+                                          className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Expandable bank account section */}
+                                  <CollapsibleContent>
+                                    <div className="border-t px-4 py-4 bg-muted/30">
+                                      <p className="text-sm font-medium text-muted-foreground mb-3">
+                                        Datos de Pago <span className="font-normal">(CBU/CVU o Alias)</span>
+                                      </p>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div className="space-y-1.5">
+                                          <Label className="text-xs text-muted-foreground">CBU / CVU</Label>
+                                          <Input
+                                            value={identity.cbu}
+                                            onChange={(e) => {
+                                              const value = e.target.value.replace(/\D/g, '').slice(0, 22);
+                                              updateTaxIdentity(index, "cbu", value);
+                                            }}
+                                            disabled={viewOnly || isLoading}
+                                            placeholder="22 dígitos"
+                                            className="h-9 font-mono"
+                                            maxLength={22}
+                                          />
+                                          {identity.cbu && identity.cbu.length > 0 && identity.cbu.length !== 22 && (
+                                            <p className="text-xs text-amber-600">{identity.cbu.length}/22 dígitos</p>
+                                          )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label className="text-xs text-muted-foreground">Alias</Label>
+                                          <Input
+                                            value={identity.cbu_alias}
+                                            onChange={(e) => updateTaxIdentity(index, "cbu_alias", e.target.value)}
+                                            disabled={viewOnly || isLoading}
+                                            placeholder="mi.alias.cbu"
+                                            className="h-9"
+                                            maxLength={50}
+                                          />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label className="text-xs text-muted-foreground">Banco <span className="text-muted-foreground/60">(opcional)</span></Label>
+                                          <Input
+                                            value={identity.bank_name}
+                                            onChange={(e) => updateTaxIdentity(index, "bank_name", e.target.value)}
+                                            disabled={viewOnly || isLoading}
+                                            placeholder="Ej: Banco Nación, Mercado Pago"
+                                            className="h-9"
+                                            maxLength={100}
+                                          />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label className="text-xs text-muted-foreground">Titular <span className="text-muted-foreground/60">(opcional)</span></Label>
+                                          <Input
+                                            value={identity.account_holder}
+                                            onChange={(e) => updateTaxIdentity(index, "account_holder", e.target.value)}
+                                            disabled={viewOnly || isLoading}
+                                            placeholder="Nombre del titular de la cuenta"
+                                            className="h-9"
+                                            maxLength={255}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </CollapsibleContent>
+                                </div>
+                              </Collapsible>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <Separator className="my-4" />

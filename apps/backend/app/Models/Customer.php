@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use App\Models\Person;
@@ -32,6 +33,22 @@ class Customer extends Model
     public function person(): BelongsTo
     {
         return $this->belongsTo(Person::class, 'person_id');
+    }
+
+    /**
+     * Get the tax identities for the customer.
+     */
+    public function taxIdentities(): HasMany
+    {
+        return $this->hasMany(CustomerTaxIdentity::class);
+    }
+
+    /**
+     * Get the default tax identity for the customer.
+     */
+    public function defaultTaxIdentity()
+    {
+        return $this->hasOne(CustomerTaxIdentity::class)->where('is_default', true);
     }
 
     /**

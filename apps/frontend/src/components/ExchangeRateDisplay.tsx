@@ -5,7 +5,9 @@ import { RefreshCw, TrendingUp, AlertTriangle, Settings } from 'lucide-react';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { UpdateExchangeRateDialog } from '@/components/UpdateExchangeRateDialog';
 import { cn } from '@/lib/utils';
+
 import { useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ExchangeRateDisplayProps {
   className?: string;
@@ -26,28 +28,31 @@ export function ExchangeRateDisplay({
   toCurrency = 'ARS'
 }: ExchangeRateDisplayProps) {
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  
-  const { 
-    rate, 
-    loading, 
-    error, 
-    lastUpdated, 
-    refetch, 
-    hasValidRate 
+
+  const {
+    rate,
+    loading,
+    error,
+    lastUpdated,
+    refetch,
+    hasValidRate
   } = useExchangeRate({ fromCurrency, toCurrency });
+
+  // Para verificar permisos
+  const { hasPermission } = useAuth();
 
   const formatLastUpdated = (date: Date | null) => {
     if (!date) return 'Nunca';
-    
+
     const now = new Date();
     const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
+
     if (diffMinutes < 1) return 'Hace un momento';
     if (diffMinutes < 60) return `Hace ${diffMinutes}m`;
-    
+
     const diffHours = Math.floor(diffMinutes / 60);
     if (diffHours < 24) return `Hace ${diffHours}h`;
-    
+
     return date.toLocaleDateString('es-AR');
   };
 
@@ -57,20 +62,20 @@ export function ExchangeRateDisplay({
       if (rateValue === null || rateValue === undefined) {
         return '1.00';
       }
-      
+
       // Convertir a número si es string
       const numericValue = typeof rateValue === 'string' ? parseFloat(rateValue) : rateValue;
-      
+
       // Verificar si es un número válido
       if (typeof numericValue !== 'number' || isNaN(numericValue)) {
         return '1.00';
       }
-      
+
       // Asegurar que es un número válido y finito
       if (!isFinite(numericValue) || numericValue <= 0) {
         return '1.00';
       }
-      
+
       return Number(numericValue).toFixed(2);
     } catch (error) {
       return '1.00';
@@ -91,7 +96,7 @@ export function ExchangeRateDisplay({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge 
+              <Badge
                 variant={status.variant}
                 className="flex items-center gap-1"
               >
@@ -109,7 +114,7 @@ export function ExchangeRateDisplay({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        
+
         {showRefreshButton && (
           <TooltipProvider>
             <Tooltip>
@@ -130,7 +135,7 @@ export function ExchangeRateDisplay({
             </Tooltip>
           </TooltipProvider>
         )}
-        
+
         {showUpdateButton && (
           <TooltipProvider>
             <Tooltip>
@@ -187,7 +192,7 @@ export function ExchangeRateDisplay({
           1 {fromCurrency} = ${loading ? '...' : formatRate(rate)} {toCurrency}
         </span>
       </Badge>
-      
+
       {showRefreshButton && (
         <TooltipProvider>
           <Tooltip>
@@ -211,7 +216,7 @@ export function ExchangeRateDisplay({
           </Tooltip>
         </TooltipProvider>
       )}
-      
+
       {showUpdateButton && (
         <TooltipProvider>
           <Tooltip>
@@ -236,7 +241,7 @@ export function ExchangeRateDisplay({
           </Tooltip>
         </TooltipProvider>
       )}
-      
+
       {error && (
         <TooltipProvider>
           <Tooltip>

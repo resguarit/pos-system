@@ -159,7 +159,8 @@ export const PERMISSIONS_CONFIG = {
       'editar_usuarios',
       'eliminar_usuarios',
       'cambiar_password_usuario',
-      'activar_desactivar_usuario'
+      'activar_desactivar_usuario',
+      'ver_estadisticas_usuario'
     ]
   },
 
@@ -180,7 +181,8 @@ export const PERMISSIONS_CONFIG = {
     feature: 'configuracionSistema',
     permissions: [
       'ver_configuracion_sistema',
-      'editar_configuracion_sistema'
+      'editar_configuracion_sistema',
+      'gestionar_tipo_cambio'
     ]
   },
 
@@ -215,9 +217,9 @@ export const PERMISSIONS_CONFIG = {
 
 
 
-  // Análisis de Ventas (feature deshabilitada)
-  analisisVentas: {
-    feature: 'analisisVentas',
+  // Análisis de Ventas
+  analisisventas: {
+    feature: 'analisisventas',
     permissions: [
       'ver_estadisticas',
       'generar_reportes_ventas',
@@ -397,4 +399,25 @@ export function isPermissionActive(permission: string): boolean {
 export function getModulePermissions(module: string): string[] {
   const config = PERMISSIONS_CONFIG[module as keyof typeof PERMISSIONS_CONFIG];
   return config ? config.permissions : [];
+}
+
+// Función helper para verificar si un permiso está deshabilitado por su feature asociada
+export function isPermissionDisabledByFeature(permission: string): boolean {
+  // Buscar en la configuración a qué feature pertenece el permiso
+  for (const [, config] of Object.entries(PERMISSIONS_CONFIG)) {
+    if (config.permissions.includes(permission)) {
+      // Si encontramos el permiso, verificamos si la feature está habilitada
+      const featureKey = config.feature as keyof typeof FEATURES;
+      // Si la feature está explícitamente en false, el permiso está deshabilitado
+      if (FEATURES[featureKey] === false) {
+        return true;
+      }
+      // Si encontramos el permiso y la feature es true, terminamos la búsqueda (no está deshabilitado por feature)
+      return false;
+    }
+  }
+
+  // Si el permiso no está en la configuración (es un permiso base o no mapeado), 
+  // asumimos que NO está deshabilitado por feature (comportamiento seguro por defecto para no romper admins)
+  return false;
 }

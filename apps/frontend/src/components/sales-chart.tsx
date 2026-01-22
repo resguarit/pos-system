@@ -3,33 +3,16 @@ import { useEffect, useState } from "react"
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { Card, CardContent } from "@/components/ui/card"
 
-const data = [
-  { date: "01/03", ventas: 2400 },
-  { date: "02/03", ventas: 1398 },
-  { date: "03/03", ventas: 3800 },
-  { date: "04/03", ventas: 3908 },
-  { date: "05/03", ventas: 4800 },
-  { date: "06/03", ventas: 3800 },
-  { date: "07/03", ventas: 4300 },
-  { date: "08/03", ventas: 5300 },
-  { date: "09/03", ventas: 4900 },
-  { date: "10/03", ventas: 3900 },
-  { date: "11/03", ventas: 4800 },
-  { date: "12/03", ventas: 5200 },
-  { date: "13/03", ventas: 5600 },
-  { date: "14/03", ventas: 6700 },
-  { date: "15/03", ventas: 7200 },
-  { date: "16/03", ventas: 6300 },
-  { date: "17/03", ventas: 6000 },
-  { date: "18/03", ventas: 5400 },
-  { date: "19/03", ventas: 5800 },
-  { date: "20/03", ventas: 6000 },
-  { date: "21/03", ventas: 6300 },
-  { date: "22/03", ventas: 6500 },
-  { date: "23/03", ventas: 7500 },
-]
+interface SalesData {
+  date: string
+  ventas: number
+}
 
-export default function SalesChart() {
+interface SalesChartProps {
+  data: SalesData[]
+}
+
+export default function SalesChart({ data }: SalesChartProps) {
   const [isMounted, setIsMounted] = useState(false)
 
   useEffect(() => {

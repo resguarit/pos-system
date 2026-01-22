@@ -20,18 +20,18 @@ const exchangeRateService = {
    */
   async getCurrentRate(fromCurrency: string = 'USD', toCurrency: string = 'ARS'): Promise<number> {
     try {
-      
+
       const response = await api.get<ExchangeRateResponse>(
-        `/exchange-rates/current?from_currency=${fromCurrency}&to_currency=${toCurrency}`
+        `/exchange-rate/current?from_currency=${fromCurrency}&to_currency=${toCurrency}`
       );
-      
-      
+
+
       if (response.data?.success && response.data?.data?.rate) {
         const rate = response.data.data.rate;
-        
+
         // Asegurar que la tasa es un número válido
         const numericRate = Number(rate);
-        
+
         if (isFinite(numericRate) && numericRate > 0) {
           return numericRate;
         }
@@ -64,17 +64,17 @@ const exchangeRateService = {
    * Actualiza la tasa de cambio manualmente
    */
   async updateRate(
-    fromCurrency: string = 'USD', 
-    toCurrency: string = 'ARS', 
+    fromCurrency: string = 'USD',
+    toCurrency: string = 'ARS',
     rate: number
   ): Promise<boolean> {
     try {
-      const response = await api.post('/exchange-rates/update', {
+      const response = await api.post('/exchange-rate/update', {
         from_currency: fromCurrency,
         to_currency: toCurrency,
         rate: rate
       });
-      
+
       return response.data?.success || false;
     } catch (error) {
       console.error('Error al actualizar tasa de cambio:', error);
@@ -86,14 +86,14 @@ const exchangeRateService = {
    * Convierte un monto de una moneda a otra usando la tasa actual
    */
   async convertAmount(
-    amount: number, 
-    fromCurrency: string = 'USD', 
+    amount: number,
+    fromCurrency: string = 'USD',
     toCurrency: string = 'ARS'
   ): Promise<number> {
     if (fromCurrency === toCurrency) {
       return amount;
     }
-    
+
     const rate = await this.getCurrentRate(fromCurrency, toCurrency);
     return amount * rate;
   },
@@ -107,14 +107,14 @@ const exchangeRateService = {
   }> {
     try {
       const response = await api.get('/exchange-rate/usd-products-stats');
-      
+
       if (response.data?.success) {
         return {
           count: response.data.data?.count || 0,
           totalValue: response.data.data?.total_value || 0
         };
       }
-      
+
       return { count: 0, totalValue: 0 };
     } catch (error) {
       console.error('Error al obtener estadísticas de productos USD:', error);
@@ -134,7 +134,7 @@ const exchangeRateService = {
       const response = await api.post('/exchange-rate/update-prices', {
         new_usd_rate: newUSDRate
       });
-      
+
       if (response.data?.success) {
         return {
           success: true,
@@ -142,7 +142,7 @@ const exchangeRateService = {
           message: response.data.message || 'Precios actualizados exitosamente'
         };
       }
-      
+
       return {
         success: false,
         updatedCount: 0,

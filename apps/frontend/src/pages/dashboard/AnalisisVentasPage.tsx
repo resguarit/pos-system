@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -8,96 +8,215 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import SalesChart from "@/components/sales-chart"
 import ProductsChart from "@/components/products-chart"
+import { TopProductsTable } from "@/components/top-products-table"
 import SalesBranchChart from "@/components/sales-branch-chart"
+import api from "@/lib/api"
+import { useBranches } from "@/hooks/useBranches"
+import { useAuth } from "@/hooks/useAuth"
+import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, format, parseISO } from "date-fns"
+import * as XLSX from "xlsx"
+import { toast } from "sonner"
+
+interface GeneralStats {
+  total_sales: number
+  total_revenue: number
+}
+
+interface ProductStat {
+  product_id: number
+  product_name: string
+  total_quantity: number
+  total_revenue: number // string from decimal? usually backend returns string for decimal
+}
 
 export default function AnalisisVentasPage() {
   const [period, setPeriod] = useState("month")
   const [branch, setBranch] = useState("all")
+  const [generalStats, setGeneralStats] = useState<GeneralStats>({ total_sales: 0, total_revenue: 0 })
+  const [salesByProduct, setSalesByProduct] = useState<ProductStat[]>([])
+  const [topProducts, setTopProducts] = useState<ProductStat[]>([])
+  const { branches: branchList } = useBranches()
+  const { canAccessBranch, hasPermission } = useAuth()
 
-  const topProducts = [
-    {
-      id: "PRD001",
-      name: "Laptop HP 15",
-      quantity: 42,
-      revenue: 37799.58,
-      growth: 12.5,
-    },
-    {
-      id: "PRD003",
-      name: "Teclado Mecánico RGB",
-      quantity: 38,
-      revenue: 3419.62,
-      growth: 8.3,
-    },
-    {
-      id: "PRD005",
-      name: "Auriculares Bluetooth",
-      quantity: 35,
-      revenue: 2099.65,
-      growth: 15.2,
-    },
-    {
-      id: "PRD002",
-      name: "Monitor Samsung 24",
-      quantity: 29,
-      revenue: 7249.71,
-      growth: -2.1,
-    },
-    {
-      id: "PRD007",
-      name: "Tableta Grafica",
-      quantity: 24,
-      revenue: 2399.76,
-      growth: 5.7,
-    },
-  ]
+  const activeBranches = branchList.filter(b => b.status === true && canAccessBranch(String(b.id)))
 
-  const topCustomers = [
-    {
-      id: "CLT001",
-      name: "Juan Pérez",
-      purchases: 8,
-      total: 4589.92,
-      lastPurchase: "23/03/2023",
-    },
-    {
-      id: "CLT002",
-      name: "María González",
-      purchases: 6,
-      total: 3297.50,
-      lastPurchase: "22/03/2023",
-    },
-    {
-      id: "CLT003",
-      name: "Carlos Rodríguez",
-      purchases: 5,
-      total: 2449.95,
-      lastPurchase: "21/03/2023",
-    },
-    {
-      id: "CLT004",
-      name: "Ana Martínez",
-      purchases: 4,
-      total: 1899.96,
-      lastPurchase: "20/03/2023",
-    },
-    {
-      id: "CLT005",
-      name: "Roberto López",
-      purchases: 3,
-      total: 1259.97,
-      lastPurchase: "19/03/2023",
-    },
+
+  const handleExportReport = () => {
+    try {
+      const wb = XLSX.utils.book_new()
+
+      // 1. Hoja de Resumen General
+      const { start_date, end_date } = getDateRange()
+      const summaryData = [
+        ["Reporte de Análisis de Ventas", ""],
+        ["Generado el:", format(new Date(), 'dd/MM/yyyy HH:mm')],
+        ["Periodo:", `${format(parseISO(start_date), 'dd/MM/yyyy')} - ${format(parseISO(end_date), 'dd/MM/yyyy')}`],
+        ["Sucursal:", branch === 'all' ? 'Todas' : activeBranches.find(b => String(b.id) === branch)?.description || branch],
+        [],
+        ["Métrica", "Valor"],
+        ["Total Ventas (Transacciones)", generalStats.total_sales],
+        ["Ingresos Totales", `$${Number(generalStats.total_revenue).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`],
+        ["Ticket Promedio", `$${Number(generalStats.total_sales) > 0 ? (Number(generalStats.total_revenue) / generalStats.total_sales).toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '0.00'}`],
+        ["Total Productos Vendidos", salesByProduct.reduce((acc, curr) => acc + Number(curr.total_quantity), 0)]
+      ]
+      const wsSummary = XLSX.utils.aoa_to_sheet(summaryData)
+
+      // Ajustar ancho de columnas para Resumen
+      wsSummary['!cols'] = [{ wch: 30 }, { wch: 30 }];
+
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Resumen General")
+
+      // 2. Hoja de Detalle por Producto (Todos los productos)
+      if (salesByProduct.length > 0) {
+        // Ordenar por ingresos descendente
+        const sortedProducts = [...salesByProduct].sort((a, b) => Number(b.total_revenue) - Number(a.total_revenue))
+
+        const productsData = [
+          ["Producto", "Cantidad Vendida", "Ingresos Totales", "Precio Promedio Unitario"],
+          ...sortedProducts.map(p => {
+            const quantity = Number(p.total_quantity)
+            const revenue = Number(p.total_revenue)
+            const avgPrice = quantity > 0 ? revenue / quantity : 0
+            return [
+              p.product_name,
+              quantity,
+              revenue, // Guardamos como número para que Excel pueda sumar
+              avgPrice
+            ]
+          })
+        ]
+        const wsProducts = XLSX.utils.aoa_to_sheet(productsData)
+
+        // Formato de moneda para columnas C y D (Revenue y Precio Promedio)
+        // Nota: SheetJS Community edition no soporta estilos avanzados, pero podemos intentar setear tipos de celda si lo procesamos manual, 
+        // por ahora dejamos los datos crudos y que el usuario formatee o usamos strings formateados. 
+        // Mejor usar strings formateados para asegurar visualización correcta inmediata
+
+        const productsDataFormatted = [
+          ["Ranking", "Producto", "Cantidad Vendida", "Ingresos Totales", "% del Total"],
+          ...sortedProducts.map((p, index) => {
+            const revenue = Number(p.total_revenue)
+            const percent = generalStats.total_revenue > 0 ? (revenue / Number(generalStats.total_revenue)) * 100 : 0
+            return [
+              index + 1,
+              p.product_name,
+              Number(p.total_quantity),
+              `$${revenue.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`,
+              `${percent.toFixed(2)}%`
+            ]
+          })
+        ]
+        const wsProductsFormatted = XLSX.utils.aoa_to_sheet(productsDataFormatted)
+
+        // Ajustar anchos
+        wsProductsFormatted['!cols'] = [
+          { wch: 10 }, // Ranking
+          { wch: 50 }, // Producto
+          { wch: 15 }, // Cantidad
+          { wch: 20 }, // Ingresos
+          { wch: 15 }  // %
+        ];
+
+        XLSX.utils.book_append_sheet(wb, wsProductsFormatted, "Detalle por Producto")
+      }
+
+      // Generar nombre de archivo con fecha y periodo
+      const fileName = `analisis_ventas_${period}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`
+      XLSX.writeFile(wb, fileName)
+      toast.success("Informe exportado correctamente", {
+        description: "El archivo Excel se ha descargado con el detalle completo."
+      })
+    } catch (error) {
+      console.error("Error exporting report:", error)
+      toast.error("Error al exportar el informe")
+    }
+  }
+
+  // Helper to get dates from period
+  const getDateRange = useCallback(() => {
+    const now = new Date()
+    let start = startOfMonth(now)
+    let end = endOfMonth(now)
+
+    switch (period) {
+      case 'today':
+        start = startOfDay(now)
+        end = endOfDay(now)
+        break
+      case 'yesterday':
+        start = startOfDay(subDays(now, 1))
+        end = endOfDay(subDays(now, 1))
+        break
+      case 'week':
+        start = startOfWeek(now, { weekStartsOn: 1 })
+        end = endOfWeek(now, { weekStartsOn: 1 })
+        break
+      case 'month':
+        start = startOfMonth(now)
+        end = endOfMonth(now)
+        break
+      case 'quarter':
+        // Simple approx
+        start = startOfMonth(subDays(now, 90))
+        end = endOfMonth(now)
+        break
+      case 'year':
+        start = startOfYear(now)
+        end = endOfYear(now)
+        break
+    }
+    return {
+      start_date: format(start, 'yyyy-MM-dd'),
+      end_date: format(end, 'yyyy-MM-dd')
+    }
+  }, [period])
+
+  const fetchData = useCallback(async () => {
+    try {
+      const { start_date, end_date } = getDateRange()
+      const branchParam = branch !== 'all' ? { branch_id: branch } : {}
+      const params = { start_date, end_date, ...branchParam }
+
+      const [generalRes, topProductsRes, salesByProductRes] = await Promise.all([
+        api.get('/statistics/general', { params }),
+        api.get('/statistics/top-products', { params: { ...params, limit: 5 } }),
+        api.get('/statistics/sales-by-product', { params })
+      ])
+
+      setGeneralStats(generalRes.data)
+      setTopProducts(topProductsRes.data)
+      setSalesByProduct(salesByProductRes.data)
+    } catch (error) {
+      console.error("Error fetching statistics:", error)
+    }
+  }, [getDateRange, branch])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  // Transform data for charts
+  const productsChartData = topProducts.map(p => ({
+    name: p.product_name,
+    cantidad: Number(p.total_quantity),
+    ingresos: Number(p.total_revenue)
+  }))
+
+  const salesChartData = [
+    // Placeholder: backend doesn't provide daily sales yet for chart
+    { date: "01/01", ventas: 0 }
   ]
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Análisis de Ventas</h2>
-        <Button variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Exportar Informe
-        </Button>
+        {hasPermission('exportar_estadisticas') && (
+          <Button variant="outline" onClick={handleExportReport}>
+            <Download className="mr-2 h-4 w-4" />
+            Exportar Informe
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
@@ -123,10 +242,11 @@ export default function AnalisisVentasPage() {
             </SelectTrigger>
             <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
               <SelectItem value="all">Todas las sucursales</SelectItem>
-              <SelectItem value="central">Central</SelectItem>
-              <SelectItem value="norte">Norte</SelectItem>
-              <SelectItem value="sur">Sur</SelectItem>
-              <SelectItem value="este">Este</SelectItem>
+              {activeBranches.map((b) => (
+                <SelectItem key={b.id} value={String(b.id)}>
+                  {b.description}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -139,8 +259,8 @@ export default function AnalisisVentasPage() {
             <LineChart className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$48,293.45</div>
-            <p className="text-xs text-muted-foreground">+18.2% respecto al período anterior</p>
+            <div className="text-2xl font-bold">${Number(generalStats.total_revenue).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>
+            {/* <p className="text-xs text-muted-foreground">+18.2% respecto al período anterior</p> */}
           </CardContent>
         </Card>
         <Card>
@@ -149,8 +269,8 @@ export default function AnalisisVentasPage() {
             <TrendingUp className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">548</div>
-            <p className="text-xs text-muted-foreground">+12.5% respecto al período anterior</p>
+            <div className="text-2xl font-bold">{generalStats.total_sales}</div>
+            {/* <p className="text-xs text-muted-foreground">+12.5% respecto al período anterior</p> */}
           </CardContent>
         </Card>
         <Card>
@@ -159,139 +279,49 @@ export default function AnalisisVentasPage() {
             <Calendar className="h-4 w-4 text-violet-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$88.13</div>
-            <p className="text-xs text-muted-foreground">+5.1% respecto al período anterior</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Activos</CardTitle>
-            <Users className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">312</div>
-            <p className="text-xs text-muted-foreground">+8.3% respecto al período anterior</p>
+            <div className="text-2xl font-bold">
+              ${generalStats.total_sales > 0 ? (Number(generalStats.total_revenue) / generalStats.total_sales).toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '0.00'}
+            </div>
+            {/* <p className="text-xs text-muted-foreground">+5.1% respecto al período anterior</p> */}
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="ventas" className="space-y-4">
+      <Tabs defaultValue="productos" className="space-y-4">
         <TabsList className="w-fit">
-          <TabsTrigger value="ventas">Ventas</TabsTrigger>
+          {/* <TabsTrigger value="ventas">Ventas</TabsTrigger> */}
           <TabsTrigger value="productos">Productos</TabsTrigger>
-          <TabsTrigger value="sucursales">Sucursales</TabsTrigger>
-          <TabsTrigger value="comparativa">Comparativa</TabsTrigger>
+          {/* <TabsTrigger value="sucursales">Sucursales</TabsTrigger> */}
         </TabsList>
-        <TabsContent value="ventas" className="space-y-4">
+        {/* <TabsContent value="ventas" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Tendencia de Ventas</CardTitle>
             </CardHeader>
             <CardContent className="pl-2">
-              <SalesChart />
+              <SalesChart data={salesChartData} />
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent> */}
         <TabsContent value="productos" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Rendimiento de Productos</CardTitle>
+              <CardTitle>Rendimiento de Productos (Top 5)</CardTitle>
             </CardHeader>
             <CardContent className="pl-2">
-              <ProductsChart />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="sucursales" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ventas por Sucursal</CardTitle>
-            </CardHeader>
-            <CardContent className="pl-2">
-              <SalesBranchChart />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="comparativa" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Comparativa de Períodos</CardTitle>
-            </CardHeader>
-            <CardContent className="pl-2">
+              <ProductsChart data={productsChartData} />
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+        <Card className="col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Productos Más Vendidos</CardTitle>
-            <Select defaultValue="quantity">
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Ordenar por" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="quantity">Por cantidad</SelectItem>
-                <SelectItem value="revenue">Por ingresos</SelectItem>
-                <SelectItem value="growth">Por crecimiento</SelectItem>
-              </SelectContent>
-            </Select>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="hidden md:table-cell">Cantidad</TableHead>
-                  <TableHead className="text-right">Ingresos</TableHead>
-                  <TableHead className="text-right">Crecimiento</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {topProducts.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell className="hidden md:table-cell">{product.quantity}</TableCell>
-                    <TableCell className="text-right">${product.revenue.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="outline" className={`${product.growth >= 0 ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"} hover:bg-opacity-100`}>
-                        {product.growth >= 0 ? "+" : ""}{product.growth}%
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Mejores Clientes</CardTitle>
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead className="hidden md:table-cell">Compras</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="hidden md:table-cell">Última Compra</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {topCustomers.map((customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
-                    <TableCell className="hidden md:table-cell">{customer.purchases}</TableCell>
-                    <TableCell className="text-right">${customer.total.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
-                    <TableCell className="hidden md:table-cell">{customer.lastPurchase}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <TopProductsTable data={topProducts} />
           </CardContent>
         </Card>
       </div>

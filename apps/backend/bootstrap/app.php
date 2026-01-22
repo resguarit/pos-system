@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'cash.open' => \App\Http\Middleware\CheckCashRegisterOpen::class,
+            'has_permission' => \App\Http\Middleware\CheckPermission::class,
         ]);
 
         // Ensure CORS middleware runs for API routes

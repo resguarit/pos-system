@@ -57,7 +57,7 @@ import StockTransfersPage from '@/pages/dashboard/StockTransfersPage'
 import ExpensesListPage from '@/pages/dashboard/expenses/ExpensesListPage'
 import EmployeesPage from '@/pages/dashboard/expenses/EmployeesPage'
 import ExpenseCategoriesPage from '@/pages/dashboard/expenses/ExpenseCategoriesPage'
-import ServicesPage from '@/pages/dashboard/ServicesPage'
+import ServicesManagementPage from '@/pages/dashboard/ServicesManagementPage'
 import features from '@/config/features'
 
 
@@ -75,7 +75,7 @@ function App() {
         {/* Rutas anidadas del Dashboard */}
         <Route path="/dashboard" element={<LayoutDashboard />}>
           <Route index element={<DashboardPage />} />
-          {features.analisisventas && <Route path="analisis-ventas" element={<ProtectedRoute permissions={['ver_ventas', 'ver_estadisticas']} requireAny={false}><AnalisisVentasPage /></ProtectedRoute>} />}
+          {features.analisisventas && <Route path="analisis-ventas" element={<ProtectedRoute permissions={['ver_estadisticas']}><AnalisisVentasPage /></ProtectedRoute>} />}
           {features.caja && <Route path="caja" element={<ProtectedRoute permissions={['abrir_cerrar_caja', 'ver_movimientos_caja', 'crear_movimientos_caja', 'ver_historico_caja']} requireAny={true}><CajaPage /></ProtectedRoute>} />}
           {features.categorias && <Route path="categorias" element={<ProtectedRoute permissions={['ver_categorias']}><CategoriesPage /></ProtectedRoute>} />}
           {features.categorias && <Route path="categorias/:id" element={<ProtectedRoute permissions={['editar_categorias']}><EditCategoryPage /></ProtectedRoute>} />}
@@ -131,7 +131,7 @@ function App() {
           {features.gastos && <Route path="gastos" element={<ProtectedRoute permissions={['ver_gastos']}><ExpensesListPage /></ProtectedRoute>} />}
           {features.gastos && <Route path="gastos/empleados" element={<ProtectedRoute permissions={['ver_empleados']}><EmployeesPage /></ProtectedRoute>} />}
           {features.gastos && <Route path="gastos/categorias" element={<ProtectedRoute permissions={['ver_categorias_gastos']}><ExpenseCategoriesPage /></ProtectedRoute>} />}
-          {features.services && <Route path="servicios" element={<ProtectedRoute permissions={['ver_clientes']}><ServicesPage /></ProtectedRoute>} />}
+          {features.services && <Route path="servicios" element={<ProtectedRoute permissions={['ver_clientes']}><ServicesManagementPage /></ProtectedRoute>} />}
         </Route>
 
         {/* Redirección por defecto */}

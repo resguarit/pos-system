@@ -43,7 +43,8 @@ api.interceptors.request.use(
         /^\/sales\/global\/summary\/?$/, // resumen global filtrable
         /^\/sales\/global\/history\/?$/, // histórico global filtrable
         /^\/stocks(\/|$)/,                // inventario/alertas de stock
-        /^\/dashboard\//                  // widgets del dashboard
+        /^\/dashboard\//,                  // widgets del dashboard
+        /^\/statistics(\/|$)/             // estadisticas
       ];
       return allowList.some((rx) => rx.test(p));
     };

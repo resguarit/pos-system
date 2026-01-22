@@ -49,6 +49,17 @@ class UpdateCustomerRequest extends FormRequest
             'active' => ['nullable', 'boolean'],
             'credit_limit' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            // Tax identities array (optional - for multiple CUITs per customer)
+            'tax_identities' => ['nullable', 'array'],
+            'tax_identities.*.id' => ['nullable', 'integer', 'exists:customer_tax_identities,id'],
+            'tax_identities.*.cuit' => ['nullable', 'regex:/^[0-9]+$/', 'size:11'],
+            'tax_identities.*.business_name' => ['nullable', 'string', 'max:255'],
+            'tax_identities.*.fiscal_condition_id' => ['nullable', 'integer', 'exists:fiscal_conditions,id'],
+            'tax_identities.*.is_default' => ['nullable', 'boolean'],
+            'tax_identities.*.cbu' => ['nullable', 'regex:/^[0-9]+$/', 'size:22'],
+            'tax_identities.*.cbu_alias' => ['nullable', 'string', 'max:50'],
+            'tax_identities.*.bank_name' => ['nullable', 'string', 'max:100'],
+            'tax_identities.*.account_holder' => ['nullable', 'string', 'max:255'],
         ];
     }
 
@@ -118,6 +129,24 @@ class UpdateCustomerRequest extends FormRequest
             // Notes
             'notes.string' => 'Las notas deben ser texto.',
             'notes.max' => 'Las notas son demasiado largas. Máximo permitido: 2000 caracteres.',
+
+            // Tax Identities
+            'tax_identities.array' => 'Las identidades fiscales deben ser una lista.',
+            'tax_identities.*.cuit.regex' => 'El CUIT debe contener solo números (sin guiones). Ejemplo: 20123456789',
+            'tax_identities.*.cuit.size' => 'El CUIT debe tener exactamente 11 dígitos.',
+            'tax_identities.*.business_name.string' => 'La razón social debe ser texto.',
+            'tax_identities.*.business_name.max' => 'La razón social es demasiado larga. Máximo permitido: 255 caracteres.',
+            'tax_identities.*.fiscal_condition_id.integer' => 'La condición fiscal seleccionada no es válida.',
+            'tax_identities.*.fiscal_condition_id.exists' => 'La condición fiscal seleccionada no existe en el sistema.',
+            'tax_identities.*.is_default.boolean' => 'El campo predeterminado debe ser verdadero o falso.',
+            'tax_identities.*.cbu.regex' => 'El CBU/CVU debe contener solo números.',
+            'tax_identities.*.cbu.size' => 'El CBU/CVU debe tener exactamente 22 dígitos.',
+            'tax_identities.*.cbu_alias.string' => 'El alias de CBU debe ser texto.',
+            'tax_identities.*.cbu_alias.max' => 'El alias de CBU es demasiado largo. Máximo: 50 caracteres.',
+            'tax_identities.*.bank_name.string' => 'El nombre del banco debe ser texto.',
+            'tax_identities.*.bank_name.max' => 'El nombre del banco es demasiado largo. Máximo: 100 caracteres.',
+            'tax_identities.*.account_holder.string' => 'El titular de la cuenta debe ser texto.',
+            'tax_identities.*.account_holder.max' => 'El titular de la cuenta es demasiado largo. Máximo: 255 caracteres.',
         ];
     }
 

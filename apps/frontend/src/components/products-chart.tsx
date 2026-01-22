@@ -1,21 +1,23 @@
 
 import { useEffect, useState } from 'react'
+import { usePrimaryColor } from '@/hooks/usePrimaryColor'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Card, CardContent } from '@/components/ui/card'
 
-const data = [
-  { name: 'Laptop HP 15', cantidad: 42, ingresos: 37799.58 },
-  { name: 'Teclado Mecánico RGB', cantidad: 38, ingresos: 3419.62 },
-  { name: 'Auriculares Bluetooth', cantidad: 35, ingresos: 2099.65 },
-  { name: 'Monitor Samsung 24', cantidad: 29, ingresos: 7249.71 },
-  { name: 'Tableta Grafica', cantidad: 24, ingresos: 2399.76 },
-  { name: 'Mouse Inalámbrico', cantidad: 22, ingresos: 659.78 },
-  { name: 'Impresora Epson', cantidad: 18, ingresos: 3599.82 },
-]
+interface ProductData {
+  name: string
+  cantidad: number
+  ingresos: number
+}
 
-export default function ProductsChart() {
+interface ProductsChartProps {
+  data: ProductData[]
+}
+
+export default function ProductsChart({ data }: ProductsChartProps) {
   const [isMounted, setIsMounted] = useState(false)
   const [metric, setMetric] = useState('cantidad')
+  const primaryColor = usePrimaryColor()
 
   useEffect(() => {
     setIsMounted(true)
@@ -31,45 +33,52 @@ export default function ProductsChart() {
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setMetric('cantidad')}
-            className={`px-3 py-1 text-sm rounded-md ${
-              metric === 'cantidad' 
-                ? 'bg-primary text-primary-foreground' 
-                : 'bg-muted text-muted-foreground'
-            }`}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${metric === 'cantidad'
+              ? 'text-white'
+              : 'bg-muted text-muted-foreground'
+              }`}
+            style={{
+              backgroundColor: metric === 'cantidad' ? primaryColor : undefined
+            }}
           >
             Cantidad
           </button>
           <button
             onClick={() => setMetric('ingresos')}
-            className={`px-3 py-1 text-sm rounded-md ${
-              metric === 'ingresos' 
-                ? 'bg-primary text-primary-foreground' 
-                : 'bg-muted text-muted-foreground'
-            }`}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${metric === 'ingresos'
+              ? 'text-white'
+              : 'bg-muted text-muted-foreground'
+              }`}
+            style={{
+              backgroundColor: metric === 'ingresos' ? primaryColor : undefined
+            }}
           >
             Ingresos
           </button>
         </div>
       </div>
       <ResponsiveContainer width="100%" height={350}>
-        <BarChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
-          <XAxis 
-            dataKey="name" 
-            tickLine={false} 
-            axisLine={false} 
+        <BarChart data={data} margin={{ top: 20, right: 30, left: 40, bottom: 60 }}>
+          <XAxis
+            dataKey="name"
+            tickLine={false}
+            axisLine={false}
             tickMargin={10}
             angle={-45}
             textAnchor="end"
-            height={80}
+            height={100}
+            interval={0}
             tick={{ fontSize: 12 }}
+            tickFormatter={(value) => value.length > 20 ? `${value.substring(0, 20)}...` : value}
           />
-          <YAxis 
+          <YAxis
             tickLine={false}
             axisLine={false}
             tickFormatter={(value) => metric === 'ingresos' ? `$${value.toLocaleString("es-AR")}` : value.toLocaleString("es-AR")}
             tickMargin={10}
+            width={80}
           />
-          <Tooltip 
+          <Tooltip
             content={({ active, payload }) => {
               if (active && payload && payload.length) {
                 return (
@@ -77,8 +86,8 @@ export default function ProductsChart() {
                     <CardContent className="py-2 px-3">
                       <p className="text-sm font-medium">{payload[0].payload.name}</p>
                       <p className="text-sm font-bold">
-                        {metric === 'ingresos' 
-                          ? `$${payload[0].payload.ingresos.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                        {metric === 'ingresos'
+                          ? `$${payload[0].payload.ingresos.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                           : `${payload[0].payload.cantidad.toLocaleString("es-AR")} unidades`}
                       </p>
                     </CardContent>
@@ -88,10 +97,10 @@ export default function ProductsChart() {
               return null
             }}
           />
-          <Bar 
-            dataKey={metric} 
-            fill="#10b981" 
-            radius={[4, 4, 0, 0]} 
+          <Bar
+            dataKey={metric}
+            fill={primaryColor}
+            radius={[4, 4, 0, 0]}
           />
         </BarChart>
       </ResponsiveContainer>
