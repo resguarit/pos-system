@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -83,7 +83,7 @@ export default function ExpenseCategoriesPage() {
 
     const fetchCategories = useCallback(async (page = 1) => {
         try {
-            const params: any = { page, limit: PAGE_SIZE, with_children: true };
+            const params: { page: number; limit: number; with_children: boolean; search?: string } = { page, limit: PAGE_SIZE, with_children: true };
             if (debouncedSearchTerm.trim()) {
                 params.search = debouncedSearchTerm.trim();
             }
@@ -194,8 +194,9 @@ export default function ExpenseCategoriesPage() {
             fetchCategories(currentPage);
             setDeleteDialogOpen(false)
             setCategoryToDelete(null)
-        } catch (error: any) {
-            toast.error(error?.message || 'Error al eliminar la categoría')
+        } catch (error: unknown) {
+            const errMsg = error instanceof Error ? error.message : 'Error al eliminar la categoría';
+            toast.error(errMsg)
         }
     }
 
@@ -217,8 +218,8 @@ export default function ExpenseCategoriesPage() {
         const isExpanded = expandedCategories.has(category.id);
         
         return (
-            <>
-                <TableRow key={category.id} className={level > 0 ? "bg-muted/30" : ""}>
+            <React.Fragment key={category.id}>
+                <TableRow className={level > 0 ? "bg-muted/30" : ""}>
                     <ResizableTableCell columnId="name" getColumnCellProps={getColumnCellProps}>
                         <div className="flex items-center gap-2" style={{ paddingLeft: `${level * 24}px` }}>
                             {hasChildren ? (
@@ -285,7 +286,7 @@ export default function ExpenseCategoriesPage() {
                 </TableRow>
                 {/* Render children if expanded */}
                 {hasChildren && isExpanded && category.children?.map(child => renderCategoryRow(child, level + 1))}
-            </>
+            </React.Fragment>
         );
     };
 

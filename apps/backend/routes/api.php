@@ -726,11 +726,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('expense-categories')->group(function () {
         Route::middleware('has_permission:ver_categorias_gastos')->group(function () {
+            Route::get('/tree', [ExpenseCategoryController::class, 'tree']);
             Route::get('/', [ExpenseCategoryController::class, 'index']);
             Route::get('/{id}', [ExpenseCategoryController::class, 'show']);
-            Route::get('/tree', [ExpenseCategoryController::class, 'tree']);
         });
-        // Route::get('/tree', [ExpenseCategoryController::class, 'tree']); Moved inside
 
         Route::middleware('has_permission:crear_categorias_gastos')->post('/', [ExpenseCategoryController::class, 'store']);
         Route::middleware('has_permission:editar_categorias_gastos')->put('/{id}', [ExpenseCategoryController::class, 'update']);

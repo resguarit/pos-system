@@ -35,12 +35,9 @@ import {
     Car,
     Paperclip,
     Laptop,
-    HelpCircle,
-    Truck,
     Hammer,
     Palmtree,
     Users,
-    FileText,
     ShoppingBag,
     Box,
     Receipt,
@@ -165,7 +162,7 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
     // Data
     const [categoriesTree, setCategoriesTree] = useState<ExpenseCategory[]>([]);
     const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
-    const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+    const [paymentMethods, setPaymentMethods] = useState<{ id: number; name: string }[]>([]);
 
     // Selection State
     const [selectedParentCategory, setSelectedParentCategory] = useState<ExpenseCategory | null>(null);
@@ -186,6 +183,7 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
         } else {
             resetForm();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, selectedBranchIds]);
 
     const resetForm = () => {
@@ -197,6 +195,20 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
     };
 
     const loadInitialData = async () => {
+        // Normalizar respuestas a arrays para evitar errores de .map()
+        const normalizeToArray = <T,>(payload: unknown): T[] => {
+            // Si ya es un array, devolverlo
+            if (Array.isArray(payload)) return payload as T[];
+            
+            // Si tiene .data como array, usar eso
+            const obj = payload as Record<string, unknown>;
+            if (obj?.data && Array.isArray(obj.data)) return obj.data as T[];
+            
+            // Si data es un objeto pero no un array, probablemente es un item único o vacío
+            // No mostrar warning, solo devolver array vacío
+            return [];
+        };
+
         try {
             // Load Payment Methods using API directly as service might not have it exposed
             const fetchPaymentMethods = async () => {
@@ -204,18 +216,27 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
                     const response = await request({ method: 'GET', url: '/payment-methods?active=true' });
                     if (response?.data) return response.data;
                     return [];
-                } catch (e) { return []; }
+                } catch (e) { 
+                    console.error("Error fetching payment methods:", e);
+                    return []; 
+                }
             };
 
             const [tree, recent, pms] = await Promise.all([
-                expensesService.getCategoriesTree(),
-                expensesService.getRecentExpenses(),
+                expensesService.getCategoriesTree().catch(e => {
+                    console.error("Error fetching categories tree:", e);
+                    return { data: [] };
+                }),
+                expensesService.getRecentExpenses().catch(e => {
+                    console.error("Error fetching recent expenses:", e);
+                    return { data: [] };
+                }),
                 fetchPaymentMethods(),
             ]);
 
-            setCategoriesTree(tree.data || []);
-            setRecentExpenses(recent.data || []);
-            setPaymentMethods(pms || []);
+            setCategoriesTree(normalizeToArray<ExpenseCategory>(tree));
+            setRecentExpenses(normalizeToArray<Expense>(recent));
+            setPaymentMethods(normalizeToArray(pms));
         } catch (error) {
             console.error("Error loading data", error);
         }
@@ -257,7 +278,7 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
             toast.success('Gasto registrado correctamente');
             onSuccess();
             onOpenChange(false);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
             toast.error('Error al registrar gasto');
         } finally {
