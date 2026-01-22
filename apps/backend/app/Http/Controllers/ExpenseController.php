@@ -118,16 +118,20 @@ class ExpenseController extends Controller
         }
     }
 
-    public function show(Expense $expense)
+    public function show($id)
     {
+        $expense = Expense::findOrFail($id);
+        
         return response()->json([
             'success' => true,
             'data' => $expense->load(['category', 'employee.person', 'branch', 'paymentMethod', 'user', 'cashMovement'])
         ]);
     }
 
-    public function update(UpdateExpenseRequest $request, Expense $expense)
+    public function update(UpdateExpenseRequest $request, $id)
     {
+        $expense = Expense::findOrFail($id);
+        
         if ($expense->status === 'paid' && $expense->cash_movement_id) {
             return response()->json([
                 'success' => false,
@@ -151,8 +155,10 @@ class ExpenseController extends Controller
         }
     }
 
-    public function destroy(Expense $expense)
+    public function destroy($id)
     {
+        $expense = Expense::findOrFail($id);
+        
         try {
             $this->expenseService->deleteExpense($expense);
 

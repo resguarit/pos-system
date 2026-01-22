@@ -471,12 +471,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/current-optimized', [CashRegisterController::class, 'currentOptimized']);
         Route::get('/last-closure', [CashRegisterController::class, 'getLastClosure']);
         Route::get('/multiple-branches', [CashRegisterController::class, 'multipleBranches']);
+        
+        // Estos endpoints son necesarios para validar el estado de la caja antes de operaciones
+        // como ventas, por lo que deben estar disponibles para todos los usuarios autenticados
+        Route::get('/check-status', [CashRegisterController::class, 'checkStatus']);
+        Route::get('/check-multiple-branches-status', [CashRegisterController::class, 'checkMultipleBranchesStatus']);
 
         Route::middleware('has_permission:ver_historico_caja')->group(function () {
             Route::get('/cash-registers-history', [CashRegisterController::class, 'cashRegistersHistory']);
             Route::get('/payment-methods-optimized', [CashRegisterController::class, 'getPaymentMethodsOptimized']);
-            Route::get('/check-status', [CashRegisterController::class, 'checkStatus']);
-            Route::get('/check-multiple-branches-status', [CashRegisterController::class, 'checkMultipleBranchesStatus']);
             Route::get('/history', [CashRegisterController::class, 'history']);
             Route::get('/transactions/history', [CashRegisterController::class, 'transactionsHistory']);
 

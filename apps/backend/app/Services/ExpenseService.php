@@ -51,7 +51,8 @@ class ExpenseService
         }
 
         return DB::transaction(function () use ($expense, $data) {
-            $expense->update($data);
+            $expense->fill($data);
+            $expense->save();
 
             if ($expense->status === 'paid' && !$expense->cash_movement_id) {
                 $this->processPayment($expense);

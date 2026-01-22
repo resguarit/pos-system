@@ -32,7 +32,7 @@ class UpdateExpenseRequest extends FormRequest
             'payment_method_id' => 'nullable|exists:payment_methods,id',
             'is_recurring' => 'boolean',
             'recurrence_interval' => 'nullable|string|in:daily,weekly,monthly,yearly',
-            'status' => 'in:pending,approved,paid,cancelled',
+            'status' => 'sometimes|in:pending,approved,paid,cancelled',
         ];
     }
 }
