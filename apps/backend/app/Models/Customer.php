@@ -44,6 +44,14 @@ class Customer extends Model
     }
 
     /**
+     * Get the client services for the customer.
+     */
+    public function clientServices(): HasMany
+    {
+        return $this->hasMany(ClientService::class);
+    }
+
+    /**
      * Get the default tax identity for the customer.
      */
     public function defaultTaxIdentity()

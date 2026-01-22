@@ -41,7 +41,11 @@ let envFeatures = {};
 try {
   const envFeaturesStr = import.meta.env.VITE_FEATURES;
   if (envFeaturesStr) {
-    envFeatures = JSON.parse(envFeaturesStr);
+    const normalized = envFeaturesStr
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'");
+
+    envFeatures = JSON.parse(normalized);
   }
 } catch (e) {
   console.warn('Failed to parse VITE_FEATURES', e);

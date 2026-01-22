@@ -367,18 +367,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('client-services')->middleware('has_permission:ver_servicios')->group(function () {
         // Stats route - must be before {id} routes
-        Route::get('/stats', [ApiClientServiceController::class, 'stats']);
-        Route::get('/customers-with-services', [ApiClientServiceController::class, 'customersWithServices']);
+        Route::get('/stats', [ClientServiceController::class, 'stats']);
+        Route::get('/customers-with-services', [ClientServiceController::class, 'customersWithServices']);
         
         // General access if needed, or mostly via customer
-        Route::get('/', [ApiClientServiceController::class, 'index']);
-        Route::get('/{clientService}', [ApiClientServiceController::class, 'show']);
+        Route::get('/', [ClientServiceController::class, 'index']);
+        Route::get('/{clientService}', [ClientServiceController::class, 'show']);
+        Route::get('/{clientService}/payments', [ClientServiceController::class, 'getPayments']);
 
         Route::middleware('has_permission:editar_servicios')->group(function () {
-            Route::post('/', [ApiClientServiceController::class, 'store']);
-            Route::put('/{clientService}', [ApiClientServiceController::class, 'update']);
-            Route::delete('/{clientService}', [ApiClientServiceController::class, 'destroy']);
-            Route::post('/{clientService}/renew', [ApiClientServiceController::class, 'renew']);
+            Route::post('/', [ClientServiceController::class, 'store']);
+            Route::put('/{clientService}', [ClientServiceController::class, 'update']);
+            Route::delete('/{clientService}', [ClientServiceController::class, 'destroy']);
+            Route::post('/{clientService}/renew', [ClientServiceController::class, 'renew']);
         });
     });
 

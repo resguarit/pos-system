@@ -259,5 +259,23 @@ class ClientServiceController extends Controller
                 return $fromDate->copy();
         }
     }
-}
 
+    /**
+     * Get payments for a specific client service.
+     */
+    public function getPayments(ClientService $clientService)
+    {
+        $payments = $clientService->payments()
+            ->orderByDesc('payment_date')
+            ->get()
+            ->map(function($payment) {
+                return [
+                    'id' => $payment->id,
+                    'amount' => $payment->amount,
+                    'payment_date' => $payment->payment_date,
+                    'notes' => $payment->notes,
+                ];
+            });
+
+        return response()->json($payments);
+    }

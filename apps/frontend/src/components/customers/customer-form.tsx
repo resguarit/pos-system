@@ -17,7 +17,6 @@ import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import ClientServicesList from "./client-services-list"
 
 interface TaxIdentity {
   id?: number
@@ -139,6 +138,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         })
       }
     } catch (err) {
+      console.error("Error al cargar el cliente:", err)
       toast.error("Error de conexión", {
         description: "No se pudo cargar el cliente. Revisá tu conexión a internet.",
       })
@@ -148,7 +148,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
   }
 
   // --- INICIO DE MODIFICACIÓN ---
-  const populateFormWithCustomerData = (customer: any) => {
+  const populateFormWithCustomerData = (customer: Customer) => {
     if (!customer || !customer.person) {
       console.error("El objeto cliente o persona es inválido", customer);
       return;
@@ -381,7 +381,11 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
         // Ejecutar callback si viene desde POS u otra vista embebida
         if (onSuccess) {
-          try { onSuccess(response.data as Customer) } catch { }
+          try {
+            onSuccess(response.data as Customer)
+          } catch (error) {
+            console.error("Error al ejecutar onSuccess:", error)
+          }
         }
 
         // Navegar solo si no está deshabilitado
@@ -394,12 +398,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           description: errorMessage,
         })
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error al procesar la solicitud:", err)
 
       // Handle Laravel validation errors (422 status)
-      if (err?.response?.data?.errors) {
-        const validationErrors = err.response.data.errors;
+      const axiosLike = err as { response?: { data?: { errors?: Record<string, unknown>; message?: string } } }
+
+      if (axiosLike?.response?.data?.errors) {
+        const validationErrors = axiosLike.response.data.errors;
         // Get first error message from each field
         const errorMessages = Object.values(validationErrors)
           .map((fieldErrors: unknown) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
@@ -409,7 +415,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           description: errorMessages,
         })
       } else {
-        const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
+        const errorMessage = axiosLike?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
         toast.error("No se pudo guardar el cliente", {
           description: errorMessage,
         })
@@ -468,7 +474,6 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                 <TabsList>
                   <TabsTrigger value="personal">Información Personal</TabsTrigger>
                   <TabsTrigger value="fiscal">Información Fiscal</TabsTrigger>
-                  {customerId && <TabsTrigger value="services">Servicios</TabsTrigger>}
                 </TabsList>
 
                 <TabsContent value="personal" className="space-y-4">
@@ -880,12 +885,6 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                   </Card>
                 </TabsContent>
 
-                {/* New Services Tab - Only visible if customer exists (editing or viewing) */}
-                {customerId && (
-                  <TabsContent value="services" className="space-y-4">
-                    <ClientServicesList customerId={customerId} viewOnly={viewOnly} />
-                  </TabsContent>
-                )}
               </Tabs>
             </form>
 
