@@ -176,7 +176,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
     // Populate tax identities
     if (customer.tax_identities && customer.tax_identities.length > 0) {
-      setTaxIdentities(customer.tax_identities.map((ti: any) => ({
+      setTaxIdentities(customer.tax_identities.map((ti: TaxIdentity) => ({
         id: ti.id,
         cuit: ti.cuit || "",
         business_name: ti.business_name || "",
@@ -402,14 +402,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         const validationErrors = err.response.data.errors;
         // Get first error message from each field
         const errorMessages = Object.values(validationErrors)
-          .map((fieldErrors: any) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
+          .map((fieldErrors: unknown) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
           .join('. ');
 
         toast.error("Verificá los datos ingresados", {
           description: errorMessages,
         })
       } else {
-        const errorMessage = err?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
+        const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
         toast.error("No se pudo guardar el cliente", {
           description: errorMessage,
         })

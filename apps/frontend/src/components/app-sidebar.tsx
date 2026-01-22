@@ -19,6 +19,7 @@ import {
   Truck,
   Users,
   Wallet,
+  Globe,
   Shield,
   Wrench,
   Receipt
@@ -77,7 +78,7 @@ export function AppSidebar({ className }: { className?: string }) {
       title: "Ventas",
       url: "#",
       icon: CircleDollarSign,
-      isActive: pathname.startsWith("/dashboard/ventas") || pathname.startsWith("/dashboard/pos") || pathname.startsWith("/dashboard/clientes") || pathname.startsWith("/dashboard/cuentas-corrientes") || pathname.startsWith("/dashboard/analisis-ventas") || pathname.startsWith("/dashboard/envios") || pathname.startsWith("/dashboard/ventas-pendientes"),
+      isActive: pathname.startsWith("/dashboard/ventas") || pathname.startsWith("/dashboard/pos") || pathname.startsWith("/dashboard/analisis-ventas") || pathname.startsWith("/dashboard/envios") || pathname.startsWith("/dashboard/ventas-pendientes"),
       items: [
         {
           title: "Punto de Venta",
@@ -104,6 +105,22 @@ export function AppSidebar({ className }: { className?: string }) {
           icon: BarChart3,
           visible: features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas'),
         },
+      ],
+    },
+    {
+      title: "Servicios",
+      url: "/dashboard/servicios",
+      icon: Globe,
+      visible: features.services && hasPermission('ver_clientes'),
+      isActive: pathname.startsWith("/dashboard/servicios"),
+      items: [],
+    },
+    {
+      title: "Clientes",
+      url: "#",
+      icon: Users,
+      isActive: pathname.startsWith("/dashboard/clientes") || pathname.startsWith("/dashboard/cuentas-corrientes"),
+      items: [
         {
           title: "Clientes",
           url: "/dashboard/clientes",
@@ -359,8 +376,21 @@ export function AppSidebar({ className }: { className?: string }) {
               )}
 
               {navMain.map((group) => {
-                // Filter items based on visibility
-                const visibleItems = group.items.filter(item => item.visible !== false)
+                const visibleItems = (group.items ?? []).filter(item => item.visible !== false)
+
+                // If no subitems, render as a single link (for standalone entries como "Servicios")
+                if (visibleItems.length === 0 && group.url && group.url !== "#") {
+                  return (
+                    <SidebarMenuItem key={group.title}>
+                      <SidebarMenuButton asChild isActive={pathname.startsWith(group.url)} tooltip={group.title}>
+                        <Link to={group.url}>
+                          {group.icon && <group.icon className="h-4 w-4" />}
+                          <span>{group.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                }
 
                 if (visibleItems.length === 0) return null
 

@@ -85,12 +85,7 @@ export default function AnalisisVentasPage() {
             ]
           })
         ]
-        const wsProducts = XLSX.utils.aoa_to_sheet(productsData)
 
-        // Formato de moneda para columnas C y D (Revenue y Precio Promedio)
-        // Nota: SheetJS Community edition no soporta estilos avanzados, pero podemos intentar setear tipos de celda si lo procesamos manual, 
-        // por ahora dejamos los datos crudos y que el usuario formatee o usamos strings formateados. 
-        // Mejor usar strings formateados para asegurar visualización correcta inmediata
 
         const productsDataFormatted = [
           ["Ranking", "Producto", "Cantidad Vendida", "Ingresos Totales", "% del Total"],
@@ -201,11 +196,6 @@ export default function AnalisisVentasPage() {
     cantidad: Number(p.total_quantity),
     ingresos: Number(p.total_revenue)
   }))
-
-  const salesChartData = [
-    // Placeholder: backend doesn't provide daily sales yet for chart
-    { date: "01/01", ventas: 0 }
-  ]
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">

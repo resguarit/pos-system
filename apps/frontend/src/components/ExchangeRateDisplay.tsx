@@ -38,9 +38,6 @@ export function ExchangeRateDisplay({
     hasValidRate
   } = useExchangeRate({ fromCurrency, toCurrency });
 
-  // Para verificar permisos
-  const { hasPermission } = useAuth();
-
   const formatLastUpdated = (date: Date | null) => {
     if (!date) return 'Nunca';
 
@@ -56,7 +53,7 @@ export function ExchangeRateDisplay({
     return date.toLocaleDateString('es-AR');
   };
 
-  const formatRate = (rateValue: any): string => {
+  const formatRate = (rateValue: unknown): string => {
     try {
       // Verificar si es null, undefined, o no es un número
       if (rateValue === null || rateValue === undefined) {
@@ -77,7 +74,7 @@ export function ExchangeRateDisplay({
       }
 
       return Number(numericValue).toFixed(2);
-    } catch (error) {
+    } catch {
       return '1.00';
     }
   };

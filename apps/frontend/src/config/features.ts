@@ -7,7 +7,7 @@ const defaultFeatures = {
   combos: true,
   repairs: false,
 
-  analisisventas: false,
+  analisisventas: true,
   caja: true,
   clientes: true,
 
