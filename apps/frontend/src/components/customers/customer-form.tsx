@@ -137,8 +137,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           description: "Verificá tu conexión e intentá de nuevo.",
         })
       }
-    } catch (err) {
-      console.error("Error al cargar el cliente:", err)
+    } catch {
       toast.error("Error de conexión", {
         description: "No se pudo cargar el cliente. Revisá tu conexión a internet.",
       })
@@ -381,11 +380,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
         // Ejecutar callback si viene desde POS u otra vista embebida
         if (onSuccess) {
-          try {
-            onSuccess(response.data as Customer)
-          } catch (error) {
-            console.error("Error al ejecutar onSuccess:", error)
-          }
+          try { onSuccess(response.data as Customer) } catch { /* Ignorar errores del callback */ }
         }
 
         // Navegar solo si no está deshabilitado
@@ -399,13 +394,12 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         })
       }
     } catch (err: unknown) {
-      console.error("Error al procesar la solicitud:", err)
+      const error = err as { response?: { data?: { errors?: Record<string, string[]>; message?: string } }; message?: string }
+      console.error("Error al procesar la solicitud:", error)
 
       // Handle Laravel validation errors (422 status)
-      const axiosLike = err as { response?: { data?: { errors?: Record<string, unknown>; message?: string } } }
-
-      if (axiosLike?.response?.data?.errors) {
-        const validationErrors = axiosLike.response.data.errors;
+      if (error?.response?.data?.errors) {
+        const validationErrors = err.response.data.errors;
         // Get first error message from each field
         const errorMessages = Object.values(validationErrors)
           .map((fieldErrors: unknown) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
@@ -415,7 +409,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           description: errorMessages,
         })
       } else {
-        const errorMessage = axiosLike?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
+        const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
         toast.error("No se pudo guardar el cliente", {
           description: errorMessage,
         })
