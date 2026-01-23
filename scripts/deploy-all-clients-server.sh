@@ -29,13 +29,19 @@ fi
 total_count=0
 success_count=0
 
+echo ""
+echo "Starting iteration..."
+
 # Iterate through each API directory
 for api_dir in $API_DIRS; do
+  echo "Processing: $api_dir"
+  
   if [ ! -d "$api_dir" ]; then
+    echo "Skipping $api_dir - not a directory"
     continue
   fi
   
-  ((total_count++))
+  total_count=$((total_count + 1))
   
   # Extract client name from directory (e.g., api.hela-ditos.com.ar -> hela-ditos)
   client_name=$(echo "$api_dir" | sed 's/api\.//' | sed 's/\.com\.ar$//' | sed 's/\.net\.ar$//')
@@ -85,7 +91,7 @@ for api_dir in $API_DIRS; do
     if php artisan migrate --force; then
       echo "✅ Migrations completed for $client_name"
       success_clients+=("$client_name")
-      ((success_count++))
+      success_count=$((success_count + 1))
     else
       echo "❌ Migrations failed for $client_name"
       failed_clients+=("$client_name (migration error)")
