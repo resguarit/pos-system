@@ -242,7 +242,9 @@ export default function POSPage() {
             convertedFromBudgetId: budget.id,
             convertedFromBudgetNumber: budget.receipt_number || `#${budget.id}`,
             convertedFromBudgetPayments: budget.payments,
-            convertedFromBudgetTotal: budget.total
+            convertedFromBudgetTotal: budget.total,
+            // Pasar datos del cliente del presupuesto original
+            convertedFromBudgetCustomer: budget.customer_data || null
           }
         })
 

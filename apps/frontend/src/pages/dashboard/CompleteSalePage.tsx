@@ -37,9 +37,18 @@ export default function CompleteSalePage() {
   const { selectedBranch, branches } = useBranch()
   const { user, hasPermission } = useAuth()
   
-  // Obtener datos del carrito y branchId desde location.state
+  // Obtener datos del carrito, branchId, convertedFromBudgetId y cliente desde location.state
   const initialCart = (location.state?.cart as CartItem[]) || []
   const stateBranchId = location.state?.branchId
+  const convertedFromBudgetId = location.state?.convertedFromBudgetId as number | null | undefined
+  const convertedFromBudgetCustomer = location.state?.convertedFromBudgetCustomer as {
+    id: number
+    name: string
+    dni: string | null
+    cuit: string | null
+    fiscal_condition_id: number | null
+    fiscal_condition_name: string | null
+  } | null | undefined
   
   // Usar la sucursal del state si está disponible, sino usar la del contexto
   const activeBranch = stateBranchId 
@@ -162,6 +171,26 @@ export default function CompleteSalePage() {
     }
   }, [initialCart.length, navigate])
 
+  // Cargar el cliente del presupuesto cuando se está convirtiendo
+  // Se ejecuta solo una vez al montar si hay datos del cliente
+  useEffect(() => {
+    if (!convertedFromBudgetCustomer?.id) return
+    
+    // Mapear los datos del cliente del presupuesto al formato CustomerOption
+    const customerOption: CustomerOption = {
+      id: convertedFromBudgetCustomer.id,
+      name: convertedFromBudgetCustomer.name || '',
+      dni: convertedFromBudgetCustomer.dni,
+      cuit: convertedFromBudgetCustomer.cuit,
+      fiscal_condition_id: convertedFromBudgetCustomer.fiscal_condition_id,
+      fiscal_condition_name: convertedFromBudgetCustomer.fiscal_condition_name,
+    }
+    
+    setSelectedCustomer(customerOption)
+    setCustomerSearch(convertedFromBudgetCustomer.name || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Solo ejecutar al montar - los datos vienen del state de navegación
+
   // Cargar métodos de pago y tipos de comprobante
   useEffect(() => {
     fetchPaymentMethods()
@@ -255,8 +284,20 @@ export default function CompleteSalePage() {
 
       // RESTRICCIÓN POR PERMISO: Si el usuario TIENE permiso solo_crear_presupuestos,
       // solo puede emitir Presupuestos (ID=1)
+      // PERO: Si viene de una conversión de presupuesto, NO puede crear otro presupuesto
       const isRestrictedToBudgets = hasPermission('solo_crear_presupuestos')
-      if (isRestrictedToBudgets) {
+      const isConvertingBudget = !!convertedFromBudgetId
+      
+      if (isConvertingBudget) {
+        // Si estamos convirtiendo un presupuesto, excluir el tipo "Presupuesto" (016)
+        // porque no tiene sentido crear otro presupuesto desde un presupuesto
+        availableTypes = availableTypes.filter((t: ReceiptType) => t.afip_code !== '016')
+        console.log('Conversión de presupuesto: excluyendo tipo Presupuesto de las opciones')
+        
+        if (availableTypes.length === 0) {
+          toast.error('No hay tipos de comprobante de venta disponibles para convertir este presupuesto')
+        }
+      } else if (isRestrictedToBudgets) {
         const presupuesto = availableTypes.find((t: ReceiptType) => t.afip_code === '016') // Presupuesto Code = 016
         if (presupuesto) {
           availableTypes = [presupuesto]
@@ -291,7 +332,7 @@ export default function CompleteSalePage() {
       setReceiptTypes([])
       toast.error("Error al cargar los tipos de comprobante.")
     }
-  }, [request, activeBranch])
+  }, [request, activeBranch, checkCuitCertificate, convertedFromBudgetId, hasPermission])
 
   const addPayment = useCallback(() => {
     // Recalcular y bloquear el descuento basado en los montos actuales
@@ -394,6 +435,8 @@ export default function CompleteSalePage() {
         ...(globalDiscountType && Number(globalDiscountValue) > 0
           ? { discount_type: globalDiscountType, discount_value: Number(globalDiscountValue) }
           : {}),
+        // Si viene de un presupuesto, incluir el ID para marcarlo como convertido
+        ...(convertedFromBudgetId ? { converted_from_budget_id: convertedFromBudgetId } : {}),
         items: cart.map((item) => {
           const productId = extractProductId(item)
 

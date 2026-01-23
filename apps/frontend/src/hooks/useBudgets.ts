@@ -10,6 +10,15 @@ interface Budget {
     receipt_number: string
     customer: string
     customer_id: number | null
+    // Datos completos del cliente para conversión a venta
+    customer_data?: {
+        id: number
+        name: string
+        dni: string | null
+        cuit: string | null
+        fiscal_condition_id: number | null
+        fiscal_condition_name: string | null
+    } | null
     creator: string
     creator_id: number | null
     items_count: number

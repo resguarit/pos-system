@@ -118,6 +118,17 @@ class SaleService implements SaleServiceInterface
     {
         // Se usa una transacción para garantizar que si algo falla, no se guarde nada.
         return DB::transaction(function () use ($data, $registerMovement) {
+            // 0) Validación: No se puede crear un presupuesto desde otro presupuesto
+            if (isset($data['converted_from_budget_id']) && $data['converted_from_budget_id']) {
+                $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
+                if ($receiptType && $receiptType->afip_code === '016') {
+                    throw new \InvalidArgumentException(
+                        'No se puede crear un presupuesto desde otro presupuesto. ' .
+                        'Seleccione un tipo de comprobante de venta (Factura A, B, C, X, etc.).'
+                    );
+                }
+            }
+
             // 1) Items y limpieza
             $itemsData = $data['items'];
             unset($data['items']);
@@ -320,19 +331,25 @@ class SaleService implements SaleServiceInterface
 
             // 12) Si viene de un presupuesto, actualizar el estado del presupuesto original
             if (isset($data['converted_from_budget_id']) && $data['converted_from_budget_id']) {
-                $budget = SaleHeader::find($data['converted_from_budget_id']);
+                $budget = SaleHeader::lockForUpdate()->find($data['converted_from_budget_id']);
                 if ($budget) {
                     $this->validateIsBudget($budget);
                     $this->validateBudgetNotAnnulled($budget);
-                    // No validamos si ya fue convertido para permitir re-intentos si falló o si se permite,
-                    // pero idealmente deberíamos. Por ahora solo actualizamos.
+                    
+                    // Validar que el presupuesto no haya sido convertido previamente
+                    // para evitar duplicados y mantener integridad de datos
+                    if ($budget->status === 'converted' && $budget->converted_to_sale_id) {
+                        throw new \Exception('Este presupuesto ya fue convertido a la venta #' . $budget->converted_to_sale_id . '. No se puede convertir nuevamente.');
+                    }
 
                     $budget->status = 'converted';
                     $budget->converted_to_sale_id = $saleHeader->id;
+                    $budget->converted_at = Carbon::now();
                     $budget->save();
 
-                    // Vincular en la nueva venta también (ya debería estar en $data pero nos aseguramos)
-                    // $saleHeader->converted_from_budget_id = $budget->id; // Ya está en create($data)
+                    // Actualizar también la referencia en la nueva venta
+                    $saleHeader->converted_from_budget_id = $budget->id;
+                    $saleHeader->save();
                 }
             }
 
@@ -2007,6 +2024,19 @@ class SaleService implements SaleServiceInterface
                 $creatorName = 'N/A';
             }
 
+            // Extraer datos del cliente de forma segura para evitar errores de null
+            $customerData = null;
+            if ($budget->customer) {
+                $customerData = [
+                    'id' => $budget->customer->id,
+                    'name' => $customerName,
+                    'dni' => $budget->customer->person?->documento ?? null,
+                    'cuit' => $budget->customer->person?->cuit ?? null,
+                    'fiscal_condition_id' => $budget->customer->fiscal_condition_id ?? null,
+                    'fiscal_condition_name' => $budget->customer->fiscalCondition?->name ?? null,
+                ];
+            }
+
             return [
                 'id' => $budget->id,
                 'date' => $budget->date ? Carbon::parse($budget->date)->format('Y-m-d H:i:s') : '',
@@ -2015,6 +2045,7 @@ class SaleService implements SaleServiceInterface
                 'receipt_number' => $budget->receipt_number ?? '',
                 'customer' => $customerName,
                 'customer_id' => $budget->customer_id,
+                'customer_data' => $customerData,
                 'creator' => $creatorName,
                 'creator_id' => $budget->user_id,
                 'items_count' => $budget->items->count(),
