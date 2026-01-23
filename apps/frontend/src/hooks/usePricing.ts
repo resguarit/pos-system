@@ -108,16 +108,8 @@ export function usePricing({
       return 0;
     }
     
-    console.log('calculateMarkup DEBUG:');
-    console.log('  - unitPrice:', unitPrice);
-    console.log('  - currency:', currency);
-    console.log('  - salePrice:', salePrice);
-    console.log('  - ivaRate:', ivaRate);
-    console.log('  - costInArs:', costInArs);
-    
     // 2. Remover IVA del precio de venta
     const priceWithoutIva = salePrice / (1 + ivaRate);
-    console.log('  - priceWithoutIva:', priceWithoutIva);
     
     // Validar que el precio sin IVA sea válido
     if (!priceWithoutIva || priceWithoutIva <= 0 || !isFinite(priceWithoutIva)) {
@@ -126,14 +118,12 @@ export function usePricing({
     
     // 3. Calcular markup
     const markup = (priceWithoutIva / costInArs) - 1;
-    console.log('  - markup calculado:', markup);
     
     // 4. Asegurar que el markup nunca sea negativo (mínimo 0%)
     const safeMarkup = markup < 0 ? 0 : markup;
     
     // 5. Redondear a 4 decimales
     const finalMarkup = Math.round(safeMarkup * 10000) / 10000;
-    console.log('  - markup final:', finalMarkup);
     
     return finalMarkup;
   }, [convertUsdToArs]);
@@ -252,16 +242,23 @@ export function usePricing({
       ? initialSalePrice 
       : calculateSalePrice(unitPrice, currency, markup, ivaRate);
     
+    // Si hay un precio de venta inicial (precio manual) y tenemos tasa de cambio válida,
+    // recalcular el markup basándose en ese precio para que refleje el margen real actual
+    let finalMarkup = markup;
+    if (initialSalePrice && initialSalePrice > 0 && exchangeRate && exchangeRate > 0) {
+      finalMarkup = calculateMarkup(unitPrice, currency, initialSalePrice, ivaRate);
+    }
+    
     setPricing(prev => ({
       ...prev,
       unitPrice,
       currency,
-      markup,
+      markup: finalMarkup,
       ivaRate,
       salePrice: finalSalePrice,
       hasChanged: false
     }));
-  }, [unitPrice, currency, markup, ivaRate, initialSalePrice, calculateSalePrice, exchangeRate, pricing.hasChanged]);
+  }, [unitPrice, currency, markup, ivaRate, initialSalePrice, calculateSalePrice, calculateMarkup, exchangeRate, pricing.hasChanged]);
 
   return {
     pricing,

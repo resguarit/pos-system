@@ -32,7 +32,9 @@ class SupplierController extends Controller
         // Paginación
         $perPage = $request->get('per_page', $request->get('limit', 8));
         $perPage = min($perPage, 10000); // Limitar a máximo 1000 registros por página
-        $suppliers = $query->paginate($perPage);
+        $suppliers = $query
+            ->orderBy('created_at', 'desc')
+            ->paginate($perPage);
 
         return response()->json([
             'status' => 200,
@@ -76,6 +78,7 @@ class SupplierController extends Controller
             'address' => 'nullable|string|max:255',
             'status' => 'nullable|string|in:active,pending,inactive',
             'cuit' => 'nullable|string|max:20',
+            'person_type_id' => 'nullable|integer|in:1,2',
         ]);
         // Map frontend fields if present
         if ($request->has('contact_person')) {
@@ -103,6 +106,7 @@ class SupplierController extends Controller
             'address' => 'nullable|string|max:255',
             'status' => 'nullable|string|in:active,pending,inactive',
             'cuit' => 'nullable|string|max:20',
+            'person_type_id' => 'nullable|integer|in:1,2',
         ]);
         // Map frontend fields if present
         if ($request->has('contact_person')) {

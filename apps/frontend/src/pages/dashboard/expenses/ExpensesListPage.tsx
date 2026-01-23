@@ -28,6 +28,7 @@ import { useSystemConfigContext } from "@/context/SystemConfigContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
 import { format } from "date-fns"
+import { getBillingCycleConfig } from "@/utils/billingCycleUtils"
 
 // Icon mapping from icon ID to component
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?: string }>> = {
@@ -492,21 +493,10 @@ export default function ExpensesListPage() {
                                                     <div className="mt-1">
                                                         {(() => {
                                                             const interval = expense.recurrence_interval || 'monthly';
-                                                            const styles: Record<string, string> = {
-                                                                daily: "bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200",
-                                                                weekly: "bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border-indigo-200",
-                                                                monthly: "bg-purple-100 text-purple-800 hover:bg-purple-200 border-purple-200",
-                                                                yearly: "bg-pink-100 text-pink-800 hover:bg-pink-200 border-pink-200",
-                                                            };
-                                                            const labels: Record<string, string> = {
-                                                                daily: "Diario",
-                                                                weekly: "Semanal",
-                                                                monthly: "Mensual",
-                                                                yearly: "Anual",
-                                                            };
+                                                            const config = getBillingCycleConfig(interval);
                                                             return (
-                                                                <Badge variant="secondary" className={`text-xs ${styles[interval] || styles.monthly}`}>
-                                                                    {labels[interval] || 'Recurrente'}
+                                                                <Badge variant="secondary" className={`text-xs ${config.styles}`}>
+                                                                    {config.label}
                                                                 </Badge>
                                                             );
                                                         })()}

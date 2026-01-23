@@ -58,7 +58,7 @@ class ClientServiceController extends Controller
                 $q->orderBy('status')->orderBy('next_due_date');
             },
             'clientServices.serviceType'
-        ])->whereHas('clientServices');
+        ])->whereHas('clientServices')->orderBy('created_at', 'desc');
 
         // Search
         if ($request->has('search')) {
@@ -279,3 +279,4 @@ class ClientServiceController extends Controller
 
         return response()->json($payments);
     }
+}

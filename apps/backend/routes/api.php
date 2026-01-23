@@ -28,7 +28,6 @@ use App\Http\Controllers\CashMovementController;
 use App\Http\Controllers\CurrentAccountController;
 use App\Http\Controllers\MovementTypeController;
 use App\Http\Controllers\RepairController; // Added
-use App\Http\Controllers\ClientServiceController;
 use App\Http\Controllers\Api\ServiceTypeController;
 use App\Http\Controllers\Api\ClientServiceController as ApiClientServiceController;
 use App\Http\Controllers\FinancialReportController;
@@ -352,6 +351,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/check-name/{firstName}/{lastName}', [CustomerController::class, 'checkName']);
             Route::get('/{id}', [CustomerController::class, 'show']);
             Route::get('/{id}/sales', [CustomerController::class, 'getCustomerSalesWithSummary']);
+            Route::get('/{id}/current-account-balance', [CustomerController::class, 'getCurrentAccountBalance']);
         });
 
         Route::middleware('has_permission:crear_clientes')->post('/', [CustomerController::class, 'store']);
@@ -360,26 +360,26 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Services routes linked to customers
         Route::prefix('{customerId}/services')->middleware('has_permission:ver_servicios')->group(function () {
-            Route::get('/', [ClientServiceController::class, 'index']);
-            Route::middleware('has_permission:editar_servicios')->post('/', [ClientServiceController::class, 'store']);
+            Route::get('/', [ApiClientServiceController::class, 'index']);
+            Route::middleware('has_permission:editar_servicios')->post('/', [ApiClientServiceController::class, 'store']);
         });
     });
 
     Route::prefix('client-services')->middleware('has_permission:ver_servicios')->group(function () {
         // Stats route - must be before {id} routes
-        Route::get('/stats', [ClientServiceController::class, 'stats']);
-        Route::get('/customers-with-services', [ClientServiceController::class, 'customersWithServices']);
+        Route::get('/stats', [ApiClientServiceController::class, 'stats']);
+        Route::get('/customers-with-services', [ApiClientServiceController::class, 'customersWithServices']);
         
         // General access if needed, or mostly via customer
-        Route::get('/', [ClientServiceController::class, 'index']);
-        Route::get('/{clientService}', [ClientServiceController::class, 'show']);
-        Route::get('/{clientService}/payments', [ClientServiceController::class, 'getPayments']);
+        Route::get('/', [ApiClientServiceController::class, 'index']);
+        Route::get('/{clientService}', [ApiClientServiceController::class, 'show']);
+        Route::get('/{clientService}/payments', [ApiClientServiceController::class, 'getPayments']);
 
         Route::middleware('has_permission:editar_servicios')->group(function () {
-            Route::post('/', [ClientServiceController::class, 'store']);
-            Route::put('/{clientService}', [ClientServiceController::class, 'update']);
-            Route::delete('/{clientService}', [ClientServiceController::class, 'destroy']);
-            Route::post('/{clientService}/renew', [ClientServiceController::class, 'renew']);
+            Route::post('/', [ApiClientServiceController::class, 'store']);
+            Route::put('/{clientService}', [ApiClientServiceController::class, 'update']);
+            Route::delete('/{clientService}', [ApiClientServiceController::class, 'destroy']);
+            Route::post('/{clientService}/renew', [ApiClientServiceController::class, 'renew']);
         });
     });
 

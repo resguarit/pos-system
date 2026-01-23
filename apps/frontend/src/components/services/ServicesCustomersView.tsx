@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, RefreshCw, Globe, Lock, Server, Wrench, Users, Eye, Edit, MoreVertical, DollarSign, Calendar, AlertCircle } from "lucide-react"
+import { Search, RefreshCw, Globe, Lock, Server, Wrench, Users, Eye, Pencil, MoreVertical, DollarSign, Calendar, AlertCircle } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
     DropdownMenu,
@@ -23,6 +23,7 @@ import api from "@/lib/api"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
+import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 
 interface Service {
     id: number
@@ -82,11 +83,54 @@ const getServiceColor = (name: string) => {
     return "text-gray-600 bg-gray-50 border-gray-200"
 }
 
+// Clasifica el estado de un servicio según fecha de vencimiento
+const getServicePaymentStatus = (service: Service) => {
+    if (service.status !== "active") return "inactive"
+    if (!service.next_due_date) return "active"
+
+    const today = new Date()
+    const dueDate = new Date(service.next_due_date)
+    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (diffDays < 0) return "expired"
+    if (diffDays <= 7) return "due_soon"
+    return "active"
+}
+
+const getAccountStatusSummary = (services: Service[]) => {
+    if (services.length === 0) return { label: "Sin servicios", color: "text-gray-500" }
+
+    let expired = 0
+    let dueSoon = 0
+    let active = 0
+
+    services.forEach((svc) => {
+        const status = getServicePaymentStatus(svc)
+        if (status === "expired") expired += 1
+        else if (status === "due_soon") dueSoon += 1
+        else if (status === "active") active += 1
+    })
+
+    if (expired > 0 && active === 0) {
+        return { label: `Vencido (${expired})`, color: "text-red-600" }
+    }
+
+    if (expired > 0 && active > 0) {
+        return { label: "Pago Parcial", color: "text-orange-500" }
+    }
+
+    if (dueSoon > 0) {
+        return { label: "Aviso de Renovación", color: "text-orange-500" }
+    }
+
+    return { label: "Al día", color: "text-green-600" }
+}
+
 const getPaymentStatusBadge = (nextDueDate: string | null, status: string, billingCycle: string) => {
     if (status !== "active") {
         return (
             <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{billingCycle === "monthly" ? "Mensual" : billingCycle === "annual" ? "Anual" : "Único"}</span>
+                <span className="text-xs font-medium text-gray-500">{getBillingCycleLabel(billingCycle)}</span>
                 <Badge variant="secondary" className="text-xs">
                     {status === "suspended" ? "Suspendido" : "Cancelado"}
                 </Badge>
@@ -97,7 +141,7 @@ const getPaymentStatusBadge = (nextDueDate: string | null, status: string, billi
     if (!nextDueDate) {
         return (
             <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{billingCycle === "monthly" ? "Mensual" : billingCycle === "annual" ? "Anual" : "Único"}</span>
+                <span className="text-xs font-medium text-gray-500">{getBillingCycleLabel(billingCycle)}</span>
                 <Badge variant="secondary" className="text-xs">Sin vencimiento</Badge>
             </div>
         )
@@ -108,7 +152,7 @@ const getPaymentStatusBadge = (nextDueDate: string | null, status: string, billi
     const diffTime = dueDate.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-    const cycleLabel = billingCycle === "monthly" ? "Mensual" : billingCycle === "annual" ? "Anual" : "Único"
+    const cycleLabel = getBillingCycleLabel(billingCycle)
 
     if (diffDays < 0) {
         return (
@@ -286,7 +330,7 @@ export default function ServicesCustomersView() {
 
             {/* Customer Cards Grid */}
             {loading ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                     {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div key={i} className="border rounded-lg p-4 animate-pulse">
                             <div className="space-y-3">
@@ -306,15 +350,15 @@ export default function ServicesCustomersView() {
                     <p>No se encontraron clientes con servicios</p>
                 </div>
             ) : (
-                <div className="space-y-6">
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-5">
+                    <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                         {customers.map((customer) => {
                         const initial = getCustomerInitial(customer.person.first_name, customer.person.last_name)
                         const colorClass = getInitialColor(initial)
                         
                         return (
-                            <div key={customer.id} className="border rounded-lg p-4 hover:border-gray-400 hover:shadow-sm transition-all">
-                                <div className="space-y-4">
+                            <div key={customer.id} className="border rounded-lg p-3 hover:border-gray-400 hover:shadow-sm transition-all">
+                                <div className="space-y-3">
                                     {/* Header */}
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -344,7 +388,7 @@ export default function ServicesCustomersView() {
                                                     Ver Cliente
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/editar`}>
-                                                    <Edit className="h-4 w-4 mr-2" />
+                                                    <Pencil className="h-4 w-4 mr-2" />
                                                     Editar Cliente
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -352,59 +396,73 @@ export default function ServicesCustomersView() {
                                     </div>
 
                                     {/* Service Icons Grid */}
-                                    <div className="space-y-2">
-                                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Servicios Activos</div>
-                                        <div className="grid grid-cols-4 gap-2">
-                                            {customer.client_services.slice(0, 8).map((service) => (
-                                                <div
-                                                    key={service.id}
-                                                    className={`flex flex-col items-center justify-center gap-1 px-2 py-3 rounded border cursor-pointer transition-all ${
-                                                        service.status === "active"
-                                                            ? getServiceColor(service.name)
-                                                            : "bg-gray-50 border-gray-200 text-gray-400"
-                                                    }`}
-                                                    onClick={() => handleViewDetails(customer, service)}
-                                                    title={service.name}
-                                                >
-                                                    {getServiceIcon(service.name)}
-                                                    <span className="text-[10px] font-medium text-center leading-tight">
-                                                        {service.name.split(' ')[0]}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                    <div className="space-y-2.5">
+                                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado de Servicios</div>
+                                        <div className="grid grid-cols-4 gap-2.5">
+                                            {customer.client_services.map((service) => {
+                                                const paymentStatus = getServicePaymentStatus(service)
+
+                                                let statusClass = "bg-gray-100 text-gray-400"
+                                                if (paymentStatus === "active") statusClass = "bg-green-100 text-green-600"
+                                                else if (paymentStatus === "expired") statusClass = "bg-red-100 text-red-600"
+                                                else if (paymentStatus === "due_soon") statusClass = "bg-orange-100 text-orange-600"
+
+                                                return (
+                                                    <div
+                                                        key={service.id}
+                                                        className="flex flex-col items-center gap-2 cursor-pointer transition-all"
+                                                        onClick={() => handleViewDetails(customer, service)}
+                                                        title={service.name}
+                                                    >
+                                                        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${statusClass} transition-all hover:shadow-lg`}>
+                                                            {getServiceIcon(service.name)}
+                                                        </div>
+                                                        <div className="text-center leading-tight">
+                                                            <p className="text-[11px] font-medium text-gray-700">{service.name}</p>
+                                                            <p className="text-[10px] text-gray-500">{getBillingCycleLabel(service.billing_cycle)}</p>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
                                         </div>
                                     </div>
 
-                                    {/* Payment Status */}
-                                    <div className="space-y-2 pt-2 border-t">
-                                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado de Pago</div>
-                                        {customer.client_services.slice(0, 1).map((service) => (
-                                            <div key={service.id} className="flex items-center justify-between">
-                                                {getPaymentStatusBadge(service.next_due_date, service.status, service.billing_cycle)}
-                                            </div>
-                                        ))}
-                                    </div>
+                                    {/* Account Status + Actions aligned */}
+                                    <div className="pt-3 flex items-center justify-between gap-3">
+                                        {(() => {
+                                            const { label, color } = getAccountStatusSummary(customer.client_services)
+                                            const dotColor = color === "text-green-600" ? "bg-green-500" : color === "text-orange-500" ? "bg-orange-500" : color === "text-red-600" ? "bg-red-500" : "bg-gray-400"
+                                            return (
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-xs font-semibold text-gray-500">Estado de la cuenta</span>
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <span className={`h-2.5 w-2.5 rounded-full ${dotColor}`}></span>
+                                                        <span className={`font-medium ${color}`}>{label}</span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })()}
 
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-2 pt-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1 text-xs"
-                                            onClick={() => customer.client_services[0] && handleViewDetails(customer, customer.client_services[0])}
-                                        >
-                                            <Eye className="h-3 w-3 mr-1" />
-                                            Ver Detalles
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="flex-1 text-xs"
-                                            onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/editar`}
-                                        >
-                                            <Edit className="h-3 w-3 mr-1" />
-                                            Editar
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-9 w-9 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                onClick={() => customer.client_services[0] && handleViewDetails(customer, customer.client_services[0])}
+                                                aria-label="Ver detalles"
+                                            >
+                                                <Eye className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-9 w-9 text-orange-500 hover:text-orange-600 hover:bg-orange-50"
+                                                onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/editar`}
+                                                aria-label="Editar cliente"
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

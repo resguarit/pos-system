@@ -192,16 +192,16 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
   // Sincronizar formData.markup con pricing.markup cuando el hook lo recalcula
   // PERO NO cuando el usuario está editando el campo markup directamente
   useEffect(() => {
-    if (!formData || !pricing.hasChanged || editingFieldRef.current === 'markup') return;
+    if (!formData || editingFieldRef.current === 'markup') return;
 
     const markupAsPercentage = (pricing.markup * 100).toFixed(2);
 
-    // Solo actualizar si realmente cambió
+    // Solo actualizar si realmente cambió y el valor es diferente
     if (prevPricingRef.current.markup !== pricing.markup && formData.markup !== markupAsPercentage) {
       setFormData(prev => prev ? { ...prev, markup: markupAsPercentage } : null);
       prevPricingRef.current.markup = pricing.markup;
     }
-  }, [pricing.markup, pricing.hasChanged, formData]);
+  }, [pricing.markup, formData]);
 
 
   // Funciones para verificar duplicados

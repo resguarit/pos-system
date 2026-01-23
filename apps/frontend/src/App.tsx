@@ -29,6 +29,9 @@ import NuevoUsuarioPage from '@/pages/dashboard/NuevoUsuarioPage'
 import PosPage from '@/pages/dashboard/PosPage'
 import CompleteSalePage from '@/pages/dashboard/CompleteSalePage'
 import ProveedoresPage from '@/pages/dashboard/ProveedoresPage'
+import NuevoProveedorPage from '@/pages/dashboard/NuevoProveedorPage'
+import EditarProveedorPage from '@/pages/dashboard/EditarProveedorPage'
+import VerProveedorPage from '@/pages/dashboard/VerProveedorPage'
 import PurchaseOrderPage from '@/pages/dashboard/PurchaseOrderPage'
 import ReportesInventarioPage from '@/pages/dashboard/ReportesInventarioPage'
 import ReportesFinancierosPage from '@/pages/dashboard/ReportesFinancierosPage'
@@ -99,6 +102,9 @@ function App() {
           {features.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
           {features.pos && <Route path="pos/completar-venta" element={<ProtectedRoute permissions={['crear_ventas']}><CompleteSalePage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
+          {features.proveedores && <Route path="proveedores/nuevo" element={<ProtectedRoute permissions={['crear_proveedores']}><NuevoProveedorPage /></ProtectedRoute>} />}
+          {features.proveedores && <Route path="proveedores/:id/editar" element={<ProtectedRoute permissions={['editar_proveedores']}><EditarProveedorPage /></ProtectedRoute>} />}
+          {features.proveedores && <Route path="proveedores/:id/ver" element={<ProtectedRoute permissions={['ver_proveedores']}><VerProveedorPage /></ProtectedRoute>} />}
           {features.purchaseOrders && <Route path="purchase-orders" element={<ProtectedRoute permissions={['ver_ordenes_compra']}><PurchaseOrderPage /></ProtectedRoute>} />}
           {features.transferencias && <Route path="stock-transfers" element={<ProtectedRoute permissions={['ver_transferencias']}><StockTransfersPage /></ProtectedRoute>} />}
           {features.reportesInventario && <Route path="reportes-inventario" element={<ProtectedRoute permissions={['generar_reportes']}><ReportesInventarioPage /></ProtectedRoute>} />}

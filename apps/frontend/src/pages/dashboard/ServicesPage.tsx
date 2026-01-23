@@ -40,6 +40,7 @@ import {
 import ServicesStatusCard from "@/components/cards/ServicesStatusCard"
 import useServices, { ClientService, CreateServiceData } from "@/hooks/useServices"
 import Pagination from "@/components/ui/pagination"
+import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -445,11 +446,7 @@ export default function ServicesPage() {
                                                 </TableCell>
                                                 <TableCell>{formatCurrency(service.amount)}</TableCell>
                                                 <TableCell className="capitalize">
-                                                    {service.billing_cycle === "monthly"
-                                                        ? "Mensual"
-                                                        : service.billing_cycle === "annual"
-                                                            ? "Anual"
-                                                            : "Único"}
+                                                    {getBillingCycleLabel(service.billing_cycle)}
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex justify-end gap-1">

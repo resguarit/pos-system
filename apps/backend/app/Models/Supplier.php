@@ -13,12 +13,12 @@ class Supplier extends Model
 {
     use HasFactory, LogsActivity, SoftDeletes, LogsActivityWithContext;
 
-    protected $fillable = ['name', 'contact_name', 'phone', 'email', 'cuit', 'address', 'status'];
+    protected $fillable = ['name', 'contact_name', 'phone', 'email', 'cuit', 'address', 'status', 'person_type_id', 'person_id'];
 
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'contact_name', 'phone', 'email', 'address', 'status'])
+            ->logOnly(['name', 'contact_name', 'phone', 'email', 'address', 'status', 'person_type_id', 'person_id'])
             ->useLogName('supplier')
             ->logOnlyDirty();
     }
@@ -40,5 +40,21 @@ class Supplier extends Model
     public function currentAccount(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(CurrentAccount::class);
+    }
+
+    /**
+     * Get all tax identities (CUITs) for this supplier.
+     */
+    public function taxIdentities()
+    {
+        return $this->hasMany(SupplierTaxIdentity::class);
+    }
+
+    /**
+     * Get the default tax identity for this supplier.
+     */
+    public function defaultTaxIdentity()
+    {
+        return $this->hasOne(SupplierTaxIdentity::class)->where('is_default', true);
     }
 }

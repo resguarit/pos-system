@@ -40,6 +40,8 @@ export interface Supplier {
   cuit: string;
   address: string;
   status: string;
+  person_type_id?: number;
+  person_id?: number | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -48,6 +50,20 @@ export interface Supplier {
     current_balance: string | number;
     // Add other fields if needed
   };
+  tax_identities?: SupplierTaxIdentity[];
+}
+
+export interface SupplierTaxIdentity {
+  id?: number;
+  supplier_id?: number;
+  cuit: string;
+  business_name: string;
+  fiscal_condition_id: number | string;
+  is_default: boolean;
+  cbu: string;
+  cbu_alias: string;
+  bank_name: string;
+  account_holder: string;
 }
 
 export interface Branch {

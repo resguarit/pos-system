@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -6,9 +7,7 @@ import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { Badge } from "@/components/ui/badge"
 import { Plus, Search, Trash2, Pencil, Eye, Wallet } from "lucide-react"
-import ProviderDialog from "@/components/provider-dialog"
 import { DeleteSupplierDialog } from "@/components/delete-supplier-dialog"
-import { ViewSupplierDialog } from "@/components/view-supplier-dialog";
 import { SupplierCurrentAccountDetails } from "@/components/suppliers/SupplierCurrentAccountDetails";
 import { getSupplierById } from "@/lib/api/supplierService"
 import type { Supplier as SupplierType } from "@/types"
@@ -19,6 +18,7 @@ import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper"
 import Pagination from "@/components/ui/pagination"
 
 export default function ProveedoresPage() {
+  const navigate = useNavigate()
   const { hasPermission } = useAuth();
   const { request } = useApi();
   const [searchTerm, setSearchTerm] = useState("")
@@ -44,10 +44,7 @@ export default function ProveedoresPage() {
     defaultWidth: 150
   });
 
-  const [openNewProvider, setOpenNewProvider] = useState(false)
-  const [openEditProvider, setOpenEditProvider] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [currentAccountOpen, setCurrentAccountOpen] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState<SupplierType | null>(null)
   const [suppliers, setSuppliers] = useState<SupplierType[]>([])
@@ -78,7 +75,7 @@ export default function ProveedoresPage() {
   const loadSuppliers = async (page = 1) => {
     setLoading(true)
     try {
-      const params: any = {
+      const params: Record<string, unknown> = {
         page: page,
         limit: PAGE_SIZE
       };
@@ -120,7 +117,7 @@ export default function ProveedoresPage() {
         }
       }
 
-    } catch (error) {
+    } catch (_error: unknown) {
       toast.error("Error al cargar proveedores")
       setSuppliers([])
       setTotalItems(0)
@@ -131,8 +128,7 @@ export default function ProveedoresPage() {
   }
 
   const handleEditProvider = (provider: SupplierType) => {
-    setSelectedSupplier(provider)
-    setOpenEditProvider(true)
+    navigate(`/dashboard/proveedores/${provider.id}/editar`)
   }
 
   const handleDeleteSupplier = (supplier: SupplierType) => {
@@ -153,9 +149,8 @@ export default function ProveedoresPage() {
     try {
       setLoading(true)
       // Obtener los datos completos del proveedor incluyendo productos
-      const fullSupplierData = await getSupplierById(supplier.id)
-      setSelectedSupplier(fullSupplierData)
-      setViewDialogOpen(true)
+      await getSupplierById(supplier.id)
+      navigate(`/dashboard/proveedores/${supplier.id}/ver`)
     } catch (error) {
       console.error('Error al obtener detalles del proveedor:', error)
       toast.error("Error al cargar los detalles del proveedor")
@@ -165,8 +160,6 @@ export default function ProveedoresPage() {
   }
 
   const handleProviderSaved = async () => {
-    setOpenNewProvider(false)
-    setOpenEditProvider(false)
     setDeleteDialogOpen(false)
     setSelectedSupplier(null)
     await loadSuppliers(currentPage)
@@ -201,7 +194,7 @@ export default function ProveedoresPage() {
             <h2 className="text-3xl font-bold tracking-tight">Directorio de Proveedores</h2>
             <div className="flex gap-2">
               {hasPermission('crear_proveedores') && (
-                <Button onClick={() => setOpenNewProvider(true)}>
+                <Button onClick={() => navigate('/dashboard/proveedores/nuevo')}>
                   <Plus className="mr-2 h-4 w-4" />
                   Nuevo Proveedor
                 </Button>
@@ -312,10 +305,7 @@ export default function ProveedoresPage() {
         </div>
       )}
 
-      <ProviderDialog open={openNewProvider} onOpenChange={setOpenNewProvider} onSaved={handleProviderSaved} />
-      <ProviderDialog open={openEditProvider} onOpenChange={setOpenEditProvider} supplier={selectedSupplier} onSaved={handleProviderSaved} />
       <DeleteSupplierDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} supplier={selectedSupplier} onDelete={handleProviderSaved} />
-      <ViewSupplierDialog open={viewDialogOpen} onOpenChange={setViewDialogOpen} supplier={selectedSupplier} />
     </BranchRequiredWrapper>
   )
 }

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ResizableTableHeader, ResizableTableCell } from "@/components/ui/resizable-table-header"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { 
     Plus, 
-    Edit, 
+    Pencil, 
     Trash2, 
     Search, 
     RefreshCw, 
@@ -46,8 +47,10 @@ import {
     Zap,
 } from "lucide-react"
 import Pagination from "@/components/ui/pagination"
+import { useResizableColumns } from "@/hooks/useResizableColumns"
 import api from "@/lib/api"
 import { toast } from "sonner"
+import { getBillingCycleLabel, getBillingCycleBadgeStyles } from "@/utils/billingCycleUtils"
 
 // Iconos disponibles para servicios
 const SERVICE_ICONS = [
@@ -89,16 +92,6 @@ interface ServiceType {
     is_active: boolean
 }
 
-const getBillingCycleLabel = (cycle: string) => {
-    const labels: Record<string, string> = {
-        monthly: "Mensual",
-        quarterly: "Trimestral",
-        annual: "Anual",
-        one_time: "Único"
-    }
-    return labels[cycle] || cycle
-}
-
 const normalizeArrayResponse = <T,>(payload: unknown): T[] => {
     const data = payload as { data?: unknown }
     if (Array.isArray(data?.data)) return data.data as T[]
@@ -117,6 +110,21 @@ export default function ServicesConfigView() {
     const [searchTerm, setSearchTerm] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
+
+    // Resizable columns
+    const columns = [
+        { id: 'name', defaultWidth: 200, minWidth: 150 },
+        { id: 'description', defaultWidth: 300, minWidth: 150 },
+        { id: 'price', defaultWidth: 120, minWidth: 100 },
+        { id: 'billing_cycle', defaultWidth: 120, minWidth: 100 },
+        { id: 'status', defaultWidth: 120, minWidth: 100 },
+        { id: 'actions', defaultWidth: 100, minWidth: 80 }
+    ]
+
+    const { getColumnHeaderProps, getColumnCellProps, getResizeHandleProps } = useResizableColumns({
+        columns,
+        storageKey: 'service-types-table-widths'
+    })
 
     // Dialog states
     const [dialogOpen, setDialogOpen] = useState(false)
@@ -283,73 +291,138 @@ export default function ServicesConfigView() {
                         {loading ? "Cargando servicios..." : "No se encontraron servicios"}
                     </div>
                 ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nombre</TableHead>
-                                <TableHead>Descripción</TableHead>
-                                <TableHead>Precio</TableHead>
-                                <TableHead>Ciclo</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {serviceTypes.map((service) => (
-                                <TableRow key={service.id}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            {getServiceIconById(service.icon)}
-                                            <span className="font-medium">{service.name}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-sm text-muted-foreground">
-                                        {service.description || "-"}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-1 text-green-600 font-semibold">
-                                            <DollarSign className="h-4 w-4" />
-                                            {parseFloat(service.price).toFixed(2)}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline">
-                                            {getBillingCycleLabel(service.billing_cycle)}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            className={
-                                                service.is_active
-                                                    ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-100"
-                                                    : "bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-100"
-                                            }
-                                        >
-                                            {service.is_active ? "Activo" : "Inactivo"}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleEdit(service)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => handleDeleteClick(service)}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
+                    <div className="relative w-full overflow-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <ResizableTableHeader
+                                        columnId="name"
+                                        getResizeHandleProps={getResizeHandleProps}
+                                        getColumnHeaderProps={getColumnHeaderProps}
+                                    >
+                                        Nombre
+                                    </ResizableTableHeader>
+                                    <ResizableTableHeader
+                                        columnId="description"
+                                        getResizeHandleProps={getResizeHandleProps}
+                                        getColumnHeaderProps={getColumnHeaderProps}
+                                    >
+                                        Descripción
+                                    </ResizableTableHeader>
+                                    <ResizableTableHeader
+                                        columnId="price"
+                                        getResizeHandleProps={getResizeHandleProps}
+                                        getColumnHeaderProps={getColumnHeaderProps}
+                                    >
+                                        Precio
+                                    </ResizableTableHeader>
+                                    <ResizableTableHeader
+                                        columnId="billing_cycle"
+                                        getResizeHandleProps={getResizeHandleProps}
+                                        getColumnHeaderProps={getColumnHeaderProps}
+                                    >
+                                        Ciclo
+                                    </ResizableTableHeader>
+                                    <ResizableTableHeader
+                                        columnId="status"
+                                        getResizeHandleProps={getResizeHandleProps}
+                                        getColumnHeaderProps={getColumnHeaderProps}
+                                    >
+                                        Estado
+                                    </ResizableTableHeader>
+                                    <ResizableTableHeader
+                                        columnId="actions"
+                                        getResizeHandleProps={getResizeHandleProps}
+                                        getColumnHeaderProps={getColumnHeaderProps}
+                                        className="text-right"
+                                    >
+                                        Acciones
+                                    </ResizableTableHeader>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {serviceTypes.map((service) => (
+                                    <TableRow key={service.id} className="hover:bg-slate-50">
+                                        <ResizableTableCell
+                                            columnId="name"
+                                            getColumnCellProps={getColumnCellProps}
+                                            className="py-4"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                {getServiceIconById(service.icon)}
+                                                <span className="font-medium">{service.name}</span>
+                                            </div>
+                                        </ResizableTableCell>
+                                        <ResizableTableCell
+                                            columnId="description"
+                                            getColumnCellProps={getColumnCellProps}
+                                            className="text-sm text-muted-foreground py-4"
+                                        >
+                                            {service.description || "-"}
+                                        </ResizableTableCell>
+                                        <ResizableTableCell
+                                            columnId="price"
+                                            getColumnCellProps={getColumnCellProps}
+                                            className="py-4"
+                                        >
+                                            <div className="flex items-center gap-1 text-green-600 font-semibold">
+                                                <DollarSign className="h-4 w-4" />
+                                                {parseFloat(service.price).toFixed(2)}
+                                            </div>
+                                        </ResizableTableCell>
+                                        <ResizableTableCell
+                                            columnId="billing_cycle"
+                                            getColumnCellProps={getColumnCellProps}
+                                            className="py-4"
+                                        >
+                                            <Badge variant="outline" className={getBillingCycleBadgeStyles(service.billing_cycle)}>
+                                                {getBillingCycleLabel(service.billing_cycle)}
+                                            </Badge>
+                                        </ResizableTableCell>
+                                        <ResizableTableCell
+                                            columnId="status"
+                                            getColumnCellProps={getColumnCellProps}
+                                            className="py-4"
+                                        >
+                                            <Badge
+                                                className={
+                                                    service.is_active
+                                                        ? "bg-green-100 text-green-700 border border-green-300 hover:bg-green-100"
+                                                        : "bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-100"
+                                                }
+                                            >
+                                                {service.is_active ? "Activo" : "Inactivo"}
+                                            </Badge>
+                                        </ResizableTableCell>
+                                        <ResizableTableCell
+                                            columnId="actions"
+                                            getColumnCellProps={getColumnCellProps}
+                                            className="text-right py-4"
+                                        >
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleEdit(service)}
+                                                    className="h-8 w-8 text-orange-500 hover:text-orange-700 hover:bg-orange-50"
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDeleteClick(service)}
+                                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </ResizableTableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 )}
             </div>
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Supplier;
+use App\Models\SupplierTaxIdentity;
 use App\Interfaces\SupplierServiceInterface;
 use App\Models\Person; // Add this
 use App\Services\PersonService; // Add this
@@ -26,7 +27,10 @@ class SupplierService implements SupplierServiceInterface
     public function getAllSuppliers()
     {
         // Eager load person data and count products
-        return Supplier::with('person')->withCount('products')->get();
+        return Supplier::with(['person', 'taxIdentities.fiscalCondition'])
+            ->withCount('products')
+            ->orderBy('created_at', 'desc')
+            ->get();
     }
 
     public function createSupplier(array $data): Supplier
@@ -62,6 +66,7 @@ class SupplierService implements SupplierServiceInterface
                 'email' => $data['email'] ?? null,
                 'cuit' => $data['cuit'] ?? ($person ? $person->cuit : null),
                 'address' => $data['address'] ?? ($person ? $person->address : null),
+                'person_type_id' => $data['person_type_id'] ?? 1,
                 'status' => $data['status'] ?? 'active',
                 'person_id' => $data['person_id'] ?? null,
             ];
@@ -70,6 +75,9 @@ class SupplierService implements SupplierServiceInterface
             // $supplierData = array_filter($supplierData, fn($value) => !is_null($value));
 
             $supplier = Supplier::create($supplierData);
+
+            // Handle tax identities
+            $this->syncTaxIdentities($supplier, $data);
 
             // Automatically create a current account for the new supplier
             try {
@@ -89,7 +97,7 @@ class SupplierService implements SupplierServiceInterface
             }
 
             DB::commit();
-            return $supplier->load('person'); // Eager load person
+            return $supplier->load(['person', 'taxIdentities.fiscalCondition']); // Eager load person and tax identities
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Error creating supplier: " . $e->getMessage());
@@ -101,6 +109,7 @@ class SupplierService implements SupplierServiceInterface
         // Find or fail is okay, but find allows checking if null
         return Supplier::with([
             'person',
+            'taxIdentities.fiscalCondition',
             'products' => function ($query) {
                 $query->select('id', 'code', 'description', 'unit_price', 'supplier_id', 'status')
                     ->where('deleted_at', null);
@@ -156,6 +165,7 @@ class SupplierService implements SupplierServiceInterface
                 'email' => $data['email'] ?? null,
                 'cuit' => $data['cuit'] ?? null, // Use supplier specific CUIT if provided
                 'address' => $data['address'] ?? null, // Use supplier specific address if provided
+                'person_type_id' => $data['person_type_id'] ?? null,
                 'status' => $data['status'] ?? null,
                 'person_id' => $data['person_id'] ?? null, // Update person_id if changed
             ], fn($value) => !is_null($value));
@@ -164,19 +174,117 @@ class SupplierService implements SupplierServiceInterface
             if (array_key_exists('person_id', $data)) {
                 $supplierUpdateData['person_id'] = $data['person_id'];
             }
+            if (array_key_exists('person_type_id', $data)) {
+                $supplierUpdateData['person_type_id'] = $data['person_type_id'];
+            }
 
 
             if (!empty($supplierUpdateData)) {
                 $supplier->update($supplierUpdateData);
             }
 
+            // Handle tax identities
+            $this->syncTaxIdentities($supplier, $data);
 
             DB::commit();
-            return $supplier->fresh('person'); // Return updated model with person
+            return $supplier->load(['person', 'taxIdentities.fiscalCondition']); // Return updated model with person and tax identities
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Error updating supplier ID {$id}: " . $e->getMessage());
             throw $e; // Re-throw exception
+        }
+    }
+
+    /**
+     * Sync tax identities for a supplier.
+     * 
+     * @param Supplier $supplier
+     * @param array $data
+     * @return void
+     */
+    protected function syncTaxIdentities(Supplier $supplier, array $data): void
+    {
+        // If tax_identities array is provided, sync them
+        if (isset($data['tax_identities']) && is_array($data['tax_identities'])) {
+            $existingIds = [];
+            $hasDefault = false;
+
+            foreach ($data['tax_identities'] as $index => $identityData) {
+                // Skip empty entries
+                if (empty($identityData['cuit']) && empty($identityData['business_name'])) {
+                    continue;
+                }
+
+                $identityFields = [
+                    'cuit' => $identityData['cuit'] ?? null,
+                    'business_name' => $identityData['business_name'] ?? null,
+                    'fiscal_condition_id' => $identityData['fiscal_condition_id'] ?? 1,
+                    'is_default' => (bool) ($identityData['is_default'] ?? false),
+                    'cbu' => $identityData['cbu'] ?? null,
+                    'cbu_alias' => $identityData['cbu_alias'] ?? null,
+                    'bank_name' => $identityData['bank_name'] ?? null,
+                    'account_holder' => $identityData['account_holder'] ?? null,
+                ];
+
+                // Ensure at least one is default
+                if ($identityFields['is_default']) {
+                    $hasDefault = true;
+                }
+
+                if (!empty($identityData['id'])) {
+                    // Update existing
+                    $identity = SupplierTaxIdentity::find($identityData['id']);
+                    if ($identity && $identity->supplier_id === $supplier->id) {
+                        $identity->update($identityFields);
+                        $existingIds[] = $identity->id;
+                    }
+                } else {
+                    // Create new
+                    $identity = $supplier->taxIdentities()->create($identityFields);
+                    $existingIds[] = $identity->id;
+                }
+            }
+
+            // If no default was set, make the first one default
+            if (!$hasDefault && count($existingIds) > 0) {
+                SupplierTaxIdentity::where('id', $existingIds[0])->update(['is_default' => true]);
+            }
+
+            // Ensure only one default
+            if ($hasDefault) {
+                $defaultIdentity = $supplier->taxIdentities()
+                    ->whereIn('id', $existingIds)
+                    ->where('is_default', true)
+                    ->first();
+                
+                if ($defaultIdentity) {
+                    $supplier->taxIdentities()
+                        ->where('id', '!=', $defaultIdentity->id)
+                        ->update(['is_default' => false]);
+                }
+            }
+
+            // Delete tax identities that are no longer in the list
+            $supplier->taxIdentities()
+                ->whereNotIn('id', $existingIds)
+                ->delete();
+        } 
+        // Backward compatibility: if no tax_identities but cuit is provided, create/update default
+        elseif (!empty($data['cuit'])) {
+            $defaultIdentity = $supplier->taxIdentities()->where('is_default', true)->first();
+            
+            $identityData = [
+                'cuit' => $data['cuit'],
+                'business_name' => $data['name'] ?? null,
+                'fiscal_condition_id' => $data['fiscal_condition_id'] ?? 1,
+                'is_default' => true,
+            ];
+
+            if ($defaultIdentity) {
+                $defaultIdentity->update($identityData);
+            } else {
+                $supplier->taxIdentities()->create($identityData);
+            }
         }
     }
 

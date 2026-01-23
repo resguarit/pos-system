@@ -23,7 +23,7 @@ class CustomerService implements CustomerServiceInterface
     }
     public function getAllCustomers()
     {
-        return Customer::with(['person.fiscalCondition', 'taxIdentities.fiscalCondition'])->get();
+        return Customer::with(['person.fiscalCondition', 'taxIdentities.fiscalCondition'])->orderBy('created_at', 'desc')->get();
     }
 
     public function getCustomerById($id)
@@ -289,6 +289,7 @@ class CustomerService implements CustomerServiceInterface
                     ->orWhere('phone', 'like', "%{$searchTerm}%")
                     ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$searchTerm}%"]);
             })
+            ->orderBy('created_at', 'desc')
             ->limit(10)
             ->get();
     }
