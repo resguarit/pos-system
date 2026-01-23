@@ -370,6 +370,9 @@ export default function ServicesCustomersView() {
             case 'annual':
                 baseDate.setFullYear(baseDate.getFullYear() + 1)
                 break
+            case 'biennial':
+                baseDate.setFullYear(baseDate.getFullYear() + 2)
+                break
             case 'one_time':
                 // Para único, no hay fecha de vencimiento futura
                 return ''
@@ -1252,6 +1255,7 @@ export default function ServicesCustomersView() {
                                                         <SelectItem value="monthly">Mensual</SelectItem>
                                                         <SelectItem value="quarterly">Trimestral</SelectItem>
                                                         <SelectItem value="annual">Anual</SelectItem>
+                                                        <SelectItem value="biennial">Bienal (2 años)</SelectItem>
                                                         <SelectItem value="one_time">Único</SelectItem>
                                                     </SelectContent>
                                                 </Select>
@@ -1350,7 +1354,8 @@ export default function ServicesCustomersView() {
                                                         <span className="text-xs text-gray-500">
                                                             {selectedService.billing_cycle === 'monthly' ? 'Mensual' :
                                                                 selectedService.billing_cycle === 'quarterly' ? 'Trimestral' :
-                                                                    selectedService.billing_cycle === 'annual' ? 'Anual' : 'Único'}
+                                                                    selectedService.billing_cycle === 'annual' ? 'Anual' :
+                                                                        selectedService.billing_cycle === 'biennial' ? 'Bienal' : 'Único'}
                                                         </span>
                                                     </div>
                                                 </div>

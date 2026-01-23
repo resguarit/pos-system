@@ -15,6 +15,8 @@ export const calculateMonthlyCost = (amount: string | number, billingCycle: stri
             return value / 3
         case 'annual':
             return value / 12
+        case 'biennial':
+            return value / 24
         case 'one_time':
         default:
             return 0

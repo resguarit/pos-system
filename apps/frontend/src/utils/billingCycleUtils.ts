@@ -11,7 +11,7 @@
 /**
  * Tipos de ciclos de facturación disponibles
  */
-export type BillingCycle = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual' | 'yearly' | 'one_time';
+export type BillingCycle = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annual' | 'yearly' | 'biennial' | 'one_time';
 
 /**
  * Configuración de ciclos de facturación
@@ -73,6 +73,12 @@ const BILLING_CYCLE_CONFIG: Record<BillingCycle, BillingCycleConfig> = {
         badgeStyles: 'bg-pink-100 text-pink-800 hover:bg-pink-200 border-pink-200',
         order: 5,
     },
+    biennial: {
+        label: 'Bienal',
+        shortLabel: '2 Años',
+        badgeStyles: 'bg-cyan-100 text-cyan-800 hover:bg-cyan-200 border-cyan-200',
+        order: 6,
+    },
     one_time: {
         label: 'Único',
         shortLabel: 'Único',
@@ -90,7 +96,7 @@ const BILLING_CYCLE_CONFIG: Record<BillingCycle, BillingCycleConfig> = {
 export function getBillingCycleLabel(cycle: string, short: boolean = false): string {
     const config = BILLING_CYCLE_CONFIG[cycle as BillingCycle];
     if (!config) return cycle;
-    
+
     return short && config.shortLabel ? config.shortLabel : config.label;
 }
 
@@ -148,5 +154,6 @@ export const BILLING_CYCLE_VALUES: Record<string, BillingCycle> = {
     'Mensual': 'monthly',
     'Trimestral': 'quarterly',
     'Anual': 'annual',
+    'Bienal': 'biennial',
     'Único': 'one_time',
 };

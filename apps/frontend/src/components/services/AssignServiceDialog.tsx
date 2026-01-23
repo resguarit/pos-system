@@ -225,6 +225,7 @@ export default function AssignServiceDialog({
             monthly: "Mensual",
             quarterly: "Trimestral",
             annual: "Anual",
+            biennial: "Bienal",
             one_time: "Único"
         }
         return labels[cycle] || cycle
@@ -232,7 +233,7 @@ export default function AssignServiceDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[550px]">
+            <DialogContent className="sm:max-w-lg md:max-w-xl max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Package className="h-5 w-5 text-blue-600" />
@@ -368,7 +369,7 @@ export default function AssignServiceDialog({
 
                     <div className="border-t pt-4">
                         <p className="text-sm font-medium text-gray-700 mb-3">Detalles del Servicio</p>
-                        
+
                         {/* Service Name */}
                         <div className="grid gap-2 mb-4">
                             <Label htmlFor="name">Nombre del Servicio *</Label>
@@ -404,8 +405,8 @@ export default function AssignServiceDialog({
                                     value={formData.base_price}
                                     onChange={(e) => {
                                         const newBasePrice = e.target.value
-                                        setFormData(prev => ({ 
-                                            ...prev, 
+                                        setFormData(prev => ({
+                                            ...prev,
                                             base_price: newBasePrice,
                                             amount: calculateDiscountedPrice(newBasePrice, prev.discount_percentage)
                                         }))
@@ -472,6 +473,7 @@ export default function AssignServiceDialog({
                                         <SelectItem value="monthly">Mensual</SelectItem>
                                         <SelectItem value="quarterly">Trimestral</SelectItem>
                                         <SelectItem value="annual">Anual</SelectItem>
+                                        <SelectItem value="biennial">Bienal (2 años)</SelectItem>
                                         <SelectItem value="one_time">Único</SelectItem>
                                     </SelectContent>
                                 </Select>
