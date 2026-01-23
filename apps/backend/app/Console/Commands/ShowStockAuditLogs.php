@@ -66,13 +66,11 @@ class ShowStockAuditLogs extends Command
                 // Get causer (user)
                 $causer = 'System';
                 if ($log->causer_id) {
-                    $user = DB::table('users')
-                        ->join('persons', 'users.person_id', '=', 'persons.id')
-                        ->where('users.id', $log->causer_id)
-                        ->select('persons.first_name', 'persons.last_name', 'users.username')
-                        ->first();
-                    if ($user) {
-                        $causer = "{$user->first_name} {$user->last_name} ({$user->username})";
+                    $user = \App\Models\User::with('person')->find($log->causer_id);
+                    if ($user && $user->person) {
+                        $causer = "{$user->person->first_name} {$user->person->last_name} ({$user->username})";
+                    } elseif ($user) {
+                        $causer = $user->username ?? "User #{$log->causer_id}";
                     }
                 }
 
