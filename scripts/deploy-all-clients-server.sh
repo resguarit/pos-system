@@ -14,9 +14,12 @@ declare -a success_clients
 declare -a failed_clients
 
 # Navigate to /home and find all api.* directories
+echo "📂 Navigating to /home..."
 cd /home
 
+echo "🔍 Searching for api.* directories..."
 API_DIRS=$(ls -d api.* 2>/dev/null || echo "")
+echo "Found: $API_DIRS"
 
 if [ -z "$API_DIRS" ]; then
   echo "❌ No api.* directories found in /home"
