@@ -83,6 +83,30 @@ class CheckStockConsistency extends Command
         }
 
         foreach ($products as $product) {
+            // DIAGNOSTIC SECTION (Global Check)
+            if ($showDetailedHistory) {
+                $this->info("\n--- DIAGNOSTIC FOR PRODUCT ID: {$product->id} ---");
+                $globalPOItems = PurchaseOrderItem::where('product_id', $product->id)->get();
+                $this->info("Searching ALL Purchase Orders for Product ID {$product->id}...");
+                $this->info("Total PO Items Found in Database: " . $globalPOItems->count());
+
+                if ($globalPOItems->count() > 0) {
+                    $grouped = $globalPOItems->groupBy(function ($item) {
+                        if (!$item->purchaseOrder)
+                            return 'Orphan (No Header)';
+                        return 'Branch ' . ($item->purchaseOrder->branch_id ?? 'NULL');
+                    });
+
+                    foreach ($grouped as $key => $items) {
+                        $this->info("  -> $key: " . $items->count() . " items");
+                    }
+                } else {
+                    $this->warn("  -> NO Purchase Order Items found for this Product ID anywhere in the DB.");
+                    $this->warn("     Please check if the POs were created for a different Product (e.g. duplicate code/name).");
+                }
+                $this->info("------------------------------------------------\n");
+            }
+
             foreach ($branches as $branch) {
                 // 1. Get Current Stock in DB
                 $stockRecord = Stock::where('product_id', $product->id)
