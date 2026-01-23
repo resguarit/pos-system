@@ -91,19 +91,22 @@ class CheckStockConsistency extends Command
                 $currentDbStock = $stockRecord ? (float) $stockRecord->current_stock : 0.0;
 
                 // 2. Fetch Data
-                // Purchases
+                // Purchases - Include Soft Deleted POs
                 $purchaseItemsQuery = PurchaseOrderItem::where('product_id', $product->id)
                     ->whereHas('purchaseOrder', function ($q) use ($branch) {
-                        $q->where('branch_id', $branch->id);
-                        // If showing detailed history, we want ALL status to debug.
-                        // But for summary calculation we only want completed.
+                        $q->withTrashed()->where('branch_id', $branch->id);
                     })
-                    ->with('purchaseOrder');
+                    ->with([
+                        'purchaseOrder' => function ($q) {
+                            $q->withTrashed();
+                        }
+                    ]);
 
                 $purchaseItems = $purchaseItemsQuery->get();
 
                 // Filter for calculation
                 $completedPurchaseItems = $purchaseItems->filter(function ($item) {
+                    // Status completed, even if deleted
                     return $item->purchaseOrder->status === 'completed';
                 });
 
@@ -169,6 +172,7 @@ class CheckStockConsistency extends Command
                         ->get();
 
                     // Filter for what likely looks like a manual update (generic update)
+                    // We must refine this later to deduct system Logs
                     $manualAdjustmentsCount = $activityLogs->where('description', 'updated')->count();
                 }
 
@@ -180,7 +184,7 @@ class CheckStockConsistency extends Command
                     $this->showDetailedHistoryTable(
                         $product,
                         $branch,
-                        $purchaseItems, // Passing ALL items (including pending)
+                        $purchaseItems, // Passing ALL items (including pending/deleted)
                         $normalSaleItems,
                         $creditNotesItems,
                         $transfersInItems,
@@ -231,21 +235,22 @@ class CheckStockConsistency extends Command
         // Add Purchases
         foreach ($purchases as $p) {
             $status = $p->purchaseOrder->status;
+            $deleted = $p->purchaseOrder->deleted_at ? ' (DELETED)' : '';
             $qty = $p->quantity;
             $changeStr = "+$qty";
 
             if ($status !== 'completed') {
                 $changeStr = "0 (Pending: $status)";
-                $qty = 0; // Does not affect running balance
+                $qty = 0; // Does not affect running balance for CALCULATION, but maybe history?
             }
 
             $events->push([
                 'date' => $p->purchaseOrder->created_at, // Or updated_at / order_date
-                'type' => 'Purchase',
+                'type' => 'Purchase' . $deleted,
                 'ref' => "PO #" . $p->purchaseOrder->id,
                 'qty_change' => $qty,
                 'display_change' => $changeStr,
-                // 'balance_impact' => '+'
+                'timestamp' => Carbon::parse($p->purchaseOrder->created_at)->timestamp,
             ]);
         }
 
@@ -257,7 +262,7 @@ class CheckStockConsistency extends Command
                 'ref' => "Sale #" . $s->saleHeader->receipt_number,
                 'qty_change' => -$s->quantity,
                 'display_change' => "-" . $s->quantity,
-                // 'balance_impact' => '-'
+                'timestamp' => Carbon::parse($s->saleHeader->created_at)->timestamp,
             ]);
         }
 
@@ -269,7 +274,7 @@ class CheckStockConsistency extends Command
                 'ref' => "CN #" . $cn->saleHeader->receipt_number,
                 'qty_change' => $cn->quantity, // Assuming Returns ADD stock
                 'display_change' => "+" . $cn->quantity,
-                // 'balance_impact' => '+'
+                'timestamp' => Carbon::parse($cn->saleHeader->created_at)->timestamp,
             ]);
         }
 
@@ -281,7 +286,7 @@ class CheckStockConsistency extends Command
                 'ref' => "Transfer #" . $t->stockTransfer->id,
                 'qty_change' => $t->quantity,
                 'display_change' => "+" . $t->quantity,
-                // 'balance_impact' => '+'
+                'timestamp' => Carbon::parse($t->stockTransfer->updated_at)->timestamp,
             ]);
         }
 
@@ -293,16 +298,17 @@ class CheckStockConsistency extends Command
                 'ref' => "Transfer #" . $t->stockTransfer->id,
                 'qty_change' => -$t->quantity,
                 'display_change' => "-" . $t->quantity,
-                // 'balance_impact' => '-'
+                'timestamp' => Carbon::parse($t->stockTransfer->updated_at)->timestamp,
             ]);
         }
 
-        // Add Manual Adjustments (Logs)
+        // Sort events FIRST to help with redundancy check
+        $sortedEvents = $events->sortBy('timestamp');
+
+        // Add Logs, filtering duplicates
         foreach ($logs as $log) {
             // Try to extract old and new stock from properties to show exact change
             $props = json_decode($log->properties, true);
-            // Often activity log properties are already array if casted in model, but DB returns string or array.
-            // Let's check type.
             if (is_string($log->properties)) {
                 $props = json_decode($log->properties, true);
             } elseif (is_object($log->properties)) {
@@ -313,7 +319,7 @@ class CheckStockConsistency extends Command
 
             $qtyChange = 0;
             $details = $log->description;
-            $balanceSet = null;
+            // $balanceSet = null;
 
             if (isset($props['old']['current_stock']) && isset($props['attributes']['current_stock'])) {
                 $old = $props['old']['current_stock'];
@@ -327,30 +333,48 @@ class CheckStockConsistency extends Command
                 }
             }
 
-            // Only add if we detected a stock change or it's significant
+            // FILTER: If this log happens at the SAME TIME as another transaction match (Sale/Purchase)
+            // It is likely a SYSTEM log, not a MANUAL one.
+            $logTimestamp = Carbon::parse($log->created_at)->timestamp;
+            $isRedundant = false;
+
+            // Simple redundancy check: look for other events within +/- 10 seconds
+            foreach ($sortedEvents as $e) {
+                if (abs($e['timestamp'] - $logTimestamp) <= 10) {
+                    // Check if quantities match generally (Sales/TransfersOut are negative)
+                    // E.g. Sale -1. Log Set 10->9 (Change -1). MATCH.
+                    // E.g. Purchase +10. Log Set 0->10 (Change +10). MATCH.
+                    if ($e['qty_change'] == $qtyChange) {
+                        $isRedundant = true;
+                        break;
+                    }
+                }
+            }
+
+            // If redundant, we SKIP showing it as a "Manual Adj"
+            if ($isRedundant)
+                continue;
+
             if ($qtyChange != 0 || $log->description === 'updated') {
-                $events->push([
+                $sortedEvents->push([
                     'date' => $log->created_at,
                     'type' => 'Manual Adj (Log)',
                     'ref' => "Log #" . $log->id . " $details",
                     'qty_change' => $qtyChange,
                     'display_change' => $qtyChange > 0 ? "+$qtyChange (Set)" : "$qtyChange (Set)",
-                    // NOTE: Manual adjustments RESET the running balance in reality, but here we treat them as deltas for the "History" view
-                    // unless we want to "Reset" the balance column.
-                    'balance_set' => isset($props['attributes']['current_stock']) ? $props['attributes']['current_stock'] : null
+                    'balance_set' => isset($props['attributes']['current_stock']) ? $props['attributes']['current_stock'] : null,
+                    'timestamp' => $logTimestamp,
                 ]);
             }
         }
 
-        // Sort by Date
-        $sortedEvents = $events->sortBy(function ($e) {
-            return Carbon::parse($e['date'])->timestamp;
-        });
+        // Re-sort including new logs
+        $finalEvents = $sortedEvents->sortBy('timestamp');
 
         $rows = [];
         $runningBalance = 0;
 
-        foreach ($sortedEvents as $e) {
+        foreach ($finalEvents as $e) {
             $changeStr = $e['display_change'];
 
             // If it's a Update Log, it effectively SETS the balance
@@ -381,7 +405,9 @@ class CheckStockConsistency extends Command
         $this->info("Actual DB Balance: " . $currentStock);
 
         if (abs($runningBalance - $currentStock) > 0.01) {
-            $this->warn("Mismatch detected! If no 'Manual Adj' rows appear above, there might be hidden transactions or bugs.");
+            // In this version, we don't calculate 'Calculated based on formula' in this view, we iterate.
+            // But if running balance differs from DB, it's an issue.
+            $this->warn("History replay balance ($runningBalance) differs from DB ($currentStock)!");
         } else {
             $this->info("Matches perfectly!");
         }
