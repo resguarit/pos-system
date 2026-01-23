@@ -83,6 +83,7 @@ class CheckStockConsistency extends Command
         }
 
         foreach ($products as $product) {
+
             // DIAGNOSTIC SECTION (Global Check)
             if ($showDetailedHistory) {
                 $this->info("\n--- DIAGNOSTIC FOR PRODUCT ID: {$product->id} ---");
@@ -136,11 +137,11 @@ class CheckStockConsistency extends Command
 
                 $purchasedQty = $completedPurchaseItems->sum('quantity');
 
-                // Sales (Active, excluding Budgets)
+                // Sales (Active AND Annulled) - We include annulled because the Log (reversal) will balance it out
                 $saleItems = SaleItem::where('product_id', $product->id)
                     ->whereHas('saleHeader', function ($q) use ($branch) {
                         $q->where('branch_id', $branch->id)
-                            ->where('status', '!=', 'annulled') // Only active
+                            // Removed status check to include annulled
                             ->whereHas('receiptType', function ($rt) {
                                 $rt->where('afip_code', '!=', '016'); // Exclude Presupuestos
                             });
@@ -279,9 +280,12 @@ class CheckStockConsistency extends Command
 
         // Add Sales
         foreach ($sales as $s) {
+            $status = $s->saleHeader->status;
+            $statusLabel = $status === 'annulled' ? ' (ANNULLED)' : '';
+
             $events->push([
                 'date' => $s->saleHeader->created_at,
-                'type' => 'Sale',
+                'type' => 'Sale' . $statusLabel,
                 'ref' => "Sale #" . $s->saleHeader->receipt_number,
                 'qty_change' => -$s->quantity,
                 'display_change' => "-" . $s->quantity,
