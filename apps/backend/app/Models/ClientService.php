@@ -16,6 +16,9 @@ class ClientService extends Model
         'name',
         'description',
         'amount',
+        'base_price',
+        'discount_percentage',
+        'discount_notes',
         'billing_cycle',
         'start_date',
         'next_due_date',
@@ -26,6 +29,8 @@ class ClientService extends Model
         'start_date' => 'date',
         'next_due_date' => 'date',
         'amount' => 'decimal:2',
+        'base_price' => 'decimal:2',
+        'discount_percentage' => 'decimal:2',
     ];
 
     public function customer()

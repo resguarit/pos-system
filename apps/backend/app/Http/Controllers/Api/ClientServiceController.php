@@ -4,9 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\ClientService;
+use App\Models\ClientServicePayment;
 use App\Models\Customer;
+use App\Models\CashRegister;
+use App\Models\CashMovement;
+use App\Models\MovementType;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Carbon\Carbon;
 
 class ClientServiceController extends Controller
@@ -152,6 +158,9 @@ class ClientServiceController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
+            'base_price' => 'nullable|numeric|min:0',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_notes' => 'nullable|string|max:500',
             'billing_cycle' => 'required|in:monthly,quarterly,annual,one_time',
             'start_date' => 'required|date',
             'next_due_date' => 'nullable|date|after_or_equal:start_date',
@@ -194,6 +203,9 @@ class ClientServiceController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'amount' => 'sometimes|required|numeric|min:0',
+            'base_price' => 'nullable|numeric|min:0',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_notes' => 'nullable|string|max:500',
             'billing_cycle' => 'sometimes|required|in:monthly,quarterly,annual,one_time',
             'start_date' => 'sometimes|required|date',
             'next_due_date' => 'nullable|date',
@@ -257,6 +269,114 @@ class ClientServiceController extends Controller
                 return $fromDate->copy()->addYear();
             default:
                 return $fromDate->copy();
+        }
+    }
+
+    /**
+     * Store a payment for a specific client service.
+     * Relates payment to the active cash register.
+     */
+    public function storePayment(Request $request, ClientService $clientService)
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:0.01',
+            'payment_date' => 'required|date',
+            'notes' => 'nullable|string|max:500',
+            'renew_service' => 'boolean',
+            'branch_id' => 'nullable|integer|exists:branches,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = Auth::user();
+        
+        // Use branch_id from request if provided, otherwise use user's branch
+        $branchId = $request->input('branch_id') ?? $user->branch_id ?? 1;
+
+        // Verify there's an active cash register for the selected branch
+        $cashRegister = CashRegister::where('branch_id', $branchId)
+            ->where('status', 'open')
+            ->latest()
+            ->first();
+
+        if (!$cashRegister) {
+            return response()->json([
+                'message' => 'No hay una caja abierta en la sucursal seleccionada. Debe abrir la caja antes de registrar pagos.',
+                'error' => 'NO_OPEN_CASH_REGISTER'
+            ], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Create the payment record
+            $payment = ClientServicePayment::create([
+                'client_service_id' => $clientService->id,
+                'amount' => $request->input('amount'),
+                'payment_date' => $request->input('payment_date'),
+                'notes' => $request->input('notes'),
+            ]);
+
+            // Find or create movement type for service payments
+            $movementType = MovementType::firstOrCreate(
+                ['name' => 'Pago de servicio'],
+                [
+                    'operation_type' => 'entrada',
+                    'affects_cash' => true,
+                    'is_manual' => false,
+                    'description' => 'Pago de servicios de clientes'
+                ]
+            );
+
+            // Create cash movement
+            CashMovement::create([
+                'cash_register_id' => $cashRegister->id,
+                'movement_type_id' => $movementType->id,
+                'reference_type' => ClientServicePayment::class,
+                'reference_id' => $payment->id,
+                'amount' => $request->input('amount'),
+                'description' => 'Pago de servicio: ' . $clientService->name . ' - Cliente: ' . 
+                    ($clientService->customer->person->first_name ?? '') . ' ' . 
+                    ($clientService->customer->person->last_name ?? ''),
+                'user_id' => $user->id,
+                'affects_balance' => true,
+            ]);
+
+            // Renew service if requested
+            if ($request->input('renew_service', true)) {
+                $paymentDate = Carbon::parse($request->input('payment_date'));
+                
+                // For one-time services, set next_due_date to null (fully paid)
+                if ($clientService->billing_cycle === 'one_time') {
+                    $clientService->update([
+                        'next_due_date' => null,
+                        'status' => 'active',
+                    ]);
+                } else {
+                    $nextDueDate = $this->calculateNextDueDate($paymentDate, $clientService->billing_cycle);
+                    $clientService->update([
+                        'next_due_date' => $nextDueDate,
+                        'status' => 'active',
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Pago registrado exitosamente',
+                'payment' => $payment,
+                'service' => $clientService->fresh()->load(['customer.person', 'serviceType']),
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error al registrar el pago',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 

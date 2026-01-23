@@ -380,6 +380,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/{clientService}', [ApiClientServiceController::class, 'update']);
             Route::delete('/{clientService}', [ApiClientServiceController::class, 'destroy']);
             Route::post('/{clientService}/renew', [ApiClientServiceController::class, 'renew']);
+            Route::post('/{clientService}/payments', [ApiClientServiceController::class, 'storePayment']);
         });
     });
 

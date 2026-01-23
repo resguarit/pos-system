@@ -4,8 +4,11 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, RefreshCw, Globe, Lock, Server, Wrench, Users, Eye, Pencil, MoreVertical, DollarSign, Calendar, AlertCircle } from "lucide-react"
+import { Search, RefreshCw, Globe, Lock, Server, Wrench, Users, Eye, Pencil, MoreVertical, DollarSign, Calendar, AlertCircle, CreditCard, Building2, User, Mail, Phone, Layers, Trash2, Save, X, Unlink, ArrowLeft } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -15,6 +18,8 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
@@ -24,6 +29,7 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
 import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
+import { calculateMonthlyCost } from "@/utils/serviceUtils"
 
 interface Service {
     id: number
@@ -32,7 +38,19 @@ interface Service {
     next_due_date: string | null
     billing_cycle: string
     amount: string
+    base_price?: string | null
+    discount_percentage?: string | null
+    discount_notes?: string | null
+    start_date?: string
+    last_payment?: {
+        id: number
+        amount: string
+        payment_date: string
+        notes: string | null
+    } | null
 }
+
+type ClientService = Service
 
 interface Customer {
     id: number
@@ -40,6 +58,7 @@ interface Customer {
         first_name: string
         last_name: string
         email?: string
+        phone?: string
     }
     client_services: Service[]
 }
@@ -73,144 +92,150 @@ const getServiceIcon = (name: string) => {
     return <Server className="h-5 w-5" />
 }
 
-const getServiceColor = (name: string) => {
-    const n = name.toLowerCase()
-    if (n.includes("dominio")) return "text-blue-600 bg-blue-50 border-blue-200"
-    if (n.includes("ssl")) return "text-green-600 bg-green-50 border-green-200"
-    if (n.includes("hosting")) return "text-purple-600 bg-purple-50 border-purple-200"
-    if (n.includes("soporte") || n.includes("24/7")) return "text-orange-600 bg-orange-50 border-orange-200"
-    if (n.includes("vps")) return "text-indigo-600 bg-indigo-50 border-indigo-200"
-    return "text-gray-600 bg-gray-50 border-gray-200"
-}
-
 // Clasifica el estado de un servicio según fecha de vencimiento
-const getServicePaymentStatus = (service: Service) => {
+const getServicePaymentStatus = (service: Service): "active" | "due_soon" | "expired" | "inactive" => {
     if (service.status !== "active") return "inactive"
-    if (!service.next_due_date) return "active"
+
+    // Para servicios de pago único sin fecha de vencimiento = pagado
+    if (!service.next_due_date) {
+        // Si es único y no tiene fecha, está pagado
+        if (service.billing_cycle === 'one_time') return "active"
+        // Para otros tipos sin fecha, también consideramos al día
+        return "active"
+    }
 
     const today = new Date()
+    today.setHours(0, 0, 0, 0)
     const dueDate = new Date(service.next_due_date)
+    dueDate.setHours(0, 0, 0, 0)
     const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 
     if (diffDays < 0) return "expired"
-    if (diffDays <= 7) return "due_soon"
+    if (diffDays <= 15) return "due_soon"
     return "active"
 }
 
+// Obtiene el badge de estado del servicio con colores
+const getServiceStatusBadge = (status: string, service?: Service) => {
+    switch (status) {
+        case "expired":
+            return { label: "Vencido", className: "bg-red-100 text-red-700 border-red-200" }
+        case "due_soon":
+            return { label: "Por vencer", className: "bg-yellow-100 text-yellow-700 border-yellow-200" }
+        case "active":
+            return { label: "Al día", className: "bg-green-100 text-green-700 border-green-200" }
+        case "inactive":
+            return { label: service?.status === "suspended" ? "Suspendido" : "Cancelado", className: "bg-gray-100 text-gray-700 border-gray-200" }
+        default:
+            return { label: "Desconocido", className: "bg-gray-100 text-gray-700 border-gray-200" }
+    }
+}
+
 const getAccountStatusSummary = (services: Service[]) => {
-    if (services.length === 0) return { label: "Sin servicios", color: "text-gray-500" }
+    if (services.length === 0) return { label: "Sin servicios", color: "text-gray-500", dotColor: "bg-gray-400" }
 
     let expired = 0
     let dueSoon = 0
-    let active = 0
 
     services.forEach((svc) => {
         const status = getServicePaymentStatus(svc)
         if (status === "expired") expired += 1
         else if (status === "due_soon") dueSoon += 1
-        else if (status === "active") active += 1
     })
 
-    if (expired > 0 && active === 0) {
-        return { label: `Vencido (${expired})`, color: "text-red-600" }
-    }
-
-    if (expired > 0 && active > 0) {
-        return { label: "Pago Parcial", color: "text-orange-500" }
+    if (expired > 0) {
+        return { label: `Vencido (${expired})`, color: "text-red-600", dotColor: "bg-red-500" }
     }
 
     if (dueSoon > 0) {
-        return { label: "Aviso de Renovación", color: "text-orange-500" }
+        return { label: `Por vencer (${dueSoon})`, color: "text-yellow-600", dotColor: "bg-yellow-500" }
     }
 
-    return { label: "Al día", color: "text-green-600" }
+    return { label: "Al día", color: "text-green-600", dotColor: "bg-green-500" }
 }
 
-const getPaymentStatusBadge = (nextDueDate: string | null, status: string, billingCycle: string) => {
-    if (status !== "active") {
-        return (
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{getBillingCycleLabel(billingCycle)}</span>
-                <Badge variant="secondary" className="text-xs">
-                    {status === "suspended" ? "Suspendido" : "Cancelado"}
-                </Badge>
-            </div>
-        )
-    }
-    
-    if (!nextDueDate) {
-        return (
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{getBillingCycleLabel(billingCycle)}</span>
-                <Badge variant="secondary" className="text-xs">Sin vencimiento</Badge>
-            </div>
-        )
-    }
+interface ServiceType {
+    id: number
+    name: string
+    billing_cycle: string
+}
 
-    const today = new Date()
-    const dueDate = new Date(nextDueDate)
-    const diffTime = dueDate.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    const cycleLabel = getBillingCycleLabel(billingCycle)
-
-    if (diffDays < 0) {
-        return (
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{cycleLabel}</span>
-                <span className="text-xs">-</span>
-                <Badge variant="destructive" className="text-xs font-semibold">
-                    Vencido
-                </Badge>
-            </div>
-        )
-    } else if (diffDays <= 7) {
-        return (
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{cycleLabel}</span>
-                <span className="text-xs">-</span>
-                <Badge className="text-xs font-semibold bg-red-500 hover:bg-red-600">
-                    Pendiente
-                </Badge>
-            </div>
-        )
-    } else if (diffDays <= 30) {
-        return (
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{cycleLabel}</span>
-                <span className="text-xs">-</span>
-                <Badge className="text-xs font-semibold bg-yellow-500 hover:bg-yellow-600">
-                    Pendiente
-                </Badge>
-            </div>
-        )
-    } else {
-        return (
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">{cycleLabel}</span>
-                <span className="text-xs">-</span>
-                <Badge className="text-xs font-semibold bg-green-500 hover:bg-green-600">
-                    Al día
-                </Badge>
-            </div>
-        )
-    }
+interface Branch {
+    id: number
+    name: string
 }
 
 export default function ServicesCustomersView() {
     const [customers, setCustomers] = useState<Customer[]>([])
+    const [allServiceTypes, setAllServiceTypes] = useState<ServiceType[]>([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
     const [filterStatus, setFilterStatus] = useState<string>("all")
     const [currentPage, setCurrentPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
-    
-    // Detail dialog
+
+    // Detail dialog (all services)
     const [detailOpen, setDetailOpen] = useState(false)
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
+
+    // Single service detail dialog
+    const [serviceDetailOpen, setServiceDetailOpen] = useState(false)
     const [selectedService, setSelectedService] = useState<Service | null>(null)
-    const [payments, setPayments] = useState<Payment[]>([])
-    const [paymentsLoading, setPaymentsLoading] = useState(false)
+    const [servicePayments, setServicePayments] = useState<Payment[]>([])
+    const [servicePaymentsLoading, setServicePaymentsLoading] = useState(false)
+
+    // Service edit mode
+    const [serviceEditMode, setServiceEditMode] = useState(false)
+    const [serviceEditForm, setServiceEditForm] = useState({
+        amount: "",
+        base_price: "",
+        discount_percentage: "",
+        discount_notes: "",
+        billing_cycle: "",
+        status: "",
+        next_due_date: "",
+    })
+    const [serviceEditLoading, setServiceEditLoading] = useState(false)
+
+    // Unlink confirmation state
+    const [unlinkConfirmId, setUnlinkConfirmId] = useState<number | null>(null)
+
+    // Payment dialog
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+    const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null)
+    const [userBranches, setUserBranches] = useState<Branch[]>([])
+    const [paymentForm, setPaymentForm] = useState({
+        service_id: "",
+        amount: "",
+        payment_date: new Date().toISOString().split("T")[0],
+        notes: "",
+        renew_service: true,
+        branch_id: "",
+    })
+    const [paymentLoading, setPaymentLoading] = useState(false)
+
+    // Fetch all available service types
+    const fetchServiceTypes = async () => {
+        try {
+            const response = await api.get("/service-types", { params: { per_page: 100 } })
+            const types = Array.isArray(response.data) ? response.data : response.data?.data || []
+            setAllServiceTypes(types)
+        } catch (error) {
+            console.error("Error fetching service types:", error)
+        }
+    }
+
+    // Get service status for a given service type within a customer
+    const getServiceStatusForType = (customer: Customer, serviceName: string): "not_assigned" | "paid" | "unpaid" | "due_soon" => {
+        const service = customer.client_services.find(s => s.name === serviceName)
+        if (!service) return "not_assigned" // No está asociado
+
+        const paymentStatus = getServicePaymentStatus(service)
+        if (paymentStatus === "active") return "paid" // Verde
+        if (paymentStatus === "due_soon") return "due_soon" // Amarillo
+        if (paymentStatus === "expired") return "unpaid" // Rojo
+        return "not_assigned"
+    }
 
     const fetchCustomers = async () => {
         try {
@@ -245,25 +270,351 @@ export default function ServicesCustomersView() {
     }
 
     useEffect(() => {
+        fetchServiceTypes()
         fetchCustomers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, searchTerm, filterStatus])
 
-    const handleViewDetails = async (customer: Customer, service: Service) => {
+    // Ver detalle del cliente con todos sus servicios
+    const handleViewCustomerDetails = async (customer: Customer) => {
         setSelectedCustomer(customer)
-        setSelectedService(service)
         setDetailOpen(true)
-        
-        // Fetch payment history
+
+        // Cargar último pago de cada servicio
         try {
-            setPaymentsLoading(true)
-            const response = await api.get(`/client-services/${service.id}/payments`)
-            setPayments(response.data || [])
+            const servicesWithPayments = await Promise.all(
+                customer.client_services.map(async (service) => {
+                    try {
+                        const response = await api.get(`/client-services/${service.id}/payments`)
+                        const payments = response.data || []
+                        return {
+                            ...service,
+                            last_payment: payments.length > 0 ? payments[0] : null
+                        }
+                    } catch {
+                        return { ...service, last_payment: null }
+                    }
+                })
+            )
+            // Actualizar customer con los servicios que tienen último pago
+            setSelectedCustomer({
+                ...customer,
+                client_services: servicesWithPayments
+            })
         } catch (error) {
             console.error("Error fetching payments:", error)
+        }
+    }
+
+    // Ver detalle de un servicio específico con historial de pagos
+    const handleViewServiceDetail = async (customer: Customer, service: Service) => {
+        setSelectedCustomer(customer)
+        setSelectedService(service)
+        setServiceDetailOpen(true)
+        setServiceEditMode(false)
+        setServicePayments([])
+
+        // Cargar historial de pagos del servicio
+        try {
+            setServicePaymentsLoading(true)
+            const response = await api.get(`/client-services/${service.id}/payments`)
+            setServicePayments(response.data || [])
+        } catch (error) {
+            console.error("Error fetching service payments:", error)
             toast.error("Error al cargar el historial de pagos")
         } finally {
-            setPaymentsLoading(false)
+            setServicePaymentsLoading(false)
+        }
+    }
+
+    // Entrar en modo edición del servicio
+    const handleEnterServiceEditMode = () => {
+        if (!selectedService) return
+
+        setServiceEditForm({
+            amount: selectedService.amount,
+            base_price: selectedService.base_price || selectedService.amount,
+            discount_percentage: selectedService.discount_percentage || "0",
+            discount_notes: selectedService.discount_notes || "",
+            billing_cycle: selectedService.billing_cycle,
+            status: selectedService.status,
+            next_due_date: selectedService.next_due_date || "",
+        })
+        setServiceEditMode(true)
+    }
+
+    // Cancelar edición
+    const handleCancelServiceEdit = () => {
+        setServiceEditMode(false)
+    }
+
+    // Calcular precio con descuento
+    const calculateEditDiscountedPrice = () => {
+        const basePrice = parseFloat(serviceEditForm.base_price) || 0
+        const discountPercentage = parseFloat(serviceEditForm.discount_percentage) || 0
+        return basePrice - (basePrice * discountPercentage / 100)
+    }
+
+    // Calcular nueva fecha de vencimiento según ciclo
+    const calculateNextDueDate = (billingCycle: string, fromDate?: string): string => {
+        const baseDate = fromDate ? new Date(fromDate) : new Date()
+        baseDate.setHours(0, 0, 0, 0)
+
+        switch (billingCycle) {
+            case 'monthly':
+                baseDate.setMonth(baseDate.getMonth() + 1)
+                break
+            case 'quarterly':
+                baseDate.setMonth(baseDate.getMonth() + 3)
+                break
+            case 'annual':
+                baseDate.setFullYear(baseDate.getFullYear() + 1)
+                break
+            case 'one_time':
+                // Para único, no hay fecha de vencimiento futura
+                return ''
+            default:
+                baseDate.setMonth(baseDate.getMonth() + 1)
+        }
+
+        return baseDate.toISOString().split('T')[0]
+    }
+
+    // Manejar cambio de ciclo de facturación
+    const handleBillingCycleChange = (newCycle: string) => {
+        const originalCycle = selectedService?.billing_cycle
+
+        setServiceEditForm(prev => {
+            const updates: typeof prev = { ...prev, billing_cycle: newCycle }
+
+            // Si cambió el ciclo, recalcular fecha de vencimiento
+            if (originalCycle !== newCycle) {
+                if (newCycle === 'one_time') {
+                    // Si es único, limpiar fecha
+                    updates.next_due_date = ''
+                } else {
+                    // Calcular nueva fecha desde hoy
+                    updates.next_due_date = calculateNextDueDate(newCycle)
+                }
+            }
+
+            return updates
+        })
+    }
+
+    // Guardar cambios del servicio
+    const handleSaveServiceEdit = async () => {
+        if (!selectedService) return
+
+        try {
+            setServiceEditLoading(true)
+
+            // Determinar la fecha de vencimiento final
+            let finalNextDueDate = serviceEditForm.next_due_date || null
+
+            // Si el ciclo cambió y no es único, asegurar que hay fecha
+            if (serviceEditForm.billing_cycle !== selectedService.billing_cycle) {
+                if (serviceEditForm.billing_cycle === 'one_time') {
+                    finalNextDueDate = null
+                } else if (!finalNextDueDate) {
+                    finalNextDueDate = calculateNextDueDate(serviceEditForm.billing_cycle)
+                }
+            }
+
+            const payload = {
+                amount: calculateEditDiscountedPrice().toFixed(2),
+                base_price: serviceEditForm.base_price,
+                discount_percentage: serviceEditForm.discount_percentage,
+                discount_notes: serviceEditForm.discount_notes,
+                billing_cycle: serviceEditForm.billing_cycle,
+                status: serviceEditForm.status,
+                next_due_date: finalNextDueDate,
+            }
+
+            await api.put(`/client-services/${selectedService.id}`, payload)
+
+            toast.success("Servicio actualizado correctamente")
+            setServiceEditMode(false)
+            setServiceDetailOpen(false)
+
+            // Actualizar el servicio en memoria para reflejar los cambios inmediatamente
+            if (selectedCustomer) {
+                const updatedService: Service = {
+                    ...selectedService,
+                    amount: calculateEditDiscountedPrice().toFixed(2),
+                    base_price: serviceEditForm.base_price || selectedService.base_price,
+                    discount_percentage: serviceEditForm.discount_percentage || "0",
+                    discount_notes: serviceEditForm.discount_notes,
+                    billing_cycle: serviceEditForm.billing_cycle,
+                    status: serviceEditForm.status,
+                    next_due_date: finalNextDueDate,
+                }
+
+                const updatedServices = selectedCustomer.client_services.map(s =>
+                    s.id === selectedService.id ? updatedService : s
+                )
+
+                // Actualizar selectedCustomer (para el modal de detalle)
+                setSelectedCustomer({
+                    ...selectedCustomer,
+                    client_services: updatedServices
+                })
+
+                // Actualizar la lista de customers (para la card principal)
+                setCustomers(prevCustomers =>
+                    prevCustomers.map(c =>
+                        c.id === selectedCustomer.id
+                            ? { ...c, client_services: updatedServices }
+                            : c
+                    )
+                )
+            }
+
+            // Refrescar del servidor para asegurar consistencia
+            fetchCustomers()
+        } catch (error) {
+            console.error("Error updating service:", error)
+            toast.error("Error al actualizar el servicio")
+        } finally {
+            setServiceEditLoading(false)
+        }
+    }
+
+    // Eliminar servicio
+    const handleDeleteService = async () => {
+        if (!selectedService) return
+
+        if (!confirm(`¿Estás seguro de eliminar el servicio "${selectedService.name}"? Esta acción no se puede deshacer.`)) {
+            return
+        }
+
+        try {
+            setServiceEditLoading(true)
+            await api.delete(`/client-services/${selectedService.id}`)
+            toast.success("Servicio eliminado correctamente")
+            setServiceDetailOpen(false)
+            fetchCustomers()
+        } catch (error) {
+            console.error("Error deleting service:", error)
+            toast.error("Error al eliminar el servicio")
+        } finally {
+            setServiceEditLoading(false)
+        }
+    }
+
+    // Desvincular servicio del cliente (desde la vista de gestión)
+    const handleUnlinkService = (serviceId: number) => {
+        if (unlinkConfirmId === serviceId) {
+            // Second click: execute
+            executeUnlinkService(serviceId)
+        } else {
+            // First click: ask for confirmation
+            setUnlinkConfirmId(serviceId)
+            // Auto-reset after 5 seconds if not confirmed
+            setTimeout(() => setUnlinkConfirmId(null), 5000)
+        }
+    }
+
+    const executeUnlinkService = async (serviceId: number) => {
+        if (!selectedCustomer) return
+        const service = selectedCustomer.client_services.find(s => s.id === serviceId)
+        if (!service) return
+
+        try {
+            await api.delete(`/client-services/${service.id}`)
+            toast.success(`Servicio "${service.name}" desvinculado correctamente`)
+
+            // Actualizar el estado local inmediatamente
+            const updatedServices = selectedCustomer.client_services.filter(s => s.id !== service.id)
+
+            setSelectedCustomer({
+                ...selectedCustomer,
+                client_services: updatedServices
+            })
+
+            // Actualizar la lista de customers
+            setCustomers(prevCustomers =>
+                prevCustomers.map(c =>
+                    c.id === selectedCustomer.id
+                        ? { ...c, client_services: updatedServices }
+                        : c
+                )
+            )
+
+            // Refrescar del servidor
+            fetchCustomers()
+        } catch (error) {
+            console.error("Error unlinking service:", error)
+            toast.error("Error al desvincular el servicio")
+        } finally {
+            setUnlinkConfirmId(null)
+        }
+    }
+
+    // Fetch user branches for payment dialog
+    const fetchUserBranches = async () => {
+        try {
+            const response = await api.get("/my-branches")
+            const branches = response.data?.data || response.data || []
+            setUserBranches(branches)
+            return branches
+        } catch (error) {
+            console.error("Error fetching user branches:", error)
+            return []
+        }
+    }
+
+    // Payment dialog handlers
+    const handleOpenPaymentDialog = async (customer: Customer) => {
+        setPaymentCustomer(customer)
+        const branches = await fetchUserBranches()
+        const firstServiceWithDebt = customer.client_services.find(s => {
+            const status = getServicePaymentStatus(s)
+            return status === "expired" || status === "due_soon"
+        })
+        setPaymentForm({
+            service_id: firstServiceWithDebt?.id.toString() || customer.client_services[0]?.id.toString() || "",
+            amount: firstServiceWithDebt?.amount || customer.client_services[0]?.amount || "",
+            payment_date: new Date().toISOString().split("T")[0],
+            notes: "",
+            renew_service: true,
+            branch_id: branches.length === 1 ? branches[0].id.toString() : "",
+        })
+        setPaymentDialogOpen(true)
+    }
+
+    const handleRegisterPayment = async () => {
+        if (!paymentForm.service_id || !paymentForm.amount) {
+            toast.error("Selecciona un servicio y monto")
+            return
+        }
+
+        // Validar sucursal si hay más de una
+        if (userBranches.length > 1 && !paymentForm.branch_id) {
+            toast.error("Selecciona una sucursal")
+            return
+        }
+
+        try {
+            setPaymentLoading(true)
+
+            // Register payment with branch_id
+            await api.post(`/client-services/${paymentForm.service_id}/payments`, {
+                amount: parseFloat(paymentForm.amount),
+                payment_date: paymentForm.payment_date,
+                notes: paymentForm.notes || null,
+                renew_service: paymentForm.renew_service,
+                branch_id: paymentForm.branch_id ? parseInt(paymentForm.branch_id) : undefined,
+            })
+
+            toast.success("Pago registrado exitosamente")
+            setPaymentDialogOpen(false)
+            fetchCustomers()
+        } catch (error) {
+            console.error("Error registering payment:", error)
+            toast.error("Error al registrar el pago")
+        } finally {
+            setPaymentLoading(false)
         }
     }
 
@@ -353,121 +704,137 @@ export default function ServicesCustomersView() {
                 <div className="space-y-5">
                     <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
                         {customers.map((customer) => {
-                        const initial = getCustomerInitial(customer.person.first_name, customer.person.last_name)
-                        const colorClass = getInitialColor(initial)
-                        
-                        return (
-                            <div key={customer.id} className="border rounded-lg p-3 hover:border-gray-400 hover:shadow-sm transition-all">
-                                <div className="space-y-3">
-                                    {/* Header */}
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                                            <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${colorClass} font-semibold text-sm`}>
-                                                {initial}
+                            const initial = getCustomerInitial(customer.person.first_name, customer.person.last_name)
+                            const colorClass = getInitialColor(initial)
+
+                            return (
+                                <div key={customer.id} className="border rounded-lg p-3 hover:border-gray-400 hover:shadow-sm transition-all">
+                                    <div className="space-y-3">
+                                        {/* Header */}
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${colorClass} font-semibold text-sm`}>
+                                                    {initial}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-semibold text-base text-gray-900 truncate">
+                                                        {customer.person.first_name} {customer.person.last_name}
+                                                    </h3>
+                                                    {customer.person.email && (
+                                                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                                            {customer.person.email}
+                                                        </p>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="flex-1 min-w-0">
-                                                <h3 className="font-semibold text-base text-gray-900 truncate">
-                                                    {customer.person.first_name} {customer.person.last_name}
-                                                </h3>
-                                                {customer.person.email && (
-                                                    <p className="text-xs text-gray-500 mt-0.5 truncate">
-                                                        {customer.person.email}
-                                                    </p>
-                                                )}
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/ver`}>
+                                                        <Eye className="h-4 w-4 mr-2" />
+                                                        Ver Cliente
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/editar`}>
+                                                        <Pencil className="h-4 w-4 mr-2" />
+                                                        Editar Cliente
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+
+                                        {/* Service Icons Grid - All Service Types */}
+                                        <div className="space-y-2.5">
+                                            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado de Servicios</div>
+                                            <div className="grid grid-cols-4 gap-2.5">
+                                                {allServiceTypes.map((serviceType) => {
+                                                    const status = getServiceStatusForType(customer, serviceType.name)
+                                                    const assignedService = customer.client_services.find(s => s.name === serviceType.name)
+                                                    let statusClass = "bg-gray-100 text-gray-400" // Gris - No asignado
+
+                                                    if (status === "paid") {
+                                                        statusClass = "bg-green-100 text-green-600" // Verde - Pagado
+                                                    } else if (status === "due_soon") {
+                                                        statusClass = "bg-yellow-100 text-yellow-600" // Amarillo - Por vencer
+                                                    } else if (status === "unpaid") {
+                                                        statusClass = "bg-red-100 text-red-600" // Rojo - Con deuda
+                                                    }
+
+                                                    return (
+                                                        <div
+                                                            key={serviceType.id}
+                                                            className={`flex flex-col items-center gap-2 transition-all ${assignedService ? 'cursor-pointer' : 'cursor-default opacity-60'}`}
+                                                            onClick={() => assignedService && handleViewServiceDetail(customer, assignedService)}
+                                                            title={assignedService ? `Ver detalle de ${serviceType.name}` : `${serviceType.name} - No asignado`}
+                                                        >
+                                                            <div className={`flex h-12 w-12 items-center justify-center rounded-full ${statusClass} transition-all ${assignedService ? 'hover:shadow-lg hover:scale-105' : ''}`}>
+                                                                {getServiceIcon(serviceType.name)}
+                                                            </div>
+                                                            <div className="text-center leading-tight">
+                                                                <p className="text-[11px] font-medium text-gray-700">{serviceType.name}</p>
+                                                                <p className="text-[10px] text-gray-500">
+                                                                    {getBillingCycleLabel(assignedService?.billing_cycle || serviceType.billing_cycle)}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })}
                                             </div>
                                         </div>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                                                    <MoreVertical className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/ver`}>
-                                                    <Eye className="h-4 w-4 mr-2" />
-                                                    Ver Cliente
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/editar`}>
-                                                    <Pencil className="h-4 w-4 mr-2" />
-                                                    Editar Cliente
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </div>
 
-                                    {/* Service Icons Grid */}
-                                    <div className="space-y-2.5">
-                                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado de Servicios</div>
-                                        <div className="grid grid-cols-4 gap-2.5">
-                                            {customer.client_services.map((service) => {
-                                                const paymentStatus = getServicePaymentStatus(service)
-
-                                                let statusClass = "bg-gray-100 text-gray-400"
-                                                if (paymentStatus === "active") statusClass = "bg-green-100 text-green-600"
-                                                else if (paymentStatus === "expired") statusClass = "bg-red-100 text-red-600"
-                                                else if (paymentStatus === "due_soon") statusClass = "bg-orange-100 text-orange-600"
-
+                                        {/* Account Status + Actions aligned */}
+                                        <div className="pt-3 flex items-center justify-between gap-3">
+                                            {(() => {
+                                                const { label, color } = getAccountStatusSummary(customer.client_services)
+                                                const dotColor = color === "text-green-600" ? "bg-green-500" : color === "text-orange-500" ? "bg-orange-500" : color === "text-red-600" ? "bg-red-500" : "bg-gray-400"
                                                 return (
-                                                    <div
-                                                        key={service.id}
-                                                        className="flex flex-col items-center gap-2 cursor-pointer transition-all"
-                                                        onClick={() => handleViewDetails(customer, service)}
-                                                        title={service.name}
-                                                    >
-                                                        <div className={`flex h-12 w-12 items-center justify-center rounded-full ${statusClass} transition-all hover:shadow-lg`}>
-                                                            {getServiceIcon(service.name)}
-                                                        </div>
-                                                        <div className="text-center leading-tight">
-                                                            <p className="text-[11px] font-medium text-gray-700">{service.name}</p>
-                                                            <p className="text-[10px] text-gray-500">{getBillingCycleLabel(service.billing_cycle)}</p>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-xs font-semibold text-gray-500">Estado de la cuenta</span>
+                                                        <div className="flex items-center gap-2 text-sm">
+                                                            <span className={`h-2.5 w-2.5 rounded-full ${dotColor}`}></span>
+                                                            <span className={`font-medium ${color}`}>{label}</span>
                                                         </div>
                                                     </div>
                                                 )
-                                            })}
-                                        </div>
-                                    </div>
+                                            })()}
 
-                                    {/* Account Status + Actions aligned */}
-                                    <div className="pt-3 flex items-center justify-between gap-3">
-                                        {(() => {
-                                            const { label, color } = getAccountStatusSummary(customer.client_services)
-                                            const dotColor = color === "text-green-600" ? "bg-green-500" : color === "text-orange-500" ? "bg-orange-500" : color === "text-red-600" ? "bg-red-500" : "bg-gray-400"
-                                            return (
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-xs font-semibold text-gray-500">Estado de la cuenta</span>
-                                                    <div className="flex items-center gap-2 text-sm">
-                                                        <span className={`h-2.5 w-2.5 rounded-full ${dotColor}`}></span>
-                                                        <span className={`font-medium ${color}`}>{label}</span>
-                                                    </div>
-                                                </div>
-                                            )
-                                        })()}
-
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-9 w-9 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                                onClick={() => customer.client_services[0] && handleViewDetails(customer, customer.client_services[0])}
-                                                aria-label="Ver detalles"
-                                            >
-                                                <Eye className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-9 w-9 text-orange-500 hover:text-orange-600 hover:bg-orange-50"
-                                                onClick={() => window.location.href = `/dashboard/clientes/${customer.id}/editar`}
-                                                aria-label="Editar cliente"
-                                            >
-                                                <Pencil className="h-4 w-4" />
-                                            </Button>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-9 w-9 text-violet-600 hover:text-violet-700 hover:bg-violet-50"
+                                                    onClick={() => handleOpenPaymentDialog(customer)}
+                                                    aria-label="Registrar pago"
+                                                >
+                                                    <DollarSign className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-9 w-9 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                    onClick={() => handleViewCustomerDetails(customer)}
+                                                    aria-label="Ver detalles"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-9 w-9 text-orange-500 hover:text-orange-600 hover:bg-orange-50"
+                                                    onClick={() => handleViewCustomerDetails(customer)}
+                                                    aria-label="Gestionar servicios"
+                                                >
+                                                    <Layers className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )
-                    })}
+                            )
+                        })}
                     </div>
 
                     {/* Pagination */}
@@ -484,113 +851,787 @@ export default function ServicesCustomersView() {
                 </div>
             )}
 
-            {/* Service Detail Dialog */}
+            {/* Customer Detail Dialog - All Services View */}
             <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-blue-600" />
-                            Detalles del Servicio
+                            <User className="h-5 w-5 text-blue-600" />
+                            Detalle del Cliente
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {selectedCustomer && (
+                        <div className="space-y-6">
+                            {/* Customer Info Header */}
+                            <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                                <div className={`flex h-14 w-14 items-center justify-center rounded-full ${getInitialColor(getCustomerInitial(selectedCustomer.person.first_name, selectedCustomer.person.last_name))} font-bold text-lg shadow-md`}>
+                                    {getCustomerInitial(selectedCustomer.person.first_name, selectedCustomer.person.last_name)}
+                                </div>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-lg text-gray-900">
+                                        {selectedCustomer.person.first_name} {selectedCustomer.person.last_name}
+                                    </h3>
+                                    <div className="flex flex-wrap gap-3 text-sm text-gray-600 mt-1">
+                                        {selectedCustomer.person.email && (
+                                            <span className="flex items-center gap-1">
+                                                <Mail className="h-3.5 w-3.5" />
+                                                {selectedCustomer.person.email}
+                                            </span>
+                                        )}
+                                        {selectedCustomer.person.phone && (
+                                            <span className="flex items-center gap-1">
+                                                <Phone className="h-3.5 w-3.5" />
+                                                {selectedCustomer.person.phone}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs text-gray-500 mb-1">Servicios activos</p>
+                                    <p className="text-2xl font-bold text-blue-600">
+                                        {selectedCustomer.client_services?.filter(s => s.status === 'active').length || 0}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Services List */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-sm text-gray-700 flex items-center gap-2">
+                                        <Layers className="h-4 w-4" />
+                                        Servicios Asignados
+                                    </h4>
+                                    <span className="text-xs text-gray-500">
+                                        {selectedCustomer.client_services?.length || 0} servicio(s)
+                                    </span>
+                                </div>
+
+                                {!selectedCustomer.client_services || selectedCustomer.client_services.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-12 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                                        <AlertCircle className="h-10 w-10 text-gray-300 mb-3" />
+                                        <p className="text-sm text-gray-500 font-medium">Sin servicios asignados</p>
+                                        <p className="text-xs text-gray-400 mt-1">Asigna un servicio a este cliente para comenzar</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {selectedCustomer.client_services.map((service) => {
+                                            const paymentStatus = getServicePaymentStatus(service)
+                                            const statusBadge = getServiceStatusBadge(paymentStatus, service)
+                                            const hasDiscount = service.discount_percentage && parseFloat(service.discount_percentage) > 0
+
+                                            return (
+                                                <div
+                                                    key={service.id}
+                                                    className={`p-4 rounded-xl border transition-all hover:shadow-sm ${paymentStatus === 'due_soon'
+                                                        ? 'bg-yellow-50 border-yellow-200 hover:border-yellow-300'
+                                                        : paymentStatus === 'active'
+                                                            ? 'bg-green-50 border-green-200 hover:border-green-300'
+                                                            : paymentStatus === 'expired'
+                                                                ? 'bg-red-50 border-red-200 hover:border-red-300'
+                                                                : 'bg-white border-gray-200 hover:border-gray-300'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        {/* Service Icon & Name */}
+                                                        <div className="flex items-start gap-3 flex-1">
+                                                            <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${paymentStatus === 'active' ? 'bg-green-100 text-green-600' :
+                                                                paymentStatus === 'due_soon' ? 'bg-yellow-100 text-yellow-600' :
+                                                                    paymentStatus === 'expired' ? 'bg-red-100 text-red-600' :
+                                                                        'bg-gray-100 text-gray-400'
+                                                                }`}>
+                                                                {getServiceIcon(service.name)}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <h5 className="font-semibold text-sm text-gray-900">{service.name}</h5>
+                                                                    <Badge className={statusBadge.className}>
+                                                                        {statusBadge.label}
+                                                                    </Badge>
+                                                                </div>
+                                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
+                                                                    <span className="flex items-center gap-1">
+                                                                        <RefreshCw className="h-3 w-3" />
+                                                                        {service.billing_cycle === 'monthly' ? 'Mensual' :
+                                                                            service.billing_cycle === 'annual' ? 'Anual' : 'Único'}
+                                                                    </span>
+                                                                    {service.next_due_date && (
+                                                                        <span className="flex items-center gap-1">
+                                                                            <Calendar className="h-3 w-3" />
+                                                                            Vence: {format(new Date(service.next_due_date), "dd/MM/yyyy", { locale: es })}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Price & Discount Info */}
+                                                        <div className="text-right shrink-0">
+                                                            <div className="flex items-baseline gap-2 justify-end">
+                                                                <span className="text-lg font-bold text-gray-900">
+                                                                    ${parseFloat(service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                                </span>
+                                                                {hasDiscount && (
+                                                                    <span className="text-xs text-gray-400 line-through">
+                                                                        ${parseFloat(service.base_price || service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {hasDiscount && (
+                                                                <div className="flex items-center gap-1 justify-end mt-0.5">
+                                                                    <Badge variant="secondary" className="bg-green-50 text-green-700 text-[10px] px-1.5 py-0">
+                                                                        -{parseFloat(service.discount_percentage || '0').toFixed(0)}% desc.
+                                                                    </Badge>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Discount Notes */}
+                                                    {service.discount_notes && (
+                                                        <div className="mt-2 pt-2 border-t border-gray-100">
+                                                            <p className="text-xs text-gray-500 italic">
+                                                                <span className="font-medium">Nota de descuento:</span> {service.discount_notes}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Last Payment Info + Edit Button */}
+                                                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex items-center gap-2">
+                                                                <DollarSign className="h-3.5 w-3.5 text-gray-400" />
+                                                                <span className="text-xs text-gray-500">Último pago:</span>
+                                                            </div>
+                                                            {service.last_payment ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-xs font-medium text-gray-700">
+                                                                        ${parseFloat(service.last_payment.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                                    </span>
+                                                                    <span className="text-xs text-gray-500">
+                                                                        el {format(new Date(service.last_payment.payment_date), "dd/MM/yyyy", { locale: es })}
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400 italic">Sin pagos registrados</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-7 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                                onClick={() => {
+                                                                    setDetailOpen(false)
+                                                                    handleViewServiceDetail(selectedCustomer, service)
+                                                                    setTimeout(() => handleEnterServiceEditMode(), 100)
+                                                                }}
+                                                            >
+                                                                <Pencil className="h-3.5 w-3.5 mr-1" />
+                                                                Editar
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleUnlinkService(service.id)}
+                                                                className={unlinkConfirmId === service.id ? "text-red-600 bg-red-50 hover:bg-red-100 font-medium" : "text-red-600 hover:text-red-700 hover:bg-red-50"}
+                                                            >
+                                                                {unlinkConfirmId === service.id ? (
+                                                                    <>
+                                                                        <AlertCircle className="h-3.5 w-3.5 mr-1" />
+                                                                        ¿Confirmar?
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <Unlink className="h-3.5 w-3.5 mr-1" />
+                                                                        Desvincular
+                                                                    </>
+                                                                )}
+                                                            </Button>
+                                                            {unlinkConfirmId === service.id && (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-7 w-7 text-gray-400 hover:text-gray-600"
+                                                                    onClick={() => setUnlinkConfirmId(null)}
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Summary Footer */}
+                            {selectedCustomer.client_services && selectedCustomer.client_services.length > 0 && (
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+                                    <div className="flex items-center gap-6">
+                                        <div>
+                                            <p className="text-xs text-gray-500">Total mensual estimado</p>
+                                            <p className="text-lg font-bold text-gray-900">
+                                                ${selectedCustomer.client_services
+                                                    .filter(s => s.status === 'active')
+                                                    .reduce((acc, s) => acc + calculateMonthlyCost(s.amount, s.billing_cycle), 0)
+                                                    .toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {(() => {
+                                            const activeServices = selectedCustomer.client_services.filter(s => s.status === 'active')
+                                            const expiredCount = activeServices.filter(s => getServicePaymentStatus(s) === 'expired').length
+                                            const dueSoonCount = activeServices.filter(s => getServicePaymentStatus(s) === 'due_soon').length
+                                            const upToDateCount = activeServices.filter(s => getServicePaymentStatus(s) === 'active').length
+
+                                            return (
+                                                <>
+                                                    {upToDateCount > 0 && (
+                                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                                                            {upToDateCount} al día
+                                                        </Badge>
+                                                    )}
+                                                    {dueSoonCount > 0 && (
+                                                        <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100">
+                                                            {dueSoonCount} por vencer
+                                                        </Badge>
+                                                    )}
+                                                    {expiredCount > 0 && (
+                                                        <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                                                            {expiredCount} vencido(s)
+                                                        </Badge>
+                                                    )}
+                                                </>
+                                            )
+                                        })()}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Single Service Detail Dialog */}
+            <Dialog open={serviceDetailOpen} onOpenChange={(open) => {
+                setServiceDetailOpen(open)
+                if (!open) setServiceEditMode(false)
+            }}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="-ml-2 h-8 w-8 text-gray-500 hover:text-gray-900"
+                                    onClick={() => {
+                                        if (serviceEditMode) {
+                                            handleCancelServiceEdit()
+                                        } else {
+                                            setServiceDetailOpen(false)
+                                            setDetailOpen(true)
+                                        }
+                                    }}
+                                >
+                                    <ArrowLeft className="h-5 w-5" />
+                                </Button>
+                                {selectedService && getServiceIcon(selectedService.name)}
+                                <span>{serviceEditMode ? 'Editar Servicio' : 'Detalle del Servicio'}</span>
+                            </div>
+                            {!serviceEditMode && selectedService && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleEnterServiceEditMode}
+                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                >
+                                    <Pencil className="h-4 w-4 mr-1" />
+                                    Editar
+                                </Button>
+                            )}
                         </DialogTitle>
                     </DialogHeader>
 
                     {selectedCustomer && selectedService && (
                         <div className="space-y-6">
-                            {/* Customer Info */}
-                            <div className="space-y-2">
-                                <h4 className="font-semibold text-sm text-gray-700">Cliente</h4>
-                                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                    <div className={`flex h-10 w-10 items-center justify-center rounded-full ${getInitialColor(getCustomerInitial(selectedCustomer.person.first_name, selectedCustomer.person.last_name))} font-semibold text-sm`}>
-                                        {getCustomerInitial(selectedCustomer.person.first_name, selectedCustomer.person.last_name)}
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-sm">{selectedCustomer.person.first_name} {selectedCustomer.person.last_name}</p>
-                                        {selectedCustomer.person.email && (
-                                            <p className="text-xs text-gray-500">{selectedCustomer.person.email}</p>
-                                        )}
-                                    </div>
+                            {/* Customer Mini Header */}
+                            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <div className={`flex h-10 w-10 items-center justify-center rounded-full ${getInitialColor(getCustomerInitial(selectedCustomer.person.first_name, selectedCustomer.person.last_name))} font-semibold text-sm`}>
+                                    {getCustomerInitial(selectedCustomer.person.first_name, selectedCustomer.person.last_name)}
                                 </div>
-                            </div>
-
-                            {/* Service Info */}
-                            <div className="space-y-2">
-                                <h4 className="font-semibold text-sm text-gray-700">Información del Servicio</h4>
-                                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">Servicio</p>
-                                        <p className="font-medium text-sm">{selectedService.name}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">Monto</p>
-                                        <p className="font-medium text-sm">${parseFloat(selectedService.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">Ciclo de Facturación</p>
-                                        <p className="font-medium text-sm">
-                                            {selectedService.billing_cycle === 'monthly' ? 'Mensual' : 
-                                             selectedService.billing_cycle === 'annual' ? 'Anual' : 'Único'}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">Estado</p>
-                                        <Badge variant={selectedService.status === 'active' ? 'default' : 'secondary'}>
-                                            {selectedService.status === 'active' ? 'Activo' : 
-                                             selectedService.status === 'suspended' ? 'Suspendido' : 'Cancelado'}
-                                        </Badge>
-                                    </div>
-                                    {selectedService.next_due_date && (
-                                        <div className="col-span-2">
-                                            <p className="text-xs text-gray-500 mb-1">Próximo Vencimiento</p>
-                                            <div className="flex items-center gap-2">
-                                                <Calendar className="h-4 w-4 text-gray-400" />
-                                                <p className="font-medium text-sm">
-                                                    {format(new Date(selectedService.next_due_date), "dd 'de' MMMM 'de' yyyy", { locale: es })}
-                                                </p>
-                                            </div>
-                                        </div>
+                                <div>
+                                    <p className="font-medium text-sm">{selectedCustomer.person.first_name} {selectedCustomer.person.last_name}</p>
+                                    {selectedCustomer.person.email && (
+                                        <p className="text-xs text-gray-500">{selectedCustomer.person.email}</p>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Payment History */}
-                            <div className="space-y-2">
-                                <h4 className="font-semibold text-sm text-gray-700">Historial de Pagos</h4>
-                                {paymentsLoading ? (
-                                    <div className="flex items-center justify-center py-8">
-                                        <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
-                                    </div>
-                                ) : payments.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                                        <AlertCircle className="h-8 w-8 text-gray-400 mb-2" />
-                                        <p className="text-sm text-gray-500">No hay pagos registrados</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-60 overflow-y-auto">
-                                        {payments.map((payment) => (
-                                            <div key={payment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
-                                                        <DollarSign className="h-4 w-4 text-green-600" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium text-sm">
-                                                            ${parseFloat(payment.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {format(new Date(payment.payment_date), "dd/MM/yyyy", { locale: es })}
-                                                        </p>
-                                                    </div>
+                            {serviceEditMode ? (
+                                /* EDIT MODE */
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="font-medium text-sm text-blue-800 flex items-center gap-2">
+                                                <Pencil className="h-4 w-4" />
+                                                Editando: {selectedService.name}
+                                            </h4>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {/* Base Price */}
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Precio Base</Label>
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                                    <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className="pl-7"
+                                                        value={serviceEditForm.base_price}
+                                                        onChange={(e) => setServiceEditForm(prev => ({ ...prev, base_price: e.target.value }))}
+                                                    />
                                                 </div>
-                                                {payment.notes && (
-                                                    <p className="text-xs text-gray-500 max-w-xs truncate">{payment.notes}</p>
+                                            </div>
+
+                                            {/* Discount Percentage */}
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Descuento (%)</Label>
+                                                <div className="relative">
+                                                    <Input
+                                                        type="number"
+                                                        step="1"
+                                                        min="0"
+                                                        max="100"
+                                                        className="pr-7"
+                                                        value={serviceEditForm.discount_percentage}
+                                                        onChange={(e) => setServiceEditForm(prev => ({ ...prev, discount_percentage: e.target.value }))}
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Final Price Preview */}
+                                            <div className="col-span-2 p-3 bg-white rounded-lg border">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-sm text-gray-600">Precio Final:</span>
+                                                    <span className="text-lg font-bold text-green-600">
+                                                        ${calculateEditDiscountedPrice().toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Discount Notes */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <Label className="text-xs">Nota de Descuento</Label>
+                                                <Textarea
+                                                    placeholder="Ej: Descuento por pronto pago..."
+                                                    value={serviceEditForm.discount_notes}
+                                                    onChange={(e) => setServiceEditForm(prev => ({ ...prev, discount_notes: e.target.value }))}
+                                                    rows={2}
+                                                    className="resize-none"
+                                                />
+                                            </div>
+
+                                            {/* Billing Cycle */}
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Ciclo de Facturación</Label>
+                                                <Select
+                                                    value={serviceEditForm.billing_cycle}
+                                                    onValueChange={handleBillingCycleChange}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="monthly">Mensual</SelectItem>
+                                                        <SelectItem value="quarterly">Trimestral</SelectItem>
+                                                        <SelectItem value="annual">Anual</SelectItem>
+                                                        <SelectItem value="one_time">Único</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                {serviceEditForm.billing_cycle !== selectedService.billing_cycle && (
+                                                    <p className="text-xs text-blue-600 mt-1">
+                                                        ⓘ Se recalculará la fecha de vencimiento
+                                                    </p>
                                                 )}
                                             </div>
-                                        ))}
+
+                                            {/* Status */}
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs">Estado</Label>
+                                                <Select
+                                                    value={serviceEditForm.status}
+                                                    onValueChange={(value) => setServiceEditForm(prev => ({ ...prev, status: value }))}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="active">Activo</SelectItem>
+                                                        <SelectItem value="suspended">Suspendido</SelectItem>
+                                                        <SelectItem value="cancelled">Cancelado</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            {/* Next Due Date */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <Label className="text-xs">Próximo Vencimiento</Label>
+                                                <Input
+                                                    type="date"
+                                                    value={serviceEditForm.next_due_date ? serviceEditForm.next_due_date.split('T')[0] : ''}
+                                                    onChange={(e) => setServiceEditForm(prev => ({ ...prev, next_due_date: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
-                                )}
+
+                                    {/* Edit Actions */}
+                                    <div className="flex items-center justify-between pt-2 border-t">
+                                        <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={handleDeleteService}
+                                            disabled={serviceEditLoading}
+                                        >
+                                            <Trash2 className="h-4 w-4 mr-1" />
+                                            Eliminar
+                                        </Button>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="outline"
+                                                onClick={handleCancelServiceEdit}
+                                                disabled={serviceEditLoading}
+                                            >
+                                                <X className="h-4 w-4 mr-1" />
+                                                Cancelar
+                                            </Button>
+                                            <Button
+                                                onClick={handleSaveServiceEdit}
+                                                disabled={serviceEditLoading}
+                                                className="bg-green-600 hover:bg-green-700 text-white"
+                                            >
+                                                {serviceEditLoading ? (
+                                                    <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                                                ) : (
+                                                    <Save className="h-4 w-4 mr-1" />
+                                                )}
+                                                Guardar
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* VIEW MODE */
+                                <>
+                                    {/* Service Info Card */}
+                                    <div className="space-y-4">
+                                        <div className="flex items-start justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                                            <div className="flex items-start gap-4">
+                                                <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${getServicePaymentStatus(selectedService) === 'active' ? 'bg-green-100 text-green-600' :
+                                                    getServicePaymentStatus(selectedService) === 'due_soon' ? 'bg-yellow-100 text-yellow-600' :
+                                                        getServicePaymentStatus(selectedService) === 'expired' ? 'bg-red-100 text-red-600' :
+                                                            'bg-gray-100 text-gray-400'
+                                                    }`}>
+                                                    {getServiceIcon(selectedService.name)}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-semibold text-lg text-gray-900">{selectedService.name}</h3>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <Badge className={getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).className}>
+                                                            {getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).label}
+                                                        </Badge>
+                                                        <span className="text-xs text-gray-500">
+                                                            {selectedService.billing_cycle === 'monthly' ? 'Mensual' :
+                                                                selectedService.billing_cycle === 'quarterly' ? 'Trimestral' :
+                                                                    selectedService.billing_cycle === 'annual' ? 'Anual' : 'Único'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-2xl font-bold text-gray-900">
+                                                    ${parseFloat(selectedService.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                </p>
+                                                {selectedService.discount_percentage && parseFloat(selectedService.discount_percentage) > 0 && (
+                                                    <div className="flex items-center gap-2 justify-end mt-1">
+                                                        <span className="text-xs text-gray-400 line-through">
+                                                            ${parseFloat(selectedService.base_price || selectedService.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                        </span>
+                                                        <Badge variant="secondary" className="bg-green-50 text-green-700 text-[10px]">
+                                                            -{parseFloat(selectedService.discount_percentage).toFixed(0)}%
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Service Details Grid */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                <p className="text-xs text-gray-500 mb-1">Próximo Vencimiento</p>
+                                                <div className="flex items-center gap-2">
+                                                    <Calendar className="h-4 w-4 text-gray-400" />
+                                                    <p className="font-medium text-sm">
+                                                        {selectedService.next_due_date
+                                                            ? format(new Date(selectedService.next_due_date), "dd/MM/yyyy", { locale: es })
+                                                            : selectedService.billing_cycle === 'one_time' ? 'Pagado' : 'Sin fecha'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="p-3 bg-gray-50 rounded-lg">
+                                                <p className="text-xs text-gray-500 mb-1">Estado del Servicio</p>
+                                                <p className="font-medium text-sm capitalize">
+                                                    {selectedService.status === 'active' ? 'Activo' :
+                                                        selectedService.status === 'suspended' ? 'Suspendido' : 'Cancelado'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Discount Notes */}
+                                        {selectedService.discount_notes && (
+                                            <div className="p-3 bg-green-50 rounded-lg border border-green-100">
+                                                <p className="text-xs text-green-700 font-medium mb-1">Nota de descuento:</p>
+                                                <p className="text-sm text-green-800">{selectedService.discount_notes}</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Payment History */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-semibold text-sm text-gray-700 flex items-center gap-2">
+                                                <DollarSign className="h-4 w-4" />
+                                                Historial de Pagos
+                                            </h4>
+                                            <span className="text-xs text-gray-500">
+                                                {servicePayments.length} pago(s)
+                                            </span>
+                                        </div>
+
+                                        {servicePaymentsLoading ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <RefreshCw className="h-5 w-5 animate-spin text-gray-400" />
+                                            </div>
+                                        ) : servicePayments.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-8 text-center bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                                                <AlertCircle className="h-8 w-8 text-gray-300 mb-2" />
+                                                <p className="text-sm text-gray-500">No hay pagos registrados</p>
+                                                <p className="text-xs text-gray-400 mt-1">Registrá un pago para este servicio</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                                {servicePayments.map((payment) => (
+                                                    <div key={payment.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100">
+                                                                <DollarSign className="h-4 w-4 text-green-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-sm text-gray-900">
+                                                                    ${parseFloat(payment.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                                </p>
+                                                                <p className="text-xs text-gray-500">
+                                                                    {format(new Date(payment.payment_date), "dd 'de' MMMM 'de' yyyy", { locale: es })}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        {payment.notes && (
+                                                            <p className="text-xs text-gray-500 max-w-[150px] truncate" title={payment.notes}>
+                                                                {payment.notes}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex justify-end gap-2 pt-2 border-t">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setServiceDetailOpen(false)}
+                                        >
+                                            Cerrar
+                                        </Button>
+                                        <Button
+                                            className="bg-violet-600 hover:bg-violet-700 text-white"
+                                            onClick={() => {
+                                                setServiceDetailOpen(false)
+                                                handleOpenPaymentDialog(selectedCustomer)
+                                                setPaymentForm(prev => ({
+                                                    ...prev,
+                                                    service_id: selectedService.id.toString(),
+                                                    amount: selectedService.amount
+                                                }))
+                                            }}
+                                        >
+                                            <DollarSign className="h-4 w-4 mr-2" />
+                                            Registrar Pago
+                                        </Button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Payment Registration Dialog */}
+            <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <CreditCard className="h-5 w-5 text-violet-600" />
+                            Registrar Pago
+                        </DialogTitle>
+                        <DialogDescription>
+                            {paymentCustomer && `Registrar pago para ${paymentCustomer.person.first_name} ${paymentCustomer.person.last_name}`}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {paymentCustomer && (
+                        <div className="space-y-4 py-4">
+                            {/* Branch Selector - only show if user has multiple branches */}
+                            {userBranches.length > 1 && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="branch">Sucursal</Label>
+                                    <Select
+                                        value={paymentForm.branch_id}
+                                        onValueChange={(value) => setPaymentForm(prev => ({ ...prev, branch_id: value }))}
+                                    >
+                                        <SelectTrigger>
+                                            <Building2 className="h-4 w-4 mr-2 text-gray-500" />
+                                            <SelectValue placeholder="Seleccionar sucursal" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {userBranches.map((branch) => (
+                                                <SelectItem key={branch.id} value={branch.id.toString()}>
+                                                    {branch.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
+
+                            {/* Service Selector */}
+                            <div className="space-y-2">
+                                <Label htmlFor="service">Servicio</Label>
+                                <Select
+                                    value={paymentForm.service_id}
+                                    onValueChange={(value) => {
+                                        const service = paymentCustomer.client_services?.find((s: ClientService) => s.id.toString() === value)
+                                        setPaymentForm(prev => ({
+                                            ...prev,
+                                            service_id: value,
+                                            amount: service ? service.amount : ""
+                                        }))
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar servicio" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {paymentCustomer.client_services?.map((service: ClientService) => (
+                                            <SelectItem key={service.id} value={service.id.toString()}>
+                                                {service.name} - ${parseFloat(service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Amount */}
+                            <div className="space-y-2">
+                                <Label htmlFor="amount">Monto</Label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                    <Input
+                                        id="amount"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        className="pl-7"
+                                        placeholder="0.00"
+                                        value={paymentForm.amount}
+                                        onChange={(e) => setPaymentForm(prev => ({ ...prev, amount: e.target.value }))}
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500">Puede ingresar un monto parcial si es necesario</p>
+                            </div>
+
+                            {/* Payment Date */}
+                            <div className="space-y-2">
+                                <Label htmlFor="payment_date">Fecha de Pago</Label>
+                                <Input
+                                    id="payment_date"
+                                    type="date"
+                                    value={paymentForm.payment_date}
+                                    onChange={(e) => setPaymentForm(prev => ({ ...prev, payment_date: e.target.value }))}
+                                />
+                            </div>
+
+                            {/* Notes */}
+                            <div className="space-y-2">
+                                <Label htmlFor="notes">Notas (opcional)</Label>
+                                <Textarea
+                                    id="notes"
+                                    placeholder="Agregar notas sobre el pago..."
+                                    value={paymentForm.notes}
+                                    onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+                                    className="resize-none"
+                                    rows={2}
+                                />
+                            </div>
+
+                            {/* Renew Service Checkbox */}
+                            <div className="flex items-center space-x-2 pt-2">
+                                <Checkbox
+                                    id="renew_service"
+                                    checked={paymentForm.renew_service}
+                                    onCheckedChange={(checked) => setPaymentForm(prev => ({ ...prev, renew_service: checked as boolean }))}
+                                />
+                                <Label htmlFor="renew_service" className="text-sm font-normal cursor-pointer">
+                                    Renovar servicio después del pago
+                                </Label>
                             </div>
                         </div>
                     )}
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setPaymentDialogOpen(false)}
+                            disabled={paymentLoading}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleRegisterPayment}
+                            disabled={paymentLoading || !paymentForm.service_id || !paymentForm.amount}
+                            className="bg-violet-600 hover:bg-violet-700 text-white"
+                        >
+                            {paymentLoading ? (
+                                <>
+                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                    Procesando...
+                                </>
+                            ) : (
+                                <>
+                                    <DollarSign className="h-4 w-4 mr-2" />
+                                    Registrar Pago
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

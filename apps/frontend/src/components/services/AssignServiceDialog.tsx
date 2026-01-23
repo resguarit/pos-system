@@ -32,7 +32,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { Check, ChevronsUpDown, Loader2, User, Package } from "lucide-react"
+import { Check, ChevronsUpDown, Loader2, User, Package, Percent } from "lucide-react"
 import { cn } from "@/lib/utils"
 import api from "@/lib/api"
 import { toast } from "sonner"
@@ -90,6 +90,9 @@ export default function AssignServiceDialog({
         name: "",
         description: "",
         amount: "",
+        base_price: "",
+        discount_percentage: "",
+        discount_notes: "",
         billing_cycle: "monthly",
         start_date: format(new Date(), 'yyyy-MM-dd'),
     })
@@ -137,10 +140,32 @@ export default function AssignServiceDialog({
                 service_type_id: serviceTypeId,
                 name: serviceType.name,
                 amount: serviceType.price,
+                base_price: serviceType.price,
                 billing_cycle: serviceType.billing_cycle,
+                discount_percentage: "",
             }))
         }
         setServiceTypeOpen(false)
+    }
+
+    // Calculate discounted price
+    const calculateDiscountedPrice = (basePrice: string, discountPercent: string) => {
+        const base = parseFloat(basePrice) || 0
+        const discount = parseFloat(discountPercent) || 0
+        if (discount > 0 && base > 0) {
+            return (base * (1 - discount / 100)).toFixed(2)
+        }
+        return basePrice
+    }
+
+    // Handle discount change
+    const handleDiscountChange = (discountPercent: string) => {
+        const newAmount = calculateDiscountedPrice(formData.base_price, discountPercent)
+        setFormData(prev => ({
+            ...prev,
+            discount_percentage: discountPercent,
+            amount: newAmount,
+        }))
     }
 
     const handleCustomerSelect = (customerId: string) => {
@@ -158,9 +183,13 @@ export default function AssignServiceDialog({
             setSaving(true)
             await api.post('/client-services', {
                 customer_id: parseInt(formData.customer_id),
+                service_type_id: formData.service_type_id ? parseInt(formData.service_type_id) : null,
                 name: formData.name,
                 description: formData.description || null,
                 amount: parseFloat(formData.amount),
+                base_price: formData.base_price ? parseFloat(formData.base_price) : null,
+                discount_percentage: formData.discount_percentage ? parseFloat(formData.discount_percentage) : 0,
+                discount_notes: formData.discount_notes || null,
                 billing_cycle: formData.billing_cycle,
                 start_date: formData.start_date,
                 status: "active",
@@ -173,6 +202,9 @@ export default function AssignServiceDialog({
                 name: "",
                 description: "",
                 amount: "",
+                base_price: "",
+                discount_percentage: "",
+                discount_notes: "",
                 billing_cycle: "monthly",
                 start_date: format(new Date(), 'yyyy-MM-dd'),
             })
@@ -361,9 +393,54 @@ export default function AssignServiceDialog({
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 mb-4">
-                            {/* Amount */}
+                            {/* Base Price (read-only if from template) */}
                             <div className="grid gap-2">
-                                <Label htmlFor="amount">Monto *</Label>
+                                <Label htmlFor="base_price">Precio Base</Label>
+                                <Input
+                                    id="base_price"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={formData.base_price}
+                                    onChange={(e) => {
+                                        const newBasePrice = e.target.value
+                                        setFormData(prev => ({ 
+                                            ...prev, 
+                                            base_price: newBasePrice,
+                                            amount: calculateDiscountedPrice(newBasePrice, prev.discount_percentage)
+                                        }))
+                                    }}
+                                    placeholder="0.00"
+                                />
+                            </div>
+
+                            {/* Discount Percentage */}
+                            <div className="grid gap-2">
+                                <Label htmlFor="discount" className="flex items-center gap-1">
+                                    <Percent className="h-3 w-3" />
+                                    Descuento
+                                </Label>
+                                <div className="relative">
+                                    <Input
+                                        id="discount"
+                                        type="number"
+                                        step="1"
+                                        min="0"
+                                        max="100"
+                                        value={formData.discount_percentage}
+                                        onChange={(e) => handleDiscountChange(e.target.value)}
+                                        placeholder="0"
+                                        className="pr-8"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            {/* Final Amount */}
+                            <div className="grid gap-2">
+                                <Label htmlFor="amount">Monto Final *</Label>
                                 <Input
                                     id="amount"
                                     type="number"
@@ -372,7 +449,13 @@ export default function AssignServiceDialog({
                                     value={formData.amount}
                                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                                     placeholder="0.00"
+                                    className={formData.discount_percentage && parseFloat(formData.discount_percentage) > 0 ? "bg-green-50 border-green-300" : ""}
                                 />
+                                {formData.discount_percentage && parseFloat(formData.discount_percentage) > 0 && (
+                                    <p className="text-xs text-green-600">
+                                        Ahorro: ${(parseFloat(formData.base_price || "0") - parseFloat(formData.amount || "0")).toFixed(2)}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Billing Cycle */}
@@ -394,6 +477,19 @@ export default function AssignServiceDialog({
                                 </Select>
                             </div>
                         </div>
+
+                        {/* Discount Notes */}
+                        {formData.discount_percentage && parseFloat(formData.discount_percentage) > 0 && (
+                            <div className="grid gap-2 mb-4">
+                                <Label htmlFor="discount_notes">Motivo del Descuento</Label>
+                                <Input
+                                    id="discount_notes"
+                                    value={formData.discount_notes}
+                                    onChange={(e) => setFormData({ ...formData, discount_notes: e.target.value })}
+                                    placeholder="Ej: Cliente frecuente, promoción, etc."
+                                />
+                            </div>
+                        )}
 
                         {/* Start Date */}
                         <div className="grid gap-2">
