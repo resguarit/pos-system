@@ -46,18 +46,15 @@ for api_dir in $API_DIRS; do
   # Extract client name from directory (e.g., api.hela-ditos.com.ar -> hela-ditos)
   client_name=$(echo "$api_dir" | sed 's/api\.//' | sed 's/\.com\.ar$//' | sed 's/\.net\.ar$//')
   
-  # Determine backend path (usually in public_html or similar)
+  # Determine backend path (usually in public_html/apps/backend)
   BACKEND_PATH=""
   
-  if [ -d "$api_dir/public_html" ]; then
+  if [ -d "$api_dir/public_html/apps/backend" ] && [ -f "$api_dir/public_html/apps/backend/artisan" ]; then
+    BACKEND_PATH="$api_dir/public_html/apps/backend"
+  elif [ -d "$api_dir/public_html" ] && [ -f "$api_dir/public_html/artisan" ]; then
     BACKEND_PATH="$api_dir/public_html"
-  elif [ -d "$api_dir/app" ]; then
+  elif [ -f "$api_dir/artisan" ]; then
     BACKEND_PATH="$api_dir"
-  else
-    # Check for Laravel structure
-    if [ -f "$api_dir/artisan" ]; then
-      BACKEND_PATH="$api_dir"
-    fi
   fi
   
   if [ -z "$BACKEND_PATH" ] || [ ! -f "$BACKEND_PATH/artisan" ]; then
