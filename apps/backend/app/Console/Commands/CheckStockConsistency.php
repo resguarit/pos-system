@@ -36,14 +36,14 @@ class CheckStockConsistency extends Command
         $input = $this->argument('product_id_or_code');
         $branchId = $this->option('branch');
 
-        $query = Product::query();
+        $query = Product::withTrashed();
 
         // Determine if input is ID or Code
         if ($input) {
             $productById = null;
             if (is_numeric($input)) {
                 // Try to find by ID first
-                $productById = Product::find($input);
+                $productById = Product::withTrashed()->find($input);
             }
 
             if ($productById) {
