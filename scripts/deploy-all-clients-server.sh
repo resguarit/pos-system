@@ -88,6 +88,14 @@ for api_dir in $API_DIRS; do
       failed_clients+=("$client_name (migration error)")
     fi
     
+    # Grant all permissions to admin
+    echo "🔐 Granting all permissions to admin..."
+    if php artisan admin:grant-all-permissions 2>/dev/null; then
+      echo "✅ Permissions granted for $client_name"
+    else
+      echo "⚠️  Permission grant failed or command not found for $client_name"
+    fi
+    
     # Clear caches
     echo "🧹 Clearing caches..."
     php artisan config:clear 2>/dev/null || true
