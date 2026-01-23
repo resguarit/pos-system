@@ -92,14 +92,22 @@ class CheckStockConsistency extends Command
 
                 // 2. Fetch Data
                 // Purchases
-                $purchaseItems = PurchaseOrderItem::where('product_id', $product->id)
+                $purchaseItemsQuery = PurchaseOrderItem::where('product_id', $product->id)
                     ->whereHas('purchaseOrder', function ($q) use ($branch) {
-                        $q->where('branch_id', $branch->id)
-                            ->where('status', 'completed');
+                        $q->where('branch_id', $branch->id);
+                        // If showing detailed history, we want ALL status to debug.
+                        // But for summary calculation we only want completed.
                     })
-                    ->with('purchaseOrder')
-                    ->get();
-                $purchasedQty = $purchaseItems->sum('quantity');
+                    ->with('purchaseOrder');
+
+                $purchaseItems = $purchaseItemsQuery->get();
+
+                // Filter for calculation
+                $completedPurchaseItems = $purchaseItems->filter(function ($item) {
+                    return $item->purchaseOrder->status === 'completed';
+                });
+
+                $purchasedQty = $completedPurchaseItems->sum('quantity');
 
                 // Sales (Active, excluding Budgets)
                 $saleItems = SaleItem::where('product_id', $product->id)
@@ -172,7 +180,7 @@ class CheckStockConsistency extends Command
                     $this->showDetailedHistoryTable(
                         $product,
                         $branch,
-                        $purchaseItems,
+                        $purchaseItems, // Passing ALL items (including pending)
                         $normalSaleItems,
                         $creditNotesItems,
                         $transfersInItems,
@@ -222,11 +230,21 @@ class CheckStockConsistency extends Command
 
         // Add Purchases
         foreach ($purchases as $p) {
+            $status = $p->purchaseOrder->status;
+            $qty = $p->quantity;
+            $changeStr = "+$qty";
+
+            if ($status !== 'completed') {
+                $changeStr = "0 (Pending: $status)";
+                $qty = 0; // Does not affect running balance
+            }
+
             $events->push([
                 'date' => $p->purchaseOrder->created_at, // Or updated_at / order_date
                 'type' => 'Purchase',
                 'ref' => "PO #" . $p->purchaseOrder->id,
-                'qty_change' => $p->quantity,
+                'qty_change' => $qty,
+                'display_change' => $changeStr,
                 // 'balance_impact' => '+'
             ]);
         }
@@ -238,6 +256,7 @@ class CheckStockConsistency extends Command
                 'type' => 'Sale',
                 'ref' => "Sale #" . $s->saleHeader->receipt_number,
                 'qty_change' => -$s->quantity,
+                'display_change' => "-" . $s->quantity,
                 // 'balance_impact' => '-'
             ]);
         }
@@ -249,6 +268,7 @@ class CheckStockConsistency extends Command
                 'type' => 'Credit Note',
                 'ref' => "CN #" . $cn->saleHeader->receipt_number,
                 'qty_change' => $cn->quantity, // Assuming Returns ADD stock
+                'display_change' => "+" . $cn->quantity,
                 // 'balance_impact' => '+'
             ]);
         }
@@ -260,6 +280,7 @@ class CheckStockConsistency extends Command
                 'type' => 'Transfer In',
                 'ref' => "Transfer #" . $t->stockTransfer->id,
                 'qty_change' => $t->quantity,
+                'display_change' => "+" . $t->quantity,
                 // 'balance_impact' => '+'
             ]);
         }
@@ -271,6 +292,7 @@ class CheckStockConsistency extends Command
                 'type' => 'Transfer Out',
                 'ref' => "Transfer #" . $t->stockTransfer->id,
                 'qty_change' => -$t->quantity,
+                'display_change' => "-" . $t->quantity,
                 // 'balance_impact' => '-'
             ]);
         }
@@ -312,7 +334,8 @@ class CheckStockConsistency extends Command
                     'type' => 'Manual Adj (Log)',
                     'ref' => "Log #" . $log->id . " $details",
                     'qty_change' => $qtyChange,
-                    // NOTE: Manual adjustments RESET the running balance in reality, but here we treat them as deltas for the "History" view 
+                    'display_change' => $qtyChange > 0 ? "+$qtyChange (Set)" : "$qtyChange (Set)",
+                    // NOTE: Manual adjustments RESET the running balance in reality, but here we treat them as deltas for the "History" view
                     // unless we want to "Reset" the balance column.
                     'balance_set' => isset($props['attributes']['current_stock']) ? $props['attributes']['current_stock'] : null
                 ]);
@@ -328,9 +351,7 @@ class CheckStockConsistency extends Command
         $runningBalance = 0;
 
         foreach ($sortedEvents as $e) {
-            $changeStr = $e['qty_change'];
-            if ($changeStr > 0)
-                $changeStr = "+$changeStr";
+            $changeStr = $e['display_change'];
 
             // If it's a Update Log, it effectively SETS the balance
             if (isset($e['balance_set']) && !is_null($e['balance_set'])) {
@@ -339,7 +360,7 @@ class CheckStockConsistency extends Command
                     $e['date'],
                     $e['type'],
                     $e['ref'],
-                    $e['qty_change'] > 0 ? "+{$e['qty_change']} (Set)" : "{$e['qty_change']} (Set)",
+                    $changeStr,
                     $runningBalance
                 ];
             } else {
