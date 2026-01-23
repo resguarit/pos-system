@@ -282,11 +282,16 @@ class CheckStockConsistency extends Command
         foreach ($sales as $s) {
             $status = $s->saleHeader->status;
             $statusLabel = $status === 'annulled' ? ' (ANNULLED)' : '';
+            $ref = "Sale #" . $s->saleHeader->receipt_number;
+
+            if ($status === 'annulled' && $s->saleHeader->annulment_reason) {
+                $ref .= " [Reason: " . $s->saleHeader->annulment_reason . "]";
+            }
 
             $events->push([
                 'date' => $s->saleHeader->created_at,
                 'type' => 'Sale' . $statusLabel,
-                'ref' => "Sale #" . $s->saleHeader->receipt_number,
+                'ref' => $ref,
                 'qty_change' => -$s->quantity,
                 'display_change' => "-" . $s->quantity,
                 'timestamp' => Carbon::parse($s->saleHeader->created_at)->timestamp,
