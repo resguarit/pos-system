@@ -78,7 +78,7 @@ for api_dir in $API_DIRS; do
     # Composer install
     echo "📦 Installing composer dependencies..."
     if command -v composer &> /dev/null; then
-      composer install --no-dev --optimize-autoloader 2>&1 | grep -E "(^Installing|^Updating|^Autoloading|completed)" || true
+      COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap 2>&1 | tail -5 || true
     else
       echo "⚠️  Composer not found, skipping"
     fi
