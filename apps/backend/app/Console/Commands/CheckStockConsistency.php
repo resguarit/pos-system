@@ -172,7 +172,6 @@ class CheckStockConsistency extends Command
                         ->get();
 
                     // Filter for what likely looks like a manual update (generic update)
-                    // We must refine this later to deduct system Logs
                     $manualAdjustmentsCount = $activityLogs->where('description', 'updated')->count();
                 }
 
@@ -303,7 +302,9 @@ class CheckStockConsistency extends Command
         }
 
         // Sort events FIRST to help with redundancy check
-        $sortedEvents = $events->sortBy('timestamp');
+        $systemEvents = $events->sortBy('timestamp');
+        // FIX: Clone collection using all()
+        $finalEvents = collect($systemEvents->all());
 
         // Add Logs, filtering duplicates
         foreach ($logs as $log) {
@@ -335,11 +336,12 @@ class CheckStockConsistency extends Command
 
             // FILTER: If this log happens at the SAME TIME as another transaction match (Sale/Purchase)
             // It is likely a SYSTEM log, not a MANUAL one.
+            // Compare against $systemEvents (original), NOT the growing $finalEvents
             $logTimestamp = Carbon::parse($log->created_at)->timestamp;
             $isRedundant = false;
 
             // Simple redundancy check: look for other events within +/- 10 seconds
-            foreach ($sortedEvents as $e) {
+            foreach ($systemEvents as $e) {
                 if (abs($e['timestamp'] - $logTimestamp) <= 10) {
                     // Check if quantities match generally (Sales/TransfersOut are negative)
                     // E.g. Sale -1. Log Set 10->9 (Change -1). MATCH.
@@ -356,7 +358,7 @@ class CheckStockConsistency extends Command
                 continue;
 
             if ($qtyChange != 0 || $log->description === 'updated') {
-                $sortedEvents->push([
+                $finalEvents->push([
                     'date' => $log->created_at,
                     'type' => 'Manual Adj (Log)',
                     'ref' => "Log #" . $log->id . " $details",
@@ -369,7 +371,7 @@ class CheckStockConsistency extends Command
         }
 
         // Re-sort including new logs
-        $finalEvents = $sortedEvents->sortBy('timestamp');
+        $finalEvents = $finalEvents->sortBy('timestamp');
 
         $rows = [];
         $runningBalance = 0;
