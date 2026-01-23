@@ -103,9 +103,9 @@ class CustomerService implements CustomerServiceInterface
             $customer->person->update($personData);
 
             $customer->update([
-                'email' => $data['email'] ?? $customer->email,
+                'email' => array_key_exists('email', $data) ? $data['email'] : $customer->email,
                 'active' => array_key_exists('active', $data) ? $data['active'] : $customer->active,
-                'notes' => $data['notes'] ?? $customer->notes,
+                'notes' => array_key_exists('notes', $data) ? $data['notes'] : $customer->notes,
             ]);
 
             // Handle tax identities
