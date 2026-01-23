@@ -54,8 +54,8 @@ class GrantAllPermissionsToAdmin extends Command
 
         $this->info("🔍 Rol encontrado: {$adminRole->name} (ID: {$adminRole->id})");
 
-        // Obtener todos los permisos
-        $allPermissions = Permission::all();
+        // Obtener todos los permisos excepto 'solo_crear_presupuestos'
+        $allPermissions = Permission::where('name', '!=', 'solo_crear_presupuestos')->get();
 
         if ($allPermissions->isEmpty()) {
             $this->error("❌ No hay permisos disponibles en el sistema.");
