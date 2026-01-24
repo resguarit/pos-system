@@ -232,7 +232,6 @@ export const PERMISSIONS_CONFIG = {
   reportesInventario: {
     feature: 'reportesInventario',
     permissions: [
-      'generar_reportes',
       'ver_stock_bajo',
       'ver_productos_mas_vendidos',
       'exportar_reportes_inventario'
