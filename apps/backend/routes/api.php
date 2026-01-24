@@ -195,9 +195,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/usd-products-stats', [ExchangeRateController::class, 'getUsdProductsStats']);
     });
 
-    Route::prefix('measures')->middleware('has_permission:ver_configuracion_sistema')->group(function () {
-        Route::get('/', [MeasureController::class, 'index']);
-        Route::get('/{id}', [MeasureController::class, 'show']);
+    Route::prefix('measures')->group(function () {
+        // Lectura de medidas: cualquier usuario que pueda ver productos
+        Route::middleware('has_permission:ver_productos')->group(function () {
+            Route::get('/', [MeasureController::class, 'index']);
+            Route::get('/{id}', [MeasureController::class, 'show']);
+        });
+        // Escritura: solo configuración del sistema
         Route::middleware('has_permission:editar_configuracion_sistema')->group(function () {
             Route::post('/', [MeasureController::class, 'store']);
             Route::put('/{id}', [MeasureController::class, 'update']);
@@ -273,9 +277,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/public', [SettingController::class, 'getPublicSettings'])->withoutMiddleware(['auth:sanctum']);
     });
 
-    Route::prefix('ivas')->middleware('has_permission:ver_configuracion_sistema')->group(function () {
-        Route::get('/', [IvaController::class, 'index']);
-        Route::get('/{id}', [IvaController::class, 'show']);
+    Route::prefix('ivas')->group(function () {
+        // Lectura de IVAs: cualquier usuario que pueda ver productos
+        Route::middleware('has_permission:ver_productos')->group(function () {
+            Route::get('/', [IvaController::class, 'index']);
+            Route::get('/{id}', [IvaController::class, 'show']);
+        });
+        // Escritura: solo configuración del sistema
         Route::middleware('has_permission:editar_configuracion_sistema')->group(function () {
             Route::post('/', [IvaController::class, 'store']);
             Route::put('/{id}', [IvaController::class, 'update']);
@@ -369,7 +377,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Stats route - must be before {id} routes
         Route::get('/stats', [ApiClientServiceController::class, 'stats']);
         Route::get('/customers-with-services', [ApiClientServiceController::class, 'customersWithServices']);
-        
+
         // General access if needed, or mostly via customer
         Route::get('/', [ApiClientServiceController::class, 'index']);
         Route::get('/{clientService}', [ApiClientServiceController::class, 'show']);
@@ -472,7 +480,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/current-optimized', [CashRegisterController::class, 'currentOptimized']);
         Route::get('/last-closure', [CashRegisterController::class, 'getLastClosure']);
         Route::get('/multiple-branches', [CashRegisterController::class, 'multipleBranches']);
-        
+
         // Estos endpoints son necesarios para validar el estado de la caja antes de operaciones
         // como ventas, por lo que deben estar disponibles para todos los usuarios autenticados
         Route::get('/check-status', [CashRegisterController::class, 'checkStatus']);
