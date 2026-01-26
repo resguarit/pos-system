@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 
 interface ClientService {
     id: number
@@ -104,6 +105,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                 setPayments(Array.isArray(response.data) ? response.data : [])
             }
         } catch (error) {
+            console.error("Error loading history:", error)
             toast.error("Error al cargar historial")
         } finally {
             setLoadingHistory(false)
@@ -147,6 +149,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
             toast.success("Servicio eliminado");
             fetchServices();
         } catch (error) {
+            console.error("Error deleting service:", error)
             toast.error("Error al eliminar");
         }
     }
@@ -159,8 +162,13 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
             });
             toast.success("Servicio renovado");
             fetchServices();
-        } catch (error: any) {
-            toast.error(error?.response?.data?.message || "Error al renovar");
+        } catch (error: unknown) {
+            let message = "Error al renovar";
+            if (error && typeof error === 'object' && 'response' in error) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                message = (error as any).response?.data?.message || message;
+            }
+            toast.error(message);
         }
     }
 
@@ -204,14 +212,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
         }
     }
 
-    const getBillingLabel = (cycle: string) => {
-        switch (cycle) {
-            case 'monthly': return 'Mensual';
-            case 'annual': return 'Anual';
-            case 'one_time': return 'Único';
-            default: return cycle;
-        }
-    }
+    // const getBillingLabel = (cycle: string) => { ... } // Removed in favor of utility
 
     return (
         <Card>
@@ -261,7 +262,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                                                 <div className="text-xs text-muted-foreground">{service.description}</div>
                                             )}
                                         </TableCell>
-                                        <TableCell>{getBillingLabel(service.billing_cycle)}</TableCell>
+                                        <TableCell>{getBillingCycleLabel(service.billing_cycle)}</TableCell>
                                         <TableCell>${parseFloat(service.amount).toFixed(2)}</TableCell>
                                         <TableCell>
                                             {service.next_due_date ? (

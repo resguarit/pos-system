@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom';
-import App from './App.tsx'
+import App from './App'
 import './index.css'
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "sonner"
@@ -16,6 +16,7 @@ import { AfipProvider } from "@/context/AfipContext"
 import EnterSubmitProvider from "@/components/enter-submit-provider"
 import { CartProvider } from "@/context/CartContext"
 import { NewPurchaseOrderProvider } from "@/contexts/new-purchase-order-context"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -31,7 +32,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                       <SystemConfigProvider>
                         <CartProvider>
                           <NewPurchaseOrderProvider>
-                            <App />
+                            <ErrorBoundary>
+                              <App />
+                            </ErrorBoundary>
                             <Toaster />
                             <EnterSubmitProvider />
                           </NewPurchaseOrderProvider>

@@ -20,15 +20,18 @@ class ClientService extends Model
         'discount_percentage',
         'discount_notes',
         'billing_cycle',
+        'next_billing_cycle',
         'start_date',
         'next_due_date',
-        'status'
+        'status',
+        'next_amount'
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'next_due_date' => 'date',
         'amount' => 'decimal:2',
+        'next_amount' => 'decimal:2',
         'base_price' => 'decimal:2',
         'discount_percentage' => 'decimal:2',
     ];

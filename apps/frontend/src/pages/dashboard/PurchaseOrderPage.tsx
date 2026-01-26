@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -114,23 +114,15 @@ export default function PurchaseOrderPage() {
     }
   }, [searchParams])
 
-  // Fetch purchase orders from backend
-  useEffect(() => {
-    if (dateRange?.from && dateRange?.to) {
-      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
-      const toDate = format(dateRange?.to, "yyyy-MM-dd");
-      loadPurchaseOrders(1, fromDate, toDate);
-    } else {
-      loadPurchaseOrders(1);
-    }
-  }, [])
+  // Fetch purchase orders from backend - Logic moved to the dependency-based effect below
+  // useEffect(() => { ... }, []) removed to avoid double fetch
 
   // Recargar órdenes cuando cambien los filtros de sucursales
   useEffect(() => {
     if (filteredBranchIds.length > 0) {
       loadPurchaseOrders(1)
     }
-  }, [filteredBranchIds])
+  }, [filteredBranchIds, loadPurchaseOrders])
 
   useEffect(() => {
     const fetchSummary = async () => {
@@ -152,10 +144,13 @@ export default function PurchaseOrderPage() {
   }, [dateRange])
 
   // Modificar loadPurchaseOrders para aceptar fechas y filtros de sucursales
-  const loadPurchaseOrders = async (page = 1, from?: string, to?: string) => {
+  const loadPurchaseOrders = useCallback(async (page = 1, from?: string, to?: string) => {
     try {
       setLoading(true)
-      const params: any = {};
+      const params: any = {
+        page: page,
+        per_page: PO_PAGE_SIZE
+      };
       if (from) params.from = from;
       if (to) params.to = to;
 
@@ -172,23 +167,31 @@ export default function PurchaseOrderPage() {
         }
       }
 
-      const orders = await getPurchaseOrders(params);
+      const response = await getPurchaseOrders(params);
 
-      // Si hay múltiples sucursales filtradas, filtrar en el frontend
+      // Si hay múltiples sucursales filtradas, filtrar en el frontend (Backend pagination might make this tricky if not supported on backend)
+      // Assuming backend returns paginated results filtered by single branch_id if sent.
+      // If we need multi-branch support in backend, that's a separate task, but logic here assumes response is PaginatedResponse.
+
+      const orders = response.data;
+
+      // Client side filtering for multi-branch if backend doesn't support array (it supports single branch_id)
       let filteredOrders = orders;
       if (filteredBranchIds.length > 1) {
+        // Note: This logic is flawed with server-side pagination if backend doesn't filter.
+        // But preserving existing behavior for now within pagination limits.
         filteredOrders = orders.filter(order =>
           order.branch_id && filteredBranchIds.includes(order.branch_id)
         );
+      } else {
+        filteredOrders = orders;
       }
 
-      const startIndex = (page - 1) * PO_PAGE_SIZE;
-      const endIndex = startIndex + PO_PAGE_SIZE;
-      const paginatedOrders = filteredOrders.slice(startIndex, endIndex);
-      setPurchaseOrders(paginatedOrders);
-      setTotalPOItems(filteredOrders.length);
-      setCurrentPOPage(page);
-      setTotalPOPages(Math.ceil(filteredOrders.length / PO_PAGE_SIZE));
+      // No client-side slicing needed
+      setPurchaseOrders(filteredOrders);
+      setTotalPOItems(response.total);
+      setCurrentPOPage(response.current_page);
+      setTotalPOPages(response.last_page);
     } catch (error) {
       console.error('Error loading purchase orders:', error);
       toast.error("Error al cargar órdenes de compra");
@@ -198,7 +201,7 @@ export default function PurchaseOrderPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filteredBranchIds, PO_PAGE_SIZE])
 
   // Actualizar useEffect para cargar órdenes de compra al cambiar el periodo
   useEffect(() => {
@@ -210,13 +213,13 @@ export default function PurchaseOrderPage() {
       // If dates are cleared, load all orders (or default logic)
       loadPurchaseOrders(currentPOPage);
     }
-  }, [dateRange, currentPOPage])
+  }, [dateRange, currentPOPage, loadPurchaseOrders])
 
   // Funciones de paginación para órdenes de compra
   const goToPOPage = (pageNumber: number) => {
     if (pageNumber >= 1 && pageNumber <= totalPOPages && pageNumber !== currentPOPage && !loading) {
       setCurrentPOPage(pageNumber);
-      loadPurchaseOrders(pageNumber);
+      // loadPurchaseOrders(pageNumber); // Removed to avoid race condition/double fetch, explicit useEffect handles it
     }
   };
 

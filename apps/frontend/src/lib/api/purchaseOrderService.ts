@@ -81,16 +81,37 @@ export interface CancelPreviewData {
   cash_movement?: CancelPreviewCashMovement | null; // Deprecated
 }
 
+export interface PaginatedResponse<T> {
+  current_page: number;
+  data: T[];
+  first_page_url: string;
+  from: number;
+  last_page: number;
+  last_page_url: string;
+  links: {
+    url: string | null;
+    label: string;
+    active: boolean;
+  }[];
+  next_page_url: string | null;
+  path: string;
+  per_page: number;
+  prev_page_url: string | null;
+  to: number;
+  total: number;
+}
+
 /**
  * Objeto que agrupa todos los métodos del servicio de órdenes de compra.
  */
 const purchaseOrderService = {
   /**
    * Obtiene todas las órdenes de compra, con filtros opcionales.
+   * Ahora soporta paginación desde el backend.
    */
-  async getAll(params?: { supplier_id?: number; branch_id?: number; status?: string; from?: string; to?: string }): Promise<PurchaseOrder[]> {
+  async getAll(params?: { supplier_id?: number; branch_id?: number; status?: string; from?: string; to?: string; page?: number; per_page?: number }): Promise<PaginatedResponse<PurchaseOrder>> {
     try {
-      const response = await api.get<PurchaseOrder[]>('/purchase-orders', { params });
+      const response = await api.get<PaginatedResponse<PurchaseOrder>>('/purchase-orders', { params });
       return response.data;
     } catch (error) {
       console.error("Error al obtener las órdenes de compra:", error);
@@ -152,6 +173,7 @@ const purchaseOrderService = {
   /**
    * Marca una orden de compra como completada y registra el movimiento de caja.
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async finalize(id: number, cashRegisterId: number): Promise<any> {
     try {
       const response = await api.patch(`/purchase-orders/${id}/finalize`, {

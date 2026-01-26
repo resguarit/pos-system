@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log; // Added Log facade
 use Carbon\Carbon;
 
 class ClientServiceController extends Controller
@@ -37,12 +38,12 @@ class ClientServiceController extends Controller
         // Search
         if ($request->has('search')) {
             $search = $request->input('search');
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhereHas('customer.person', function($q2) use ($search) {
-                      $q2->where('first_name', 'like', "%{$search}%")
-                         ->orWhere('last_name', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('customer.person', function ($q2) use ($search) {
+                        $q2->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -60,7 +61,7 @@ class ClientServiceController extends Controller
     {
         $query = Customer::with([
             'person',
-            'clientServices' => function($q) {
+            'clientServices' => function ($q) {
                 $q->orderBy('status')->orderBy('next_due_date');
             },
             'clientServices.serviceType'
@@ -69,22 +70,22 @@ class ClientServiceController extends Controller
         // Search
         if ($request->has('search')) {
             $search = $request->input('search');
-            $query->where(function($q) use ($search) {
-                $q->whereHas('person', function($q2) use ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('person', function ($q2) use ($search) {
                     $q2->where('first_name', 'like', "%{$search}%")
-                       ->orWhere('last_name', 'like', "%{$search}%")
-                       ->orWhere('email', 'like', "%{$search}%");
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
                 })
-                ->orWhereHas('clientServices', function($q2) use ($search) {
-                    $q2->where('name', 'like', "%{$search}%");
-                });
+                    ->orWhereHas('clientServices', function ($q2) use ($search) {
+                        $q2->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
         // Filter by service status
         if ($request->has('service_status')) {
             $status = $request->input('service_status');
-            $query->whereHas('clientServices', function($q) use ($status) {
+            $query->whereHas('clientServices', function ($q) use ($status) {
                 $q->where('status', $status);
             });
         }
@@ -92,16 +93,16 @@ class ClientServiceController extends Controller
         // Filter by payment status (expired/due soon/active)
         if ($request->has('payment_status')) {
             $paymentStatus = $request->input('payment_status');
-            $query->whereHas('clientServices', function($q) use ($paymentStatus) {
+            $query->whereHas('clientServices', function ($q) use ($paymentStatus) {
                 if ($paymentStatus === 'expired') {
                     $q->where('next_due_date', '<', now())
-                      ->where('status', 'active');
+                        ->where('status', 'active');
                 } elseif ($paymentStatus === 'due_soon') {
                     $q->whereBetween('next_due_date', [now(), now()->addDays(30)])
-                      ->where('status', 'active');
+                        ->where('status', 'active');
                 } elseif ($paymentStatus === 'active') {
                     $q->where('next_due_date', '>', now()->addDays(30))
-                      ->where('status', 'active');
+                        ->where('status', 'active');
                 }
             });
         }
@@ -134,12 +135,16 @@ class ClientServiceController extends Controller
                 ->sum('amount'),
             'annual_revenue_potential' => ClientService::where('status', 'active')
                 ->get()
-                ->sum(function($service) {
-                    switch($service->billing_cycle) {
-                        case 'monthly': return $service->amount * 12;
-                        case 'quarterly': return $service->amount * 4;
-                        case 'annual': return $service->amount;
-                        default: return 0;
+                ->sum(function ($service) {
+                    switch ($service->billing_cycle) {
+                        case 'monthly':
+                            return $service->amount * 12;
+                        case 'quarterly':
+                            return $service->amount * 4;
+                        case 'annual':
+                            return $service->amount;
+                        default:
+                            return 0;
                     }
                 }),
         ];
@@ -173,7 +178,6 @@ class ClientServiceController extends Controller
 
         $data = $validator->validated();
 
-        // Auto-calculate next_due_date if not provided
         if (!isset($data['next_due_date']) && $data['status'] === 'active') {
             $startDate = Carbon::parse($data['start_date']);
             $data['next_due_date'] = $this->calculateNextDueDate($startDate, $data['billing_cycle']);
@@ -210,13 +214,42 @@ class ClientServiceController extends Controller
             'start_date' => 'sometimes|required|date',
             'next_due_date' => 'nullable|date',
             'status' => 'sometimes|required|in:active,suspended,cancelled',
+            'next_billing_cycle' => 'nullable|in:monthly,quarterly,annual,biennial,one_time',
+            'next_amount' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $clientService->update($validator->validated());
+        $data = $validator->validated();
+
+        // Check if we should defer billing cycle or amount changes
+        // If the service is active and the next due date is in the future,
+        // we defer frequency and amount changes to the next renewal.
+
+        Log::info('ClientService Update detected', [
+            'id' => $clientService->id,
+            'status' => $clientService->status,
+            'next_due_date' => $clientService->next_due_date,
+            'now' => now()->toDateTimeString(),
+            'is_future' => $clientService->next_due_date ? $clientService->next_due_date->greaterThan(now()) : 'N/A',
+            'request_data' => $request->all()
+        ]);
+
+        if ($clientService->status === 'active' && $clientService->next_due_date && $clientService->next_due_date->isAfter(now())) {
+            if (isset($data['billing_cycle']) && $data['billing_cycle'] !== $clientService->billing_cycle) {
+                Log::info('Deferring billing_cycle change', ['from' => $clientService->billing_cycle, 'to' => $data['billing_cycle']]);
+                $data['next_billing_cycle'] = $data['billing_cycle'];
+                unset($data['billing_cycle']);
+            }
+            if (isset($data['amount']) && $data['amount'] != $clientService->amount) {
+                $data['next_amount'] = $data['amount'];
+                unset($data['amount']);
+            }
+        }
+
+        $clientService->update($data);
 
         return response()->json($clientService->load(['customer.person', 'serviceType']));
     }
@@ -245,12 +278,37 @@ class ClientServiceController extends Controller
         }
 
         $paymentDate = $request->input('payment_date') ? Carbon::parse($request->input('payment_date')) : now();
-        $nextDueDate = $this->calculateNextDueDate($paymentDate, $clientService->billing_cycle);
 
-        $clientService->update([
-            'next_due_date' => $nextDueDate,
+        $clientService->refresh();
+
+        // Apply pending changes if they exist
+        $billingCycle = $clientService->billing_cycle;
+        $amount = $clientService->amount;
+        $updates = [
             'status' => 'active',
-        ]);
+        ];
+
+        if ($clientService->next_billing_cycle) {
+            $billingCycle = $clientService->next_billing_cycle;
+            $updates['billing_cycle'] = $billingCycle;
+            $updates['next_billing_cycle'] = null;
+        }
+
+        if ($clientService->next_amount !== null) {
+            $amount = $clientService->next_amount;
+            $updates['amount'] = $amount;
+            $updates['next_amount'] = null;
+        }
+
+        // Use current next_due_date if it's in the future or today (to stack renewals), otherwise use payment date
+        $baseDate = ($clientService->next_due_date && $clientService->next_due_date->endOfDay()->isAfter(now()) && $clientService->status === 'active')
+            ? $clientService->next_due_date
+            : $paymentDate;
+
+        $nextDueDate = $this->calculateNextDueDate($baseDate, $billingCycle);
+        $updates['next_due_date'] = $nextDueDate;
+
+        $clientService->update($updates);
 
         return response()->json($clientService->load(['customer.person', 'serviceType']));
     }
@@ -258,7 +316,7 @@ class ClientServiceController extends Controller
     /**
      * Calculate next due date based on billing cycle
      */
-    private function calculateNextDueDate(Carbon $fromDate, string $billingCycle): Carbon
+    private function calculateNextDueDate(Carbon $fromDate, string $billingCycle): ?Carbon
     {
         switch ($billingCycle) {
             case 'monthly':
@@ -267,6 +325,10 @@ class ClientServiceController extends Controller
                 return $fromDate->copy()->addMonths(3);
             case 'annual':
                 return $fromDate->copy()->addYear();
+            case 'biennial':
+                return $fromDate->copy()->addYears(2);
+            case 'one_time':
+                return null;
             default:
                 return $fromDate->copy();
         }
@@ -284,6 +346,7 @@ class ClientServiceController extends Controller
             'notes' => 'nullable|string|max:500',
             'renew_service' => 'boolean',
             'branch_id' => 'nullable|integer|exists:branches,id',
+            'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
         ]);
 
         if ($validator->fails()) {
@@ -291,7 +354,7 @@ class ClientServiceController extends Controller
         }
 
         $user = Auth::user();
-        
+
         // Use branch_id from request if provided, otherwise use user's branch
         $branchId = $request->input('branch_id') ?? $user->branch_id ?? 1;
 
@@ -311,6 +374,16 @@ class ClientServiceController extends Controller
         DB::beginTransaction();
 
         try {
+            // Determine Payment Method ID
+            $paymentMethodId = $request->input('payment_method_id');
+            if (!$paymentMethodId) {
+                // Try to find default "Efectivo" method
+                $defaultMethod = \App\Models\PaymentMethod::where('name', 'like', '%Efectivo%')
+                    ->where('is_active', true)
+                    ->first();
+                $paymentMethodId = $defaultMethod ? $defaultMethod->id : null;
+            }
+
             // Create the payment record
             $payment = ClientServicePayment::create([
                 'client_service_id' => $clientService->id,
@@ -337,17 +410,28 @@ class ClientServiceController extends Controller
                 'reference_type' => ClientServicePayment::class,
                 'reference_id' => $payment->id,
                 'amount' => $request->input('amount'),
-                'description' => 'Pago de servicio: ' . $clientService->name . ' - Cliente: ' . 
-                    ($clientService->customer->person->first_name ?? '') . ' ' . 
+                'description' => 'Pago de servicio: ' . $clientService->name . ' - Cliente: ' .
+                    ($clientService->customer->person->first_name ?? '') . ' ' .
                     ($clientService->customer->person->last_name ?? ''),
                 'user_id' => $user->id,
+                'payment_method_id' => $paymentMethodId,
                 'affects_balance' => true,
             ]);
 
             // Renew service if requested
             if ($request->input('renew_service', true)) {
                 $paymentDate = Carbon::parse($request->input('payment_date'));
-                
+
+                // Reload the model to ensure we have the latest pending changes
+                $clientService->refresh();
+
+                Log::info('Processing Payment Renewal', [
+                    'service_id' => $clientService->id,
+                    'current_cycle' => $clientService->billing_cycle,
+                    'next_billing_cycle' => $clientService->next_billing_cycle,
+                    'next_amount' => $clientService->next_amount
+                ]);
+
                 // For one-time services, set next_due_date to null (fully paid)
                 if ($clientService->billing_cycle === 'one_time') {
                     $clientService->update([
@@ -355,11 +439,33 @@ class ClientServiceController extends Controller
                         'status' => 'active',
                     ]);
                 } else {
-                    $nextDueDate = $this->calculateNextDueDate($paymentDate, $clientService->billing_cycle);
-                    $clientService->update([
-                        'next_due_date' => $nextDueDate,
-                        'status' => 'active',
-                    ]);
+                    // Apply pending changes if they exist during payment renewal
+                    $billingCycle = $clientService->billing_cycle;
+                    $amount = $clientService->amount;
+                    $updates = ['status' => 'active'];
+
+                    if ($clientService->next_billing_cycle) {
+                        Log::info('Applying pending billing cycle', ['new_cycle' => $clientService->next_billing_cycle]);
+                        $billingCycle = $clientService->next_billing_cycle;
+                        $updates['billing_cycle'] = $billingCycle;
+                        $updates['next_billing_cycle'] = null;
+                    }
+
+                    if ($clientService->next_amount !== null) {
+                        $amount = $clientService->next_amount;
+                        $updates['amount'] = $amount;
+                        $updates['next_amount'] = null;
+                    }
+
+                    // Use current next_due_date if it's in the future or today (to stack renewals), otherwise use payment date
+                    $baseDate = ($clientService->next_due_date && $clientService->next_due_date->endOfDay()->isAfter(now()) && $clientService->status === 'active')
+                        ? $clientService->next_due_date
+                        : $paymentDate;
+
+                    $nextDueDate = $this->calculateNextDueDate($baseDate, $billingCycle);
+                    $updates['next_due_date'] = $nextDueDate;
+
+                    $clientService->update($updates);
                 }
             }
 
@@ -388,7 +494,7 @@ class ClientServiceController extends Controller
         $payments = $clientService->payments()
             ->orderByDesc('payment_date')
             ->get()
-            ->map(function($payment) {
+            ->map(function ($payment) {
                 return [
                     'id' => $payment->id,
                     'amount' => $payment->amount,

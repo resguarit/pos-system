@@ -85,7 +85,8 @@ class PurchaseOrderController extends Controller
                 $query->where('branch_id', $request->branch_id);
             }
 
-            $purchaseOrders = $query->latest()->get();
+            $perPage = $request->input('per_page', 15);
+            $purchaseOrders = $query->latest()->paginate($perPage);
             return response()->json($purchaseOrders);
         } catch (Exception $e) {
             Log::error("Error fetching purchase orders: " . $e->getMessage());

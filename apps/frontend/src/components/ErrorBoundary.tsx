@@ -49,7 +49,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="text-sm text-gray-600">
               Ha ocurrido un error inesperado en este componente.
             </p>
-            
+
             {this.state.error && (
               <details className="text-xs bg-gray-100 p-2 rounded">
                 <summary className="cursor-pointer font-medium">
@@ -62,7 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
             )}
 
             <div className="flex gap-2">
-              <Button 
+              <Button
                 onClick={this.handleReset}
                 variant="outline"
                 size="sm"

@@ -38,6 +38,14 @@ interface Service {
     next_due_date: string | null
     billing_cycle: string
     amount: string
+    next_billing_cycle?: string | null
+    next_amount?: string | null
+    service_type?: {
+        id: number
+        name: string
+        billing_cycle: string
+        price: string
+    } | null
     base_price?: string | null
     discount_percentage?: string | null
     discount_notes?: string | null
@@ -165,6 +173,12 @@ interface Branch {
     name: string
 }
 
+interface PaymentMethod {
+    id: number
+    name: string
+    is_active: boolean
+}
+
 export default function ServicesCustomersView() {
     const [customers, setCustomers] = useState<Customer[]>([])
     const [allServiceTypes, setAllServiceTypes] = useState<ServiceType[]>([])
@@ -204,6 +218,8 @@ export default function ServicesCustomersView() {
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
     const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null)
     const [userBranches, setUserBranches] = useState<Branch[]>([])
+    const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+
     const [paymentForm, setPaymentForm] = useState({
         service_id: "",
         amount: "",
@@ -211,6 +227,7 @@ export default function ServicesCustomersView() {
         notes: "",
         renew_service: true,
         branch_id: "",
+        payment_method_id: "",
     })
     const [paymentLoading, setPaymentLoading] = useState(false)
 
@@ -357,8 +374,12 @@ export default function ServicesCustomersView() {
 
     // Calcular nueva fecha de vencimiento según ciclo
     const calculateNextDueDate = (billingCycle: string, fromDate?: string): string => {
+        // Use fromDate if provided, otherwise use today
         const baseDate = fromDate ? new Date(fromDate) : new Date()
         baseDate.setHours(0, 0, 0, 0)
+
+        // If fromDate was not provided but we have a selectedService with a future date, use that as base
+        // ONLY if we are calculating for a cycle change logic generally
 
         switch (billingCycle) {
             case 'monthly':
@@ -396,8 +417,21 @@ export default function ServicesCustomersView() {
                     // Si es único, limpiar fecha
                     updates.next_due_date = ''
                 } else {
-                    // Calcular nueva fecha desde hoy
-                    updates.next_due_date = calculateNextDueDate(newCycle)
+                    // Calcular nueva fecha
+                    // Si ya tiene vencimiento futuro, proyectamos desde ahí? 
+                    // NO. La lógica de negocio es: cambio de ciclo => cambio diferido => no cambia la fecha actual.
+                    // PERO si el usuario edita la fecha manualmente es otra cosa.
+                    // Si el usuario cambia el ciclo, el sistema backend decidirá si es diferido o inmediato.
+                    // Si es diferido, la fecha NO DEBERÍA cambiar en el formulario (se mantiene la actual).
+                    // Si es inmediato (ej. servicio vencido), se calcula desde hoy.
+
+                    const isFuture = selectedService?.next_due_date && new Date(selectedService.next_due_date) > new Date()
+
+                    if (!isFuture) {
+                        updates.next_due_date = calculateNextDueDate(newCycle)
+                    }
+                    // If it is future, we don't change next_due_date because the change is deferred!
+                    // And the backend handles the deferral logic.
                 }
             }
 
@@ -415,11 +449,13 @@ export default function ServicesCustomersView() {
             // Determinar la fecha de vencimiento final
             let finalNextDueDate = serviceEditForm.next_due_date || null
 
-            // Si el ciclo cambió y no es único, asegurar que hay fecha
+            // Si el ciclo cambió y no es único, verificamos si es necesario recalcular
+            // Si el usuario ya ve una fecha en el formulario (porque la lógica de cambio de ciclo la preservó o calculó), usamos esa.
             if (serviceEditForm.billing_cycle !== selectedService.billing_cycle) {
                 if (serviceEditForm.billing_cycle === 'one_time') {
                     finalNextDueDate = null
                 } else if (!finalNextDueDate) {
+                    // Solo calculamos si no hay fecha definida
                     finalNextDueDate = calculateNextDueDate(serviceEditForm.billing_cycle)
                 }
             }
@@ -434,27 +470,19 @@ export default function ServicesCustomersView() {
                 next_due_date: finalNextDueDate,
             }
 
-            await api.put(`/client-services/${selectedService.id}`, payload)
+            console.log("Sending Service Update Payload:", payload)
+
+            const response = await api.put(`/client-services/${selectedService.id}`, payload)
+            const updatedServiceFromServer = response.data as Service
 
             toast.success("Servicio actualizado correctamente")
             setServiceEditMode(false)
             setServiceDetailOpen(false)
 
-            // Actualizar el servicio en memoria para reflejar los cambios inmediatamente
+            // Actualizar el servicio en memoria usando la respuesta del servidor
             if (selectedCustomer) {
-                const updatedService: Service = {
-                    ...selectedService,
-                    amount: calculateEditDiscountedPrice().toFixed(2),
-                    base_price: serviceEditForm.base_price || selectedService.base_price,
-                    discount_percentage: serviceEditForm.discount_percentage || "0",
-                    discount_notes: serviceEditForm.discount_notes,
-                    billing_cycle: serviceEditForm.billing_cycle,
-                    status: serviceEditForm.status,
-                    next_due_date: finalNextDueDate,
-                }
-
                 const updatedServices = selectedCustomer.client_services.map(s =>
-                    s.id === selectedService.id ? updatedService : s
+                    s.id === selectedService.id ? updatedServiceFromServer : s
                 )
 
                 // Actualizar selectedCustomer (para el modal de detalle)
@@ -567,14 +595,37 @@ export default function ServicesCustomersView() {
         }
     }
 
+    // Fetch payment methods
+    const fetchPaymentMethods = async () => {
+        try {
+            const response = await api.get("/payment-methods")
+            const methods = response.data?.data || response.data || []
+            setPaymentMethods(methods.filter((m: PaymentMethod) => m.is_active))
+            return methods
+        } catch (error) {
+            console.error("Error fetching payment methods:", error)
+            return []
+        }
+    }
+
     // Payment dialog handlers
     const handleOpenPaymentDialog = async (customer: Customer) => {
         setPaymentCustomer(customer)
-        const branches = await fetchUserBranches()
+
+        // Fetch data in parallel
+        const branchesPromise = fetchUserBranches()
+        const methodsPromise = fetchPaymentMethods()
+        const [branches, methods] = await Promise.all([branchesPromise, methodsPromise])
+
         const firstServiceWithDebt = customer.client_services.find(s => {
             const status = getServicePaymentStatus(s)
             return status === "expired" || status === "due_soon"
         })
+
+        // Find cash method default
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const defaultMethod = methods?.find((m: any) => m.name.toLowerCase().includes('efectivo')) || methods?.[0]
+
         setPaymentForm({
             service_id: firstServiceWithDebt?.id.toString() || customer.client_services[0]?.id.toString() || "",
             amount: firstServiceWithDebt?.amount || customer.client_services[0]?.amount || "",
@@ -582,6 +633,7 @@ export default function ServicesCustomersView() {
             notes: "",
             renew_service: true,
             branch_id: branches.length === 1 ? branches[0].id.toString() : "",
+            payment_method_id: defaultMethod?.id.toString() || ""
         })
         setPaymentDialogOpen(true)
     }
@@ -602,16 +654,50 @@ export default function ServicesCustomersView() {
             setPaymentLoading(true)
 
             // Register payment with branch_id
-            await api.post(`/client-services/${paymentForm.service_id}/payments`, {
+            const response = await api.post(`/client-services/${paymentForm.service_id}/payments`, {
                 amount: parseFloat(paymentForm.amount),
                 payment_date: paymentForm.payment_date,
                 notes: paymentForm.notes || null,
                 renew_service: paymentForm.renew_service,
                 branch_id: paymentForm.branch_id ? parseInt(paymentForm.branch_id) : undefined,
+                payment_method_id: paymentForm.payment_method_id ? parseInt(paymentForm.payment_method_id) : undefined,
             })
 
             toast.success("Pago registrado exitosamente")
             setPaymentDialogOpen(false)
+
+            // Update local state immediately with the returned service
+            const updatedService = response.data.service
+
+            if (updatedService && paymentCustomer) {
+                setCustomers(prevCustomers =>
+                    prevCustomers.map(c => {
+                        if (c.id === paymentCustomer.id) {
+                            return {
+                                ...c,
+                                client_services: c.client_services.map(s =>
+                                    s.id === updatedService.id ? updatedService : s
+                                )
+                            }
+                        }
+                        return c
+                    })
+                )
+
+                // Also update selectedCustomer if it's the same
+                if (selectedCustomer && selectedCustomer.id === paymentCustomer.id) {
+                    setSelectedCustomer(prev => {
+                        if (!prev) return null
+                        return {
+                            ...prev,
+                            client_services: prev.client_services.map(s =>
+                                s.id === updatedService.id ? updatedService : s
+                            )
+                        }
+                    })
+                }
+            }
+
             fetchCustomers()
         } catch (error) {
             console.error("Error registering payment:", error)
@@ -781,6 +867,12 @@ export default function ServicesCustomersView() {
                                                                 <p className="text-[10px] text-gray-500">
                                                                     {getBillingCycleLabel(assignedService?.billing_cycle || serviceType.billing_cycle)}
                                                                 </p>
+                                                                {/* Badge Logic Refined: Removed 'Desactualizado' for simple cycle mismatch as per user request */}
+                                                                {assignedService?.next_billing_cycle ? (
+                                                                    <Badge className="mt-1 h-4 px-1 text-[8px] bg-blue-50 text-blue-600 border-blue-100 uppercase">
+                                                                        Cambio Pend.
+                                                                    </Badge>
+                                                                ) : null}
                                                             </div>
                                                         </div>
                                                     )
@@ -951,12 +1043,20 @@ export default function ServicesCustomersView() {
                                                                     <Badge className={statusBadge.className}>
                                                                         {statusBadge.label}
                                                                     </Badge>
+                                                                    {service.next_billing_cycle ? (
+                                                                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                                            Cambio programado
+                                                                        </Badge>
+                                                                    ) : service.service_type && service.billing_cycle !== service.service_type.billing_cycle ? (
+                                                                        <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200" title={`El ciclo original es ${getBillingCycleLabel(service.service_type.billing_cycle)}`}>
+                                                                            Ciclo Personalizado
+                                                                        </Badge>
+                                                                    ) : null}
                                                                 </div>
                                                                 <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
                                                                     <span className="flex items-center gap-1">
                                                                         <RefreshCw className="h-3 w-3" />
-                                                                        {service.billing_cycle === 'monthly' ? 'Mensual' :
-                                                                            service.billing_cycle === 'annual' ? 'Anual' : 'Único'}
+                                                                        {getBillingCycleLabel(service.billing_cycle)}
                                                                     </span>
                                                                     {service.next_due_date && (
                                                                         <span className="flex items-center gap-1">
@@ -1186,6 +1286,16 @@ export default function ServicesCustomersView() {
                                             </h4>
                                         </div>
 
+                                        {selectedService.status === 'active' && selectedService.next_due_date && new Date(selectedService.next_due_date) > new Date() && (
+                                            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3 text-amber-800">
+                                                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                                <div className="text-xs">
+                                                    <p className="font-semibold">Cambio diferido</p>
+                                                    <p>Los cambios en el ciclo o monto se aplicarán en la próxima renovación ({format(new Date(selectedService.next_due_date), "dd/MM/yyyy", { locale: es })}).</p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="grid grid-cols-2 gap-4">
                                             {/* Base Price */}
                                             <div className="space-y-1.5">
@@ -1358,6 +1468,15 @@ export default function ServicesCustomersView() {
                                                                         selectedService.billing_cycle === 'biennial' ? 'Bienal' : 'Único'}
                                                         </span>
                                                     </div>
+                                                    {selectedService.next_billing_cycle && (
+                                                        <div className="flex items-center gap-2 mt-1.5 p-1.5 bg-blue-100/50 rounded border border-blue-200">
+                                                            <RefreshCw className="h-3 w-3 text-blue-600 animate-spin-slow" />
+                                                            <span className="text-[10px] text-blue-700 font-medium">
+                                                                Próximo ciclo: {getBillingCycleLabel(selectedService.next_billing_cycle)}
+                                                                {selectedService.next_amount && ` ($${parseFloat(selectedService.next_amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })})`}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="text-right">
@@ -1582,6 +1701,26 @@ export default function ServicesCustomersView() {
                                     value={paymentForm.payment_date}
                                     onChange={(e) => setPaymentForm(prev => ({ ...prev, payment_date: e.target.value }))}
                                 />
+                            </div>
+
+                            {/* Payment Method Selector */}
+                            <div className="space-y-2">
+                                <Label htmlFor="payment_method">Método de Pago</Label>
+                                <Select
+                                    value={paymentForm.payment_method_id}
+                                    onValueChange={(value) => setPaymentForm(prev => ({ ...prev, payment_method_id: value }))}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar método" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {paymentMethods.map((method) => (
+                                            <SelectItem key={method.id} value={method.id.toString()}>
+                                                {method.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             {/* Notes */}
