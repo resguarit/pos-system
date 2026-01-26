@@ -114,35 +114,6 @@ export default function PurchaseOrderPage() {
     }
   }, [searchParams])
 
-  // Fetch purchase orders from backend - Logic moved to the dependency-based effect below
-  // useEffect(() => { ... }, []) removed to avoid double fetch
-
-  // Recargar órdenes cuando cambien los filtros de sucursales
-  useEffect(() => {
-    if (filteredBranchIds.length > 0) {
-      loadPurchaseOrders(1)
-    }
-  }, [filteredBranchIds, loadPurchaseOrders])
-
-  useEffect(() => {
-    const fetchSummary = async () => {
-      if (dateRange?.from && dateRange?.to) {
-        try {
-          const fromDate = format(dateRange?.from, "yyyy-MM-dd")
-          const toDate = format(dateRange?.to, "yyyy-MM-dd")
-          const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate)
-          setSummary(summaryData.totals)
-          setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
-        } catch (error) {
-          toast.error("Error al cargar el resumen de compras por moneda.")
-          setSummary({})
-          setSummaryPeriod(null)
-        }
-      }
-    }
-    fetchSummary()
-  }, [dateRange])
-
   // Modificar loadPurchaseOrders para aceptar fechas y filtros de sucursales
   const loadPurchaseOrders = useCallback(async (page = 1, from?: string, to?: string) => {
     try {
@@ -202,6 +173,37 @@ export default function PurchaseOrderPage() {
       setLoading(false)
     }
   }, [filteredBranchIds, PO_PAGE_SIZE])
+
+  // Fetch purchase orders from backend - Logic moved to the dependency-based effect below
+  // useEffect(() => { ... }, []) removed to avoid double fetch
+
+  // Recargar órdenes cuando cambien los filtros de sucursales
+  useEffect(() => {
+    if (filteredBranchIds.length > 0) {
+      loadPurchaseOrders(1)
+    }
+  }, [filteredBranchIds, loadPurchaseOrders])
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      if (dateRange?.from && dateRange?.to) {
+        try {
+          const fromDate = format(dateRange?.from, "yyyy-MM-dd")
+          const toDate = format(dateRange?.to, "yyyy-MM-dd")
+          const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate)
+          setSummary(summaryData.totals)
+          setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
+        } catch (error) {
+          toast.error("Error al cargar el resumen de compras por moneda.")
+          setSummary({})
+          setSummaryPeriod(null)
+        }
+      }
+    }
+    fetchSummary()
+  }, [dateRange])
+
+
 
   // Actualizar useEffect para cargar órdenes de compra al cambiar el periodo
   useEffect(() => {
