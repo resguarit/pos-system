@@ -1154,7 +1154,7 @@ export default function InventarioPage() {
                                     <Button variant="ghost" size="sm" onClick={() => handleViewClick(p)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                       <Eye className="h-4 w-4" />
                                     </Button>
-                                    {(hasPermission('ver_trazabilidad_producto') || hasPermission('ver_productos')) && (
+                                    {hasPermission('ver_trazabilidad_producto') && (
                                     <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${p.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
                                       <History className="h-4 w-4" />
                                     </Button>
@@ -1396,7 +1396,7 @@ export default function InventarioPage() {
                                   <Button variant="ghost" size="sm" onClick={() => handleViewClick(product)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                     <Eye className="h-4 w-4" />
                                   </Button>
-                                  {(hasPermission('ver_trazabilidad_producto') || hasPermission('ver_productos')) && (
+                                  {hasPermission('ver_trazabilidad_producto') && (
                                   <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${product.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
                                     <History className="h-4 w-4" />
                                   </Button>
