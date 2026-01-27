@@ -20,10 +20,12 @@ on:
         type: boolean
 
 jobs:
+  # Backend se despliega vía deploy-all-clients; deshabilitado temporalmente.
   deploy_backend:
     name: Deploy Backend - Heroe
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
+    environment: heroedelwhisky
+    if: false
     
     steps:
     - name: Deploy Backend to VPS
@@ -214,6 +216,7 @@ jobs:
   deploy_frontend:
     name: Deploy Frontend - Heroe
     runs-on: ubuntu-latest
+    environment: heroedelwhisky
     if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     
     steps:

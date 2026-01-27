@@ -20,11 +20,12 @@ on:
         type: boolean
 
 jobs:
+  # Backend se despliega vía deploy-all-clients; deshabilitado temporalmente.
   deploy_backend:
     name: Deploy Backend - DIPAG Distribuidora
     runs-on: ubuntu-latest
     environment: dipag
-    if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
+    if: false
     
     steps:
     - name: Deploy Backend to VPS

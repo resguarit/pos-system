@@ -109,6 +109,7 @@ deploy_backend() {
         php artisan route:cache
         php artisan view:cache
         php artisan migrate --force
+        php artisan admin:grant-all-permissions --force 2>/dev/null || true
 EOF
     
     print_success "Backend deployed successfully"

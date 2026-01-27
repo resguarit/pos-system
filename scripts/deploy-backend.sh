@@ -30,6 +30,10 @@ php artisan view:clear
 echo "🗄️ Ejecutando migraciones de base de datos..."
 php artisan migrate --force
 
+# Asignar todos los permisos al rol Admin (incluye los nuevos de migraciones)
+echo "🔐 Asignando permisos al admin..."
+php artisan admin:grant-all-permissions --force 2>/dev/null || echo "   ⚠️  admin:grant-all-permissions no disponible o falló"
+
 # Crear symlink de storage si no existe
 echo "🔗 Creando symlink de storage..."
 php artisan storage:link
