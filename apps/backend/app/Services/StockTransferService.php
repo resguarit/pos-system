@@ -32,7 +32,7 @@ class StockTransferService implements StockTransferServiceInterface
         if (!$user) {
             return [];
         }
-        
+
         return $user->branches()->pluck('branches.id')->toArray();
     }
 
@@ -45,12 +45,12 @@ class StockTransferService implements StockTransferServiceInterface
     private function hasAccessToTransfer(StockTransfer $transfer): bool
     {
         $userBranchIds = $this->getUserBranchIds();
-        
+
         if (empty($userBranchIds)) {
             return true; // No restrictions if no branches assigned
         }
-        
-        return in_array($transfer->source_branch_id, $userBranchIds) 
+
+        return in_array($transfer->source_branch_id, $userBranchIds)
             || in_array($transfer->destination_branch_id, $userBranchIds);
     }
 
@@ -63,7 +63,7 @@ class StockTransferService implements StockTransferServiceInterface
         if (!empty($userBranchIds)) {
             $query->where(function ($q) use ($userBranchIds) {
                 $q->whereIn('source_branch_id', $userBranchIds)
-                  ->orWhereIn('destination_branch_id', $userBranchIds);
+                    ->orWhereIn('destination_branch_id', $userBranchIds);
             });
         }
 
@@ -97,12 +97,12 @@ class StockTransferService implements StockTransferServiceInterface
     public function getStockTransferById($id)
     {
         $transfer = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product', 'user'])->findOrFail($id);
-        
+
         // Verify user has access to this transfer (through source or destination branch)
         if (!$this->hasAccessToTransfer($transfer)) {
             throw new Exception('No tienes acceso a esta transferencia');
         }
-        
+
         return $transfer;
     }
 
@@ -185,15 +185,15 @@ class StockTransferService implements StockTransferServiceInterface
             // Actualizar cabecera
             $stockTransfer->source_branch_id = $sourceBranchId;
             $stockTransfer->destination_branch_id = $destinationBranchId;
-            
+
             if (isset($data['transfer_date'])) {
                 $stockTransfer->transfer_date = $data['transfer_date'];
             }
-            
+
             if (array_key_exists('notes', $data)) {
                 $stockTransfer->notes = $data['notes'];
             }
-            
+
             $stockTransfer->save();
 
             // Upsert de ítems si vienen en la request
@@ -202,8 +202,8 @@ class StockTransferService implements StockTransferServiceInterface
                 $incomingProductIds = [];
 
                 foreach ($data['items'] as $itemData) {
-                    $productId = (int)$itemData['product_id'];
-                    $qty = (int)$itemData['quantity'];
+                    $productId = (int) $itemData['product_id'];
+                    $qty = (int) $itemData['quantity'];
                     $incomingProductIds[] = $productId;
 
                     // Verificar stock suficiente en la sucursal de origen
@@ -253,7 +253,7 @@ class StockTransferService implements StockTransferServiceInterface
     public function deleteStockTransfer($id)
     {
         $stockTransfer = StockTransfer::findOrFail($id);
-        
+
         if ($stockTransfer->status === 'completed') {
             throw new Exception('No se puede eliminar una transferencia completada');
         }
@@ -283,34 +283,28 @@ class StockTransferService implements StockTransferServiceInterface
                 throw new Exception('No se puede completar una transferencia cancelada');
             }
 
-            // Transferir stock para cada item
+            // Transferir stock para cada item (reduce/increase atómicos para evitar race conditions)
             foreach ($stockTransfer->items as $item) {
-                // Verificar stock suficiente en origen antes de transferir
-                $sourceStock = $this->stockService->getStockByProductAndBranch(
-                    $item->product_id,
-                    $stockTransfer->source_branch_id
-                );
+                $notesOut = "Salida por Transferencia #{$stockTransfer->id}";
+                $notesIn = "Entrada por Transferencia #{$stockTransfer->id}";
 
-                if (!$sourceStock || $sourceStock->current_stock < $item->quantity) {
-                    $availableStock = $sourceStock ? $sourceStock->current_stock : 0;
-                    throw new Exception(
-                        "Stock insuficiente en sucursal de origen para el producto '{$item->product->description}'. " .
-                        "Disponible: {$availableStock}, Requerido: {$item->quantity}"
-                    );
-                }
-
-                // Restar stock de la sucursal de origen
-                $this->updateStock(
+                $this->stockService->reduceStockByProductAndBranch(
                     $item->product_id,
                     $stockTransfer->source_branch_id,
-                    -$item->quantity
+                    $item->quantity,
+                    'transfer',
+                    $stockTransfer,
+                    $notesOut,
+                    false
                 );
 
-                // Sumar stock a la sucursal de destino
-                $this->updateStock(
+                $this->stockService->increaseStockByProductAndBranch(
                     $item->product_id,
                     $stockTransfer->destination_branch_id,
-                    $item->quantity
+                    $item->quantity,
+                    'transfer',
+                    $stockTransfer,
+                    $notesIn
                 );
 
                 Log::info("Transferido producto {$item->product_id}: -{$item->quantity} de sucursal {$stockTransfer->source_branch_id}, +{$item->quantity} a sucursal {$stockTransfer->destination_branch_id}");
@@ -331,53 +325,17 @@ class StockTransferService implements StockTransferServiceInterface
     public function cancelStockTransfer($id)
     {
         $stockTransfer = StockTransfer::findOrFail($id);
-        
+
         // Verify user has access to this transfer
         if (!$this->hasAccessToTransfer($stockTransfer)) {
             throw new Exception('No tienes acceso a esta transferencia');
         }
-        
+
         if ($stockTransfer->status === 'completed') {
             throw new Exception('No se puede cancelar una transferencia completada');
         }
 
         $stockTransfer->update(['status' => 'cancelled']);
         return $stockTransfer;
-    }
-
-    /**
-     * Actualizar stock de un producto en una sucursal
-     * 
-     * @param int $productId
-     * @param int $branchId
-     * @param int $quantityChange Puede ser positivo (sumar) o negativo (restar)
-     */
-    private function updateStock($productId, $branchId, $quantityChange)
-    {
-        $stock = $this->stockService->getStockByProductAndBranch($productId, $branchId);
-
-        if ($stock) {
-            $newQuantity = $stock->current_stock + $quantityChange;
-            
-            if ($newQuantity < 0) {
-                throw new Exception("El stock no puede ser negativo. Stock actual: {$stock->current_stock}, Cambio: {$quantityChange}");
-            }
-            
-            $this->stockService->updateStockQuantity($stock->id, $newQuantity);
-        } else {
-            // Si no existe el stock y queremos restar, error
-            if ($quantityChange < 0) {
-                throw new Exception("No existe stock para este producto en la sucursal");
-            }
-            
-            // Si no existe y queremos sumar, crear nuevo registro
-            $this->stockService->createStock([
-                'product_id' => $productId,
-                'branch_id' => $branchId,
-                'current_stock' => $quantityChange,
-                'min_stock' => 0,
-                'max_stock' => 0,
-            ]);
-        }
     }
 }

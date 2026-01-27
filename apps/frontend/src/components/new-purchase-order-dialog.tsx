@@ -20,8 +20,10 @@ import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import paymentMethodService, { type PaymentMethod } from '@/lib/api/paymentMethodService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { PurchaseOrderPaymentSection, type PurchaseOrderPaymentState } from './purchase-order-payment-section';
+import { PurchaseOrderPaymentSection, PAYMENT_VALIDATION_TOLERANCE } from './purchase-order-payment-section';
 import { useNewPurchaseOrder } from '@/contexts/new-purchase-order-context';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import { formatCurrency } from '@/utils/sale-calculations';
 
 export interface NewPurchaseOrderDialogProps {
   open: boolean;
@@ -68,6 +70,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
   } = useNewPurchaseOrder();
 
   const { form, selectedCurrency, items, newItem, payments, affectsCashRegister } = state;
+  const { rate: exchangeRate } = useExchangeRate({ fromCurrency: 'USD', toCurrency: 'ARS' });
 
   /* Local State (UI only) */
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -344,16 +347,24 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
       return;
     }
 
-    // Validar que los pagos cubran exactamente el total
-    const totalOrder = calculateTotal();
-    const totalPayments = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    // Con orden en USD se requiere tasa de cambio para convertir y validar en ARS
+    if (selectedCurrency === 'USD' && (!exchangeRate || exchangeRate <= 0)) {
+      setError('No se pudo cargar la tasa de cambio USD→ARS. Espere un momento e intente de nuevo.');
+      return;
+    }
 
-    // Permitir una pequeña diferencia por redondeo (0.01)
-    if (Math.abs(totalOrder - totalPayments) > 0.05) {
-      if (totalPayments < totalOrder) {
-        setError(`Falta cubrir $${(totalOrder - totalPayments).toFixed(2)} para completar el total de la orden.`);
+    // Los pagos se ingresan siempre en ARS; validamos contra el total en ARS
+    const totalOrderInOrderCurrency = calculateTotal();
+    const totalOrderArs = selectedCurrency === 'USD' && exchangeRate && exchangeRate > 0
+      ? totalOrderInOrderCurrency * exchangeRate
+      : totalOrderInOrderCurrency;
+    const totalPaymentsArs = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+    if (Math.abs(totalOrderArs - totalPaymentsArs) > PAYMENT_VALIDATION_TOLERANCE) {
+      if (totalPaymentsArs < totalOrderArs) {
+        setError(`Falta cubrir ${formatCurrency(totalOrderArs - totalPaymentsArs, 'ARS')} para completar el total de la orden.`);
       } else {
-        setError(`El total de pagos excede el monto de la orden por $${(totalPayments - totalOrder).toFixed(2)}.`);
+        setError(`El total de pagos excede el monto de la orden por ${formatCurrency(totalPaymentsArs - totalOrderArs, 'ARS')}.`);
       }
       return;
     }
@@ -391,17 +402,22 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         notes: form.notes || '',
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         items: items.map(({ product: _product, ...rest }) => rest), // Remove extra 'product' prop
-        payments: payments.map(p => ({
-          payment_method_id: parseInt(p.payment_method_id),
-          amount: parseFloat(p.amount) || 0
-        })),
+        // El backend espera montos en la moneda de la orden: si es USD, convertir ARS → USD
+        payments: payments.map(p => {
+          const amountArs = parseFloat(p.amount) || 0;
+          const amountInOrderCurrency = selectedCurrency === 'USD' && exchangeRate && exchangeRate > 0
+            ? amountArs / exchangeRate
+            : amountArs;
+          return {
+            payment_method_id: parseInt(p.payment_method_id),
+            amount: Math.round(amountInOrderCurrency * 100) / 100
+          };
+        }),
         affects_cash_register: affectsCashRegister,
       });
       toast.success("Orden de compra creada", {
         description: "La orden de compra se creó exitosamente.",
       });
-      onSaved();
-      onOpenChange(false);
       onSaved();
       onOpenChange(false);
       resetOrder();
@@ -987,6 +1003,8 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
               payments={payments}
               paymentMethods={paymentMethods}
               total={calculateTotal()}
+              currency={selectedCurrency}
+              exchangeRate={selectedCurrency === 'USD' ? exchangeRate : undefined}
               onAddPayment={() => setPayments([...payments, { payment_method_id: '', amount: '' }])}
               onRemovePayment={(idx) => setPayments(payments.filter((_, i) => i !== idx))}
               onUpdatePayment={(idx, field, value) => {

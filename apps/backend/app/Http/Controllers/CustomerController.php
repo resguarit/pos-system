@@ -221,15 +221,18 @@ class CustomerController extends Controller
                 ], 404);
             }
 
-            // Calcular el saldo real basado en el atributo pending_amount
+            // Misma lógica que CurrentAccountResource::total_pending_debt y pendingSales()
+            // (validForDebt + pendingDebt) para que POS y vista cuenta corriente muestren el mismo saldo.
+            // No cambiar sin sincronizar con esos puntos; evita "tiene deuda en POS pero $0 en cuenta corriente".
             $sales = \App\Models\SaleHeader::where('customer_id', $id)
-                ->whereNull('deleted_at')
+                ->validForDebt()
+                ->pendingDebt()
                 ->get();
 
             $totalDebt = 0;
             foreach ($sales as $sale) {
-                $pending = $sale->pending_amount;
-                if ($pending > 0) {
+                $pending = $sale->pending_amount ?? 0;
+                if ($pending > 0.01) {
                     $totalDebt += $pending;
                 }
             }

@@ -345,7 +345,8 @@ class PurchaseOrderService implements PurchaseOrderServiceInterface
                 $this->updateStock(
                     $item->product_id,
                     $purchaseOrder->branch_id,
-                    $item->quantity
+                    $item->quantity,
+                    $purchaseOrder
                 );
             }
 
@@ -600,25 +601,17 @@ class PurchaseOrderService implements PurchaseOrderServiceInterface
         return $purchaseOrder;
     }
 
-    private function updateStock($productId, $branchId, $quantity)
+    private function updateStock($productId, $branchId, $quantity, $purchaseOrder)
     {
-        // Check if stock record exists
-        $stock = $this->stockService->getStockByProductAndBranch($productId, $branchId);
-
-        if ($stock) {
-            // Update existing stock
-            $newQuantity = $stock->current_stock + $quantity;
-            $this->stockService->updateStockQuantity($stock->id, $newQuantity);
-        } else {
-            // Create new stock record
-            $this->stockService->createStock([
-                'product_id' => $productId,
-                'branch_id' => $branchId,
-                'current_stock' => $quantity,
-                'min_stock' => 0,
-                'max_stock' => 0,
-            ]);
-        }
+        // Usar increaseStockByProductAndBranch para que se registre el movimiento con referencia
+        $this->stockService->increaseStockByProductAndBranch(
+            $productId,
+            $branchId,
+            $quantity,
+            'purchase',
+            $purchaseOrder,
+            "Compra vía Orden #{$purchaseOrder->id}"
+        );
     }
 
     /**

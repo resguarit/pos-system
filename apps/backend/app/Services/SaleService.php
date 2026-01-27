@@ -319,7 +319,14 @@ class SaleService implements SaleServiceInterface
                 if (!$stockAlreadyReduced) {
                     \Illuminate\Support\Facades\Cache::put("stock_reduced_sale_{$saleHeader->id}", true, 300);
                     foreach ($preparedItems as $item) {
-                        $stockService->reduceStockByProductAndBranch($item['product_id'], $branchId, $item['quantity']);
+                        $stockService->reduceStockByProductAndBranch(
+                            $item['product_id'],
+                            $branchId,
+                            $item['quantity'],
+                            'sale',
+                            $saleHeader,
+                            "Venta #{$saleHeader->receipt_number}"
+                        );
                     }
                 }
             }
@@ -335,7 +342,7 @@ class SaleService implements SaleServiceInterface
                 if ($budget) {
                     $this->validateIsBudget($budget);
                     $this->validateBudgetNotAnnulled($budget);
-                    
+
                     // Validar que el presupuesto no haya sido convertido previamente
                     // para evitar duplicados y mantener integridad de datos
                     if ($budget->status === 'converted' && $budget->converted_to_sale_id) {

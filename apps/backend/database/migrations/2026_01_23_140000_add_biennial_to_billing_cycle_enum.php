@@ -11,8 +11,10 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        // Modify ENUM to include biennial
-        DB::statement("ALTER TABLE client_services MODIFY COLUMN billing_cycle ENUM('monthly', 'quarterly', 'annual', 'biennial', 'one_time') DEFAULT 'monthly'");
+        if (DB::getDriverName() !== 'sqlite') {
+            // Modify ENUM to include biennial
+            DB::statement("ALTER TABLE client_services MODIFY COLUMN billing_cycle ENUM('monthly', 'quarterly', 'annual', 'biennial', 'one_time') DEFAULT 'monthly'");
+        }
     }
 
     /**

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertTriangle, DollarSign, ExternalLink } from "lucide-react"
-import api from "@/lib/api"
+import { CurrentAccountService } from "@/lib/services/currentAccountService"
 import type { PendingSale } from '@/types/currentAccount'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -56,23 +56,17 @@ export function DebtAlertDialog({
     const loadPendingSales = async () => {
       try {
         setLoading(true)
-        // Obtener cuenta corriente del cliente
-        const accountResponse = await api.get(
-          `/current-accounts?customer_id=${customerId}&per_page=1`
-        )
-
-        if (!accountResponse.data.data || accountResponse.data.data.length === 0) {
+        const accounts = await CurrentAccountService.getAll({
+          customer_id: customerId,
+          per_page: 1,
+        })
+        const account = accounts?.data?.[0]
+        if (!account?.id) {
+          setPendingSales([])
           return
         }
-
-        const account = accountResponse.data.data[0]
-
-        // Obtener ventas pendientes
-        const salesResponse = await api.get(
-          `/current-accounts/${account.id}/pending-sales`
-        )
-
-        setPendingSales(salesResponse.data.data || [])
+        const sales = await CurrentAccountService.getPendingSales(account.id)
+        setPendingSales(sales)
       } catch (error) {
         console.error('Error loading pending sales:', error)
         setPendingSales([])
@@ -131,7 +125,7 @@ export function DebtAlertDialog({
               </button>
 
               {expanded && (
-                <div className="mt-3 overflow-x-auto">
+                <div className="mt-3 overflow-auto max-h-[min(50vh,320px)] rounded border border-gray-200">
                   <Table className="text-xs">
                     <TableHeader>
                       <TableRow>

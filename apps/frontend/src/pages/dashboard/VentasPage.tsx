@@ -47,6 +47,8 @@ import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
+import { BranchBadge } from "@/components/BranchBadge";
+import { getBranchColor } from "@/utils/branchColor";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PresupuestosPage from "./PresupuestosPage";
@@ -443,23 +445,14 @@ export default function VentasPage() {
 
   const getItemsCount = (sale: SaleHeader) => sale.items_count || 0;
 
-  const getBranchColor = (sale: SaleHeader) => {
-    let branchId: number | null = null;
-
-    if (typeof sale.branch === 'object' && sale.branch?.id) {
-      branchId = Number(sale.branch.id);
-    } else if (typeof sale.branch === 'string') {
-      // Si es string, buscar por descripción
-      const branch = branches.find(b => b.description === sale.branch);
-      branchId = branch?.id ? Number(branch.id) : null;
+  const resolveBranchColor = (sale: SaleHeader) => {
+    let branchId: number | string | null = null;
+    if (typeof sale.branch === 'object' && sale.branch?.id) branchId = Number(sale.branch.id);
+    else if (typeof sale.branch === 'string') {
+      const b = branches.find((x) => x.description === sale.branch);
+      branchId = b?.id ?? null;
     }
-
-    if (branchId) {
-      const branch = branches.find(b => Number(b.id) === branchId);
-      return branch?.color || '#6b7280';
-    }
-
-    return '#6b7280'; // Color por defecto
+    return getBranchColor({ branchId, branches: branches ?? [] });
   };
 
   const getBranchName = (sale: SaleHeader) => {
@@ -1465,24 +1458,11 @@ export default function VentasPage() {
                               getColumnCellProps={getColumnCellProps}
                               className={selectedBranchIds.length > 1 ? "" : "hidden"}
                             >
-                              {(() => {
-                                const branchColor = getBranchColor(sale);
-                                const branchName = getBranchName(sale);
-
-                                return (
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs border-2 font-medium ${sale.status === 'annulled' ? 'opacity-60' : ''}`}
-                                    style={{
-                                      borderColor: branchColor,
-                                      color: branchColor,
-                                      backgroundColor: `${branchColor}10`
-                                    }}
-                                  >
-                                    {branchName}
-                                  </Badge>
-                                );
-                              })()}
+                              <BranchBadge
+                                name={getBranchName(sale)}
+                                color={resolveBranchColor(sale)}
+                                dimmed={sale.status === 'annulled'}
+                              />
                             </ResizableTableCell>
                             <ResizableTableCell
                               columnId="items"

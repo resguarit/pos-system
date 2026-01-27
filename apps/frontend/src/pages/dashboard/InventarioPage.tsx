@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator, Filter, ChevronUp } from "lucide-react"
+import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator, Filter, ChevronUp, History } from "lucide-react"
 import { NewProductButton } from "@/components/new-product-button"
 import { AddStockButton } from "@/components/add-stock-button"
 import { EditProductDialog } from "@/components/edit-product-dialog"
@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { Product, Stock, Category as ProductCategoryType, Branch } from "@/types/product"
 import { DeleteProductDialog } from "@/components/delete-product-dialog"
 import { useEntityContext } from "@/context/EntityContext"
-import { useSearchParams } from "react-router-dom"
+import { useSearchParams, useNavigate } from "react-router-dom"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -31,6 +31,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
+  const navigate = useNavigate();
   const { selectedBranchIds } = useBranch();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
@@ -1143,6 +1144,9 @@ export default function InventarioPage() {
                                     <Button variant="ghost" size="sm" onClick={() => handleViewClick(p)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                       <Eye className="h-4 w-4" />
                                     </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${p.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
+                                      <History className="h-4 w-4" />
+                                    </Button>
                                     {hasPermission('editar_productos') && (
                                       <Button variant="ghost" size="sm" onClick={() => handleEditClick(p)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
                                         <Pencil className="h-4 w-4" />
@@ -1379,6 +1383,9 @@ export default function InventarioPage() {
                                 <div className="flex justify-end items-center gap-1">
                                   <Button variant="ghost" size="sm" onClick={() => handleViewClick(product)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                     <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${product.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
+                                    <History className="h-4 w-4" />
                                   </Button>
                                   {hasPermission('editar_productos') && (
                                     <Button variant="ghost" size="sm" onClick={() => handleEditClick(product)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">

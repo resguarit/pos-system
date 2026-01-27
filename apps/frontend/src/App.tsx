@@ -18,6 +18,8 @@ import EditarSucursalPage from '@/pages/dashboard/EditarSucursalPage'
 import EditarUsuarioPage from '@/pages/dashboard/EditarUsuarioPage'
 import EditCategoryPage from '@/pages/dashboard/categories/EditCategoryPage'
 
+
+import ProductTraceabilityPage from "@/pages/dashboard/ProductTraceabilityPage";
 import HistorialVentasPage from '@/pages/dashboard/HistorialVentasPage'
 import InventarioPage from '@/pages/dashboard/InventarioPage'
 import NewCategoryPage from '@/pages/dashboard/categories/NewCategoryPage'
@@ -28,6 +30,7 @@ import NuevoUsuarioPage from '@/pages/dashboard/NuevoUsuarioPage'
 
 import PosPage from '@/pages/dashboard/PosPage'
 import CompleteSalePage from '@/pages/dashboard/CompleteSalePage'
+import OpenDetailInvoicePage from '@/pages/dashboard/OpenDetailInvoicePage'
 import ProveedoresPage from '@/pages/dashboard/ProveedoresPage'
 import NuevoProveedorPage from '@/pages/dashboard/NuevoProveedorPage'
 import EditarProveedorPage from '@/pages/dashboard/EditarProveedorPage'
@@ -98,9 +101,10 @@ function App() {
 
           {features.historialVentas && <Route path="historial-ventas" element={<ProtectedRoute permissions={['ver_ventas']}><HistorialVentasPage /></ProtectedRoute>} />}
           {features.inventario && <Route path="inventario" element={<ProtectedRoute permissions={['ver_productos']}><InventarioPage /></ProtectedRoute>} />}
-
+          {features.inventario && <Route path="inventario/:id/trazabilidad" element={<ProtectedRoute permissions={['ver_productos']}><ProductTraceabilityPage /></ProtectedRoute>} />}
           {features.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
           {features.pos && <Route path="pos/completar-venta" element={<ProtectedRoute permissions={['crear_ventas']}><CompleteSalePage /></ProtectedRoute>} />}
+          {features.pos && <Route path="facturacion-detalle-abierto" element={<ProtectedRoute permissions={['crear_ventas']}><OpenDetailInvoicePage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores" element={<ProtectedRoute permissions={['ver_proveedores']}><ProveedoresPage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores/nuevo" element={<ProtectedRoute permissions={['crear_proveedores']}><NuevoProveedorPage /></ProtectedRoute>} />}
           {features.proveedores && <Route path="proveedores/:id/editar" element={<ProtectedRoute permissions={['editar_proveedores']}><EditarProveedorPage /></ProtectedRoute>} />}

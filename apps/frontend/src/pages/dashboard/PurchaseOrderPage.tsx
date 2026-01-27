@@ -8,6 +8,8 @@ import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { Badge } from "@/components/ui/badge"
+import { BranchBadge } from "@/components/BranchBadge"
+import { getBranchColor } from "@/utils/branchColor"
 import { Plus, Search, ShoppingBag, CheckCircle, XCircle, Eye, Pencil } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -352,13 +354,8 @@ export default function PurchaseOrderPage() {
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount)
 
-  const getBranchColor = (order: APIPurchaseOrder) => {
-    if (order.branch_id) {
-      const branch = branches.find(b => Number(b.id) === order.branch_id);
-      return branch?.color || '#6b7280';
-    }
-    return '#6b7280'; // Color por defecto
-  };
+  const resolveBranchColor = (order: APIPurchaseOrder) =>
+    getBranchColor({ branchId: order.branch_id, branches: branches ?? undefined });
 
   const getBranchName = (order: APIPurchaseOrder) => {
     if (order.branch_id) {
@@ -557,24 +554,10 @@ export default function PurchaseOrderPage() {
                       getColumnCellProps={getOrderColumnCellProps}
                       className={selectedBranchIds.length > 1 ? "" : "hidden"}
                     >
-                      {(() => {
-                        const branchColor = getBranchColor(order);
-                        const branchName = getBranchName(order);
-
-                        return (
-                          <Badge
-                            variant="outline"
-                            className="text-xs border-2 font-medium"
-                            style={{
-                              borderColor: branchColor,
-                              color: branchColor,
-                              backgroundColor: `${branchColor}10`
-                            }}
-                          >
-                            {branchName}
-                          </Badge>
-                        );
-                      })()}
+                      <BranchBadge
+                        name={getBranchName(order)}
+                        color={resolveBranchColor(order)}
+                      />
                     </ResizableTableCell>
                     <ResizableTableCell columnId="date" getColumnCellProps={getOrderColumnCellProps}>
                       {new Date(order.order_date).toLocaleDateString('es-ES')}

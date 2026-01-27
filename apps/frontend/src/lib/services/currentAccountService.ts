@@ -148,7 +148,12 @@ export class CurrentAccountService {
   // Ventas pendientes y pagos
   static async getPendingSales(accountId: number): Promise<PendingSale[]> {
     const response = await api.get(`${this.baseUrl}/${accountId}/pending-sales`);
-    return this.handleResponse(response) as PendingSale[];
+    const raw = this.handleResponse(response);
+    const list = Array.isArray(raw) ? raw : [];
+    return list.filter(
+      (s): s is PendingSale =>
+        s != null && typeof s === 'object' && 'id' in s && typeof (s as PendingSale).id === 'number'
+    );
   }
 
   static async getMovementFilters(accountId: number): Promise<{ movement_types: { id: number; name: string }[]; branches: { id: number; name: string; color?: string }[] }> {

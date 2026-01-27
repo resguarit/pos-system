@@ -21,8 +21,14 @@ import { cn } from '@/lib/utils'
 import paymentMethodService from '@/lib/api/paymentMethodService';
 import type { PaymentMethod } from '@/lib/api/paymentMethodService';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { PurchaseOrderPaymentSection, type PurchaseOrderPaymentState } from './purchase-order-payment-section';
+import { PurchaseOrderPaymentSection, PAYMENT_VALIDATION_TOLERANCE, type PurchaseOrderPaymentState } from './purchase-order-payment-section';
 import { useAuth } from '@/hooks/useAuth';
+import { useExchangeRate } from '@/hooks/useExchangeRate';
+import exchangeRateService from '@/lib/api/exchangeRateService';
+import { formatCurrency } from '@/utils/sale-calculations';
+
+/** Tasa fallback cuando falla la carga de USD→ARS; evita mezclar unidades (1:1 solo para consistencia). */
+const FALLBACK_USD_TO_ARS = 1;
 
 interface Supplier { id: number; name: string; contact_name?: string }
 interface Branch { id: number; description: string; color?: string }
@@ -67,6 +73,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   const [payments, setPayments] = useState<PurchaseOrderPaymentState[]>([]);
   const [selectedCurrency, setSelectedCurrency] = useState<'ARS' | 'USD'>('ARS');
   const [affectsCashRegister, setAffectsCashRegister] = useState(true); // Por defecto true
+  const { rate: exchangeRate } = useExchangeRate({ fromCurrency: 'USD', toCurrency: 'ARS' });
 
   // Función helper para prevenir Enter en inputs
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -100,25 +107,6 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         setAffectsCashRegister((order as any).affects_cash_register !== false); // Por defecto true si no existe
         setPaymentMethods(paymentMethodsData as unknown as PaymentMethod[]);
 
-        // Load payments
-        const orderPayments = (order as any).payments || [];
-        if (orderPayments.length > 0) {
-          setPayments(orderPayments.map((p: any) => ({
-            payment_method_id: String(p.payment_method_id),
-            amount: String(p.amount)
-          })));
-        } else {
-          // Fallback for legacy orders
-          const legacyPmId = (order as any).payment_method_id ?? (order as any).payment_method?.id;
-          if (legacyPmId) {
-            setPayments([{
-              payment_method_id: String(legacyPmId),
-              amount: String((order as any).total_amount || 0)
-            }]);
-          } else {
-            setPayments([]);
-          }
-        }
         const mapped: EditablePurchaseOrderItem[] = ((order as any).items || []).map((it: any) => ({
           product_id: Number(it.product_id || it.product?.id),
           quantity: Number(it.quantity),
@@ -127,11 +115,55 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         }))
         setItems(mapped)
 
-        // Detectar moneda de la orden existente basándose en el primer producto
-        if (mapped.length > 0) {
-          const firstProduct = productsData.find((p: any) => p.id === mapped[0].product_id);
-          if (firstProduct) {
-            setSelectedCurrency((firstProduct as any).currency || 'ARS');
+        const firstProduct = mapped.length > 0 ? productsData.find((p: any) => p.id === mapped[0].product_id) : null;
+        const orderCurrency = (order as any).currency ?? (firstProduct as any)?.currency ?? 'ARS';
+        setSelectedCurrency(orderCurrency);
+
+        // Cargar pagos: en la UI siempre se trabaja en ARS; si la orden es en USD, convertir al cargar
+        const orderPayments = (order as any).payments || [];
+        if (orderPayments.length > 0) {
+          if (orderCurrency === 'USD') {
+            let rate: number;
+            try {
+              rate = await exchangeRateService.getCurrentRate('USD', 'ARS');
+            } catch {
+              rate = FALLBACK_USD_TO_ARS;
+              toast.warning('Tasa de cambio no disponible', {
+                description: 'Se usó 1:1 para mostrar los montos en ARS. Verifique los valores antes de guardar.',
+              });
+            }
+            setPayments(orderPayments.map((p: any) => ({
+              payment_method_id: String(p.payment_method_id),
+              amount: String((Number(p.amount) * rate).toFixed(2))
+            })));
+          } else {
+            setPayments(orderPayments.map((p: any) => ({
+              payment_method_id: String(p.payment_method_id),
+              amount: String(p.amount)
+            })));
+          }
+        } else {
+          const legacyPmId = (order as any).payment_method_id ?? (order as any).payment_method?.id;
+          if (legacyPmId) {
+            const amt = Number((order as any).total_amount || 0);
+            let amountStr: string;
+            if (orderCurrency === 'USD') {
+              let r: number;
+              try {
+                r = await exchangeRateService.getCurrentRate('USD', 'ARS');
+              } catch {
+                r = FALLBACK_USD_TO_ARS;
+                toast.warning('Tasa de cambio no disponible', {
+                  description: 'Se usó 1:1 para mostrar el monto en ARS. Verifique antes de guardar.',
+                });
+              }
+              amountStr = String((amt * r).toFixed(2));
+            } else {
+              amountStr = String(amt);
+            }
+            setPayments([{ payment_method_id: String(legacyPmId), amount: amountStr }]);
+          } else {
+            setPayments([]);
           }
         }
       } catch (err) {
@@ -228,16 +260,24 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
       return
     }
 
-    // Validar que los pagos cubran exactamente el total
-    const totalOrder = calculateTotal();
-    const totalPayments = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    // Con orden en USD se requiere tasa de cambio para convertir y validar en ARS
+    if (selectedCurrency === 'USD' && (!exchangeRate || exchangeRate <= 0)) {
+      setError('No se pudo cargar la tasa de cambio USD→ARS. Espere un momento e intente de nuevo.');
+      return;
+    }
 
-    // Permitir una pequeña diferencia por redondeo (0.01)
-    if (Math.abs(totalOrder - totalPayments) > 0.05) {
-      if (totalPayments < totalOrder) {
-        setError(`Falta cubrir $${(totalOrder - totalPayments).toFixed(2)} para completar el total de la orden.`);
+    // Los pagos se ingresan siempre en ARS; validamos contra el total en ARS
+    const totalOrderInOrderCurrency = calculateTotal();
+    const totalOrderArs = selectedCurrency === 'USD' && exchangeRate && exchangeRate > 0
+      ? totalOrderInOrderCurrency * exchangeRate
+      : totalOrderInOrderCurrency;
+    const totalPaymentsArs = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+
+    if (Math.abs(totalOrderArs - totalPaymentsArs) > PAYMENT_VALIDATION_TOLERANCE) {
+      if (totalPaymentsArs < totalOrderArs) {
+        setError(`Falta cubrir ${formatCurrency(totalOrderArs - totalPaymentsArs, 'ARS')} para completar el total de la orden.`);
       } else {
-        setError(`El total de pagos excede el monto de la orden por $${(totalPayments - totalOrder).toFixed(2)}.`);
+        setError(`El total de pagos excede el monto de la orden por ${formatCurrency(totalPaymentsArs - totalOrderArs, 'ARS')}.`);
       }
       return;
     }
@@ -250,10 +290,16 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         branch_id: parseInt(form.branch_id, 10),
         order_date: format(form.order_date, 'yyyy-MM-dd'),
         notes: form.notes || '',
-        payments: payments.map(p => ({
-          payment_method_id: parseInt(p.payment_method_id),
-          amount: parseFloat(p.amount) || 0
-        })),
+        payments: payments.map(p => {
+          const amountArs = parseFloat(p.amount) || 0;
+          const amountInOrderCurrency = selectedCurrency === 'USD' && exchangeRate && exchangeRate > 0
+            ? amountArs / exchangeRate
+            : amountArs;
+          return {
+            payment_method_id: parseInt(p.payment_method_id),
+            amount: Math.round(amountInOrderCurrency * 100) / 100
+          };
+        }),
         affects_cash_register: affectsCashRegister,
       }
       if (items.length > 0) {
@@ -634,6 +680,8 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
               payments={payments}
               paymentMethods={paymentMethods}
               total={calculateTotal()}
+              currency={selectedCurrency}
+              exchangeRate={selectedCurrency === 'USD' ? exchangeRate : undefined}
               onAddPayment={() => setPayments([...payments, { payment_method_id: '', amount: '' }])}
               onRemovePayment={(idx) => setPayments(payments.filter((_, i) => i !== idx))}
               onUpdatePayment={(idx, field, value) => {

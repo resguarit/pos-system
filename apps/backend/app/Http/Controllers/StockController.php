@@ -74,7 +74,7 @@ class StockController extends Controller
                 $request->product_id,
                 $request->branch_id
             );
-            
+
             if (!$stock) {
                 return response()->json([
                     'status' => 'error',
@@ -101,7 +101,12 @@ class StockController extends Controller
     public function store(StoreStockRequest $request)
     {
         $validatedData = $request->validated();
-        $stock = Stock::create($validatedData); // Aquí creas el stock
+        $stock = $this->stockService->createStock(
+            $validatedData,
+            $request->input('type', 'Initial'),
+            null,
+            $request->input('notes')
+        );
         return response()->json($stock, 201);
     }
 
@@ -111,19 +116,30 @@ class StockController extends Controller
     public function update(UpdateStockRequest $request, Stock $stock) // Type-hint y Route Model Binding
     {
         $validatedData = $request->validated();
-        // Lógica para actualizar el stock usando $validatedData
-        $stock->update($validatedData);
-        // ...
+
+        $stock = $this->stockService->updateStock(
+            $stock->id,
+            $validatedData,
+            $request->input('type', 'adjustment'),
+            null,
+            $request->input('notes')
+        );
+
         return response()->json($stock);
     }
 
     /**
      * Update stock quantity
      */
+    /**
+     * Update stock quantity
+     */
     public function updateQuantity(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
-            'quantity' => 'required|numeric|min:0'
+            'quantity' => 'required|numeric|min:0',
+            'notes' => 'nullable|string',
+            'type' => 'nullable|string|in:adjustment,count,correction'
         ]);
 
         if ($validator->fails()) {
@@ -136,10 +152,13 @@ class StockController extends Controller
 
         try {
             $stock = $this->stockService->updateStockQuantity(
-                $id, 
-                $request->quantity
+                $id,
+                $request->quantity,
+                $request->input('type', 'adjustment'),
+                null,
+                $request->input('notes')
             );
-            
+
             return response()->json([
                 'status' => 'success',
                 'message' => 'Stock quantity updated successfully',
@@ -163,7 +182,9 @@ class StockController extends Controller
             'stock_updates' => 'required|array|min:1',
             'stock_updates.*.product_id' => 'required|exists:products,id',
             'stock_updates.*.quantity_sold' => 'required|numeric|min:0.01',
-            'branch_id' => 'required|exists:branches,id'
+            'branch_id' => 'required|exists:branches,id',
+            'reason' => 'nullable|string', // Global reason for the reduction
+            'type' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {
@@ -177,13 +198,18 @@ class StockController extends Controller
         try {
             $results = [];
             $errors = [];
+            $notes = $request->input('reason');
+            $type = $request->input('type', 'sale');
 
             foreach ($request->stock_updates as $update) {
                 try {
                     $stock = $this->stockService->reduceStockByProductAndBranch(
                         $update['product_id'],
                         $request->branch_id,
-                        $update['quantity_sold']
+                        $update['quantity_sold'],
+                        $type,
+                        null,
+                        $notes
                     );
                     $results[] = [
                         'product_id' => $update['product_id'],

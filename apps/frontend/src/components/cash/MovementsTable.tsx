@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { BranchBadge } from "@/components/BranchBadge"
+import { getBranchColor } from "@/utils/branchColor"
 import { Eye, Trash2, FileText } from "lucide-react"
 import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { ResizableTableHeader } from '@/components/ui/resizable-table-header'
@@ -219,21 +221,14 @@ export const MovementsTable = ({
                       <TableCell className="hidden md:table-cell">
                         {(() => {
                           const branchInfo = getBranchInfo?.(movement.branch_id)
-                          const branchColor = branchInfo?.color || '#6b7280'
-                          const branchName = movement.branch_name || `Sucursal ${movement.branch_id}`
+                          const branchColor = getBranchColor({ branchColor: branchInfo?.color })
+                          const branchName = branchInfo?.description ?? movement.branch_name ?? `Sucursal ${movement.branch_id}`
 
                           return (
-                            <Badge
-                              variant="outline"
-                              className="text-xs border-2 font-medium"
-                              style={{
-                                borderColor: branchColor,
-                                color: branchColor,
-                                backgroundColor: `${branchColor}10`
-                              }}
-                            >
-                              {branchName}
-                            </Badge>
+                            <BranchBadge
+                              name={branchName}
+                              color={branchColor}
+                            />
                           )
                         })()}
                       </TableCell>

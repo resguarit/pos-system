@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 import { Shipment, ShipmentStage } from '@/types/shipment';
 import { Package, Truck, CheckCircle, Clock, Eye, ChevronUp, ChevronDown, Edit, Printer, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { BranchBadge } from '@/components/BranchBadge';
+import { getBranchColor } from '@/utils/branchColor';
 import { useAuth } from '@/context/AuthContext';
 
 interface ShipmentTableProps {
@@ -374,20 +376,14 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                   <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis">
                     {(() => {
                       const branchInfo = getBranchInfo?.(shipment.branch_id);
-                      const branchColor = branchInfo?.color || '#6b7280';
-                      const branchName = branchInfo?.description || `Sucursal ${shipment.branch_id}`;
+                      const branchColor = getBranchColor({ branchColor: branchInfo?.color });
+                      const branchName = branchInfo?.description ?? `Sucursal ${shipment.branch_id}`;
 
                       return (
-                        <div
-                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border-2"
-                          style={{
-                            borderColor: branchColor,
-                            color: branchColor,
-                            backgroundColor: `${branchColor}10`
-                          }}
-                        >
-                          {branchName}
-                        </div>
+                        <BranchBadge
+                          name={branchName}
+                          color={branchColor}
+                        />
                       );
                     })()}
                   </td>

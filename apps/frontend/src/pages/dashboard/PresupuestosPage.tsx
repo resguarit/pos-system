@@ -11,7 +11,10 @@ import { FileCheck, Trash2, Eye, Loader2, AlertCircle, FileText, Check } from 'l
 import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header'
 import { useAuth } from '@/context/AuthContext'
+import { useBranch } from '@/context/BranchContext'
 import { ConversionStatusBadge } from '@/components/sales/conversion-status-badge'
+import { BranchBadge } from '@/components/BranchBadge'
+import { getBranchColor } from '@/utils/branchColor'
 
 interface PresupuestosPageProps {
     budgets: Budget[]
@@ -38,7 +41,11 @@ export default function PresupuestosPage({
     onViewDetail
 }: PresupuestosPageProps) {
     const { hasPermission } = useAuth()
+    const { branches } = useBranch()
     const navigate = useNavigate()
+
+    const resolveBranchColor = (budget: Budget) =>
+        getBranchColor({ branchColor: budget.branch_color, branchId: budget.branch_id, branches: branches ?? undefined })
 
     // Dialog states
     const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -195,17 +202,11 @@ export default function PresupuestosPage({
                                         </div>
                                     </ResizableTableCell>
                                     <ResizableTableCell columnId="branch" getColumnCellProps={getColumnCellProps} className={showBranchColumn ? "" : "hidden"}>
-                                        <Badge
-                                            variant="outline"
-                                            className="text-xs border-2 font-medium"
-                                            style={{
-                                                borderColor: budget.branch_color || '#e2e8f0',
-                                                color: budget.branch_color || '#64748b',
-                                                backgroundColor: budget.branch_color ? `${budget.branch_color}10` : '#f8fafc'
-                                            }}
-                                        >
-                                            {budget.branch}
-                                        </Badge>
+                                        <BranchBadge
+                                            name={budget.branch}
+                                            color={resolveBranchColor(budget)}
+                                            dimmed={budget.status === 'annulled'}
+                                        />
                                     </ResizableTableCell>
                                     <ResizableTableCell columnId="items" getColumnCellProps={getColumnCellProps} className="text-center">
                                         {budget.items_count}

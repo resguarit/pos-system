@@ -1,21 +1,27 @@
 import type { ReactElement } from 'react'
-import { cloneElement, useEffect } from 'react'
+import { cloneElement, useCallback, useEffect, useRef, useState } from 'react'
 import { useCashRegisterContext } from '@/context/CashRegisterContext'
+import { Loader2 } from 'lucide-react'
 
 interface CashRegisterProtectedButtonProps {
-  children: ReactElement<any>
+  children: ReactElement<Record<string, unknown>>
   branchId: number
   operationName?: string
   disabled?: boolean
 }
 
-export default function CashRegisterProtectedButton({ 
-  children, 
-  branchId, 
+export default function CashRegisterProtectedButton({
+  children,
+  branchId,
   operationName = 'esta operación',
   disabled = false
 }: CashRegisterProtectedButtonProps) {
   const { validateCashRegisterForOperation, checkCashRegisterStatus } = useCashRegisterContext()
+  const [isValidating, setIsValidating] = useState(false)
+  const onClickRef = useRef(children.props?.onClick)
+
+  // Mantener ref actualizada con el handler del hijo (evita dependencia que cambia cada render)
+  onClickRef.current = children.props?.onClick
 
   // Verificar estado cuando cambie el branchId
   useEffect(() => {
@@ -24,21 +30,30 @@ export default function CashRegisterProtectedButton({
     }
   }, [branchId, checkCashRegisterStatus])
 
-  // Get the original onClick handler from the child component
-  const originalOnClick = children.props?.onClick
+  const protectedOnClick = useCallback(async (event: React.MouseEvent) => {
+    if (isValidating) return
 
-  // Create a protected version of the onClick handler
-  const protectedOnClick = async (event: any) => {
-    const isValidated = await validateCashRegisterForOperation(operationName)
-    if (isValidated && originalOnClick) {
-      originalOnClick(event)
+    setIsValidating(true)
+    try {
+      const isValidated = await validateCashRegisterForOperation(operationName)
+      const handler = onClickRef.current
+      if (isValidated && typeof handler === 'function') {
+        await handler(event)
+      }
+    } finally {
+      setIsValidating(false)
     }
-  }
+  }, [isValidating, validateCashRegisterForOperation, operationName])
 
-  // Clone the child element with the protected onClick handler
   return cloneElement(children, {
     ...children.props,
     onClick: protectedOnClick,
-    disabled: disabled || children.props?.disabled
+    disabled: disabled || children.props?.disabled || isValidating,
+    children: (
+      <>
+        {isValidating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {children.props.children}
+      </>
+    )
   })
 }

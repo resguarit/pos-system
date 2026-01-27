@@ -11,9 +11,11 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        // Usamos raw SQL para asegurar que el ENUM tenga los valores correctos y evitar problemas de truncamiento
-        // si la columna estaba definida incorrectamente (ej: varchar muy corto o enum sin 'active')
-        DB::statement("ALTER TABLE employees MODIFY COLUMN status ENUM('active', 'inactive', 'terminated') NOT NULL DEFAULT 'active'");
+        if (DB::getDriverName() !== 'sqlite') {
+            // Usamos raw SQL para asegurar que el ENUM tenga los valores correctos y evitar problemas de truncamiento
+            // si la columna estaba definida incorrectamente (ej: varchar muy corto o enum sin 'active')
+            DB::statement("ALTER TABLE employees MODIFY COLUMN status ENUM('active', 'inactive', 'terminated') NOT NULL DEFAULT 'active'");
+        }
     }
 
     /**

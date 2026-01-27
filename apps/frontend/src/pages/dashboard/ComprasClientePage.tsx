@@ -13,6 +13,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { BranchBadge } from "@/components/BranchBadge";
+import { getBranchColor } from "@/utils/branchColor";
 import useApi from "@/hooks/useApi";
 import { useAuth } from "@/context/AuthContext";
 import { useBranch } from "@/context/BranchContext";
@@ -241,23 +243,14 @@ export default function CustomerPurchasesPage() {
     return purchase.items?.length || 0
   }
 
-  const getBranchColor = (purchase: SaleHeader) => {
-    let branchId: number | null = null;
-
-    if (typeof purchase.branch === 'object' && purchase.branch?.id) {
-      branchId = Number(purchase.branch.id);
-    } else if (typeof purchase.branch === 'string') {
-      // Si es string, buscar por descripción
-      const branch = branches.find(b => b.description === purchase.branch);
-      branchId = branch?.id ? Number(branch.id) : null;
+  const resolveBranchColor = (purchase: SaleHeader) => {
+    let branchId: number | string | null = null;
+    if (typeof purchase.branch === 'object' && purchase.branch?.id) branchId = Number(purchase.branch.id);
+    else if (typeof purchase.branch === 'string') {
+      const b = branches.find((x) => x.description === purchase.branch);
+      branchId = b?.id ?? null;
     }
-
-    if (branchId) {
-      const branch = branches.find(b => Number(b.id) === branchId);
-      return branch?.color || '#6b7280';
-    }
-
-    return '#6b7280'; // Color por defecto
+    return getBranchColor({ branchId, branches: branches ?? [] });
   };
 
   const getBranchName = (purchase: SaleHeader) => {
@@ -458,24 +451,10 @@ export default function CustomerPurchasesPage() {
                   </TableCell>
                   <TableCell>{formatDate(purchase.date)}</TableCell>
                   <TableCell className="hidden md:table-cell">
-                    {(() => {
-                      const branchColor = getBranchColor(purchase);
-                      const branchName = getBranchName(purchase);
-
-                      return (
-                        <Badge
-                          variant="outline"
-                          className="text-xs border-2 font-medium"
-                          style={{
-                            borderColor: branchColor,
-                            color: branchColor,
-                            backgroundColor: `${branchColor}10`
-                          }}
-                        >
-                          {branchName}
-                        </Badge>
-                      );
-                    })()}
+                    <BranchBadge
+                      name={getBranchName(purchase)}
+                      color={resolveBranchColor(purchase)}
+                    />
                   </TableCell>
                   <TableCell className="hidden md:table-cell">{getItemsCount(purchase)}</TableCell>
                   <TableCell className="hidden lg:table-cell">{formatCurrency(purchase.subtotal)}</TableCell>

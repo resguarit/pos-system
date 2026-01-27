@@ -12,7 +12,7 @@ interface ProductServiceInterface
 
     public function getProductById($id);
 
-    public function updateProduct($id, array $data);
+    public function updateProduct($id, array $data, bool $skipCostHistory = false);
 
     public function deleteProduct($id);
 

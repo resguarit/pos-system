@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { BranchBadge } from '@/components/BranchBadge';
+import { getBranchColor } from '@/utils/branchColor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Pagination from '@/components/ui/pagination';
@@ -630,17 +632,10 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
                                   getColumnCellProps={resizableColumns.getColumnCellProps}
                                 >
                                   {movement.branch ? (
-                                    <Badge
-                                      variant="outline"
-                                      className="text-xs border-2 font-medium"
-                                      style={{
-                                        borderColor: movement.branch.color || '#6b7280',
-                                        color: movement.branch.color || '#6b7280',
-                                        backgroundColor: (movement.branch.color || '#6b7280') + '10'
-                                      }}
-                                    >
-                                      {movement.branch.description || movement.branch.name || '—'}
-                                    </Badge>
+                                    <BranchBadge
+                                      name={movement.branch.description || movement.branch.name || '—'}
+                                      color={getBranchColor({ branch: movement.branch })}
+                                    />
                                   ) : (
                                     '—'
                                   )}

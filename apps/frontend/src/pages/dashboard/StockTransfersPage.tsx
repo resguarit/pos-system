@@ -6,6 +6,8 @@ import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { usePermissions } from '@/hooks/usePermissions'
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header'
 import { Badge } from "@/components/ui/badge"
+import { BranchBadge } from "@/components/BranchBadge"
+import { getBranchColor } from "@/utils/branchColor"
 import { Plus, Search, ArrowRightLeft, CheckCircle, XCircle, Pencil, Eye, Clock, FileText, FileSpreadsheet, MoreHorizontal } from "lucide-react"
 
 // Permission constants for type safety
@@ -177,11 +179,11 @@ export default function StockTransfersPage() {
     return branch?.description || branch?.name || 'N/A'
   }
 
-  const getBranchColorFromTransfer = (transfer: StockTransfer, type: 'source' | 'destination') => {
+  const resolveBranchColorFromTransfer = (transfer: StockTransfer, type: 'source' | 'destination') => {
     const branch = type === 'source'
       ? (transfer.source_branch || transfer.sourceBranch)
       : (transfer.destination_branch || transfer.destinationBranch)
-    return branch?.color || '#6b7280'
+    return getBranchColor({ branch: branch ?? undefined })
   }
 
   // Extract unique branches from transfers for filter options
@@ -403,14 +405,16 @@ export default function StockTransfersPage() {
                   <ResizableTableCell columnId="number" getColumnCellProps={getColumnCellProps}>#{transfer.id}</ResizableTableCell>
                   <ResizableTableCell columnId="date" getColumnCellProps={getColumnCellProps}>{new Date(transfer.transfer_date).toLocaleDateString('es-ES')}</ResizableTableCell>
                   <ResizableTableCell columnId="source" getColumnCellProps={getColumnCellProps}>
-                    <Badge variant="outline" className="text-xs border-2 font-medium" style={{ borderColor: getBranchColorFromTransfer(transfer, 'source'), color: getBranchColorFromTransfer(transfer, 'source'), backgroundColor: getBranchColorFromTransfer(transfer, 'source') + '10' }}>
-                      {getBranchName(transfer, 'source')}
-                    </Badge>
+                    <BranchBadge
+                      name={getBranchName(transfer, 'source')}
+                      color={resolveBranchColorFromTransfer(transfer, 'source')}
+                    />
                   </ResizableTableCell>
                   <ResizableTableCell columnId="destination" getColumnCellProps={getColumnCellProps}>
-                    <Badge variant="outline" className="text-xs border-2 font-medium" style={{ borderColor: getBranchColorFromTransfer(transfer, 'destination'), color: getBranchColorFromTransfer(transfer, 'destination'), backgroundColor: getBranchColorFromTransfer(transfer, 'destination') + '10' }}>
-                      {getBranchName(transfer, 'destination')}
-                    </Badge>
+                    <BranchBadge
+                      name={getBranchName(transfer, 'destination')}
+                      color={resolveBranchColorFromTransfer(transfer, 'destination')}
+                    />
                   </ResizableTableCell>
                   <ResizableTableCell columnId="items" getColumnCellProps={getColumnCellProps}>{transfer.items?.length || 0}</ResizableTableCell>
                   <ResizableTableCell columnId="user" getColumnCellProps={getColumnCellProps}>
