@@ -114,8 +114,8 @@ export default function PurchaseOrderPage() {
     }
   }, [searchParams])
 
-  // Modificar loadPurchaseOrders para aceptar fechas, filtros de sucursales y tamaño de página opcional
-  const loadPurchaseOrders = useCallback(async (page = 1, from?: string, to?: string, perPageOverride?: number) => {
+  // Modificar loadPurchaseOrders para aceptar fechas, filtros de sucursales, tamaño de página opcional y término de búsqueda
+  const loadPurchaseOrders = useCallback(async (page = 1, from?: string, to?: string, perPageOverride?: number, searchOverride?: string) => {
     try {
       setLoading(true)
       const params: any = {
@@ -124,6 +124,10 @@ export default function PurchaseOrderPage() {
       };
       if (from) params.from = from;
       if (to) params.to = to;
+
+      // Usar el override si existe, de lo contrario usar el estado actual
+      const currentSearch = searchOverride !== undefined ? searchOverride : searchTerm;
+      if (currentSearch) params.search = currentSearch;
 
       // Si hay sucursales filtradas, aplicar el filtro
       if (filteredBranchIds.length > 0) {
@@ -139,18 +143,12 @@ export default function PurchaseOrderPage() {
       }
 
       const response = await getPurchaseOrders(params);
-
-      // Si hay múltiples sucursales filtradas, filtrar en el frontend (Backend pagination might make this tricky if not supported on backend)
-      // Assuming backend returns paginated results filtered by single branch_id if sent.
-      // If we need multi-branch support in backend, that's a separate task, but logic here assumes response is PaginatedResponse.
-
       const orders = response.data;
 
-      // Client side filtering for multi-branch if backend doesn't support array (it supports single branch_id)
+      // Client side filtering for multi-branch is still needed if backend doesn't support array
+      // But for search, we rely on backend now.
       let filteredOrders = orders;
       if (filteredBranchIds.length > 1) {
-        // Note: This logic is flawed with server-side pagination if backend doesn't filter.
-        // But preserving existing behavior for now within pagination limits.
         filteredOrders = orders.filter(order =>
           order.branch_id && filteredBranchIds.includes(order.branch_id)
         );
@@ -158,7 +156,6 @@ export default function PurchaseOrderPage() {
         filteredOrders = orders;
       }
 
-      // No client-side slicing needed
       setPurchaseOrders(filteredOrders);
       setTotalPOItems(response.total);
       setCurrentPOPage(response.current_page);
@@ -172,10 +169,7 @@ export default function PurchaseOrderPage() {
     } finally {
       setLoading(false)
     }
-  }, [filteredBranchIds, pageSize])
-
-  // Fetch purchase orders from backend - Logic moved to the dependency-based effect below
-  // useEffect(() => { ... }, []) removed to avoid double fetch
+  }, [filteredBranchIds, pageSize, searchTerm])
 
   // Recargar órdenes cuando cambien los filtros de sucursales
   useEffect(() => {
@@ -207,21 +201,37 @@ export default function PurchaseOrderPage() {
 
   // Actualizar useEffect para cargar órdenes de compra al cambiar el periodo
   useEffect(() => {
+    // Debounce search is handled by separate effect or input change, 
+    // but here we just want to reload if dates change.
+    // We don't want to trigger on searchTerm change here to avoid double fetch if we use a debounce effect separately.
+    // However, if we don't have a separate effect for searchTerm, we should include it.
+    // Let's implement a debounce effect for search.
+
     if (dateRange?.from && dateRange?.to) {
       const fromDate = format(dateRange?.from, "yyyy-MM-dd");
       const toDate = format(dateRange?.to, "yyyy-MM-dd");
       loadPurchaseOrders(currentPOPage, fromDate, toDate);
     } else {
-      // If dates are cleared, load all orders (or default logic)
       loadPurchaseOrders(currentPOPage);
     }
   }, [dateRange, currentPOPage, loadPurchaseOrders])
+
+  // Debounce para la búsqueda
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
+      const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
+      loadPurchaseOrders(1, fromDate, toDate);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]) // Remove other deps to avoid loops, purely search driven trigger
 
   // Funciones de paginación para órdenes de compra
   const goToPOPage = (pageNumber: number) => {
     if (pageNumber >= 1 && pageNumber <= totalPOPages && pageNumber !== currentPOPage && !loading) {
       setCurrentPOPage(pageNumber);
-      // loadPurchaseOrders(pageNumber); // Removed to avoid race condition/double fetch, explicit useEffect handles it
+      // loadPurchaseOrders(pageNumber); // Explicit useEffect handles it
     }
   };
 
@@ -337,13 +347,13 @@ export default function PurchaseOrderPage() {
     return 0
   }
 
+  // Filtrado local ELIMINADO para búsqueda, se mantiene solo para status y branch adicional si aplica
   const filteredPurchaseOrders = purchaseOrders.filter(order => {
-    const matchesSearch = (order.supplier?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.id?.toString() || '').includes(searchTerm)
+    // La búsqueda por texto ahora es en backend
     const matchesStatus = statusFilter === 'all' || (order.status || '').toLowerCase() === statusFilter
     const matchesBranch = branchFilter === 'all' ? true :
       (order.branch_id ? order.branch_id.toString() === branchFilter : false)
-    return matchesSearch && matchesStatus && matchesBranch
+    return matchesStatus && matchesBranch
   })
 
   const pendingOrders = purchaseOrders.filter(order => isPending(order.status)).length

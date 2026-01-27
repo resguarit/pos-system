@@ -85,6 +85,17 @@ class PurchaseOrderController extends Controller
                 $query->where('branch_id', $request->branch_id);
             }
 
+            // Filtro de búsqueda general
+            if ($request->has('search') && $request->search) {
+                $search = $request->search;
+                $query->where(function ($q) use ($search) {
+                    $q->where('id', 'like', "%{$search}%")
+                        ->orWhereHas('supplier', function ($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%");
+                        });
+                });
+            }
+
             $perPage = $request->input('per_page', 15);
             $purchaseOrders = $query->latest()->paginate($perPage);
             return response()->json($purchaseOrders);
