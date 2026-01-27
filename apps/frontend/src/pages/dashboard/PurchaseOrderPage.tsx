@@ -129,34 +129,33 @@ export default function PurchaseOrderPage() {
       const currentSearch = searchOverride !== undefined ? searchOverride : searchTerm;
       if (currentSearch) params.search = currentSearch;
 
-      // Si hay sucursales filtradas, aplicar el filtro
-      if (filteredBranchIds.length > 0) {
-        // Si solo hay una sucursal, filtrar por esa específica
-        if (filteredBranchIds.length === 1) {
-          params.branch_id = filteredBranchIds[0];
-        }
-        // Si hay múltiples sucursales, el backend debería manejar esto
-        // Por ahora, usamos la primera sucursal como fallback
-        else {
-          params.branch_id = filteredBranchIds[0];
-        }
+      // Agregar filtro de estado
+      if (statusFilter !== 'all') {
+        params.status = statusFilter;
+      }
+
+      // Determinar qué sucursales filtrar
+      let targetBranchIds: (string | number)[] = [];
+
+      if (branchFilter !== 'all') {
+        // Prioridad 1: Filtro específico seleccionado en el dropdown
+        targetBranchIds = [branchFilter];
+      } else if (filteredBranchIds.length > 0) {
+        // Prioridad 2: Filtros de URL (ej. desde Caja)
+        targetBranchIds = filteredBranchIds;
+      } else if (selectedBranchIds.length > 0) {
+        // Prioridad 3: Contexto global de sucursales seleccionadas
+        targetBranchIds = selectedBranchIds;
+      }
+
+      if (targetBranchIds.length > 0) {
+        params.branch_ids = targetBranchIds;
       }
 
       const response = await getPurchaseOrders(params);
       const orders = response.data;
 
-      // Client side filtering for multi-branch is still needed if backend doesn't support array
-      // But for search, we rely on backend now.
-      let filteredOrders = orders;
-      if (filteredBranchIds.length > 1) {
-        filteredOrders = orders.filter(order =>
-          order.branch_id && filteredBranchIds.includes(order.branch_id)
-        );
-      } else {
-        filteredOrders = orders;
-      }
-
-      setPurchaseOrders(filteredOrders);
+      setPurchaseOrders(orders);
       setTotalPOItems(response.total);
       setCurrentPOPage(response.current_page);
       setTotalPOPages(response.last_page);
@@ -169,14 +168,12 @@ export default function PurchaseOrderPage() {
     } finally {
       setLoading(false)
     }
-  }, [filteredBranchIds, pageSize, searchTerm])
+  }, [filteredBranchIds, pageSize, searchTerm, statusFilter, branchFilter, selectedBranchIds])
 
-  // Recargar órdenes cuando cambien los filtros de sucursales
+  // Recargar órdenes cuando cambien los filtros de sucursales, estado o contexto global
   useEffect(() => {
-    if (filteredBranchIds.length > 0) {
-      loadPurchaseOrders(1)
-    }
-  }, [filteredBranchIds, loadPurchaseOrders])
+    loadPurchaseOrders(1)
+  }, [filteredBranchIds, statusFilter, branchFilter, selectedBranchIds, loadPurchaseOrders])
 
   useEffect(() => {
     const fetchSummary = async () => {
@@ -347,14 +344,9 @@ export default function PurchaseOrderPage() {
     return 0
   }
 
-  // Filtrado local ELIMINADO para búsqueda, se mantiene solo para status y branch adicional si aplica
-  const filteredPurchaseOrders = purchaseOrders.filter(order => {
-    // La búsqueda por texto ahora es en backend
-    const matchesStatus = statusFilter === 'all' || (order.status || '').toLowerCase() === statusFilter
-    const matchesBranch = branchFilter === 'all' ? true :
-      (order.branch_id ? order.branch_id.toString() === branchFilter : false)
-    return matchesStatus && matchesBranch
-  })
+  // Filtrado local ELIMINADO para búsqueda, status y branch
+  // Ahora usamos directamente purchaseOrders porque el backend ya filtra
+  const filteredPurchaseOrders = purchaseOrders;
 
   const pendingOrders = purchaseOrders.filter(order => isPending(order.status)).length
 
@@ -380,7 +372,7 @@ export default function PurchaseOrderPage() {
     <BranchRequiredWrapper
       title="Selecciona una sucursal"
       description="Las órdenes de compra necesitan una sucursal seleccionada para funcionar correctamente."
-      requireSingleBranch={true}
+      requireSingleBranch={false}
     >
       <div className="h-full w-full flex flex-col space-y-4 p-4 md:p-6">
         <div className="flex items-center justify-between">
@@ -682,8 +674,8 @@ export default function PurchaseOrderPage() {
                 loadPurchaseOrders(1, fromDate, toDate, newSize);
               }}
             >
-              <SelectTrigger className="h-8 w-[70px]">
-                <SelectValue placeholder={pageSize} />
+              <SelectTrigger className="h-8 w-[90px]">
+                <SelectValue placeholder={pageSize === 10000 ? "Todos" : pageSize} />
               </SelectTrigger>
               <SelectContent side="top">
                 {[10, 20, 50, 100].map((size) => (
@@ -691,6 +683,7 @@ export default function PurchaseOrderPage() {
                     {size}
                   </SelectItem>
                 ))}
+                <SelectItem value="10000">Todos</SelectItem>
               </SelectContent>
             </Select>
             <span>por página</span>

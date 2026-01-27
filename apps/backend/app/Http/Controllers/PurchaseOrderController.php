@@ -80,8 +80,10 @@ class PurchaseOrderController extends Controller
                 $query->where('supplier_id', $request->supplier_id);
             }
 
-            // Filtro por sucursal
-            if ($request->has('branch_id') && $request->branch_id) {
+            // Filtro por sucursal (single or multiple)
+            if ($request->has('branch_ids') && is_array($request->branch_ids)) {
+                $query->whereIn('branch_id', $request->branch_ids);
+            } elseif ($request->has('branch_id') && $request->branch_id) {
                 $query->where('branch_id', $request->branch_id);
             }
 
