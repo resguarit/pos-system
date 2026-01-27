@@ -35,6 +35,9 @@ const defaultFeatures = {
   auditorias: true,
   metodosPago: true,
   gastos: true,
+
+  /** Módulo Turnos: visible en permisos solo si está en true o VITE_FEATURES lo habilita */
+  turnos: false,
 } as const;
 
 let envFeatures = {};

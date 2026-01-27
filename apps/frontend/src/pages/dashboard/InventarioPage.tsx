@@ -70,15 +70,18 @@ export default function InventarioPage() {
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   // Configuración de columnas redimensionables
+  const showStockColumn = hasPermission('ver_stock_columna');
   const columnConfig = [
     { id: 'description', minWidth: 200, maxWidth: 600, defaultWidth: 300 },
     { id: 'code', minWidth: 80, maxWidth: 150, defaultWidth: 100 },
     { id: 'category', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
     ...(hasPermission('ver_precio_unitario') ? [{ id: 'unit_price', minWidth: 100, maxWidth: 200, defaultWidth: 120 }] : []),
     { id: 'sale_price', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
-    { id: 'stock', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
-    { id: 'stock-min-max', minWidth: 100, maxWidth: 180, defaultWidth: 120 },
-    { id: 'stock-status', minWidth: 100, maxWidth: 180, defaultWidth: 120 },
+    ...(showStockColumn ? [
+      { id: 'stock', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
+      { id: 'stock-min-max', minWidth: 100, maxWidth: 180, defaultWidth: 120 },
+      { id: 'stock-status', minWidth: 100, maxWidth: 180, defaultWidth: 120 },
+    ] : []),
     { id: 'status', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
     { id: 'branch', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
     { id: 'actions', minWidth: 120, maxWidth: 150, defaultWidth: 130 }
@@ -1000,29 +1003,33 @@ export default function InventarioPage() {
                             >
                               Precio Venta
                             </ResizableTableHeader>
-                            <ResizableTableHeader
-                              columnId="stock"
-                              getResizeHandleProps={getResizeHandleProps}
-                              getColumnHeaderProps={getColumnHeaderProps}
-                              className="hidden sm:table-cell"
-                            >
-                              Stock Actual
-                            </ResizableTableHeader>
-                            <ResizableTableHeader
-                              columnId="stock-min-max"
-                              getResizeHandleProps={getResizeHandleProps}
-                              getColumnHeaderProps={getColumnHeaderProps}
-                              className="hidden lg:table-cell"
-                            >
-                              Stock Min/Max
-                            </ResizableTableHeader>
-                            <ResizableTableHeader
-                              columnId="stock-status"
-                              getResizeHandleProps={getResizeHandleProps}
-                              getColumnHeaderProps={getColumnHeaderProps}
-                            >
-                              Estado Stock
-                            </ResizableTableHeader>
+                            {showStockColumn && (
+                              <>
+                                <ResizableTableHeader
+                                  columnId="stock"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
+                                  className="hidden sm:table-cell"
+                                >
+                                  Stock Actual
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
+                                  columnId="stock-min-max"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
+                                  className="hidden lg:table-cell"
+                                >
+                                  Stock Min/Max
+                                </ResizableTableHeader>
+                                <ResizableTableHeader
+                                  columnId="stock-status"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
+                                >
+                                  Estado Stock
+                                </ResizableTableHeader>
+                              </>
+                            )}
                             <ResizableTableHeader
                               columnId="status"
                               getResizeHandleProps={getResizeHandleProps}
@@ -1092,27 +1099,31 @@ export default function InventarioPage() {
                                 >
                                   <span className="truncate block">{formatSalePrice(p.sale_price)}</span>
                                 </ResizableTableCell>
-                                <ResizableTableCell
-                                  columnId="stock"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className={`hidden sm:table-cell font-medium ${!p.status ? "text-gray-500" : ""}`}
-                                >
-                                  <span className="truncate block">{Number.parseInt(String(stock.current_stock)) || 0}</span>
-                                </ResizableTableCell>
-                                <ResizableTableCell
-                                  columnId="stock-min-max"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
-                                >
-                                  <span className="truncate block">{Number.parseInt(String(stock.min_stock)) || 0} / {Number.parseInt(String(stock.max_stock)) || 0}</span>
-                                </ResizableTableCell>
-                                <ResizableTableCell
-                                  columnId="stock-status"
-                                  getColumnCellProps={getColumnCellProps}
-                                  className={!p.status ? "opacity-60" : ""}
-                                >
-                                  <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
-                                </ResizableTableCell>
+                                {showStockColumn && (
+                                  <>
+                                    <ResizableTableCell
+                                      columnId="stock"
+                                      getColumnCellProps={getColumnCellProps}
+                                      className={`hidden sm:table-cell font-medium ${!p.status ? "text-gray-500" : ""}`}
+                                    >
+                                      <span className="truncate block">{Number.parseInt(String(stock.current_stock)) || 0}</span>
+                                    </ResizableTableCell>
+                                    <ResizableTableCell
+                                      columnId="stock-min-max"
+                                      getColumnCellProps={getColumnCellProps}
+                                      className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
+                                    >
+                                      <span className="truncate block">{Number.parseInt(String(stock.min_stock)) || 0} / {Number.parseInt(String(stock.max_stock)) || 0}</span>
+                                    </ResizableTableCell>
+                                    <ResizableTableCell
+                                      columnId="stock-status"
+                                      getColumnCellProps={getColumnCellProps}
+                                      className={!p.status ? "opacity-60" : ""}
+                                    >
+                                      <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                    </ResizableTableCell>
+                                  </>
+                                )}
                                 <ResizableTableCell
                                   columnId="status"
                                   getColumnCellProps={getColumnCellProps}
@@ -1229,29 +1240,33 @@ export default function InventarioPage() {
                         >
                           Precio Venta
                         </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="stock"
-                          getResizeHandleProps={getResizeHandleProps}
-                          getColumnHeaderProps={getColumnHeaderProps}
-                          className="hidden sm:table-cell"
-                        >
-                          Stock Actual
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="stock-min-max"
-                          getResizeHandleProps={getResizeHandleProps}
-                          getColumnHeaderProps={getColumnHeaderProps}
-                          className="hidden lg:table-cell"
-                        >
-                          Stock Min/Max
-                        </ResizableTableHeader>
-                        <ResizableTableHeader
-                          columnId="stock-status"
-                          getResizeHandleProps={getResizeHandleProps}
-                          getColumnHeaderProps={getColumnHeaderProps}
-                        >
-                          Estado Stock
-                        </ResizableTableHeader>
+                        {showStockColumn && (
+                          <>
+                            <ResizableTableHeader
+                              columnId="stock"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                              className="hidden sm:table-cell"
+                            >
+                              Stock Actual
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="stock-min-max"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                              className="hidden lg:table-cell"
+                            >
+                              Stock Min/Max
+                            </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="stock-status"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                            >
+                              Estado Stock
+                            </ResizableTableHeader>
+                          </>
+                        )}
                         <ResizableTableHeader
                           columnId="status"
                           getResizeHandleProps={getResizeHandleProps}
@@ -1322,27 +1337,31 @@ export default function InventarioPage() {
                               >
                                 <span className="truncate block">{formatSalePrice(product.sale_price)}</span>
                               </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="stock"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden sm:table-cell font-medium ${!product.status ? "text-gray-500" : ""}`}
-                              >
-                                <span className="truncate block">{Number.parseInt(String(stock.current)) || 0}</span>
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="stock-min-max"
-                                getColumnCellProps={getColumnCellProps}
-                                className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
-                              >
-                                <span className="truncate block">{Number.parseInt(String(stock.min)) || 0} / {Number.parseInt(String(stock.max)) || 0}</span>
-                              </ResizableTableCell>
-                              <ResizableTableCell
-                                columnId="stock-status"
-                                getColumnCellProps={getColumnCellProps}
-                                className={!product.status ? "opacity-60" : ""}
-                              >
-                                <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
-                              </ResizableTableCell>
+                              {showStockColumn && (
+                                <>
+                                  <ResizableTableCell
+                                    columnId="stock"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden sm:table-cell font-medium ${!product.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <span className="truncate block">{Number.parseInt(String(stock.current)) || 0}</span>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="stock-min-max"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <span className="truncate block">{Number.parseInt(String(stock.min)) || 0} / {Number.parseInt(String(stock.max)) || 0}</span>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="stock-status"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={!product.status ? "opacity-60" : ""}
+                                  >
+                                    <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                  </ResizableTableCell>
+                                </>
+                              )}
                               <ResizableTableCell
                                 columnId="status"
                                 getColumnCellProps={getColumnCellProps}

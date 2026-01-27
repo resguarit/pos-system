@@ -7,7 +7,6 @@ import { PlusCircle } from "lucide-react";
 import ExpensesDashboard from "./expenses/ExpensesDashboard";
 import ExpensesList from "./expenses/ExpensesList";
 import EmployeesManagement from "./expenses/EmployeesManagement";
-import PayrollSettlement from "./expenses/PayrollSettlement";
 import ExpenseCategories from "./expenses/ExpenseCategories";
 
 import { useNavigate, useParams } from "react-router-dom";
@@ -27,7 +26,7 @@ export default function ExpensesPage() {
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Gastos</h2>
                     <p className="text-muted-foreground">
-                        Gestión completa de gastos, empleados y liquidación de sueldos.
+                        Gestión de gastos, empleados y categorías de gastos.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -57,7 +56,6 @@ export default function ExpensesPage() {
                     <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
                     <TabsTrigger value="list">Listado de Gastos</TabsTrigger>
                     <TabsTrigger value="employees">Empleados</TabsTrigger>
-                    <TabsTrigger value="payroll">Liquidación de Sueldos</TabsTrigger>
                     <TabsTrigger value="categories">Categorías</TabsTrigger>
                 </TabsList>
 
@@ -91,10 +89,6 @@ export default function ExpensesPage() {
                             <EmployeesManagement />
                         </CardContent>
                     </Card>
-                </TabsContent>
-
-                <TabsContent value="payroll" className="space-y-4">
-                    <PayrollSettlement />
                 </TabsContent>
 
                 <TabsContent value="categories" className="space-y-4">

@@ -33,6 +33,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'actualizar_stock', 'description' => 'Actualizar stock de productos', 'module' => 'productos'],
             ['name' => 'ver_precio_unitario', 'description' => 'Ver precio unitario (costo) de productos', 'module' => 'productos'],
             ['name' => 'ver_trazabilidad_producto', 'description' => 'Ver trazabilidad del producto', 'module' => 'productos'],
+            ['name' => 'ver_stock_columna', 'description' => 'Ver columna de stock en listados de productos', 'module' => 'productos'],
 
             // Combos
             ['name' => 'gestionar_combos', 'description' => 'Gestionar combos de productos', 'module' => 'combos'],

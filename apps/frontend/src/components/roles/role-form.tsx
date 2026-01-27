@@ -84,6 +84,7 @@ function getFeatureForModule(moduleName: string): boolean {
     'proveedores': 'proveedores',
     'categorías': 'categorias',
     'categorias': 'categorias',
+    'combos': 'combos',
     'sucursales': 'sucursales',
 
 
@@ -130,7 +131,9 @@ function getFeatureForModule(moduleName: string): boolean {
     'gastos': 'gastos',
     'empleados': 'gastos',
     'categorias_gastos': 'gastos',
-    'nomina': 'gastos',
+
+    'perfil': 'dashboard', // Cambiar password y perfil: siempre visible (mismo nivel que dashboard)
+    'turnos': 'turnos',
   };
 
   const normalizedModuleName = moduleName.toLowerCase().trim();
@@ -203,16 +206,17 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
 
         if (permissionsData.length > 0) {
           const grouped = permissionsData.reduce((acc: Record<string, Module>, perm: { id: number; name: string; description: string; module?: string }) => {
-            // Filtrar permisos del flujo de envíos que ya no se usan
-            const flowPermissions = [
+            // Filtrar permisos que ya no se usan (flujo envíos, generar nómina eliminado)
+            const hiddenPermissions = [
               'crear_etapas_envio',
               'editar_etapas_envio',
               'eliminar_etapas_envio',
               'configurar_visibilidad_atributos',
               'configurar_envios',
               'configurar_flujo_envio',
+              'generar_nomina',
             ];
-            if (flowPermissions.includes(perm.name)) {
+            if (hiddenPermissions.includes(perm.name)) {
               return acc; // Saltar este permiso
             }
 
