@@ -16,16 +16,25 @@ import {
   isSaleReference,
   isPurchaseOrderReference
 } from "@/utils/cash-register-utils"
+import type { CashMovement } from "@/types/cash-register.types"
+
+interface BranchInfo {
+  color?: string
+  description?: string
+}
+
+/** Movement as rendered in table; API may include branch_id / branch_name */
+type MovementRow = CashMovement & { branch_id?: number; branch_name?: string }
 
 interface MovementsTableProps {
-  movements: any[]
+  movements: MovementRow[]
   loading?: boolean
   canDeleteMovements?: boolean
-  onViewSale?: (movement: any) => void
-  onViewPurchaseOrder?: (movement: any) => void
+  onViewSale?: (movement: MovementRow) => void
+  onViewPurchaseOrder?: (movement: MovementRow) => void
   onDeleteMovement?: (movementId: number) => void
   isCashPaymentMethod?: (name: string) => boolean
-  getBranchInfo?: (branchId: number) => any
+  getBranchInfo?: (branchId: number) => BranchInfo | undefined
   showBranchColumn?: boolean
   // Paginación
   currentPage?: number
@@ -73,7 +82,7 @@ export const MovementsTable = ({
     defaultWidth: 150
   })
 
-  const getPaymentMethodForMovement = (movement: any) => {
+  const getPaymentMethodForMovement = (movement: MovementRow) => {
     return getPaymentMethod(movement, isCashPaymentMethod)
   }
 
@@ -171,8 +180,8 @@ export const MovementsTable = ({
                 </TableCell>
               </TableRow>
             ) : (
-              movements.map((movement) => {
-                const amount = parseFloat(movement.amount) || 0
+              movements.map((movement: MovementRow) => {
+                const amount = parseFloat(String(movement.amount)) || 0
                 const isIncome = isIncomeMovement(movement)
                 const userLabel = movement.user?.name || movement.user?.full_name || movement.user?.username || movement.user?.email || 'N/A'
                 const cleanedDescription = cleanMovementDescription(movement.description)

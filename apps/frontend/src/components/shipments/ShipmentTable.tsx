@@ -15,7 +15,7 @@ interface ShipmentTableProps {
   onDownloadShipment?: (shipmentId: number) => void;
   loading?: boolean;
   showBranchColumn?: boolean;
-  getBranchInfo?: (branchId: number) => any;
+  getBranchInfo?: (branchId: number) => { color?: string; description?: string } | undefined;
 }
 
 type SortField = 'priority' | 'status' | 'created_at';
@@ -125,15 +125,16 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
   }, [sortField, sortDirection]);
 
   const sortedShipments = [...shipments].sort((a, b) => {
-    let aValue: any;
-    let bValue: any;
+    let aValue: string | number;
+    let bValue: string | number;
 
     switch (sortField) {
-      case 'priority':
+      case 'priority': {
         const priorityOrder: Record<string, number> = { urgent: 4, high: 3, normal: 2, low: 1 };
         aValue = priorityOrder[a.priority?.toLowerCase() || 'normal'] || 2;
         bValue = priorityOrder[b.priority?.toLowerCase() || 'normal'] || 2;
         break;
+      }
       case 'status':
         aValue = a.current_stage?.name || '';
         bValue = b.current_stage?.name || '';

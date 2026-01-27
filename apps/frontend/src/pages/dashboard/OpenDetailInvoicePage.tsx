@@ -15,6 +15,7 @@ import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import type { PaymentMethod, ReceiptType } from '@/types/sale'
+import type { CartItem } from '@/types/combo'
 import { useSaleTotals } from '@/hooks/useSaleTotals'
 import { cn } from "@/lib/utils"
 import {
@@ -52,7 +53,7 @@ export default function OpenDetailInvoicePage() {
 
     // State
     const [items, setItems] = useState<ManualItem[]>([])
-    const [products, setProducts] = useState<any[]>([])
+    const [products, setProducts] = useState<Array<{ id: number; description?: string; sale_price?: number; iva?: { rate?: number }; [key: string]: unknown }>>([])
     const [openCombobox, setOpenCombobox] = useState(false)
     const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
 
@@ -68,7 +69,7 @@ export default function OpenDetailInvoicePage() {
         { payment_method_id: '', amount: '' }
     ])
     const [isProcessing, setIsProcessing] = useState(false)
-    const [genericProduct, setGenericProduct] = useState<any>(null)
+    const [genericProduct, setGenericProduct] = useState<{ id: number; [key: string]: unknown } | null>(null)
 
     // Customer search hooks
     const {
@@ -87,6 +88,7 @@ export default function OpenDetailInvoicePage() {
         fetchReceiptTypes()
         fetchGenericProduct() // Ensure we have a fallback ID
         fetchProducts() // Fetch products for search
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only init
     }, [])
 
     const fetchPaymentMethods = async () => {
@@ -104,7 +106,7 @@ export default function OpenDetailInvoicePage() {
             const response = await request({ method: 'GET', url: '/receipt-types' })
             const data = Array.isArray(response) ? response : response?.data || []
             // Filter for invoices/sales types (Facturas)
-            const validTypes = data.filter((t: any) => ['001', '006', '011', '017', '049'].includes(t.afip_code))
+            const validTypes = data.filter((t: { afip_code?: string }) => ['001', '006', '011', '017', '049'].includes(t.afip_code ?? ''))
             setReceiptTypes(validTypes)
             if (validTypes.length > 0) setReceiptTypeId(validTypes[0].id)
         } catch (e) {
@@ -214,7 +216,7 @@ export default function OpenDetailInvoicePage() {
         }))
     }, [items])
 
-    const { total } = useSaleTotals(cartForTotals as any, { type: '', value: '' })
+    const { total } = useSaleTotals(cartForTotals as CartItem[], { type: '', value: '' })
 
     // Payment Logic (Simplified from CompleteSalePage)
     const handlePaymentAmountChange = (index: number, val: string) => {
@@ -256,7 +258,15 @@ export default function OpenDetailInvoicePage() {
 
         setIsProcessing(true)
         try {
-            const saleData: any = {
+            const saleData: {
+                branch_id: number;
+                customer_id: number | null;
+                receipt_type_id: number;
+                date: string;
+                items: Array<{ product_id: number; quantity: number; unit_price: number }>;
+                payments: Array<{ payment_method_id: number; amount: number }>;
+                total: number;
+            } = {
                 branch_id: selectedBranch.id,
                 customer_id: selectedCustomer?.id || null,
                 receipt_type_id: receiptTypeId,
@@ -284,17 +294,18 @@ export default function OpenDetailInvoicePage() {
                 setItems([])
                 setPayments([{ payment_method_id: '', amount: '' }])
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
+            const err = e as { response?: { data?: { message?: string } }; message?: string };
             console.error(e)
-            toast.error("Error al procesar venta: " + (e.response?.data?.message || e.message))
+            toast.error("Error al procesar venta: " + (err.response?.data?.message || err.message || ''))
         } finally {
             setIsProcessing(false)
         }
     }
 
-    const handleProductSelect = (product: any) => {
+    const handleProductSelect = (product: { id: number; description?: string; sale_price?: number; iva?: { rate?: number }; [key: string]: unknown }) => {
         setSelectedProductId(product.id)
-        setNewItemDescription(product.description)
+        setNewItemDescription(product.description ?? '')
         // Calculate net price from sale_price (which usually includes IVA in this system)
         const ivaRate = product.iva?.rate ? Number(product.iva.rate) : 0
         const priceWithIva = Number(product.sale_price || 0)

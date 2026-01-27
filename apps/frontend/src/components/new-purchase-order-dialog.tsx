@@ -101,6 +101,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
     if (open && !form.branch_id && preselectedBranchId) {
       updateForm('branch_id', preselectedBranchId.toString());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateForm is stable from context
   }, [open, preselectedBranchId, form.branch_id]);
   const [lowStockSuggestions, setLowStockSuggestions] = useState<{
     product: Product;
@@ -234,7 +235,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
     loadLowStock()
   }, [open, form.supplier_id, form.branch_id, selectedCurrency])
 
-  const handleFormChange = (field: keyof typeof form, value: any) => {
+  const handleFormChange = (field: keyof typeof form, value: string | number | Date) => {
     updateForm(field, value);
   };
 

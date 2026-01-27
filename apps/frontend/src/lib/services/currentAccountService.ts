@@ -20,12 +20,14 @@ import type {
   ProcessPaymentBySaleData
 } from '@/types/currentAccount';
 
+type ApiResponse = { data?: { data?: unknown; [key: string]: unknown }; [key: string]: unknown };
+
 export class CurrentAccountService {
   private static baseUrl = '/current-accounts';
 
   // Helper para manejar respuestas de la API
-  private static handleResponse<T>(response: any): T {
-    return response.data.data || response.data;
+  private static handleResponse<T>(response: ApiResponse): T {
+    return ((response.data?.data ?? response.data) as T) ?? ({} as T);
   }
 
   // CRUD básico de cuentas corrientes
@@ -83,9 +85,9 @@ export class CurrentAccountService {
       }
 
       return data;
-    } catch (error: any) {
-      // Si el error es 404 o no se encuentra, retornar null en lugar de lanzar error
-      if (error?.response?.status === 404) {
+    } catch (error: unknown) {
+      const err = error as { response?: { status?: number }; message?: string };
+      if (err?.response?.status === 404) {
         console.log(`[CurrentAccountService] Cliente ${customerId} no tiene cuenta corriente (404)`);
         return null;
       }
@@ -158,11 +160,11 @@ export class CurrentAccountService {
 
   static async getMovementFilters(accountId: number): Promise<{ movement_types: { id: number; name: string }[]; branches: { id: number; name: string; color?: string }[] }> {
     const response = await api.get(`${this.baseUrl}/${accountId}/movement-filters`);
-    return this.handleResponse(response) as { movement_types: { id: number; name: string }[]; branches: { id: number; name: string; color?: string }[] };
+    return this.handleResponse<{ movement_types: { id: number; name: string }[]; branches: { id: number; name: string; color?: string }[] }>(response);
   }
 
 
-  static async processPaymentBySale(accountId: number, data: ProcessPaymentBySaleData): Promise<any> {
+  static async processPaymentBySale(accountId: number, data: ProcessPaymentBySaleData): Promise<CurrentAccountMovement | unknown> {
     const response = await api.post(`${this.baseUrl}/${accountId}/payments`, data);
     return this.handleResponse(response);
   }
@@ -204,8 +206,8 @@ export class MovementTypeService {
   private static baseUrl = '/movement-types';
 
   // Helper para manejar respuestas de la API
-  private static handleResponse<T>(response: any): T {
-    return response.data.data || response.data;
+  private static handleResponse<T>(response: ApiResponse): T {
+    return ((response.data?.data ?? response.data) as T) ?? ({} as T);
   }
 
   static async getAll(): Promise<MovementType[]> {

@@ -56,9 +56,10 @@ export default function CustomerPurchasesPage() {
   useEffect(() => {
     if (params.id) {
       fetchCustomer(params.id as string);
-      fetchPurchases(params.id as string, dateRange); // Pass dateRange here
+      fetchPurchases(params.id as string, dateRange);
     }
-  }, [params.id, dateRange]); // Add dateRange to dependency array
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchCustomer/fetchPurchases are stable
+  }, [params.id, dateRange]);
 
   const fetchCustomer = async (id: string) => {
     try {

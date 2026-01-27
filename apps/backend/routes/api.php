@@ -131,7 +131,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/check-code/{code}', [ProductController::class, 'checkCode']);
             Route::get('/check-description/{description}', [ProductController::class, 'checkDescription']);
             Route::get('/{id}', [ProductController::class, 'show']);
-            Route::get('/{id}/traceability', [\App\Http\Controllers\ProductTraceabilityController::class, 'getHistory']);
+            Route::get('/{id}/traceability', [\App\Http\Controllers\ProductTraceabilityController::class, 'getHistory'])
+                ->middleware('has_permission:ver_trazabilidad_producto|ver_productos');
             Route::get('/export/price-list', [ProductController::class, 'exportPriceList']);
             Route::get('/by-categories', [ProductController::class, 'getProductsByCategories']);
         });

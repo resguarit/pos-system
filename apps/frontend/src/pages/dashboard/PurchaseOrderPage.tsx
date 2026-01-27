@@ -224,7 +224,8 @@ export default function PurchaseOrderPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [searchTerm]) // Remove other deps to avoid loops, purely search driven trigger
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally search-driven to avoid loops
+  }, [searchTerm])
 
   // Funciones de paginación para órdenes de compra
   const goToPOPage = (pageNumber: number) => {

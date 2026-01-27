@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Plus, Trash2, Search, Calendar as CalendarIcon, CheckCircle, AlertCircle, Pencil } from 'lucide-react'
+import { Plus, Trash2, Search, Calendar as CalendarIcon, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { purchaseOrderService } from '@/lib/api/purchaseOrderService'
 import { getBranches } from '@/lib/api/branchService'
@@ -47,6 +47,25 @@ interface EditablePurchaseOrderItem {
   quantity: number | string;
   purchase_price: number | string;
   product?: Product;
+}
+
+/** Respuesta de la API al obtener una orden de compra (campos usados en loadData) */
+interface PurchaseOrderApiResponse {
+  status?: string;
+  supplier_id?: number;
+  supplier?: { id: number };
+  branch_id?: number;
+  branch?: { id: number };
+  order_date?: string;
+  created_at?: string;
+  notes?: string;
+  affects_cash_register?: boolean;
+  items?: Array<{ product_id?: number; product?: { id: number }; quantity: number; purchase_price: number }>;
+  currency?: string;
+  payments?: Array<{ payment_method_id: number; amount: number }>;
+  payment_method_id?: number;
+  payment_method?: { id: number };
+  total_amount?: number;
 }
 
 export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId, onSaved }: EditPurchaseOrderDialogProps) {
@@ -97,30 +116,33 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         setSuppliers(suppliersData as unknown as Supplier[])
         setBranches(branchesData as unknown as Branch[])
         setProducts(productsData as unknown as Product[])
-        setOrderStatus((order as any).status || 'pending')
+        const orderData = order as PurchaseOrderApiResponse;
+        setOrderStatus(orderData.status || 'pending')
         setForm({
-          supplier_id: String((order as any).supplier_id ?? (order as any).supplier?.id ?? ''),
-          branch_id: String((order as any).branch_id ?? (order as any).branch?.id ?? ''),
-          order_date: (order as any).order_date ? new Date((order as any).order_date) : ((order as any).created_at ? new Date((order as any).created_at) : new Date()),
-          notes: (order as any).notes || '',
+          supplier_id: String(orderData.supplier_id ?? orderData.supplier?.id ?? ''),
+          branch_id: String(orderData.branch_id ?? orderData.branch?.id ?? ''),
+          order_date: orderData.order_date ? new Date(orderData.order_date) : (orderData.created_at ? new Date(orderData.created_at) : new Date()),
+          notes: orderData.notes || '',
         })
-        setAffectsCashRegister((order as any).affects_cash_register !== false); // Por defecto true si no existe
+        setAffectsCashRegister(orderData.affects_cash_register !== false); // Por defecto true si no existe
         setPaymentMethods(paymentMethodsData as unknown as PaymentMethod[]);
 
-        const mapped: EditablePurchaseOrderItem[] = ((order as any).items || []).map((it: any) => ({
+        const orderItems = orderData.items || [];
+        const productsArr = productsData as Product[];
+        const mapped: EditablePurchaseOrderItem[] = orderItems.map((it) => ({
           product_id: Number(it.product_id || it.product?.id),
           quantity: Number(it.quantity),
           purchase_price: Number(it.purchase_price),
-          product: productsData.find((p: any) => p.id === Number(it.product_id || it.product?.id))
+          product: productsArr.find((p) => p.id === Number(it.product_id || it.product?.id))
         }))
         setItems(mapped)
 
-        const firstProduct = mapped.length > 0 ? productsData.find((p: any) => p.id === mapped[0].product_id) : null;
-        const orderCurrency = (order as any).currency ?? (firstProduct as any)?.currency ?? 'ARS';
+        const firstProduct = mapped.length > 0 ? productsArr.find((p) => p.id === mapped[0].product_id) : null;
+        const orderCurrency = orderData.currency ?? firstProduct?.currency ?? 'ARS';
         setSelectedCurrency(orderCurrency);
 
         // Cargar pagos: en la UI siempre se trabaja en ARS; si la orden es en USD, convertir al cargar
-        const orderPayments = (order as any).payments || [];
+        const orderPayments = orderData.payments || [];
         if (orderPayments.length > 0) {
           if (orderCurrency === 'USD') {
             let rate: number;
@@ -132,20 +154,20 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                 description: 'Se usó 1:1 para mostrar los montos en ARS. Verifique los valores antes de guardar.',
               });
             }
-            setPayments(orderPayments.map((p: any) => ({
+            setPayments(orderPayments.map((p) => ({
               payment_method_id: String(p.payment_method_id),
               amount: String((Number(p.amount) * rate).toFixed(2))
             })));
           } else {
-            setPayments(orderPayments.map((p: any) => ({
+            setPayments(orderPayments.map((p) => ({
               payment_method_id: String(p.payment_method_id),
               amount: String(p.amount)
             })));
           }
         } else {
-          const legacyPmId = (order as any).payment_method_id ?? (order as any).payment_method?.id;
+          const legacyPmId = orderData.payment_method_id ?? orderData.payment_method?.id;
           if (legacyPmId) {
-            const amt = Number((order as any).total_amount || 0);
+            const amt = Number(orderData.total_amount || 0);
             let amountStr: string;
             if (orderCurrency === 'USD') {
               let r: number;
@@ -166,8 +188,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
             setPayments([]);
           }
         }
-      } catch (err) {
-        // Error loading edit data
+      } catch {
         setError('Error al cargar datos')
       }
     }
@@ -177,7 +198,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
   useEffect(() => {
     if (productSearch) {
       const filtered = products
-        .filter(p => (p as any).currency === selectedCurrency || !(p as any).currency && selectedCurrency === 'ARS')
+        .filter(p => p.currency === selectedCurrency || (!p.currency && selectedCurrency === 'ARS'))
         .filter(p =>
           (p.description?.toLowerCase() || '').includes(productSearch.toLowerCase()) ||
           (p.code?.toLowerCase() || '').includes(productSearch.toLowerCase())
@@ -204,7 +225,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
 
       // Verificar si el proveedor del producto es diferente al de la orden
       const orderSupplierId = form.supplier_id;
-      const productSupplierId = (selectedProduct as any).supplier_id;
+      const productSupplierId = (selectedProduct as Product & { supplier_id?: number }).supplier_id;
 
       if (orderSupplierId && productSupplierId !== orderSupplierId) {
         // Solo mostrar información, NO actualizar el proveedor en el frontend
@@ -285,7 +306,15 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
     setLoading(true)
     setError(null)
     try {
-      const payload: any = {
+      const payload: {
+        supplier_id: number;
+        branch_id: number;
+        order_date: string;
+        notes: string;
+        payments: Array<{ payment_method_id: number; amount: number }>;
+        affects_cash_register: boolean;
+        items?: Array<{ product_id: number; quantity: number; purchase_price: number }>;
+      } = {
         supplier_id: parseInt(form.supplier_id, 10),
         branch_id: parseInt(form.branch_id, 10),
         order_date: format(form.order_date, 'yyyy-MM-dd'),
@@ -307,15 +336,17 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
           product_id: item.product_id,
           quantity: Number(item.quantity) || 0,
           purchase_price: Number(item.purchase_price) || 0
-        })).filter((item: any) => item.quantity > 0)
+        })).filter((item) => item.quantity > 0)
       }
       await purchaseOrderService.update(purchaseOrderId, payload)
       toast.success('Orden de compra actualizada', { description: 'Los cambios fueron guardados.' })
       onSaved()
       onOpenChange(false)
-    } catch (err: any) {
-      // Error updating purchase order
-      setError(err?.response?.data?.message || err?.message || 'Error al actualizar la orden de compra')
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { message?: string }; }; message?: string }).response?.data?.message
+        : (err as { message?: string })?.message;
+      setError(msg || 'Error al actualizar la orden de compra')
     } finally {
       setLoading(false)
     }

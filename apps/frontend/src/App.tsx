@@ -101,7 +101,7 @@ function App() {
 
           {features.historialVentas && <Route path="historial-ventas" element={<ProtectedRoute permissions={['ver_ventas']}><HistorialVentasPage /></ProtectedRoute>} />}
           {features.inventario && <Route path="inventario" element={<ProtectedRoute permissions={['ver_productos']}><InventarioPage /></ProtectedRoute>} />}
-          {features.inventario && <Route path="inventario/:id/trazabilidad" element={<ProtectedRoute permissions={['ver_productos']}><ProductTraceabilityPage /></ProtectedRoute>} />}
+          {features.inventario && <Route path="inventario/:id/trazabilidad" element={<ProtectedRoute permissions={['ver_trazabilidad_producto', 'ver_productos']} requireAny={true}><ProductTraceabilityPage /></ProtectedRoute>} />}
           {features.pos && <Route path="pos" element={<ProtectedRoute permissions={['crear_ventas']}><PosPage /></ProtectedRoute>} />}
           {features.pos && <Route path="pos/completar-venta" element={<ProtectedRoute permissions={['crear_ventas']}><CompleteSalePage /></ProtectedRoute>} />}
           {features.pos && <Route path="facturacion-detalle-abierto" element={<ProtectedRoute permissions={['crear_ventas']}><OpenDetailInvoicePage /></ProtectedRoute>} />}

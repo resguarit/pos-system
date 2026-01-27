@@ -109,6 +109,7 @@ export default function ProductTraceabilityPage() {
         if (id) {
             fetchHistory();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchHistory defined below, stable by id/branchIds
     }, [id, selectedBranchIds]);
 
     const fetchHistory = async () => {

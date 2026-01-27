@@ -163,21 +163,22 @@ export default function InventarioPage() {
           // 1. Client-side Search
           if (searchQuery) {
             const lowerQuery = searchQuery.toLowerCase();
-            filteredData = filteredData.filter((p: any) =>
-              (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
-              (p.code && p.code.toLowerCase().includes(lowerQuery)) ||
-              (p.barcode && p.barcode.toLowerCase().includes(lowerQuery))
-            );
+            filteredData = filteredData.filter((p: Product) => {
+              const q = p as Product & { barcode?: string };
+              return (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
+                (p.code && p.code.toLowerCase().includes(lowerQuery)) ||
+                (q.barcode != null && q.barcode.toLowerCase().includes(lowerQuery));
+            });
           }
 
           // 2. Client-side Category Filter
           if (selectedCategories.length > 0) {
-            filteredData = filteredData.filter((p: any) => selectedCategories.includes(p.category_id));
+            filteredData = filteredData.filter((p: Product) => selectedCategories.includes(String(p.category_id)));
           }
 
           // 3. Client-side Supplier Filter
           if (selectedSuppliers.length > 0) {
-            filteredData = filteredData.filter((p: any) => selectedSuppliers.includes(p.supplier_id));
+            filteredData = filteredData.filter((p: Product) => selectedSuppliers.includes(String(p.supplier_id)));
           }
 
           // 4. Pagination calculation
@@ -203,8 +204,9 @@ export default function InventarioPage() {
           });
         }
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message === 'canceled') return;
+    } catch (err: unknown) {
+      const e = err as { name?: string; message?: string };
+      if (e.name === 'AbortError' || e.message === 'canceled') return;
       console.error("Error al cargar productos:", err)
       setProducts([])
     }
@@ -265,8 +267,9 @@ export default function InventarioPage() {
       dispatch({ type: "SET_ENTITIES", entityType: "branches", entities: branchesData })
       // Return data for immediate usage
       return branchesData;
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message === 'canceled') {
+    } catch (err: unknown) {
+      const e = err as { name?: string; message?: string };
+      if (e.name === 'AbortError' || e.message === 'canceled') {
         return [];
       }
       console.error("Error al cargar sucursales:", err)
@@ -302,8 +305,9 @@ export default function InventarioPage() {
       setCategories(categoriesData)
       setParentCategories(parentCategoriesData)
       dispatch({ type: "SET_ENTITIES", entityType: "categories", entities: categoriesData })
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message === 'canceled') {
+    } catch (err: unknown) {
+      const e = err as { name?: string; message?: string };
+      if (e.name === 'AbortError' || e.message === 'canceled') {
         return;
       }
       console.error("Error al cargar categorías:", err)
@@ -325,8 +329,9 @@ export default function InventarioPage() {
           Array.isArray(response) ? response : []
 
       setSuppliers(suppliersData)
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message === 'canceled') {
+    } catch (err: unknown) {
+      const e = err as { name?: string; message?: string };
+      if (e.name === 'AbortError' || e.message === 'canceled') {
         return;
       }
       console.error("Error al cargar proveedores:", err)
@@ -406,6 +411,7 @@ export default function InventarioPage() {
   useEffect(() => {
     if (!initialDataLoaded) return
     setPage(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only run when filters change, not on initialDataLoaded
   }, [selectedBranches, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
 
   // Remove client-side applyFilters logic
@@ -473,13 +479,14 @@ export default function InventarioPage() {
       return "Sin sucursal asignada"
     }
 
+    type StockWithBranch = Stock & { branch?: { description?: string; name?: string } };
     if (!selectedBranches.length || selectedBranches[0] === "all") {
       if (product.stocks.length === 1) {
-        const st = product.stocks[0]
-        return resolveBranchName(Number(st.branch_id), (st as any).branch ?? null)
+        const st = product.stocks[0] as StockWithBranch
+        return resolveBranchName(Number(st.branch_id), st.branch ?? null)
       } else if (product.stocks.length > 1) {
-        const st = product.stocks[0]
-        const firstBranchName = resolveBranchName(Number(st.branch_id), (st as any).branch ?? null)
+        const st = product.stocks[0] as StockWithBranch
+        const firstBranchName = resolveBranchName(Number(st.branch_id), st.branch ?? null)
         return `${firstBranchName} y ${product.stocks.length - 1} más`
       }
       return "Sin sucursal asignada"
@@ -489,19 +496,19 @@ export default function InventarioPage() {
 
       if (matching.length > 0) {
         if (matching.length === 1) {
-          const st = matching[0]
-          return resolveBranchName(Number(st.branch_id), (st as any).branch ?? null)
+          const st = matching[0] as StockWithBranch
+          return resolveBranchName(Number(st.branch_id), st.branch ?? null)
         }
-        const st = matching[0]
-        const firstBranchName = resolveBranchName(Number(st.branch_id), (st as any).branch ?? null)
+        const st = matching[0] as StockWithBranch
+        const firstBranchName = resolveBranchName(Number(st.branch_id), st.branch ?? null)
         return `${firstBranchName} y ${matching.length - 1} más`
       }
       if (product.stocks.length === 1) {
-        const only = product.stocks[0]
-        return resolveBranchName(Number(only.branch_id), (only as any).branch ?? null)
+        const only = product.stocks[0] as StockWithBranch
+        return resolveBranchName(Number(only.branch_id), only.branch ?? null)
       }
-      const st0 = product.stocks[0]
-      const name0 = resolveBranchName(Number(st0.branch_id), (st0 as any).branch ?? null)
+      const st0 = product.stocks[0] as StockWithBranch
+      const name0 = resolveBranchName(Number(st0.branch_id), st0.branch ?? null)
       return `${name0} y ${product.stocks.length - 1} más`
     }
   }
@@ -523,11 +530,13 @@ export default function InventarioPage() {
       return { branches: [], text: "Sin sucursal asignada" }
     }
 
-    const branchDisplays = stocksToShow.map(stock => {
+    type StockWithBranch = Stock & { branch?: { description?: string; name?: string } };
+    const branchDisplays = stocksToShow.map((stock: Stock) => {
       const branchInfo = branches.find(b => String(b.id) === String(stock.branch_id))
+      const s = stock as StockWithBranch
       return {
         id: stock.branch_id,
-        name: resolveBranchName(Number(stock.branch_id), (stock as any).branch ?? null),
+        name: resolveBranchName(Number(stock.branch_id), s.branch ?? null),
         color: branchInfo?.color || '#0ea5e9'
       }
     })
@@ -679,11 +688,12 @@ export default function InventarioPage() {
         if (selectedBranches.length > 0 && !selectedBranches.includes(String(st.branch_id))) {
           continue
         }
+        const stWithBranch = st as Stock & { branch?: { description?: string; name?: string } };
         rows.push({
-          key: `${p.id}-${(st as any).id ?? st.branch_id}`,
+          key: `${p.id}-${st.id ?? st.branch_id}`,
           product: p,
           stock: st,
-          branchName: resolveBranchName(Number(st.branch_id), (st as any).branch ?? null),
+          branchName: resolveBranchName(Number(st.branch_id), stWithBranch.branch ?? null),
         })
       }
     }
@@ -1144,9 +1154,11 @@ export default function InventarioPage() {
                                     <Button variant="ghost" size="sm" onClick={() => handleViewClick(p)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                       <Eye className="h-4 w-4" />
                                     </Button>
+                                    {(hasPermission('ver_trazabilidad_producto') || hasPermission('ver_productos')) && (
                                     <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${p.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
                                       <History className="h-4 w-4" />
                                     </Button>
+                                    )}
                                     {hasPermission('editar_productos') && (
                                       <Button variant="ghost" size="sm" onClick={() => handleEditClick(p)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
                                         <Pencil className="h-4 w-4" />
@@ -1384,9 +1396,11 @@ export default function InventarioPage() {
                                   <Button variant="ghost" size="sm" onClick={() => handleViewClick(product)} className="h-8 w-8 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
                                     <Eye className="h-4 w-4" />
                                   </Button>
+                                  {(hasPermission('ver_trazabilidad_producto') || hasPermission('ver_productos')) && (
                                   <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${product.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
                                     <History className="h-4 w-4" />
                                   </Button>
+                                  )}
                                   {hasPermission('editar_productos') && (
                                     <Button variant="ghost" size="sm" onClick={() => handleEditClick(product)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
                                       <Pencil className="h-4 w-4" />
