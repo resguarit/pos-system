@@ -171,9 +171,9 @@ Son los datos de SSH del servidor donde están Hela Ditos, Kiosco el 11, La Enri
 | **VPS_HOST** | IP o dominio del VPS1. Si ya tenés el workflow de **heladitos**, **kioscoel11**, **enriqueta**, **rgpos** o **sistemacampingelparaiso**, entrá a **Settings → Environments → (ese cliente)** y mirá el valor de `CLIENT_*_VPS_HOST` — es el mismo servidor. | `123.45.67.89` o `vps.ejemplo.com` |
 | **VPS_PORT** | Puerto SSH. Mismo que en el environment de heladitos/kioscoel11/etc.: `CLIENT_*_VPS_PORT`. | `22` |
 | **VPS_USERNAME** | Usuario SSH. Mismo que en el environment de un cliente en VPS1: `CLIENT_*_VPS_USERNAME`. | `root` |
-| **VPS_SSH_KEY** | Clave privada SSH del VPS1. La misma que usás en **heladitos**, **kioscoel11**, etc.: `CLIENT_*_VPS_SSH_KEY`. Copiá el contenido completo (desde `-----BEGIN ...` hasta `-----END ...`). | Contenido del archivo `.pem` o clave que usás para SSH |
+| **VPS_SSH_KEY** | Clave privada SSH del VPS1. La misma que usás en **heladitos**, **kioscoel11**, etc.: `CLIENT_*_VPS_SSH_KEY`. Copiá el contenido completo (desde `-----BEGIN ...` hasta `-----END ...`). **Para CI debe ser clave sin passphrase.** No pongas la clave en otro secret (ej. uno de "passphrase"); eso puede provocar errores como "this private key is passphrase protected". | Contenido del archivo `.pem` o clave que usás para SSH |
 
-Cómo cargarlos: **Settings → Environments → all-clients → Add secret** (o "Environment secrets") y agregá uno por uno **VPS_HOST**, **VPS_PORT**, **VPS_USERNAME**, **VPS_SSH_KEY**.
+Cómo cargarlos: **Settings → Environments → all-clients → Add secret** (o "Environment secrets") y agregá **VPS_HOST**, **VPS_PORT**, **VPS_USERNAME**, **VPS_SSH_KEY**.
 
 #### 3. Secrets del environment `heroedelwhisky` (VPS2)
 
@@ -184,27 +184,34 @@ Son los del VPS donde está **solo** Heroe del Whisky. Si ya usás el workflow d
 | **CLIENT_HEROE_VPS_HOST** | Host o IP del VPS2 (Heroe). |
 | **CLIENT_HEROE_VPS_PORT** | Puerto SSH (ej. 22). |
 | **CLIENT_HEROE_VPS_USERNAME** | Usuario SSH. |
-| **CLIENT_HEROE_VPS_SSH_KEY** | Clave privada SSH del VPS2. |
+| **CLIENT_HEROE_VPS_SSH_KEY** | Clave privada SSH del VPS2. Debe ser clave sin passphrase para CI. |
 | **CLIENT_HEROE_BACKEND_DEPLOY_PATH** | Ruta en el servidor a la raíz del repo (ej. `/home/heroe/public_html` o donde esté el backend de Heroe). |
 
 Cómo conseguirlos si todavía no existen: conectate por SSH al VPS de Heroe, anotá host, puerto, usuario y la ruta donde está el repo; la clave es la que usás para esa conexión. Luego **Settings → Environments → heroedelwhisky → Add secret** y cargá los cinco.
 
 #### 4. Resumen
 
-- **`all-clients`**: 4 secrets → `VPS_HOST`, `VPS_PORT`, `VPS_USERNAME`, `VPS_SSH_KEY` (los podés copiar del environment de **heladitos**, **kioscoel11**, **enriqueta**, **rgpos** o **sistemacampingelparaiso**, porque comparten el mismo VPS).
-- **`heroedelwhisky`**: 5 secrets → `CLIENT_HEROE_VPS_HOST`, `CLIENT_HEROE_VPS_PORT`, `CLIENT_HEROE_VPS_USERNAME`, `CLIENT_HEROE_VPS_SSH_KEY`, `CLIENT_HEROE_BACKEND_DEPLOY_PATH` (si ya tenés el workflow de Heroe desplegando, ese environment ya existe y solo hay que asegurarse de que se llame `heroedelwhisky`).
+- **`all-clients`**: 4 secrets → `VPS_HOST`, `VPS_PORT`, `VPS_USERNAME`, `VPS_SSH_KEY` (clave sin passphrase). Los podés copiar del environment de **heladitos**, **kioscoel11**, **enriqueta**, **rgpos** o **sistemacampingelparaiso**, porque comparten el mismo VPS.
+- **`heroedelwhisky`**: 5 secrets → `CLIENT_HEROE_VPS_HOST`, `CLIENT_HEROE_VPS_PORT`, `CLIENT_HEROE_VPS_USERNAME`, `CLIENT_HEROE_VPS_SSH_KEY` (sin passphrase), `CLIENT_HEROE_BACKEND_DEPLOY_PATH`. Si ya tenés el workflow de Heroe desplegando, ese environment ya existe y solo hay que asegurarse de que se llame `heroedelwhisky`.
 
 ### Configuración de "Deploy all" (referencia)
 
 Necesitás **dos** environments con sus secrets:
 
 1. **Environment `all-clients`** (VPS1, donde están los `api.*`):
-   - `VPS_HOST`, `VPS_PORT`, `VPS_USERNAME`, `VPS_SSH_KEY`
+   - `VPS_HOST`, `VPS_PORT`, `VPS_USERNAME`, `VPS_SSH_KEY` (clave privada sin passphrase).
 
 2. **Environment `heroedelwhisky`** (VPS2, solo Heroe):
-   - `CLIENT_HEROE_VPS_HOST`, `CLIENT_HEROE_VPS_PORT`, `CLIENT_HEROE_VPS_USERNAME`, `CLIENT_HEROE_VPS_SSH_KEY`, `CLIENT_HEROE_BACKEND_DEPLOY_PATH`
+   - `CLIENT_HEROE_VPS_HOST`, `CLIENT_HEROE_VPS_PORT`, `CLIENT_HEROE_VPS_USERNAME`, `CLIENT_HEROE_VPS_SSH_KEY` (sin passphrase), `CLIENT_HEROE_BACKEND_DEPLOY_PATH`.
 
 Si el repo es **privado**, la descarga del script por `curl` desde `raw.githubusercontent.com` puede fallar en el job de VPS1. En ese caso conviene cambiar el workflow para hacer checkout y subir el script con `appleboy/scp-action`.
+
+### Errores frecuentes y qué hacer
+
+| Mensaje o comportamiento | Causa probable | Qué hacer |
+|--------------------------|----------------|-----------|
+| **`ssh: this private key is passphrase protected`** | La clave en `VPS_SSH_KEY` (o `CLIENT_HEROE_VPS_SSH_KEY`) tiene passphrase, o hay un secret equivocado (ej. uno de “passphrase” donde pegaste la clave por error). Los workflows no usan passphrase. | Usar clave **sin passphrase** en el secret de la key: generar una solo para CI (`ssh-keygen -t ed25519 -f ~/.ssh/pos_deploy -N ""`), subir la pública al VPS en `~/.ssh/authorized_keys` y poner la privada en **VPS_SSH_KEY** / **CLIENT_HEROE_VPS_SSH_KEY**. Revisar que no exista un secret tipo “passphrase” con la clave pegada por error. |
+| **`dial tcp <IP>:<port>: i/o timeout`** | Los runners de GitHub (Azure) no alcanzan el puerto SSH del VPS: firewall, security group o red que solo permite ciertas IPs. | En el VPS (o en el panel del proveedor): permitir SSH (puerto 22 o el que uses) desde las IPs de GitHub Actions o, si el entorno lo permite, desde `0.0.0.0/0`. Revisar también que **VPS_HOST** / **CLIENT_HEROE_VPS_HOST** y **VPS_PORT** / **CLIENT_HEROE_VPS_PORT** sean correctos en el environment. |
 
 ### Por qué unos clientes bajaban mucho código y otros no
 

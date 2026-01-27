@@ -35,6 +35,7 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        timeout: 60s
         script: |
           cd ${{ secrets.CLIENT_HEROE_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
           echo "🚀 Deploying backend to Heroe del Whisky..."
@@ -254,6 +255,7 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        timeout: 60s
         script: |
           DEPLOY_PATH="${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
           # Limpiar saltos de línea y espacios del path
@@ -307,6 +309,7 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        timeout: 60s
         source: "apps/frontend/dist/*"
         target: ${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
         strip_components: 2
@@ -319,6 +322,7 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        timeout: 60s
         script: |
           DEPLOY_PATH="${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
           # Limpiar saltos de línea y espacios del path
