@@ -77,7 +77,7 @@ export default function PurchaseOrderPage() {
   const [currentPOPage, setCurrentPOPage] = useState(1)
   const [totalPOItems, setTotalPOItems] = useState(0)
   const [totalPOPages, setTotalPOPages] = useState(1)
-  const PO_PAGE_SIZE = 10
+  const [pageSize, setPageSize] = useState(10)
 
   // Nuevos estados para el resumen
   const [summary, setSummary] = useState<{ ARS?: number; USD?: number }>({})
@@ -114,13 +114,13 @@ export default function PurchaseOrderPage() {
     }
   }, [searchParams])
 
-  // Modificar loadPurchaseOrders para aceptar fechas y filtros de sucursales
-  const loadPurchaseOrders = useCallback(async (page = 1, from?: string, to?: string) => {
+  // Modificar loadPurchaseOrders para aceptar fechas, filtros de sucursales y tamaño de página opcional
+  const loadPurchaseOrders = useCallback(async (page = 1, from?: string, to?: string, perPageOverride?: number) => {
     try {
       setLoading(true)
       const params: any = {
         page: page,
-        per_page: PO_PAGE_SIZE
+        per_page: perPageOverride ?? pageSize
       };
       if (from) params.from = from;
       if (to) params.to = to;
@@ -172,7 +172,7 @@ export default function PurchaseOrderPage() {
     } finally {
       setLoading(false)
     }
-  }, [filteredBranchIds, PO_PAGE_SIZE])
+  }, [filteredBranchIds, pageSize])
 
   // Fetch purchase orders from backend - Logic moved to the dependency-based effect below
   // useEffect(() => { ... }, []) removed to avoid double fetch
@@ -657,14 +657,47 @@ export default function PurchaseOrderPage() {
         </div>
 
         {/* Paginación para órdenes de compra */}
-        <Pagination
-          currentPage={currentPOPage}
-          lastPage={totalPOPages}
-          total={totalPOItems}
-          itemName="órdenes"
-          onPageChange={(page) => goToPOPage(page)}
-          disabled={loading}
-        />
+        <div className="flex flex-col-reverse items-center justify-between gap-4 md:flex-row">
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <span>Mostrar</span>
+            <Select
+              value={pageSize.toString()}
+              onValueChange={(value) => {
+                const newSize = Number(value);
+                setPageSize(newSize);
+                setCurrentPOPage(1);
+                // Force reload immediately with new size
+                const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
+                const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
+                loadPurchaseOrders(1, fromDate, toDate, newSize);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue placeholder={pageSize} />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {[10, 20, 50, 100].map((size) => (
+                  <SelectItem key={size} value={size.toString()}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>por página</span>
+          </div>
+
+          <div className="flex-1">
+            <Pagination
+              currentPage={currentPOPage}
+              lastPage={totalPOPages}
+              total={totalPOItems}
+              itemName="órdenes"
+              onPageChange={(page) => goToPOPage(page)}
+              disabled={loading}
+              className="py-0"
+            />
+          </div>
+        </div>
       </div>
 
       <NewPurchaseOrderDialog
