@@ -16,12 +16,13 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { Download, Printer, ShieldCheck, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Download, Printer, ShieldCheck, Loader2 } from "lucide-react";
 import { type Dispatch, type SetStateAction, useState, useEffect } from "react";
 import { type SaleHeader } from "@/types/sale";
 import { useAfipAuthorization } from "@/hooks/useAfipAuthorization";
 import { Badge } from "@/components/ui/badge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
+import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
 import { useAfipContext } from "@/context/AfipContext";
 import { useBranch } from "@/context/BranchContext";
 
@@ -223,22 +224,16 @@ const ViewSaleDialog = ({
                             </div>
                         ) : (
                             !isBudget && showAfipUI && (
-                                <div className="flex items-center gap-2">
-                                    {isAuthorized ? (
-                                        <Badge variant="default" className="bg-green-600 hover:bg-green-700">
-                                            <CheckCircle2 className="mr-1 h-3 w-3" />
-                                            Autorizada AFIP
-                                        </Badge>
-                                    ) : canAuthorizeThis ? (
-                                        <Badge variant="outline" className="border-amber-500 text-amber-700">
-                                            <AlertCircle className="mr-1 h-3 w-3" />
-                                            Pendiente AFIP
-                                        </Badge>
-                                    ) : (
-                                        <Badge variant="outline" className="border-gray-400 text-gray-600">
-                                            No autorizable
-                                        </Badge>
-                                    )}
+                                <div className="flex flex-col gap-1">
+                                    <AfipStatusBadge sale={saleToDisplay} />
+                                    {!canAuthorizeThis && !isAuthorized && (() => {
+                                        const { reason } = canAuthorize(saleToDisplay);
+                                        return reason ? (
+                                            <span className="text-xs text-muted-foreground" title={reason}>
+                                                {reason}
+                                            </span>
+                                        ) : null;
+                                    })()}
                                 </div>
                             )
                         )}

@@ -10,8 +10,9 @@ use Illuminate\Http\JsonResponse;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use App\Constants\AfipConstants;
 use App\Models\Category;
-use App\Models\ReceiptType; // Asegúrate de importar el modelo ReceiptType
+use App\Models\ReceiptType;
 
 class SaleController extends Controller
 {
@@ -309,11 +310,13 @@ class SaleController extends Controller
                 'customer.person',
             ])->findOrFail($id);
 
-            // Validar que no sea presupuesto
-            if ($sale->receiptType && $sale->receiptType->afip_code === '016') {
+            if ($sale->receiptType && AfipConstants::isInternalOnlyReceipt($sale->receiptType->afip_code ?? null)) {
+                $message = AfipConstants::isFacturaX($sale->receiptType->afip_code ?? null)
+                    ? 'La Factura X es solo de uso interno y no se autoriza con AFIP'
+                    : 'Los presupuestos no requieren autorización AFIP';
                 return response()->json([
                     'success' => false,
-                    'message' => 'Los presupuestos no requieren autorización AFIP',
+                    'message' => $message,
                 ], 400);
             }
 

@@ -92,13 +92,12 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
       return { can: false, reason: `La venta ya está autorizada con CAE: ${sale.cae}` };
     }
 
-    // Verificar que tenga items
     if (!sale.items || sale.items.length === 0) {
       return { can: false, reason: 'La venta debe tener al menos un ítem' };
     }
 
-    // Verificar que el total sea mayor a cero
-    if (!sale.total || sale.total <= 0) {
+    const totalAmount = Number(sale.total);
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
       return { can: false, reason: 'El total de la venta debe ser mayor a cero' };
     }
 
