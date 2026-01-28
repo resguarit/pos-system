@@ -27,6 +27,9 @@ class ReceiptTypeSeeder extends Seeder
             ['afip_code' => '052', 'description' => 'Nota de Débito M'],
             ['afip_code' => '053', 'description' => 'Nota de Crédito M'],
             ['afip_code' => '054', 'description' => 'Recibo M'],
+            // Uso interno POS (no AFIP)
+            ['afip_code' => '016', 'description' => 'Presupuesto'],
+            ['afip_code' => '017', 'description' => 'Factura X'],
             ['afip_code' => '201', 'description' => 'Factura de Crédito electrónica MiPyMEs (FCE) A'],
             ['afip_code' => '202', 'description' => 'Nota de Débito electrónica MiPyMEs (FCE) A'],
             ['afip_code' => '203', 'description' => 'Nota de Crédito electrónica MiPyMEs (FCE) A'],
