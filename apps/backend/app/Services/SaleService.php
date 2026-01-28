@@ -1456,9 +1456,17 @@ class SaleService implements SaleServiceInterface
                 throw new \Exception('Los presupuestos no se pueden autorizar con AFIP');
             }
 
-            // Validar que tenga cliente
-            if (!$sale->customer || !$sale->customer->person) {
-                throw new \Exception('La venta debe tener un cliente asociado');
+            // Factura A exige receptor con CUIT; B/C/M/FCE permiten consumidor final (DocTipo 99, DocNro 0)
+            $requiresCuit = $sale->receiptType && (string) $sale->receiptType->afip_code === '001';
+            if ($requiresCuit && (!$sale->customer || !$sale->customer->person)) {
+                throw new \Exception('La Factura A requiere un cliente con CUIT asociado');
+            }
+            $cuitRequired = $requiresCuit && $sale->customer && $sale->customer->person;
+            if ($cuitRequired) {
+                $cuit = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit ?? '');
+                if (strlen($cuit) !== 11) {
+                    throw new \Exception('El cliente debe tener un CUIT válido de 11 dígitos para Factura A');
+                }
             }
 
             // Obtener CUIT del contribuyente (sucursal o global)

@@ -71,6 +71,27 @@ En el frontend, el POS usa `GET /afip/receipt-types?cuit={cuit}` y filtra solo f
 
 ---
 
+## Receptor: CUIT vs consumidor final (DocTipo)
+
+No siempre hace falta un cliente con CUIT. Depende del tipo de comprobante y del receptor.
+
+| Tipo de comprobante | ¿Cliente / CUIT? | Qué se envía a AFIP |
+|---------------------|------------------|----------------------|
+| **Factura A** (001) | Sí, casi siempre | Receptor con CUIT: DocTipo **80**, DocNro = CUIT (11 dígitos). |
+| **Factura B** (006), **C** (011), **M** (051), **FCE B/C** | No obligatorio | Consumidor final: DocTipo **99**, DocNro **0**. Si tenés DNI: DocTipo **96**, DocNro = DNI. Si tenés CUIT: DocTipo **80**, DocNro = CUIT. |
+
+**Códigos DocTipo (AFIP):**
+
+| Código | Uso |
+|--------|-----|
+| 80 | CUIT |
+| 96 | DNI |
+| 99 | Consumidor final / no identificado |
+
+En esta app, si no hay cliente o no hay CUIT válido, se envía DocTipo 99 y DocNro 0 (consumidor final). Solo para **Factura A** se exige un cliente con CUIT de 11 dígitos.
+
+---
+
 ## Convención en esta app
 
 - En la base de datos (`receipt_type`) el campo **afip_code** se guarda como string de 3 dígitos cuando el código es &lt; 100 (ej. 1 → `001`, 51 → `051`), y sin rellenar cuando ≥ 100 (ej. 201, 206).
