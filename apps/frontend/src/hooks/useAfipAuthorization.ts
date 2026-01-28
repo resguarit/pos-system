@@ -25,6 +25,8 @@ interface UseAfipAuthorizationReturn {
  */
 import { useAfipContext } from "@/context/AfipContext";
 import { useBranch } from "@/context/BranchContext";
+import { AFIP_CODES } from "@/lib/constants/afipCodes";
+import { receiptTypeRequiresCustomerWithCuit, isValidCuitForAfip, isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
 
 // ... existing imports
 
@@ -61,20 +63,28 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
       return { can: false, reason: 'La sucursal no posee un certificado AFIP válido configurado.' };
     }
 
-    // Verificar que no sea presupuesto
     const receiptType = sale.receipt_type;
-    // ... rest of validation logic
-    if (receiptType && (typeof receiptType !== 'string')) {
-      if (receiptType.afip_code === '016' || receiptType.name?.toLowerCase().includes('presupuesto')) {
-        return { can: false, reason: 'Los presupuestos no requieren autorización AFIP' };
-      }
-    } else if (typeof receiptType === 'string' && receiptType.toLowerCase().includes('presupuesto')) { // Fallback for string
-      return { can: false, reason: 'Los presupuestos no requieren autorización AFIP' };
+    const afipCode = receiptType && typeof receiptType !== 'string' ? receiptType.afip_code : null;
+    const internalOnly = isInternalOnlyReceiptType(afipCode ?? undefined)
+      || (typeof receiptType === 'string' && receiptType.toLowerCase().includes('presupuesto'))
+      || (receiptType && typeof receiptType === 'object' && receiptType.name?.toLowerCase().includes('presupuesto'));
+
+    if (internalOnly) {
+      const reason = afipCode != null && String(afipCode) === AFIP_CODES.FACTURA_X
+        ? 'La Factura X es solo de uso interno del sistema y no se autoriza con AFIP'
+        : 'Los presupuestos no requieren autorización AFIP';
+      return { can: false, reason };
     }
 
-    // Verificar que tenga cliente
-    if (!sale.customer) {
-      return { can: false, reason: 'La venta debe tener un cliente asociado' };
+    const requiresCuit = receiptTypeRequiresCustomerWithCuit(afipCode ?? undefined);
+    if (requiresCuit && !sale.customer) {
+      return { can: false, reason: 'La Factura A requiere un cliente con CUIT asociado' };
+    }
+    if (requiresCuit && sale.customer) {
+      const cuit = (sale.customer as any).person?.cuit ?? (sale.customer as any).cuit ?? '';
+      if (!isValidCuitForAfip(cuit)) {
+        return { can: false, reason: 'El cliente debe tener un CUIT de 11 dígitos para Factura A' };
+      }
     }
 
     // Verificar que no tenga CAE ya

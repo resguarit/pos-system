@@ -27,7 +27,12 @@ import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
 import { DebtAlertDialog } from "@/components/sale/DebtAlertDialog"
 import type { PaymentMethod, ReceiptType, SaleData, SaleHeader } from '@/types/sale'
 import { useAfip } from "@/hooks/useAfip"
-import { INTERNAL_RECEIPT_CODES, getAllowedAfipCodesForPos } from '@/utils/afipReceiptTypes'
+import {
+  INTERNAL_RECEIPT_CODES,
+  getAllowedAfipCodesForPos,
+  receiptTypeRequiresCustomerWithCuit,
+  isValidCuitForAfip,
+} from '@/utils/afipReceiptTypes'
 
 const CART_STORAGE_KEY = 'pos_cart'
 
@@ -373,6 +378,23 @@ export default function CompleteSalePage() {
   const processSale = useCallback(async () => {
     if (isProcessingSale) return
 
+    const selectedReceiptType = receiptTypes.find((rt) => rt.id === receiptTypeId)
+    const requiresCuit = receiptTypeRequiresCustomerWithCuit(selectedReceiptType?.afip_code)
+    if (requiresCuit && !selectedCustomer) {
+      toast.error('Factura A requiere cliente', {
+        description: 'Seleccioná un cliente con CUIT para continuar.',
+        duration: 5000,
+      })
+      return
+    }
+    if (requiresCuit && selectedCustomer && !isValidCuitForAfip(selectedCustomer.cuit)) {
+      toast.error('Cliente sin CUIT válido', {
+        description: 'El cliente debe tener un CUIT de 11 dígitos para Factura A.',
+        duration: 5000,
+      })
+      return
+    }
+
     if (!activeBranch) {
       toast.error('Debe seleccionar una sucursal antes de realizar la venta', {
         description: 'Use el selector de sucursal en la parte superior del POS'
@@ -503,11 +525,12 @@ export default function CompleteSalePage() {
     }
   }, [
     isProcessingSale,
+    receiptTypes,
+    receiptTypeId,
+    selectedCustomer,
     activeBranch,
     validateCashRegisterForOperation,
     user,
-    selectedCustomer,
-    receiptTypeId,
     subtotalNet,
     totalIva,
     total,
@@ -597,35 +620,44 @@ export default function CompleteSalePage() {
     return payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
   }, [payments])
 
+  const selectedReceiptType = useMemo(
+    () => receiptTypes.find((rt) => rt.id === receiptTypeId),
+    [receiptTypes, receiptTypeId]
+  )
+  const requiresCustomerCuit = receiptTypeRequiresCustomerWithCuit(selectedReceiptType?.afip_code)
+  const customerCuitValid = useMemo(() => {
+    if (!requiresCustomerCuit) return true
+    return selectedCustomer != null && isValidCuitForAfip(selectedCustomer.cuit)
+  }, [requiresCustomerCuit, selectedCustomer])
+
   const canConfirm = useMemo(() => {
     // Validación básica
     if (cart.length === 0 || receiptTypeId === undefined || activeBranch === null) {
       return false
     }
-    
+    if (requiresCustomerCuit && !customerCuitValid) return false
     // Validar pagos
     if (!allPaymentsValid || !currentAccountPaymentValid) {
       return false
     }
-    
     // Si el pago es exacto, permitir
     if (diff === 0) {
       return true
     }
-    
     // Si hay cambio (diff < 0)
     if (diff < 0) {
-      // Solo permitir si hay método de Efectivo
       return hasCashPayment
     }
-    
-    // Si hay falta de pago (diff > 0), no permitir
     return false
-  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment])
+  }, [cart.length, receiptTypeId, activeBranch, requiresCustomerCuit, customerCuitValid, diff, allPaymentsValid, currentAccountPaymentValid, hasCashPayment])
 
   const confirmDisabledReason = useMemo(() => {
     if (cart.length === 0) return 'El carrito está vacío'
     if (receiptTypeId === undefined) return 'Debe seleccionar un tipo de comprobante'
+    if (requiresCustomerCuit && !selectedCustomer) return 'Factura A requiere un cliente con CUIT'
+    if (requiresCustomerCuit && selectedCustomer && !isValidCuitForAfip(selectedCustomer.cuit)) {
+      return 'El cliente debe tener CUIT de 11 dígitos para Factura A'
+    }
     if (diff > 0) return `Falta ${formatCurrency(diff)} para completar el pago`
     if (!allPaymentsValid) return 'Debe completar todos los métodos de pago'
     if (!currentAccountPaymentValid) return 'Debe seleccionar un cliente para usar Cuenta Corriente'
@@ -635,7 +667,7 @@ export default function CompleteSalePage() {
       return `${mainPaymentMethod?.name || 'Este método de pago'} requiere monto exacto. No se permite cambio.`
     }
     return ''
-  }, [cart.length, receiptTypeId, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment, paymentMethods, payments])
+  }, [cart.length, receiptTypeId, requiresCustomerCuit, selectedCustomer, diff, allPaymentsValid, currentAccountPaymentValid, activeBranch, hasCashPayment, paymentMethods, payments])
 
   const handleCustomerSelect = useCallback((customer: CustomerOption) => {
     setSelectedCustomer(customer)

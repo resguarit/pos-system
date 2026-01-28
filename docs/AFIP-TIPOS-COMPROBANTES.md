@@ -92,6 +92,17 @@ En esta app, si no hay cliente o no hay CUIT válido, se envía DocTipo 99 y Doc
 
 ---
 
+## Comprobantes solo de uso interno (no AFIP)
+
+| Código | Descripción | Autorización AFIP |
+|--------|-------------|-------------------|
+| 016 | Presupuesto | No. Solo uso interno. |
+| 017 | Factura X | No. Solo uso interno del sistema. |
+
+Estos comprobantes no se autorizan con AFIP; la app no muestra badge ni botón de autorizar para ellos.
+
+---
+
 ## Convención en esta app
 
 - En la base de datos (`receipt_type`) el campo **afip_code** se guarda como string de 3 dígitos cuando el código es &lt; 100 (ej. 1 → `001`, 51 → `051`), y sin rellenar cuando ≥ 100 (ej. 201, 206).

@@ -5,6 +5,37 @@
 
 import { AFIP_CODES } from '@/lib/constants/afipCodes'
 
+/** Longitud del CUIT (solo dígitos) según AFIP */
+export const CUIT_LENGTH = 11
+
+/**
+ * Comprobantes de solo uso interno: no se autorizan con AFIP (Presupuesto, Factura X).
+ */
+export function isInternalOnlyReceiptType(afipCode: string | number | null | undefined): boolean {
+  if (afipCode == null) return false
+  const code = String(afipCode)
+  return code === AFIP_CODES.PRESUPUESTO || code === AFIP_CODES.FACTURA_X
+}
+
+/**
+ * Indica si el tipo de comprobante exige un cliente con CUIT válido para AFIP.
+ * Solo Factura A (001) lo exige; B/C/M/FCE permiten consumidor final.
+ */
+export function receiptTypeRequiresCustomerWithCuit(
+  afipCode: string | number | null | undefined
+): boolean {
+  return afipCode != null && String(afipCode) === AFIP_CODES.FACTURA_A
+}
+
+/**
+ * Valida que el valor sea un CUIT de 11 dígitos (solo números).
+ */
+export function isValidCuitForAfip(value: string | number | null | undefined): boolean {
+  if (value == null || value === '') return false
+  const digits = String(value).replace(/\D/g, '')
+  return digits.length === CUIT_LENGTH
+}
+
 /** Códigos de tipos internos (siempre disponibles en POS) */
 export const INTERNAL_RECEIPT_CODES: readonly string[] = [
   AFIP_CODES.PRESUPUESTO,

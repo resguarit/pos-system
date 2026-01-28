@@ -3,6 +3,7 @@ import { CheckCircle2, AlertCircle, XCircle } from "lucide-react";
 import type { SaleHeader } from "@/types/sale";
 import { useAfipContext } from "@/context/AfipContext";
 import { useBranch } from "@/context/BranchContext";
+import { receiptTypeRequiresCustomerWithCuit, isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
 
 interface AfipStatusBadgeProps {
   sale: SaleHeader;
@@ -16,13 +17,13 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
   const { hasCertificateForCuit } = useAfipContext();
   const { branches } = useBranch();
 
-  // Verificar si es presupuesto
   const receiptType = sale.receipt_type;
-  const isBudget = receiptType?.afip_code === '016' ||
+  const isInternalOnly =
+    isInternalOnlyReceiptType(receiptType?.afip_code) ||
     receiptType?.name?.toLowerCase().includes('presupuesto');
 
-  if (isBudget) {
-    return null; // Los presupuestos no se autorizan con AFIP
+  if (isInternalOnly) {
+    return null; // Presupuesto y Factura X son solo uso interno, no AFIP
   }
 
   // Verificar si hay certificado para la sucursal de esta venta
@@ -48,12 +49,12 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
     return null;
   }
 
-  // Verificar si está autorizada
   const isAuthorized = !!sale.cae;
+  const requiresCustomer = receiptTypeRequiresCustomerWithCuit(receiptType?.afip_code);
+  const customerOk = requiresCustomer ? !!sale.customer : true;
 
-  // Verificar si puede ser autorizada
   const canAuthorize = !isAuthorized &&
-    !!sale.customer &&
+    customerOk &&
     sale.items &&
     sale.items.length > 0 &&
     sale.total &&

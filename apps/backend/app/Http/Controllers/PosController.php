@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Validator;
 use App\Services\SaleService;
 use Illuminate\Support\Facades\Log;
 use App\Models\ReceiptType;
+use App\Constants\AfipConstants;
+use App\Models\Customer;
 
 class PosController extends Controller
 {
@@ -88,6 +90,26 @@ class PosController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        if (AfipConstants::receiptRequiresCuit(ReceiptType::find($request->input('receipt_type_id'))?->afip_code)) {
+            $customerId = $request->input('customer_id');
+            if (!$customerId) {
+                return response()->json([
+                    'errors' => ['customer_id' => ['La Factura A requiere un cliente con CUIT. Seleccioná un cliente.']],
+                ], 422);
+            }
+            $customer = Customer::with('person')->find($customerId);
+            if (!$customer?->person) {
+                return response()->json([
+                    'errors' => ['customer_id' => ['La Factura A requiere un cliente con CUIT válido.']],
+                ], 422);
+            }
+            if (!AfipConstants::isValidCuit($customer->person->cuit ?? null)) {
+                return response()->json([
+                    'errors' => ['customer_id' => ['El cliente debe tener un CUIT de 11 dígitos para Factura A.']],
+                ], 422);
+            }
         }
 
         // Validación adicional: suma de pagos debe coincidir con el total

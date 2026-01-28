@@ -1,6 +1,7 @@
 <?php
 namespace App\Services;
 
+use App\Constants\AfipConstants;
 use App\Interfaces\SaleServiceInterface;
 use App\Services\CashMovementService;
 use App\Services\CurrentAccountService;
@@ -1451,20 +1452,21 @@ class SaleService implements SaleServiceInterface
                 'branch',
             ]);
 
-            // Validar que no sea presupuesto
-            if ($sale->receiptType && $sale->receiptType->afip_code === '016') {
-                throw new \Exception('Los presupuestos no se pueden autorizar con AFIP');
+            if ($sale->receiptType && AfipConstants::isInternalOnlyReceipt($sale->receiptType->afip_code ?? null)) {
+                throw new \Exception(
+                    AfipConstants::isFacturaX($sale->receiptType->afip_code ?? null)
+                        ? 'La Factura X es solo de uso interno del sistema y no se autoriza con AFIP'
+                        : 'Los presupuestos no se pueden autorizar con AFIP'
+                );
             }
 
-            // Factura A exige receptor con CUIT; B/C/M/FCE permiten consumidor final (DocTipo 99, DocNro 0)
-            $requiresCuit = $sale->receiptType && (string) $sale->receiptType->afip_code === '001';
+            $receiptAfipCode = $sale->receiptType->afip_code ?? null;
+            $requiresCuit = AfipConstants::receiptRequiresCuit($receiptAfipCode);
             if ($requiresCuit && (!$sale->customer || !$sale->customer->person)) {
                 throw new \Exception('La Factura A requiere un cliente con CUIT asociado');
             }
-            $cuitRequired = $requiresCuit && $sale->customer && $sale->customer->person;
-            if ($cuitRequired) {
-                $cuit = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit ?? '');
-                if (strlen($cuit) !== 11) {
+            if ($requiresCuit && $sale->customer && $sale->customer->person) {
+                if (!AfipConstants::isValidCuit($sale->customer->person->cuit ?? null)) {
                     throw new \Exception('El cliente debe tener un CUIT válido de 11 dígitos para Factura A');
                 }
             }
@@ -1583,17 +1585,15 @@ class SaleService implements SaleServiceInterface
             }
         }
 
-        // Obtener CUIT del cliente
-        $customerCuit = '00000000000'; // Consumidor Final por defecto
-        $customerDocumentType = 99; // Sin identificar
+        $customerCuit = '00000000000';
+        $customerDocumentType = AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL;
         $customerDocumentNumber = '00000000000';
 
         if ($sale->customer && $sale->customer->person) {
-            $cuit = $sale->customer->person->cuit ?? '';
-            $cuit = preg_replace('/[^0-9]/', '', $cuit);
-            if (strlen($cuit) === 11) {
+            $cuit = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit ?? '');
+            if (strlen($cuit) === AfipConstants::CUIT_LENGTH) {
                 $customerCuit = $cuit;
-                $customerDocumentType = 80; // CUIT
+                $customerDocumentType = AfipConstants::DOC_TIPO_CUIT;
                 $customerDocumentNumber = $cuit;
             } elseif (!empty($sale->sale_document_number)) {
                 $docNumber = preg_replace('/[^0-9]/', '', $sale->sale_document_number);
@@ -1755,15 +1755,15 @@ class SaleService implements SaleServiceInterface
     private function mapDocumentTypeToAfipType($documentType): int
     {
         if (!$documentType) {
-            return 99; // Sin identificar
+            return AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL;
         }
 
         $afipCode = $documentType->afip_code ?? null;
-        if ($afipCode) {
+        if ($afipCode !== null && $afipCode !== '') {
             return (int) $afipCode;
         }
 
-        return 99; // Sin identificar por defecto
+        return AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL;
     }
 
     /**
