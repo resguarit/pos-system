@@ -30,6 +30,12 @@ class ReceiptTypeSeeder extends Seeder
             ['afip_code' => '052', 'description' => 'Recibo M'],
             ['afip_code' => '016', 'description' => 'Presupuesto'],
             ['afip_code' => '017', 'description' => 'Factura X'],
+            // FCE MiPyMEs: habilitados por AFIP según condición fiscal del CUIT (ver docs/AFIP-TIPOS-COMPROBANTES.md)
+            ['afip_code' => '201', 'description' => 'Factura de Crédito electrónica MiPyMEs (FCE) A'],
+            ['afip_code' => '206', 'description' => 'Factura de Crédito electrónica MiPyMEs (FCE) B'],
+            ['afip_code' => '211', 'description' => 'Factura de Crédito electrónica MiPyMEs (FCE) C'],
+            ['afip_code' => '212', 'description' => 'Nota de Débito electrónica MiPyMEs (FCE) C'],
+            ['afip_code' => '213', 'description' => 'Nota de Crédito electrónica MiPyMEs (FCE) C'],
         ];
         foreach ($data as $item) {
             ReceiptType::updateOrCreate(['afip_code' => $item['afip_code']], $item);

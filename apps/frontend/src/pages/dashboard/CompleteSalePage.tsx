@@ -27,6 +27,7 @@ import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
 import { DebtAlertDialog } from "@/components/sale/DebtAlertDialog"
 import type { PaymentMethod, ReceiptType, SaleData, SaleHeader } from '@/types/sale'
 import { useAfip } from "@/hooks/useAfip"
+import { INTERNAL_RECEIPT_CODES, getAllowedAfipCodesForPos } from '@/utils/afipReceiptTypes'
 
 const CART_STORAGE_KEY = 'pos_cart'
 
@@ -54,17 +55,22 @@ export default function CompleteSalePage() {
   const activeBranch = stateBranchId 
     ? branches.find(b => b.id === stateBranchId) || selectedBranch
     : selectedBranch
+
+  // Si no hay sucursal activa (ej. entró directo), usar la primera para cargar tipos de comprobante
+  const effectiveBranch = activeBranch || (branches?.length ? branches[0] : null)
   
-  // Debug: verificar qué sucursal se está usando
-  console.log('CompleteSalePage - Branch info:', {
-    stateBranchId,
-    activeBranchId: activeBranch?.id,
-    activeBranchName: activeBranch?.description,
-    selectedBranchId: selectedBranch?.id
-  })
+  if (import.meta.env.DEV) {
+    // Debug: verificar qué sucursal se está usando (solo en desarrollo)
+    // eslint-disable-next-line no-console
+    console.log('CompleteSalePage - Branch info:', {
+      stateBranchId,
+      activeBranchId: activeBranch?.id,
+      effectiveBranchId: effectiveBranch?.id
+    })
+  }
   
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
-  const { checkCuitCertificate } = useAfip()
+  const { checkCuitCertificate, getReceiptTypes: getAfipReceiptTypes } = useAfip()
 
   const [cart, setCart] = useState<CartItem[]>(initialCart)
 
@@ -121,8 +127,9 @@ export default function CompleteSalePage() {
   }, [payments, paymentMethods])
 
   // Calcular descuento anticipado (cuando hay métodos con descuento sin monto)
-  const calculateAnticipatedDiscount = useCallback(() => {
-    const discountedPayments = payments.filter(p => {
+  const calculateAnticipatedDiscount = useCallback((paymentsOverride?: Array<{ payment_method_id: string; amount: string }>) => {
+    const list = paymentsOverride ?? payments
+    const discountedPayments = list.filter(p => {
       if (!p.payment_method_id) return false
       const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
       return (method?.discount_percentage || 0) > 0
@@ -131,7 +138,7 @@ export default function CompleteSalePage() {
     if (discountedPayments.length === 0) return 0
 
     // Calcular cuánto ya se pagó en métodos SIN descuento
-    const paidWithoutDiscount = payments.reduce((sum, p) => {
+    const paidWithoutDiscount = list.reduce((sum, p) => {
       if (!p.payment_method_id) return sum
       const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
       if ((method?.discount_percentage || 0) > 0) return sum
@@ -195,7 +202,7 @@ export default function CompleteSalePage() {
   useEffect(() => {
     fetchPaymentMethods()
     fetchReceiptTypes()
-  }, [activeBranch])
+  }, [effectiveBranch])
 
   const fetchPaymentMethods = useCallback(async () => {
     try {
@@ -220,67 +227,41 @@ export default function CompleteSalePage() {
 
   const fetchReceiptTypes = useCallback(async () => {
     try {
-      const branchCuitRaw = (activeBranch as any)?.cuit
-      // Normalizar CUIT (quitar guiones/espacios) para comparar longitud y llamar al check
+      const branch = effectiveBranch as any
+      const branchCuitRaw = branch?.cuit
       const branchCuit = branchCuitRaw ? String(branchCuitRaw).replace(/\D/g, '') : ''
-      const enabledReceiptTypes = (activeBranch as any)?.enabled_receipt_types
+      const enabledReceiptTypes = branch?.enabled_receipt_types
 
-      // Debug: mostrar datos de la sucursal
-      console.log('Branch data:', {
-        id: activeBranch?.id,
-        cuit: branchCuit,
-        enabled_receipt_types: enabledReceiptTypes
-      })
+      const appResponse = await request({ method: 'GET', url: '/receipt-types' })
+      const allTypes = Array.isArray(appResponse) ? appResponse :
+        Array.isArray(appResponse?.data?.data) ? appResponse.data.data :
+          Array.isArray(appResponse?.data) ? appResponse.data : []
 
-      // Códigos AFIP para tipos internos
-      const INTERNAL_CODES = ['016', '017'] // Presupuesto (016), Factura X (017)
-
-      // Códigos AFIP para facturas válidas
-      // Factura A (001), Factura B (006), Factura C (011), Factura M (049)
-      // Presupuesto (016), Factura X (017)
-      const FACTURA_CODES = ['001', '006', '011', '049', '016', '017']
+      const mappedTypes: ReceiptType[] = allTypes.map((item: any) => ({
+        id: item.id,
+        name: item.description || item.name,
+        afip_code: item.afip_code || item.code || ''
+      }))
 
       let availableTypes: ReceiptType[] = []
+      const isInternalOnly = (t: ReceiptType) =>
+        t.afip_code && INTERNAL_RECEIPT_CODES.includes(String(t.afip_code))
 
-      // Obtener todos los tipos de comprobantes del backend
-      const response = await request({ method: 'GET', url: '/receipt-types' })
-      const allTypes = Array.isArray(response) ? response :
-        Array.isArray(response?.data?.data) ? response.data.data :
-          Array.isArray(response?.data) ? response.data : []
-
-      // Mapear y filtrar SOLO facturas (no notas de crédito/débito/recibos)
-      const mappedTypes = allTypes
-        .filter((item: any) => FACTURA_CODES.includes(item.afip_code))
-        .map((item: any): ReceiptType => ({
-          id: item.id,
-          name: item.description || item.name,
-          afip_code: item.afip_code || item.code
-        }))
-
-      // Si la sucursal NO tiene CUIT (11 dígitos), solo mostrar tipos internos
       if (!branchCuit || branchCuit.length !== 11) {
-        availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(t.afip_code))
-        console.log('Sucursal sin CUIT: mostrando solo tipos internos', availableTypes)
-      }
-      else {
-        // Verificar si el CUIT tiene certificado válido (siempre pasar CUIT limpio)
+        availableTypes = mappedTypes.filter(isInternalOnly)
+      } else {
         const certStatus = await checkCuitCertificate(branchCuit)
 
         if (!certStatus.has_certificate || !certStatus.is_valid) {
-          // Tiene CUIT pero no certificado válido -> Solo tipos internos
-          availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(t.afip_code))
-          console.log(`Sucursal con CUIT ${branchCuit} pero SIN certificado válido: mostrando solo tipos internos`, availableTypes)
-        }
-        // Si tiene CUIT y tipos habilitados configurados, filtrar por los habilitados
-        else if (enabledReceiptTypes && Array.isArray(enabledReceiptTypes) && enabledReceiptTypes.length > 0) {
-          // Filtrar por los habilitados que también sean facturas
-          availableTypes = mappedTypes.filter((t: ReceiptType) => enabledReceiptTypes.includes(t.id))
-          console.log(`Sucursal con CUIT ${branchCuit}: mostrando ${availableTypes.length} tipos habilitados`, availableTypes)
-        }
-        // Si tiene CUIT pero no tiene tipos habilitados configurados, mostrar todas las facturas
-        else {
-          availableTypes = mappedTypes
-          console.log('Sucursal con CUIT pero sin tipos configurados: mostrando todas las facturas', availableTypes.length)
+          availableTypes = mappedTypes.filter(isInternalOnly)
+        } else if (enabledReceiptTypes?.length) {
+          availableTypes = mappedTypes.filter((t) => enabledReceiptTypes.includes(t.id))
+        } else {
+          const afipTypes = await getAfipReceiptTypes(branchCuit)
+          const allowedAfipCodes = getAllowedAfipCodesForPos(afipTypes ?? null)
+          availableTypes = mappedTypes.filter(
+            (t) => t.afip_code && allowedAfipCodes.has(String(t.afip_code))
+          )
         }
       }
 
@@ -294,7 +275,6 @@ export default function CompleteSalePage() {
         // Si estamos convirtiendo un presupuesto, excluir el tipo "Presupuesto" (016)
         // porque no tiene sentido crear otro presupuesto desde un presupuesto
         availableTypes = availableTypes.filter((t: ReceiptType) => t.afip_code !== '016')
-        console.log('Conversión de presupuesto: excluyendo tipo Presupuesto de las opciones')
         
         if (availableTypes.length === 0) {
           toast.error('No hay tipos de comprobante de venta disponibles para convertir este presupuesto')
@@ -303,8 +283,6 @@ export default function CompleteSalePage() {
         const presupuesto = availableTypes.find((t: ReceiptType) => t.afip_code === '016') // Presupuesto Code = 016
         if (presupuesto) {
           availableTypes = [presupuesto]
-          console.log('Usuario con permiso solo_crear_presupuestos: restringido a Presupuestos')
-          // Toast removed as per user request
         } else {
           // Si por alguna razón Presupuesto no está disponible, mostrar error
           availableTypes = []
@@ -334,7 +312,7 @@ export default function CompleteSalePage() {
       setReceiptTypes([])
       toast.error("Error al cargar los tipos de comprobante.")
     }
-  }, [request, activeBranch, checkCuitCertificate, convertedFromBudgetId, hasPermission])
+  }, [request, effectiveBranch, checkCuitCertificate, getAfipReceiptTypes, convertedFromBudgetId, hasPermission])
 
   const addPayment = useCallback(() => {
     // Recalcular y bloquear el descuento basado en los montos actuales
