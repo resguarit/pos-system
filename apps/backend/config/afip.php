@@ -153,10 +153,21 @@ return [
     |
     | Base path for storing certificates organized by CUIT.
     | Structure: {base_path}/{cuit}/certificate.crt and private.key
+    | Always resolved to absolute path so SDK and PHP-FPM find files.
     |
     */
 
-    'certificates_base_path' => env('AFIP_CERTIFICATES_BASE_PATH', storage_path('certificates')),
+    'certificates_base_path' => (function () {
+        $path = env('AFIP_CERTIFICATES_BASE_PATH', storage_path('certificates'));
+        if ($path === '' || $path === null) {
+            return storage_path('certificates');
+        }
+        // Resolve relative paths (e.g. "storage/certificates" in .env) from Laravel base
+        if (!str_starts_with($path, '/') && !preg_match('#^[A-Za-z]:[/\\\\]#', $path)) {
+            $path = base_path($path);
+        }
+        return $path;
+    })(),
 
     /*
     |--------------------------------------------------------------------------
