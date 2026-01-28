@@ -74,7 +74,13 @@ class AfipCertificateController extends Controller
     public function getValid(Request $request): JsonResponse
     {
         $environment = $request->input('environment', config('afip.environment', 'testing'));
-        
+
+        // Sync status from disk so manually placed .crt/.key are detected
+        $allForEnv = AfipCertificate::forEnvironment($environment)->get();
+        foreach ($allForEnv as $cert) {
+            $cert->syncCertificateStatus();
+        }
+
         $certificates = AfipCertificate::valid()
             ->forEnvironment($environment)
             ->orderBy('razon_social')
@@ -122,11 +128,13 @@ class AfipCertificateController extends Controller
         
         $certificate = AfipCertificate::create($data);
         $certificate->ensureDirectoryExists();
-        
+        // Sync with existing files on disk (e.g. when .crt/.key were placed manually)
+        $certificate->syncCertificateStatus();
+
         return response()->json([
             'success' => true,
             'message' => 'Certificado registrado exitosamente',
-            'data' => $certificate,
+            'data' => $certificate->fresh(),
         ], 201);
     }
 

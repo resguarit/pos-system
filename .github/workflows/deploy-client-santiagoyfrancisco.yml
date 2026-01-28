@@ -20,12 +20,11 @@ on:
         type: boolean
 
 jobs:
-  # Backend se despliega vía deploy-all-clients; deshabilitado temporalmente.
   deploy_backend:
     name: Deploy Backend - Santiago y Francisco
     runs-on: ubuntu-latest
     environment: santiagoyfrancisco
-    if: false
+    if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
     - name: Deploy Backend to VPS
@@ -76,12 +75,11 @@ jobs:
           # Verificar permisos de escritura
           sudo -u $WEB_USER sh -c 'echo "[deploy] '"$(date)"'" >> storage/logs/laravel.log' 2>/dev/null && echo "✅ Permisos verificados" || echo "⚠️ Advertencia: test de escritura falló"
           
-          COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap
+          composer install --no-dev --optimize-autoloader
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
           php artisan migrate --force
-          php artisan admin:grant-all-permissions --force 2>/dev/null || true
           
           # Crear symlink para /images/ (LiteSpeed compatibility)
           cd ../../..

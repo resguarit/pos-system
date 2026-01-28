@@ -20,12 +20,10 @@ on:
         type: boolean
 
 jobs:
-  # Backend se despliega vía deploy-all-clients; deshabilitado temporalmente.
   deploy_backend:
     name: Deploy Backend - Heroe
     runs-on: ubuntu-latest
-    environment: heroedelwhisky
-    if: false
+    if: ${{ github.event.inputs.deploy_backend != 'false' || github.event_name == 'push' }}
     
     steps:
     - name: Deploy Backend to VPS
@@ -35,7 +33,6 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
-        timeout: 60s
         script: |
           cd ${{ secrets.CLIENT_HEROE_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
           echo "🚀 Deploying backend to Heroe del Whisky..."
@@ -217,7 +214,6 @@ jobs:
   deploy_frontend:
     name: Deploy Frontend - Heroe
     runs-on: ubuntu-latest
-    environment: heroedelwhisky
     if: ${{ github.event.inputs.deploy_frontend != 'false' || github.event_name == 'push' }}
     
     steps:
@@ -255,7 +251,6 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
-        timeout: 60s
         script: |
           DEPLOY_PATH="${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
           # Limpiar saltos de línea y espacios del path
@@ -309,7 +304,6 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
-        timeout: 60s
         source: "apps/frontend/dist/*"
         target: ${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
         strip_components: 2
@@ -322,7 +316,6 @@ jobs:
         port: ${{ secrets.CLIENT_HEROE_VPS_PORT || secrets.VPS_PORT }}
         username: ${{ secrets.CLIENT_HEROE_VPS_USERNAME || secrets.VPS_USERNAME }}
         key: ${{ secrets.CLIENT_HEROE_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
-        timeout: 60s
         script: |
           DEPLOY_PATH="${{ secrets.CLIENT_HEROE_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
           # Limpiar saltos de línea y espacios del path
