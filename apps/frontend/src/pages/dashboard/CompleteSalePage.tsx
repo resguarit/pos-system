@@ -220,7 +220,9 @@ export default function CompleteSalePage() {
 
   const fetchReceiptTypes = useCallback(async () => {
     try {
-      const branchCuit = (activeBranch as any)?.cuit
+      const branchCuitRaw = (activeBranch as any)?.cuit
+      // Normalizar CUIT (quitar guiones/espacios) para comparar longitud y llamar al check
+      const branchCuit = branchCuitRaw ? String(branchCuitRaw).replace(/\D/g, '') : ''
       const enabledReceiptTypes = (activeBranch as any)?.enabled_receipt_types
 
       // Debug: mostrar datos de la sucursal
@@ -255,13 +257,13 @@ export default function CompleteSalePage() {
           afip_code: item.afip_code || item.code
         }))
 
-      // Si la sucursal NO tiene CUIT, solo mostrar tipos internos
+      // Si la sucursal NO tiene CUIT (11 dígitos), solo mostrar tipos internos
       if (!branchCuit || branchCuit.length !== 11) {
         availableTypes = mappedTypes.filter((t: ReceiptType) => t.afip_code && INTERNAL_CODES.includes(t.afip_code))
         console.log('Sucursal sin CUIT: mostrando solo tipos internos', availableTypes)
       }
       else {
-        // Verificar si el CUIT tiene certificado válido
+        // Verificar si el CUIT tiene certificado válido (siempre pasar CUIT limpio)
         const certStatus = await checkCuitCertificate(branchCuit)
 
         if (!certStatus.has_certificate || !certStatus.is_valid) {
