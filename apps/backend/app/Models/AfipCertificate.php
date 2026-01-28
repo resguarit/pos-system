@@ -45,11 +45,16 @@ class AfipCertificate extends Model
     ];
 
     /**
-     * Base path for certificates storage
+     * Base path for certificates storage (always absolute so it works from web/PHP-FPM)
      */
     public static function getBasePath(): string
     {
-        return config('afip.certificates_base_path', storage_path('certificates'));
+        $path = config('afip.certificates_base_path', storage_path('certificates'));
+        // Resolve relative paths (e.g. "storage/certificates" in .env) from Laravel base
+        if ($path !== '' && !str_starts_with($path, DIRECTORY_SEPARATOR) && !preg_match('#^[A-Za-z]:[/\\\\]#', $path)) {
+            $path = base_path($path);
+        }
+        return $path;
     }
 
     /**
