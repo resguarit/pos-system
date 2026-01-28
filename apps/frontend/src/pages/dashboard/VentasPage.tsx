@@ -24,6 +24,7 @@ import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
 import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
+import { getReceiptTypeBadgeStyle } from "@/utils/afipReceiptTypes";
 
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart";
@@ -462,51 +463,6 @@ export default function VentasPage() {
     return sale.branch?.description || 'N/A';
   };
 
-  // Receipt type color configuration - following DRY principle with typed structure
-  // All badges use outline variant with consistent bg/text/border pattern
-  type ReceiptTypeStyle = {
-    bg: string;
-    text: string;
-    border: string;
-  };
-
-  const receiptTypeStyles: Record<string, ReceiptTypeStyle> = {
-    // Facturas - Tonos púrpura/azul
-    'FACTURAS A': { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-300' },
-    'FACTURAS B': { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-300' },
-    'FACTURAS C': { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-300' },
-    'FACTURA X': { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-300' },
-
-    // Notas de Débito - Tonos naranja
-    'NOTAS DE DEBITO A': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-300' },
-    'NOTAS DE DEBITO B': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-300' },
-    'NOTAS DE DEBITO C': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-300' },
-
-    // Notas de Crédito - Tonos rojos/rosados
-    'NOTAS DE CREDITO A': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-300' },
-    'NOTAS DE CREDITO B': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-300' },
-    'NOTAS DE CREDITO C': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-300' },
-
-    // Recibos - Tonos lima/verde claro
-    'RECIBOS A': { bg: 'bg-lime-50', text: 'text-lime-700', border: 'border-lime-300' },
-    'RECIBOS B': { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-300' },
-    'RECIBOS C': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-300' },
-
-    // Notas de Venta al Contado - Tonos índigo/violeta
-    'NOTAS DE VENTA AL CONTADO A': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-300' },
-    'NOTAS DE VENTA AL CONTADO B': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-300' },
-
-    // Presupuesto - Tono esmeralda (matching PresupuestosPage)
-    'PRESUPUESTO': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  };
-
-  // Default style for unknown receipt types
-  const defaultReceiptTypeStyle: ReceiptTypeStyle = {
-    bg: 'bg-gray-50',
-    text: 'text-gray-700',
-    border: 'border-gray-300',
-  };
-
   const getReceiptType = (
     sale: SaleHeader
   ): { displayName: string; filterKey: string; afipCode: string } => {
@@ -543,9 +499,7 @@ export default function VentasPage() {
       receiptInfo.displayName !== "N/A"
         ? receiptInfo.displayName
         : receiptInfo.afipCode;
-
-    // Get style or use default
-    const style = receiptTypeStyles[receiptInfo.filterKey] || defaultReceiptTypeStyle;
+    const style = getReceiptTypeBadgeStyle(receiptInfo.afipCode);
 
     return (
       <Badge

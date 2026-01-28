@@ -47,6 +47,10 @@ class SaleService implements SaleServiceInterface
         51 => 'NOTA DE CREDITO M',
         52 => 'RECIBO M',
     ];
+
+    /** Máximo de intentos al generar número de comprobante único ante colisión */
+    private const RECEIPT_NUMBER_MAX_ATTEMPTS = 10;
+
     /**
      * Prepara los items de venta calculando precios unitarios, descuentos, base e IVA.
      * Descuentos: por ítem antes de IVA. Montos con hasta 2 decimales.
@@ -122,7 +126,7 @@ class SaleService implements SaleServiceInterface
             // 0) Validación: No se puede crear un presupuesto desde otro presupuesto
             if (isset($data['converted_from_budget_id']) && $data['converted_from_budget_id']) {
                 $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
-                if ($receiptType && $receiptType->afip_code === '016') {
+                if ($receiptType && AfipConstants::isPresupuesto($receiptType->afip_code)) {
                     throw new \InvalidArgumentException(
                         'No se puede crear un presupuesto desde otro presupuesto. ' .
                         'Seleccione un tipo de comprobante de venta (Factura A, B, C, X, etc.).'
@@ -248,22 +252,18 @@ class SaleService implements SaleServiceInterface
                 $receiptTypeForStatus = null;
             }
 
-            if ($receiptTypeForStatus && $receiptTypeForStatus->afip_code === '016') {
+            if ($receiptTypeForStatus && AfipConstants::isPresupuesto($receiptTypeForStatus->afip_code)) {
                 $data['status'] = 'pending';
             } else {
                 $data['status'] = 'active';
             }
 
-            // 6) Numeración de comprobante - FIX: Ordenar numéricamente, no alfabéticamente
-            // Usar lockForUpdate dentro de la transacción para evitar race conditions
-            $lastSale = SaleHeader::where('branch_id', $data['branch_id'])
-                ->where('receipt_type_id', $data['receipt_type_id'])
-                ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
-                ->lockForUpdate() // Bloqueo de fila para evitar condiciones de carrera
-                ->first();
-
-            $nextReceiptNumber = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
-            $data['receipt_number'] = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+            // 6) Numeración de comprobante
+            // Presupuesto (016): secuencia propia por tipo. Resto: secuencia contigua única por sucursal.
+            $data['receipt_number'] = $this->getNextReceiptNumberForBranch(
+                (int) $data['branch_id'],
+                (int) $data['receipt_type_id']
+            );
 
             // Verificar que el número no exista ya (protección adicional contra duplicados)
             $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
@@ -273,11 +273,11 @@ class SaleService implements SaleServiceInterface
                 ->first();
 
             if ($existingSale) {
-                // Si existe, buscar el siguiente número disponible (máximo 10 intentos)
+                $nextReceiptNumber = (int) $data['receipt_number'];
                 $attempts = 0;
-                while ($existingSale && $attempts < 10) {
+                while ($existingSale && $attempts < self::RECEIPT_NUMBER_MAX_ATTEMPTS) {
                     $nextReceiptNumber++;
-                    $data['receipt_number'] = str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+                    $data['receipt_number'] = str_pad((string) $nextReceiptNumber, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT);
                     $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
                         ->where('receipt_type_id', $data['receipt_type_id'])
                         ->where('receipt_number', $data['receipt_number'])
@@ -311,7 +311,7 @@ class SaleService implements SaleServiceInterface
             // 10) Reducir stock para ventas que NO son presupuestos
             $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
             // Reducir stock si NO es presupuesto (afip_code 016)
-            $shouldReduceStock = !$receiptType || $receiptType->afip_code !== '016';
+            $shouldReduceStock = !$receiptType || !AfipConstants::isPresupuesto($receiptType->afip_code);
 
             if ($shouldReduceStock) {
                 $branchId = $data['branch_id'];
@@ -333,7 +333,7 @@ class SaleService implements SaleServiceInterface
             }
 
             // 11) Registrar movimientos para ventas (NO presupuestos)
-            if ($registerMovement && (!$receiptType || $receiptType->afip_code !== '016')) {
+            if ($registerMovement && (!$receiptType || !AfipConstants::isPresupuesto($receiptType->afip_code))) {
                 $this->registerSaleMovementFromPayments($saleHeader, $data['current_cash_register_id'] ?? null);
             }
 
@@ -855,7 +855,7 @@ class SaleService implements SaleServiceInterface
      */
     private function isBudgetSale($sale): bool
     {
-        return $sale->receiptType && $sale->receiptType->afip_code === '016';
+        return $sale->receiptType && AfipConstants::isPresupuesto($sale->receiptType->afip_code);
     }
 
     public function getSalesSummary(Request $request): array
@@ -1513,7 +1513,7 @@ class SaleService implements SaleServiceInterface
                         ? Carbon::createFromFormat('Ymd', $resultArray['caeExpirationDate'])
                         : null,
                     'receipt_number' => isset($resultArray['invoiceNumber'])
-                        ? str_pad((string) $resultArray['invoiceNumber'], 8, '0', STR_PAD_LEFT)
+                        ? str_pad((string) $resultArray['invoiceNumber'], AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT)
                         : $sale->receipt_number,
                 ]);
             });
@@ -1940,7 +1940,7 @@ class SaleService implements SaleServiceInterface
             }
 
             // Verificar que sea un presupuesto
-            if (!$budget->receiptType || $budget->receiptType->afip_code !== '016') {
+            if (!$budget->receiptType || !AfipConstants::isPresupuesto($budget->receiptType->afip_code)) {
                 throw new \Exception('Solo se pueden eliminar presupuestos.');
             }
 
@@ -1966,7 +1966,7 @@ class SaleService implements SaleServiceInterface
     public function getBudgets(Request $request): LengthAwarePaginator
     {
         // Obtener el tipo de presupuesto (código AFIP 016)
-        $budgetReceiptType = ReceiptType::where('afip_code', '016')->first();
+        $budgetReceiptType = ReceiptType::where('afip_code', AfipConstants::RECEIPT_CODE_PRESUPUESTO)->first();
 
         if (!$budgetReceiptType) {
             // Retornar paginador vacío
@@ -2167,7 +2167,7 @@ class SaleService implements SaleServiceInterface
      */
     private function validateIsBudget(SaleHeader $budget): void
     {
-        if (!$budget->receiptType || $budget->receiptType->afip_code !== '016') {
+        if (!$budget->receiptType || !AfipConstants::isPresupuesto($budget->receiptType->afip_code)) {
             throw new \Exception('El comprobante seleccionado no es un presupuesto.');
         }
     }
@@ -2225,13 +2225,50 @@ class SaleService implements SaleServiceInterface
      */
     private function validateNotBudgetReceiptType(ReceiptType $receiptType): void
     {
-        if ($receiptType->afip_code === '016') {
+        if (AfipConstants::isPresupuesto($receiptType->afip_code)) {
             throw new \Exception('Debe seleccionar un tipo de comprobante diferente a presupuesto.');
         }
     }
 
     /**
-     * Genera el siguiente número de comprobante
+     * Obtiene el próximo número de comprobante para una sucursal y tipo.
+     * Presupuesto (016): secuencia propia por tipo. Cualquier otro tipo: secuencia contigua
+     * única por sucursal (todas las ventas no-presupuesto comparten 1, 2, 3...).
+     *
+     * @param int $branchId
+     * @param int $receiptTypeId
+     * @return string Número de 8 dígitos con ceros a la izquierda
+     */
+    private function getNextReceiptNumberForBranch(int $branchId, int $receiptTypeId): string
+    {
+        $receiptType = ReceiptType::find($receiptTypeId);
+
+        if ($receiptType && AfipConstants::isPresupuesto($receiptType->afip_code)) {
+            // Presupuesto: secuencia por (sucursal + tipo)
+            $lastSale = SaleHeader::where('branch_id', $branchId)
+                ->where('receipt_type_id', $receiptTypeId)
+                ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
+                ->lockForUpdate()
+                ->first();
+            $next = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
+        } else {
+            // Cualquier otro tipo: secuencia contigua única por sucursal (todas las ventas no-presupuesto)
+            $presupuestoTypeIds = ReceiptType::where('afip_code', AfipConstants::RECEIPT_CODE_PRESUPUESTO)
+                ->pluck('id')
+                ->all();
+            $lastSale = SaleHeader::where('branch_id', $branchId)
+                ->whereNotIn('receipt_type_id', $presupuestoTypeIds)
+                ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
+                ->lockForUpdate()
+                ->first();
+            $next = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
+        }
+
+        return str_pad((string) $next, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Genera el siguiente número de comprobante (delega en getNextReceiptNumberForBranch).
      *
      * @param int $branchId
      * @param int $receiptTypeId
@@ -2239,15 +2276,7 @@ class SaleService implements SaleServiceInterface
      */
     private function generateNextReceiptNumber(int $branchId, int $receiptTypeId): string
     {
-        $lastSale = SaleHeader::where('branch_id', $branchId)
-            ->where('receipt_type_id', $receiptTypeId)
-            ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
-            ->lockForUpdate()
-            ->first();
-
-        $nextReceiptNumber = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
-
-        return str_pad($nextReceiptNumber, 8, '0', STR_PAD_LEFT);
+        return $this->getNextReceiptNumberForBranch($branchId, $receiptTypeId);
     }
 
     /**

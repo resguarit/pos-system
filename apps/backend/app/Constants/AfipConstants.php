@@ -34,6 +34,9 @@ final class AfipConstants
     /** Longitud esperada del CUIT (solo dígitos) */
     public const CUIT_LENGTH = 11;
 
+    /** Cantidad de dígitos del número de comprobante (con ceros a la izquierda) */
+    public const RECEIPT_NUMBER_PADDING = 8;
+
     /**
      * Indica si el tipo de comprobante exige un cliente con CUIT válido.
      * Solo Factura A (001) lo exige; B/C/M/FCE permiten consumidor final.

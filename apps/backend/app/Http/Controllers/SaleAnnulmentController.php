@@ -15,6 +15,7 @@ use App\Models\SaleHeader;
 use App\Models\CashMovement;
 use App\Models\CurrentAccountMovement;
 use App\Models\MovementType;
+use App\Constants\AfipConstants;
 use Exception;
 
 class SaleAnnulmentController extends Controller
@@ -93,7 +94,7 @@ class SaleAnnulmentController extends Controller
                 }
 
                 // 3. Verificar que no sea un presupuesto
-                if ($sale->receiptType && $sale->receiptType->afip_code === '016') {
+                if ($sale->receiptType && AfipConstants::isPresupuesto($sale->receiptType->afip_code ?? null)) {
                     return response()->json([
                         'success' => false,
                         'message' => 'No se pueden anular presupuestos'

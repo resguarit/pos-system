@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\User;
+use App\Constants\AfipConstants;
 use Carbon\Carbon;
 
 class UserController extends Controller
@@ -486,13 +487,13 @@ class UserController extends Controller
             // 1. Estadísticas básicas (Ventas Directas)
             // Excluir presupuestos (016) y anuladas
             $directSales = $allSales->filter(function ($sale) {
-                return $sale->receiptType && $sale->receiptType->afip_code !== '016' &&
+                return $sale->receiptType && !AfipConstants::isPresupuesto($sale->receiptType->afip_code ?? null) &&
                     $sale->status !== 'annulled';
             });
 
             // 2. Presupuestos (Total creados en este periodo)
             $allBudgets = $allSales->filter(function ($sale) {
-                return $sale->receiptType && $sale->receiptType->afip_code === '016';
+                return $sale->receiptType && AfipConstants::isPresupuesto($sale->receiptType->afip_code ?? null);
             });
 
             // 3. Presupuestos Pendientes (No convertidos)

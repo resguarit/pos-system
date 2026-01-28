@@ -53,12 +53,8 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
   const requiresCustomer = receiptTypeRequiresCustomerWithCuit(receiptType?.afip_code);
   const customerOk = requiresCustomer ? !!sale.customer : true;
 
-  const canAuthorize = !isAuthorized &&
-    customerOk &&
-    sale.items &&
-    sale.items.length > 0 &&
-    sale.total &&
-    sale.total > 0;
+  const totalOk = Number(sale.total) > 0;
+  const canAuthorize = !isAuthorized && customerOk && totalOk;
 
   if (isAuthorized) {
     return (

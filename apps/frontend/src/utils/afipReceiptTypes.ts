@@ -88,3 +88,40 @@ export function getAllowedAfipCodesForPos(afipTypes: AfipReceiptTypeItem[] | nul
   })
   return allowed
 }
+
+/** Estilo para badge de tipo de comprobante (bg, text, border en Tailwind) */
+export interface ReceiptTypeBadgeStyle {
+  bg: string
+  text: string
+  border: string
+}
+
+/** Mapa de estilos por afip_code para badges (colores distintos por tipo) */
+const RECEIPT_TYPE_STYLES_BY_CODE: Record<string, ReceiptTypeBadgeStyle> = {
+  [AFIP_CODES.FACTURA_A]: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-300' },
+  [AFIP_CODES.FACTURA_B]: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-300' },
+  [AFIP_CODES.FACTURA_C]: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-300' },
+  [AFIP_CODES.PRESUPUESTO]: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  [AFIP_CODES.FACTURA_X]: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
+  '051': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-300' },
+  '201': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-300' },
+  '206': { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-300' },
+  '211': { bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', border: 'border-fuchsia-300' },
+}
+
+const DEFAULT_RECEIPT_STYLE: ReceiptTypeBadgeStyle = {
+  bg: 'bg-gray-50',
+  text: 'text-gray-700',
+  border: 'border-gray-300',
+}
+
+/**
+ * Devuelve el estilo del badge para un tipo de comprobante por afip_code.
+ * Uso: tabla de ventas, listados; colores consistentes por tipo.
+ */
+export function getReceiptTypeBadgeStyle(afipCode: string | number | null | undefined): ReceiptTypeBadgeStyle {
+  if (afipCode == null || afipCode === '') return DEFAULT_RECEIPT_STYLE
+  const s = String(afipCode).replace(/\D/g, '')
+  const key = s.length <= 2 ? s.padStart(3, '0') : s
+  return RECEIPT_TYPE_STYLES_BY_CODE[key] ?? DEFAULT_RECEIPT_STYLE
+}
