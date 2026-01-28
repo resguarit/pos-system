@@ -92,6 +92,8 @@ export interface SaleHeader {
     description?: string
     afip_code?: string | number
   }
+  /** Código AFIP del tipo (viene en la lista cuando receipt_type es string) */
+  receipt_type_code?: string | number
   customer?: {
     id: number
     person?: {

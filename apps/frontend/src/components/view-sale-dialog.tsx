@@ -23,6 +23,7 @@ import { useAfipAuthorization } from "@/hooks/useAfipAuthorization";
 import { Badge } from "@/components/ui/badge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
 import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
+import { isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
 import { useAfipContext } from "@/context/AfipContext";
 import { useBranch } from "@/context/BranchContext";
 
@@ -149,6 +150,10 @@ const ViewSaleDialog = ({
     // Usar el nombre directo del tipo de comprobante para mayor precisión.
     const receiptName = (typeof receiptType === 'string' ? receiptType : receiptType?.description) || getReceiptType(saleToDisplay).displayName;
 
+    // Presupuesto y Factura X son solo uso interno: no muestran estado AFIP ni botón "Autorizar con AFIP".
+    const receiptInfo = getReceiptType(saleToDisplay);
+    const isInternalOnly = isInternalOnlyReceiptType(receiptInfo.afipCode);
+
     // --- FIN DE LA MODIFICACIÓN ---
 
     // Helpers locales
@@ -223,7 +228,7 @@ const ViewSaleDialog = ({
                                 </Badge>
                             </div>
                         ) : (
-                            !isBudget && showAfipUI && (
+                            !isBudget && showAfipUI && !isInternalOnly && (
                                 <div className="flex flex-col gap-1">
                                     <AfipStatusBadge sale={saleToDisplay} />
                                     {!canAuthorizeThis && !isAuthorized && (() => {
@@ -356,8 +361,8 @@ const ViewSaleDialog = ({
                 </div>
                 <DialogFooter className="px-6 py-3 shrink-0">
                     <div className="flex items-center gap-2">
-                        {/* Botón de autorización AFIP - Solo mostrar si la sucursal tiene certificado */}
-                        {!isBudget && showAfipUI && canAuthorizeThis && !isAuthorized && (
+                        {/* Botón de autorización AFIP - No mostrar para Presupuesto ni Factura X (solo uso interno) */}
+                        {!isBudget && showAfipUI && !isInternalOnly && canAuthorizeThis && !isAuthorized && (
                             <Button
                                 onClick={handleAuthorizeAfip}
                                 size="sm"

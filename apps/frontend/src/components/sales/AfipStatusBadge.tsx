@@ -11,16 +11,34 @@ interface AfipStatusBadgeProps {
 }
 
 /**
- * Badge que muestra el estado de autorización AFIP de una venta
+ * Obtiene el afip_code del tipo de comprobante desde la venta.
+ * La lista devuelve receipt_type (string) y receipt_type_code; el detalle devuelve receipt_type (objeto con afip_code).
+ */
+function getAfipCodeFromSale(sale: SaleHeader): string | number | null | undefined {
+  const rt = sale.receipt_type;
+  if (rt != null && typeof rt === 'object' && 'afip_code' in rt) {
+    return (rt as { afip_code?: string | number }).afip_code;
+  }
+  return sale.receipt_type_code ?? null;
+}
+
+/**
+ * Badge que muestra el estado de autorización AFIP de una venta.
+ * No muestra nada para Presupuesto (016) ni Factura X (017) — son solo uso interno, no van a AFIP.
  */
 export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) {
   const { hasCertificateForCuit } = useAfipContext();
   const { branches } = useBranch();
 
+  const afipCode = getAfipCodeFromSale(sale);
   const receiptType = sale.receipt_type;
   const isInternalOnly =
-    isInternalOnlyReceiptType(receiptType?.afip_code) ||
-    receiptType?.name?.toLowerCase().includes('presupuesto');
+    isInternalOnlyReceiptType(afipCode) ||
+    (typeof receiptType === 'string' && (
+      receiptType.toLowerCase().includes('presupuesto') ||
+      receiptType.toLowerCase().includes('factura x')
+    )) ||
+    (receiptType != null && typeof receiptType === 'object' && (receiptType as { name?: string }).name?.toLowerCase().includes('presupuesto'));
 
   if (isInternalOnly) {
     return null; // Presupuesto y Factura X son solo uso interno, no AFIP
@@ -50,7 +68,7 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
   }
 
   const isAuthorized = !!sale.cae;
-  const requiresCustomer = receiptTypeRequiresCustomerWithCuit(receiptType?.afip_code);
+  const requiresCustomer = receiptTypeRequiresCustomerWithCuit(afipCode);
   const customerOk = requiresCustomer ? !!sale.customer : true;
 
   const totalOk = Number(sale.total) > 0;
