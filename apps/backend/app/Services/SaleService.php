@@ -1487,6 +1487,11 @@ class SaleService implements SaleServiceInterface
             // Preparar datos de la factura para AFIP
             $invoiceData = $this->prepareInvoiceDataForAfip($sale);
 
+            Log::info('Payload enviado a AFIP para autorizar comprobante', [
+                'sale_id' => $sale->id,
+                'payload_json' => json_encode($invoiceData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+            ]);
+
             // Autorizar con AFIP
             $result = $taxpayerCuit
                 ? \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData, $taxpayerCuit)
@@ -1654,16 +1659,17 @@ class SaleService implements SaleServiceInterface
             $netAmount += $itemSubtotal;
         }
 
-        // Preparar IVA items
+        // Preparar IVA items (AlicIVA). AFIP 10051 exige que importe = base × (porcentaje/100) con 2 decimales.
         foreach ($sale->saleIvas as $saleIva) {
             $iva = $saleIva->iva;
             if ($iva) {
                 $ivaId = $this->mapIvaRateToAfipId((float) $iva->rate);
                 if ($ivaId) {
-                    $baseAmount = (float) ($saleIva->base_amount ?? 0);
-                    $taxAmount = (float) ($saleIva->tax_amount ?? 0);
+                    $baseAmount = round((float) ($saleIva->base_amount ?? 0), 2);
+                    // Recalcular importe desde base y alícuota para que coincida con el porcentaje (evita error 10051)
+                    $rate = (float) $iva->rate;
+                    $taxAmount = round($baseAmount * ($rate / 100.0), 2);
 
-                    // Buscar si ya existe este IVA en el array
                     $existingIndex = null;
                     foreach ($ivaItems as $index => $ivaItem) {
                         if ($ivaItem['id'] === $ivaId) {
@@ -1673,11 +1679,9 @@ class SaleService implements SaleServiceInterface
                     }
 
                     if ($existingIndex !== null) {
-                        // Sumar a existente
-                        $ivaItems[$existingIndex]['baseAmount'] += $baseAmount;
-                        $ivaItems[$existingIndex]['amount'] += $taxAmount;
+                        $ivaItems[$existingIndex]['baseAmount'] = round($ivaItems[$existingIndex]['baseAmount'] + $baseAmount, 2);
+                        $ivaItems[$existingIndex]['amount'] = round($ivaItems[$existingIndex]['amount'] + $taxAmount, 2);
                     } else {
-                        // Agregar nuevo
                         $ivaItems[] = [
                             'id' => $ivaId,
                             'baseAmount' => $baseAmount,
@@ -1688,16 +1692,32 @@ class SaleService implements SaleServiceInterface
             }
         }
 
-        // Calcular total IVA si no hay items de IVA
-        $ivaTotal = (float) $sale->total_iva_amount ?? 0.0;
-        if (empty($ivaItems) && $ivaTotal > 0) {
-            // Intentar crear un item de IVA genérico
-            $ivaItems[] = [
-                'id' => 5, // 21% por defecto
-                'baseAmount' => $netAmount,
-                'amount' => $ivaTotal,
-            ];
+        // Recalcular cada ivaItem amount desde baseAmount y el porcentaje del id AFIP (garantiza 10051)
+        $afipIdToRate = [3 => 0.0, 4 => 10.5, 5 => 21.0, 6 => 27.0];
+        foreach ($ivaItems as $idx => $item) {
+            $rate = $afipIdToRate[$item['id']] ?? null;
+            if ($rate !== null) {
+                $ivaItems[$idx]['amount'] = round($item['baseAmount'] * ($rate / 100.0), 2);
+            }
         }
+
+        if (empty($ivaItems)) {
+            $ivaTotalFromSale = round((float) ($sale->total_iva_amount ?? 0.0), 2);
+            if ($ivaTotalFromSale > 0) {
+                $ivaItems[] = [
+                    'id' => 5,
+                    'baseAmount' => round($netAmount, 2),
+                    'amount' => round($netAmount * 0.21, 2),
+                ];
+            }
+        }
+
+        // IVA total = suma de AlicIVA (debe coincidir con lo que enviamos para evitar 10051)
+        $ivaTotal = 0.0;
+        foreach ($ivaItems as $item) {
+            $ivaTotal += (float) $item['amount'];
+        }
+        $ivaTotal = round($ivaTotal, 2);
 
         // Validaciones finales
         if (empty($items)) {
@@ -1707,6 +1727,9 @@ class SaleService implements SaleServiceInterface
         if ($sale->total <= 0) {
             throw new \Exception('El total de la venta debe ser mayor a cero');
         }
+
+        // Total debe ser netAmount + ivaTotal para que AFIP no rechace por incoherencia
+        $totalForAfip = round($netAmount + $ivaTotal, 2);
 
         return [
             'pointOfSale' => $pointOfSale,
@@ -1721,7 +1744,7 @@ class SaleService implements SaleServiceInterface
             'items' => $items,
             'netAmount' => round($netAmount, 2),
             'ivaTotal' => round($ivaTotal, 2),
-            'total' => round((float) $sale->total, 2),
+            'total' => $totalForAfip,
             'ivaItems' => $ivaItems,
         ];
     }
