@@ -2117,9 +2117,11 @@ class SaleService implements SaleServiceInterface
      */
     private function normalizeArrayForInvoiceResponse(array $data): array
     {
+        $caeExpiration = $data['caeExpirationDate'] ?? $data['cae_expiration_date'] ?? '';
         return [
             'cae' => (string) ($data['cae'] ?? ''),
-            'cae_expiration_date' => (string) ($data['caeExpirationDate'] ?? ''),
+            'cae_expiration_date' => (string) $caeExpiration,
+            'caeExpirationDate' => (string) $caeExpiration,
             'invoice_number' => (int) ($data['invoiceNumber'] ?? 0),
             'point_of_sale' => (int) ($data['pointOfSale'] ?? 0),
             'invoice_type' => (int) ($data['invoiceType'] ?? 0),
