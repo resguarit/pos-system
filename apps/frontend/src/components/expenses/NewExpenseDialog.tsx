@@ -236,7 +236,8 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
 
             setCategoriesTree(normalizeToArray<ExpenseCategory>(tree));
             setRecentExpenses(normalizeToArray<Expense>(recent));
-            setPaymentMethods(normalizeToArray(pms));
+            // Excluir Cuenta Corriente: los gastos no se pueden pagar con cuenta corriente
+            setPaymentMethods(normalizeToArray(pms).filter((pm: { name: string }) => pm.name !== 'Cuenta Corriente'));
         } catch (error) {
             console.error("Error loading data", error);
         }

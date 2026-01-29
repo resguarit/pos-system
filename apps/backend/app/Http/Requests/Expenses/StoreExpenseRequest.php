@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Expenses;
 
+use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreExpenseRequest extends FormRequest
@@ -29,7 +30,15 @@ class StoreExpenseRequest extends FormRequest
             'category_id' => 'required|exists:expense_categories,id',
             'branch_id' => 'required|exists:branches,id',
             'employee_id' => 'nullable|exists:employees,id',
-            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'payment_method_id' => [
+                'nullable',
+                'exists:payment_methods,id',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    if ($value && PaymentMethod::find($value)?->name === 'Cuenta Corriente') {
+                        $fail('Los gastos no pueden pagarse con Cuenta Corriente.');
+                    }
+                },
+            ],
             'is_recurring' => 'boolean',
             'recurrence_interval' => 'nullable|string|in:daily,weekly,monthly,yearly',
             'status' => 'in:pending,approved,paid,cancelled',
