@@ -2001,14 +2001,27 @@ class SaleService implements SaleServiceInterface
      *
      * @return array{issuer: array, receiver: array, items: array, total: float, netAmount: float, totalIva: float, date: string, concept: int, condicion_venta: string}
      */
+    /**
+     * Domicilio del emisor para comprobantes fiscales (SDK).
+     * Prioridad: domicilio comercial de la sucursal > configuración global > dirección de la sucursal.
+     */
+    private function resolveIssuerDomicilioForFiscal(\App\Models\Branch $branch): string
+    {
+        $value = $branch->domicilio_comercial
+            ?? SettingHelper::get('company_address')
+            ?? $branch->address
+            ?? '';
+
+        return (string) $value;
+    }
+
     private function buildInvoiceDataForSdk(SaleHeader $sale): array
     {
         $branch = $sale->branch;
 
         $issuer = [
             'razon_social' => (string) (SettingHelper::get('company_name') ?? $branch->razon_social ?? $branch->description ?? ''),
-            'domicilio' => (string) (SettingHelper::get('company_address') ?? $branch->address ?? ''),
-            'domicilio_fiscal' => (string) ($branch->domicilio_comercial ?? ''),
+            'domicilio' => $this->resolveIssuerDomicilioForFiscal($branch),
             'cuit' => (string) (preg_replace('/[^0-9]/', '', (string) ($branch->cuit ?? SettingHelper::get('company_ruc') ?? '')) ?: '0'),
             'condicion_iva' => (string) ($branch->iva_condition ?? 'Responsable Inscripto'),
             'iibb' => $branch->iibb ? (string) $branch->iibb : null,
