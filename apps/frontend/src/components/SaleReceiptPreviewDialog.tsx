@@ -265,7 +265,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
           style={
             isThermal
               ? { minWidth: 302, minHeight: 400 }
-              : { minWidth: 750 }
+              : { minWidth: 800 }
           }
         >
           <iframe
@@ -281,7 +281,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
                     minHeight: 400,
                     height: "100%",
                   }
-                : { width: 750, minWidth: 750, minHeight: 900 }
+                : { width: 800, minWidth: 800, minHeight: 900 }
             }
             sandbox="allow-same-origin"
           />

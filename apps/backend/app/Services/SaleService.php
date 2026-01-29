@@ -977,13 +977,8 @@ class SaleService implements SaleServiceInterface
         $pdf = Pdf::loadHtml($html);
         $pdf->setOption('enable_remote', true);
 
-        if ($isThermal && isset($pdfOptions['width'])) {
-            // SDK devuelve width en pulgadas (3.1 ≈ 80mm). Dompdf espera [x0, y0, width_pt, height_pt].
-            $widthInches = (float) $pdfOptions['width'];
-            $widthPt = $widthInches * 72; // 1 pulgada = 72 pt
-            $heightPt = 841.89; // alto A4 en pt (297mm)
-            $pdf->setPaper([0, 0, $widthPt, $heightPt], 'portrait');
-        } else {
+        if (!$isThermal) {
+            // Solo para factura A4 se fuerza el tamaño; el ticket usa @page del HTML (80mm auto)
             $pdf->setPaper('a4', 'portrait');
         }
 
