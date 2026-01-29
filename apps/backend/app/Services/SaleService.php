@@ -984,12 +984,9 @@ class SaleService implements SaleServiceInterface
         $pdf = Pdf::loadHtml($html);
         $pdf->setOption('enable_remote', true);
 
-        if ($isThermal) {
-            // Ticket 80mm: width=80mm=226.77pt, height largo (500mm=1417pt) para acomodar contenido
-            $widthPt = 80 * 2.83465;   // 226.77 pt
-            $heightPt = 500 * 2.83465; // 1417 pt (alto suficiente para cualquier ticket)
-            $pdf->setPaper([0, 0, $widthPt, $heightPt], 'portrait');
-        } else {
+        // NO forzar setPaper para ticket - dejar que use el @page del CSS (igual que Blade)
+        // Solo forzar A4 para factura standard
+        if (!$isThermal) {
             $pdf->setPaper('a4', 'portrait');
         }
 
