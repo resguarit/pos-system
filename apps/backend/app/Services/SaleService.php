@@ -1497,28 +1497,35 @@ class SaleService implements SaleServiceInterface
                 ? \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData, $taxpayerCuit)
                 : \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData);
 
-            // Normalizar respuesta
-            $resultArray = is_array($result)
+            // Convertir a array si es objeto
+            $rawResult = is_array($result)
                 ? $result
                 : (method_exists($result, 'toArray')
                     ? $result->toArray()
-                    : [
-                        'cae' => $result->cae ?? null,
-                        'caeExpirationDate' => $result->caeExpirationDate ?? null,
-                        'invoiceNumber' => $result->invoiceNumber ?? null,
-                        'pointOfSale' => $result->pointOfSale ?? null,
-                        'invoiceType' => $result->invoiceType ?? null,
-                    ]);
+                    : (array) $result);
+
+            Log::debug('Respuesta cruda de AFIP authorizeInvoice', [
+                'sale_id' => $sale->id,
+                'raw_response' => $rawResult,
+            ]);
+
+            // Normalizar respuesta: el SDK puede devolver camelCase, snake_case o claves AFIP (CAE, CAEFchVto, CbteDesde, PtoVta, CbteTipo)
+            $resultArray = $this->normalizeAfipAuthorizationResponse($rawResult);
 
             // Guardar en base de datos
             DB::transaction(function () use ($sale, $resultArray) {
+                $caeExpiration = $resultArray['caeExpirationDate'] ?? null;
+                $invoiceNumber = $resultArray['invoiceNumber'] ?? null;
+
                 $sale->update([
                     'cae' => $resultArray['cae'] ?? null,
-                    'cae_expiration_date' => isset($resultArray['caeExpirationDate'])
-                        ? Carbon::createFromFormat('Ymd', $resultArray['caeExpirationDate'])
+                    'cae_expiration_date' => $caeExpiration
+                        ? (is_string($caeExpiration) && strlen($caeExpiration) === 8
+                            ? Carbon::createFromFormat('Ymd', $caeExpiration)
+                            : Carbon::parse($caeExpiration))
                         : null,
-                    'receipt_number' => isset($resultArray['invoiceNumber'])
-                        ? str_pad((string) $resultArray['invoiceNumber'], AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT)
+                    'receipt_number' => $invoiceNumber !== null && $invoiceNumber !== ''
+                        ? str_pad((string) $invoiceNumber, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT)
                         : $sale->receipt_number,
                 ]);
             });
@@ -1530,11 +1537,22 @@ class SaleService implements SaleServiceInterface
                 'invoice_number' => $resultArray['invoiceNumber'] ?? null,
             ]);
 
+            $caeExpirationForReturn = $resultArray['caeExpirationDate'] ?? null;
+            $caeExpirationFormatted = null;
+            if ($caeExpirationForReturn) {
+                try {
+                    $dt = is_string($caeExpirationForReturn) && strlen($caeExpirationForReturn) === 8
+                        ? Carbon::createFromFormat('Ymd', $caeExpirationForReturn)
+                        : Carbon::parse($caeExpirationForReturn);
+                    $caeExpirationFormatted = $dt->format('Y-m-d');
+                } catch (\Throwable $e) {
+                    // ignorar
+                }
+            }
+
             return [
                 'cae' => $resultArray['cae'] ?? null,
-                'cae_expiration_date' => isset($resultArray['caeExpirationDate'])
-                    ? Carbon::createFromFormat('Ymd', $resultArray['caeExpirationDate'])->format('Y-m-d')
-                    : null,
+                'cae_expiration_date' => $caeExpirationFormatted,
                 'invoice_number' => $resultArray['invoiceNumber'] ?? null,
                 'point_of_sale' => $resultArray['pointOfSale'] ?? null,
                 'invoice_type' => $resultArray['invoiceType'] ?? null,
@@ -1557,8 +1575,51 @@ class SaleService implements SaleServiceInterface
     }
 
     /**
+     * Normaliza la respuesta de autorización de AFIP.
+     * El SDK puede devolver camelCase, snake_case o claves del WS (CAE, CAEFchVto, CbteDesde, PtoVta, CbteTipo).
+     * Si la respuesta viene anidada (FeDetResp, FECAEDetResponse, etc.), extrae el detalle.
+     *
+     * @param array<string, mixed> $raw Respuesta cruda de authorizeInvoice
+     * @return array{cae: ?string, caeExpirationDate: ?string, invoiceNumber: ?int|string, pointOfSale: ?int, invoiceType: ?int}
+     */
+    private function normalizeAfipAuthorizationResponse(array $raw): array
+    {
+        $data = $raw;
+
+        // Respuesta anidada: FeDetResp->FECAEDetResponse o similar
+        if (isset($raw['FeDetResp']['FECAEDetResponse'])) {
+            $data = $raw['FeDetResp']['FECAEDetResponse'];
+        } elseif (isset($raw['FECAEDetResponse'])) {
+            $data = $raw['FECAEDetResponse'];
+        } elseif (isset($raw['FeDetResp'][0])) {
+            $data = $raw['FeDetResp'][0];
+        } elseif (isset($raw['result']) && is_array($raw['result'])) {
+            $data = $raw['result'];
+        }
+
+        // Si es un array de detalles, tomar el primero
+        if (isset($data[0]) && is_array($data[0])) {
+            $data = $data[0];
+        }
+
+        $cae = $data['CAE'] ?? $data['cae'] ?? null;
+        $caeExpiration = $data['CAEFchVto'] ?? $data['caeExpirationDate'] ?? $data['cae_expiration_date'] ?? null;
+        $invoiceNumber = $data['CbteDesde'] ?? $data['CbteNro'] ?? $data['invoiceNumber'] ?? $data['invoice_number'] ?? null;
+        $pointOfSale = $data['PtoVta'] ?? $data['pointOfSale'] ?? $data['point_of_sale'] ?? null;
+        $invoiceType = $data['CbteTipo'] ?? $data['invoiceType'] ?? $data['invoice_type'] ?? null;
+
+        return [
+            'cae' => $cae !== null && $cae !== '' ? (string) $cae : null,
+            'caeExpirationDate' => $caeExpiration !== null && $caeExpiration !== '' ? (string) $caeExpiration : null,
+            'invoiceNumber' => $invoiceNumber !== null && $invoiceNumber !== '' ? $invoiceNumber : null,
+            'pointOfSale' => $pointOfSale !== null && $pointOfSale !== '' ? (int) $pointOfSale : null,
+            'invoiceType' => $invoiceType !== null && $invoiceType !== '' ? (int) $invoiceType : null,
+        ];
+    }
+
+    /**
      * Prepara los datos de la venta para enviar a AFIP
-     * 
+     *
      * @param SaleHeader $sale La venta a preparar
      * @return array Datos formateados para AFIP
      */
