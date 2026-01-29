@@ -108,6 +108,12 @@ class PermissionSeeder extends Seeder
             ['name' => 'eliminar_movimientos_caja', 'description' => 'Eliminar movimientos de caja', 'module' => 'caja'],
             ['name' => 'ver_historico_caja', 'description' => 'Ver histórico y reportes de caja', 'module' => 'caja'],
 
+            // Métodos de pago
+            ['name' => 'ver_metodos_pago', 'description' => 'Ver métodos de pago', 'module' => 'metodos_pago'],
+            ['name' => 'crear_metodos_pago', 'description' => 'Crear métodos de pago', 'module' => 'metodos_pago'],
+            ['name' => 'editar_metodos_pago', 'description' => 'Editar métodos de pago', 'module' => 'metodos_pago'],
+            ['name' => 'eliminar_metodos_pago', 'description' => 'Eliminar métodos de pago', 'module' => 'metodos_pago'],
+
             // Reportes
             ['name' => 'generar_reportes', 'description' => 'Generar reportes personalizados', 'module' => 'reportes'],
             ['name' => 'exportar_reportes', 'description' => 'Exportar reportes', 'module' => 'reportes'],

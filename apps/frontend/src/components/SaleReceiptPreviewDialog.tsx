@@ -17,6 +17,19 @@ import useApi from "@/hooks/useApi";
 import { isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
 import { Loader2, Printer } from "lucide-react";
 
+/** Inyecta estilos para que la vista previa tenga fondo blanco y no herede el tema oscuro. */
+function injectPreviewStyles(html: string): string {
+  const style =
+    "<style>html,body{background:#fff !important;background-color:#fff !important;}</style>";
+  if (html.includes("</head>")) {
+    return html.replace("</head>", `${style}</head>`);
+  }
+  if (html.includes("<html>")) {
+    return html.replace("<html>", `<html>${style}`);
+  }
+  return style + html;
+}
+
 interface SaleReceiptPreviewDialogProps {
   open: boolean;
   onOpenChange: (isOpen: boolean) => void;
@@ -248,12 +261,29 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
         </div>
       ) : previewHtml ? (
         <div
-          className={`bg-white text-black overflow-y-auto ${isThermal ? "max-w-[80mm] mx-auto" : "w-full"} px-2 py-2`}
-          style={isThermal ? { width: "80mm", minHeight: "200px" } : undefined}
+          className="flex justify-center w-full overflow-auto bg-white"
+          style={
+            isThermal
+              ? { minWidth: 302, minHeight: 400 }
+              : { minWidth: 750 }
+          }
         >
-          <div
-            className="receipt-preview-html"
-            dangerouslySetInnerHTML={{ __html: previewHtml }}
+          <iframe
+            key={`preview-${isThermal ? "thermal" : "a4"}-${previewHtml.length}`}
+            title="Vista previa del comprobante"
+            srcDoc={injectPreviewStyles(previewHtml)}
+            className="border-0 bg-white shrink-0"
+            style={
+              isThermal
+                ? {
+                    width: 302,
+                    minWidth: 302,
+                    minHeight: 400,
+                    height: "100%",
+                  }
+                : { width: 750, minWidth: 750, minHeight: 900 }
+            }
+            sandbox="allow-same-origin"
           />
         </div>
       ) : (
@@ -265,7 +295,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`bg-background border border-border p-0 flex flex-col max-h-[85vh] ${isThermal ? 'max-w-sm' : 'max-w-3xl'}`}>
+      <DialogContent className={`bg-background border border-border p-0 flex flex-col max-h-[85vh] ${isThermal ? 'max-w-sm' : 'max-w-4xl'}`}>
         <DialogHeader className="bg-background px-6 pt-4 pb-2 shrink-0">
           <div className="flex justify-between items-center">
             <DialogTitle className="text-foreground">Vista Previa</DialogTitle>
