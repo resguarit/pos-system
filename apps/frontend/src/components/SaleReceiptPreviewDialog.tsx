@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,7 @@ import { type SaleHeader } from "@/types/sale";
 import SaleReceiptContent from "./SaleReceiptContent";
 import ThermalTicketContent from "./ThermalTicketContent";
 import useApi from "@/hooks/useApi";
+import { isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
 import { Loader2, Printer } from "lucide-react";
 
 interface SaleReceiptPreviewDialogProps {
@@ -63,6 +64,40 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isThermal, setIsThermal] = useState(true);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewUseSdk, setPreviewUseSdk] = useState(false);
+
+  const afipCode =
+    sale?.receipt_type && typeof sale.receipt_type === "object" && "afip_code" in sale.receipt_type
+      ? (sale.receipt_type as { afip_code?: string }).afip_code
+      : (sale as SaleHeader & { receipt_type_code?: string })?.receipt_type_code;
+  const isInternalOnly = isInternalOnlyReceiptType(afipCode);
+  const useSdkPreview = !isInternalOnly && !!sale?.id;
+
+  useEffect(() => {
+    if (!open || !sale?.id || !useSdkPreview) {
+      setPreviewHtml(null);
+      setPreviewUseSdk(false);
+      return;
+    }
+    setPreviewUseSdk(true);
+    setPreviewLoading(true);
+    const format = isThermal ? "thermal" : "standard";
+    request({
+      method: "GET",
+      url: `/pos/sales/${sale.id}/receipt-preview-html?format=${format}`,
+    })
+      .then((data: { html?: string }) => {
+        setPreviewHtml(data?.html ?? null);
+      })
+      .catch(() => {
+        setPreviewHtml(null);
+      })
+      .finally(() => {
+        setPreviewLoading(false);
+      });
+  }, [open, sale?.id, isThermal, useSdkPreview]);
 
   if (!sale) {
     return null;
@@ -184,7 +219,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
     }
   };
 
-  const content = isThermal ? (
+  const legacyContent = isThermal ? (
     <ThermalTicketContent
       sale={sale}
       customerName={customerName}
@@ -204,6 +239,30 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
     />
   );
 
+  const previewContent =
+    previewUseSdk && (previewLoading || previewHtml !== null) ? (
+      previewLoading ? (
+        <div className="flex items-center justify-center min-h-[200px] text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin mr-2" />
+          Cargando vista previa...
+        </div>
+      ) : previewHtml ? (
+        <div
+          className={`bg-white text-black overflow-y-auto ${isThermal ? "max-w-[80mm] mx-auto" : "w-full"} px-2 py-2`}
+          style={isThermal ? { width: "80mm", minHeight: "200px" } : undefined}
+        >
+          <div
+            className="receipt-preview-html"
+            dangerouslySetInnerHTML={{ __html: previewHtml }}
+          />
+        </div>
+      ) : (
+        legacyContent
+      )
+    ) : (
+      legacyContent
+    );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={`bg-background border border-border p-0 flex flex-col max-h-[85vh] ${isThermal ? 'max-w-sm' : 'max-w-3xl'}`}>
@@ -221,7 +280,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
         </DialogHeader>
 
         <div id="receipt-preview-content" className="bg-white text-black overflow-y-auto px-6 py-4 grow">
-          {content}
+          {previewContent}
         </div>
 
         <DialogFooter className="bg-background px-6 py-3 shrink-0">

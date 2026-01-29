@@ -978,10 +978,11 @@ class SaleService implements SaleServiceInterface
         $pdf->setOption('enable_remote', true);
 
         if ($isThermal && isset($pdfOptions['width'])) {
-            $widthMm = (float) $pdfOptions['width'];
-            $heightPt = 841.89; // 297mm en puntos (alto A4)
-            $widthPt = $widthMm * 2.83465;
-            $pdf->setPaper([$widthPt, $heightPt], 'portrait');
+            // SDK devuelve width en pulgadas (3.1 ≈ 80mm). Dompdf espera [x0, y0, width_pt, height_pt].
+            $widthInches = (float) $pdfOptions['width'];
+            $widthPt = $widthInches * 72; // 1 pulgada = 72 pt
+            $heightPt = 841.89; // alto A4 en pt (297mm)
+            $pdf->setPaper([0, 0, $widthPt, $heightPt], 'portrait');
         } else {
             $pdf->setPaper('a4', 'portrait');
         }
@@ -995,6 +996,48 @@ class SaleService implements SaleServiceInterface
     private function pdfFilename(SaleHeader $sale): string
     {
         return 'comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf';
+    }
+
+    /**
+     * Devuelve el HTML de vista previa del comprobante (ticket o factura A4) generado por el SDK.
+     * Solo para comprobantes AFIP (no Presupuesto ni Factura X). Para internos devuelve null.
+     *
+     * @return array{html: string, format: string}|null null si es comprobante interno
+     */
+    public function getReceiptPreviewHtml(int $saleId, string $format = 'standard'): ?array
+    {
+        $sale = SaleHeader::with([
+            'items.product.iva',
+            'branch',
+            'customer.person',
+            'receiptType',
+            'saleIvas.iva',
+            'saleFiscalCondition',
+            'paymentType',
+        ])->find($saleId);
+
+        if (!$sale) {
+            return null;
+        }
+
+        $afipCode = $sale->receiptType->afip_code ?? null;
+        if (AfipConstants::isInternalOnlyReceipt($afipCode)) {
+            return null;
+        }
+
+        $invoice = $this->buildInvoiceDataForSdk($sale);
+        $responseArray = $this->buildAfipResponseFromSale($sale);
+        $response = InvoiceResponse::fromArray($this->normalizeArrayForInvoiceResponse($responseArray));
+
+        $isThermal = $format === 'thermal';
+        $html = $isThermal
+            ? Afip::renderTicketHtml($invoice, $response)
+            : Afip::renderFacturaA4Html($invoice, $response);
+
+        return [
+            'html' => $html,
+            'format' => $isThermal ? 'thermal' : 'standard',
+        ];
     }
 
     public function getSalesHistoryByBranch(int $branchId, Request $request): array
@@ -2025,17 +2068,41 @@ class SaleService implements SaleServiceInterface
             }
         }
 
-        return [
+        $saleDate = Carbon::parse($sale->date);
+
+        $invoice = [
             'issuer' => $issuer,
             'receiver' => $receiver,
             'items' => $items,
             'total' => round((float) $sale->total, 2),
             'netAmount' => round((float) $sale->subtotal, 2),
             'totalIva' => round((float) ($sale->total_iva_amount ?? 0), 2),
-            'date' => Carbon::parse($sale->date)->format('Ymd'),
+            'date' => $saleDate->format('Ymd'),
             'concept' => $this->determineConcept($sale),
             'condicion_venta' => $condicionVenta,
         ];
+
+        // Período facturado y vto. pago (template A4; si no se envían, el SDK usa la fecha del comprobante)
+        if ($sale->service_from_date) {
+            $invoice['periodo_desde'] = Carbon::parse($sale->service_from_date)->format('d/m/Y');
+        }
+        if ($sale->service_to_date) {
+            $invoice['periodo_hasta'] = Carbon::parse($sale->service_to_date)->format('d/m/Y');
+        }
+        if ($sale->service_due_date) {
+            $invoice['fecha_vto_pago'] = Carbon::parse($sale->service_due_date)->format('d/m/Y');
+        }
+
+        // Pie opcional del template A4 (texto y/o logo)
+        $invoice['footer_text'] = 'Generado con Afip SDK';
+        $footerLogo = SettingHelper::get('logo_url');
+        if (is_string($footerLogo) && $footerLogo !== '') {
+            $invoice['footer_logo_src'] = str_starts_with($footerLogo, 'http') ? $footerLogo : rtrim(config('app.url', ''), '/') . '/' . ltrim($footerLogo, '/');
+        } elseif (is_array($footerLogo) && !empty($footerLogo['url'])) {
+            $invoice['footer_logo_src'] = (string) $footerLogo['url'];
+        }
+
+        return $invoice;
     }
 
     /**

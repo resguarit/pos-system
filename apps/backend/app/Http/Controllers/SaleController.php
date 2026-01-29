@@ -234,6 +234,20 @@ class SaleController extends Controller
         }
     }
 
+    /**
+     * Devuelve el HTML de vista previa del comprobante (SDK) para comprobantes AFIP.
+     * Si es Presupuesto o Factura X, devuelve 404 para que el front use la vista previa local.
+     */
+    public function getReceiptPreviewHtml(Request $request, $id): JsonResponse
+    {
+        $format = $request->query('format', 'standard');
+        $data = $this->saleService->getReceiptPreviewHtml((int) $id, $format);
+        if ($data === null) {
+            return response()->json(['message' => 'Vista previa por SDK no disponible para este comprobante.'], 404);
+        }
+        return response()->json($data);
+    }
+
     public function salesHistoryByBranch(Request $request, int $branchId): JsonResponse
     {
         $salesHistory = $this->saleService->getSalesHistoryByBranch($branchId, $request);

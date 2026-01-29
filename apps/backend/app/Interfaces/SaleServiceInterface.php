@@ -18,6 +18,12 @@ interface SaleServiceInterface
     public function getSalesTotalByBranchAndDate(int $branchId, string $from, string $to): float;
     public function getSalesSummary(Request $request): array;
     public function downloadPdf(int $id);
+    /**
+     * @param int $saleId
+     * @param string $format 'standard'|'thermal'
+     * @return array{html: string, format: string}|null
+     */
+    public function getReceiptPreviewHtml(int $saleId, string $format = 'standard'): ?array;
     public function getSalesHistoryByBranch(int $branchId, Request $request): array;
     public function getSalesSummaryAllBranches(Request $request): array;
 

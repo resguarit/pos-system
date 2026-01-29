@@ -4275,12 +4275,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/resguarit/Afip-sdk.git",
-                "reference": "7614e4c6c17209b3b589394ed75403093c8b8acf"
+                "reference": "f90c884cd2cc4338f1bcefde04f270d55a4958ba"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/resguarit/Afip-sdk/zipball/7614e4c6c17209b3b589394ed75403093c8b8acf",
-                "reference": "7614e4c6c17209b3b589394ed75403093c8b8acf",
+                "url": "https://api.github.com/repos/resguarit/Afip-sdk/zipball/f90c884cd2cc4338f1bcefde04f270d55a4958ba",
+                "reference": "f90c884cd2cc4338f1bcefde04f270d55a4958ba",
                 "shasum": ""
             },
             "require": {
@@ -4346,7 +4346,7 @@
                 "laravel",
                 "sdk"
             ],
-            "time": "2026-01-29T12:41:17+00:00"
+            "time": "2026-01-29T13:22:12+00:00"
         },
         {
             "name": "sabberworm/php-css-parser",
