@@ -84,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
             });
             Route::get('/sales/{id}/pdf', [SaleController::class, 'downloadPdf'])->whereNumber('id');
             Route::get('/sales/{id}/receipt-preview-html', [SaleController::class, 'getReceiptPreviewHtml'])->whereNumber('id');
+            Route::get('/sales/{id}/debug-html', [SaleController::class, 'debugSdkHtml'])->whereNumber('id');
         });
     });
 

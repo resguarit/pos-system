@@ -248,6 +248,21 @@ class SaleController extends Controller
         return response()->json($data);
     }
 
+    /**
+     * Debug: Devuelve el HTML crudo del SDK para inspección.
+     * GET /pos/sales/{id}/debug-html?format=thermal|standard
+     */
+    public function debugSdkHtml(Request $request, $id)
+    {
+        $format = $request->query('format', 'thermal');
+        $data = $this->saleService->getReceiptPreviewHtml((int) $id, $format);
+        if ($data === null) {
+            return response('Comprobante no fiscal o no encontrado', 404);
+        }
+        return response($data['html'], 200)
+            ->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
     public function salesHistoryByBranch(Request $request, int $branchId): JsonResponse
     {
         $salesHistory = $this->saleService->getSalesHistoryByBranch($branchId, $request);
