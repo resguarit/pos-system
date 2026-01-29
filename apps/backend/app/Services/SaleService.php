@@ -971,14 +971,25 @@ class SaleService implements SaleServiceInterface
             ? Afip::renderTicketHtml($invoice, $response)
             : Afip::renderFacturaA4Html($invoice, $response);
 
-        $options = Afip::getReceiptPdfOptions();
-        $pdfOptions = $isThermal ? $options['ticket'] : $options['factura_a4'];
+        // Debug: loguear HTML generado y datos
+        Log::debug('[PDF-SDK] Generando PDF', [
+            'sale_id' => $sale->id,
+            'format' => $format,
+            'html_length' => strlen($html),
+            'html_preview' => substr($html, 0, 500),
+            'invoice_keys' => array_keys($invoice),
+            'response_cae' => $response->cae,
+        ]);
 
         $pdf = Pdf::loadHtml($html);
         $pdf->setOption('enable_remote', true);
 
-        if (!$isThermal) {
-            // Solo para factura A4 se fuerza el tamaño; el ticket usa @page del HTML (80mm auto)
+        if ($isThermal) {
+            // Ticket 80mm: width=80mm=226.77pt, height largo (500mm=1417pt) para acomodar contenido
+            $widthPt = 80 * 2.83465;   // 226.77 pt
+            $heightPt = 500 * 2.83465; // 1417 pt (alto suficiente para cualquier ticket)
+            $pdf->setPaper([0, 0, $widthPt, $heightPt], 'portrait');
+        } else {
             $pdf->setPaper('a4', 'portrait');
         }
 
