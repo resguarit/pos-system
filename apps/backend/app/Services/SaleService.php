@@ -14,6 +14,8 @@ use App\Models\SaleItem;
 use App\Models\SaleIva;
 use App\Models\PaymentMethod;
 use App\Models\ReceiptType;
+use App\Helpers\SettingHelper;
+use Resguar\AfipSdk\Facades\Afip;
 use Carbon\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -916,19 +918,12 @@ class SaleService implements SaleServiceInterface
     }
 
     /**
-     * Generate PDF for sale
-     * Force deploy for ticket fix v3
+     * Generate PDF for sale (ticket térmico o factura A4).
+     * Para comprobantes AFIP (no Presupuesto ni Factura X) usa el SDK para HTML + QR;
+     * para Presupuesto/Factura X usa las plantillas Blade locales.
      */
     public function downloadPdf(int $id, string $format = 'standard')
     {
-        // Debug: Log the format parameter received
-        \Illuminate\Support\Facades\Log::info('PDF Download requested', [
-            'sale_id' => $id,
-            'format_received' => $format,
-            'is_thermal' => ($format === 'thermal'),
-            'template_selected' => $format === 'thermal' ? 'pdf.ticket' : 'pdf.sale'
-        ]);
-
         $sale = SaleHeader::with([
             'items.product.iva',
             'branch',
@@ -936,16 +931,68 @@ class SaleService implements SaleServiceInterface
             'receiptType',
             'saleIvas.iva',
             'saleFiscalCondition',
+            'paymentType',
         ])->findOrFail($id);
 
-        $data = ['sale' => $sale];
+        $afipCode = $sale->receiptType->afip_code ?? null;
+        $useSdk = !AfipConstants::isInternalOnlyReceipt($afipCode);
 
-        // Seleccionar plantilla según el formato
+        if ($useSdk) {
+            return $this->downloadPdfViaSdk($sale, $format);
+        }
+
+        return $this->downloadPdfViaBlade($sale, $format);
+    }
+
+    /**
+     * Genera el PDF usando plantillas Blade (Presupuesto y Factura X).
+     */
+    private function downloadPdfViaBlade(SaleHeader $sale, string $format): \Illuminate\Http\Response
+    {
         $template = $format === 'thermal' ? 'pdf.ticket' : 'pdf.sale';
+        $pdf = Pdf::loadView($template, ['sale' => $sale]);
 
-        $pdf = Pdf::loadView($template, $data);
+        return $pdf->download($this->pdfFilename($sale));
+    }
 
-        return $pdf->download('comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf');
+    /**
+     * Genera el PDF usando el SDK AFIP (HTML con QR) para comprobantes autorizados por AFIP.
+     * Aplica las medidas de referencia: ticket 80mm, factura A4.
+     */
+    private function downloadPdfViaSdk(SaleHeader $sale, string $format): \Illuminate\Http\Response
+    {
+        $invoice = $this->buildInvoiceDataForSdk($sale);
+        $response = $this->buildAfipResponseFromSale($sale);
+
+        $isThermal = $format === 'thermal';
+        $html = $isThermal
+            ? Afip::renderTicketHtml($invoice, $response)
+            : Afip::renderFacturaA4Html($invoice, $response);
+
+        $options = Afip::getReceiptPdfOptions();
+        $pdfOptions = $isThermal ? $options['ticket'] : $options['factura_a4'];
+
+        $pdf = Pdf::loadHtml($html);
+        $pdf->setOption('enable_remote', true);
+
+        if ($isThermal && isset($pdfOptions['width'])) {
+            $widthMm = (float) $pdfOptions['width'];
+            $heightPt = 841.89; // 297mm en puntos (alto A4)
+            $widthPt = $widthMm * 2.83465;
+            $pdf->setPaper([$widthPt, $heightPt], 'portrait');
+        } else {
+            $pdf->setPaper('a4', 'portrait');
+        }
+
+        return $pdf->download($this->pdfFilename($sale));
+    }
+
+    /**
+     * Nombre de archivo para descarga del comprobante.
+     */
+    private function pdfFilename(SaleHeader $sale): string
+    {
+        return 'comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf';
     }
 
     public function getSalesHistoryByBranch(int $branchId, Request $request): array
@@ -1898,6 +1945,135 @@ class SaleService implements SaleServiceInterface
         // Por ahora, asumimos que todas son productos
         // En el futuro, se puede determinar basándose en los items
         return 1; // Productos
+    }
+
+    /**
+     * Construye el array de datos del comprobante en el formato esperado por el SDK AFIP
+     * para renderTicketHtml y renderFacturaA4Html (issuer, receiver, items, totales, fecha).
+     *
+     * @return array{issuer: array, receiver: array, items: array, total: float, netAmount: float, totalIva: float, date: string, concept: int, condicion_venta: string}
+     */
+    private function buildInvoiceDataForSdk(SaleHeader $sale): array
+    {
+        $branch = $sale->branch;
+
+        $issuer = [
+            'razon_social' => (string) (SettingHelper::get('company_name') ?? $branch->razon_social ?? $branch->description ?? ''),
+            'domicilio' => (string) (SettingHelper::get('company_address') ?? $branch->address ?? ''),
+            'cuit' => (string) (preg_replace('/[^0-9]/', '', (string) ($branch->cuit ?? SettingHelper::get('company_ruc') ?? '')) ?: '0'),
+            'condicion_iva' => (string) ($branch->iva_condition ?? 'Responsable Inscripto'),
+            'iibb' => $branch->iibb ? (string) $branch->iibb : null,
+            'inicio_actividad' => $branch->start_date
+                ? Carbon::parse($branch->start_date)->format('d/m/Y')
+                : null,
+        ];
+
+        $receiverName = 'Consumidor Final';
+        $receiverDoc = '0';
+        $receiverCondicionIva = 'Consumidor final';
+
+        if ($sale->customer) {
+            $receiverName = (string) ($sale->customer->business_name ?? trim(
+                ($sale->customer->person->first_name ?? '') . ' ' . ($sale->customer->person->last_name ?? '')
+            ) ?: 'Consumidor Final');
+            $cuit = $sale->customer->person->cuit ?? null;
+            $receiverDoc = $cuit && strlen(preg_replace('/[^0-9]/', '', $cuit)) === AfipConstants::CUIT_LENGTH
+                ? preg_replace('/[^0-9]/', '', $cuit)
+                : ($sale->sale_document_number ? (string) $sale->sale_document_number : '0');
+            if ($sale->saleFiscalCondition && !empty($sale->saleFiscalCondition->name)) {
+                $receiverCondicionIva = (string) $sale->saleFiscalCondition->name;
+            }
+        }
+
+        $receiver = [
+            'nombre' => $receiverName,
+            'nro_doc' => $receiverDoc,
+            'condicion_iva' => $receiverCondicionIva,
+        ];
+
+        $items = [];
+        foreach ($sale->items as $item) {
+            $product = $item->product;
+            $description = $product
+                ? ($product->description ?? $product->name ?? 'Producto')
+                : 'Producto';
+            $description = mb_substr((string) $description, 0, 250);
+
+            $quantity = (float) $item->quantity;
+            $unitPrice = (float) $item->unit_price;
+            $ivaRate = (float) ($item->iva_rate ?? ($product && $product->iva ? $product->iva->rate : 0));
+            $subtotal = (float) ($item->item_total ?? ($unitPrice * $quantity * (1 + $ivaRate / 100)));
+
+            $items[] = [
+                'description' => $description,
+                'quantity' => $quantity,
+                'unitPrice' => $unitPrice,
+                'taxRate' => (string) $ivaRate,
+                'subtotal' => round($subtotal, 2),
+            ];
+        }
+
+        $condicionVenta = 'Efectivo';
+        if ($sale->relationLoaded('paymentType') && $sale->paymentType) {
+            $condicionVenta = (string) ($sale->paymentType->name ?? $sale->paymentType->description ?? 'Efectivo');
+        } elseif ($sale->payment_method_id) {
+            $pm = PaymentMethod::find($sale->payment_method_id);
+            if ($pm) {
+                $condicionVenta = (string) ($pm->name ?? $pm->description ?? 'Efectivo');
+            }
+        }
+
+        return [
+            'issuer' => $issuer,
+            'receiver' => $receiver,
+            'items' => $items,
+            'total' => round((float) $sale->total, 2),
+            'netAmount' => round((float) $sale->subtotal, 2),
+            'totalIva' => round((float) ($sale->total_iva_amount ?? 0), 2),
+            'date' => Carbon::parse($sale->date)->format('Ymd'),
+            'concept' => $this->determineConcept($sale),
+            'condicion_venta' => $condicionVenta,
+        ];
+    }
+
+    /**
+     * Construye el array de respuesta AFIP desde la venta (CAE, vencimiento, número, punto de venta, tipo).
+     * Usado por el SDK para renderTicketHtml y renderFacturaA4Html (QR y datos del comprobante).
+     *
+     * @return array{cae: ?string, caeExpirationDate: ?string, invoiceNumber: ?int, pointOfSale: ?int, invoiceType: ?int}
+     */
+    private function buildAfipResponseFromSale(SaleHeader $sale): array
+    {
+        $caeExpiration = null;
+        if ($sale->cae_expiration_date) {
+            $caeExpiration = Carbon::parse($sale->cae_expiration_date)->format('Ymd');
+        }
+
+        $invoiceNumber = null;
+        if (!empty($sale->receipt_number)) {
+            $invoiceNumber = (int) preg_replace('/[^0-9]/', '', (string) $sale->receipt_number);
+            if ($invoiceNumber < 1) {
+                $invoiceNumber = null;
+            }
+        }
+
+        $pointOfSale = 1;
+        if ($sale->branch && !empty($sale->branch->point_of_sale)) {
+            $pos = (int) $sale->branch->point_of_sale;
+            if ($pos >= 1) {
+                $pointOfSale = $pos;
+            }
+        }
+
+        $invoiceType = $this->mapReceiptTypeToAfipType($sale->receiptType);
+
+        return [
+            'cae' => $sale->cae ? (string) $sale->cae : null,
+            'caeExpirationDate' => $caeExpiration,
+            'invoiceNumber' => $invoiceNumber,
+            'pointOfSale' => $pointOfSale,
+            'invoiceType' => $invoiceType,
+        ];
     }
 
     /**

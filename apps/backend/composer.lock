@@ -4275,12 +4275,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/resguarit/Afip-sdk.git",
-                "reference": "3b14c26a0b6fb844163931b67808a7a08a822072"
+                "reference": "7614e4c6c17209b3b589394ed75403093c8b8acf"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/resguarit/Afip-sdk/zipball/3b14c26a0b6fb844163931b67808a7a08a822072",
-                "reference": "3b14c26a0b6fb844163931b67808a7a08a822072",
+                "url": "https://api.github.com/repos/resguarit/Afip-sdk/zipball/7614e4c6c17209b3b589394ed75403093c8b8acf",
+                "reference": "7614e4c6c17209b3b589394ed75403093c8b8acf",
                 "shasum": ""
             },
             "require": {
@@ -4295,6 +4295,9 @@
             "require-dev": {
                 "orchestra/testbench": "^9.0",
                 "phpunit/phpunit": "^10.0"
+            },
+            "suggest": {
+                "endroid/qr-code": "^5.0 Para generar la imagen del QR en Ticket y Factura A4 (opcional)"
             },
             "default-branch": true,
             "type": "library",
@@ -4343,7 +4346,7 @@
                 "laravel",
                 "sdk"
             ],
-            "time": "2025-11-27T16:04:39+00:00"
+            "time": "2026-01-29T12:41:17+00:00"
         },
         {
             "name": "sabberworm/php-css-parser",
