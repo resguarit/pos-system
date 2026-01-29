@@ -84,9 +84,13 @@ Route::middleware('auth:sanctum')->group(function () {
             });
             Route::get('/sales/{id}/pdf', [SaleController::class, 'downloadPdf'])->whereNumber('id');
             Route::get('/sales/{id}/receipt-preview-html', [SaleController::class, 'getReceiptPreviewHtml'])->whereNumber('id');
-            Route::get('/sales/{id}/debug-html', [SaleController::class, 'debugSdkHtml'])->whereNumber('id');
         });
     });
+
+    // DEBUG: Ruta temporal pública para ver HTML del SDK (ELIMINAR DESPUÉS DE DEBUGGEAR)
+    Route::get('/pos/sales/{id}/debug-html', [SaleController::class, 'debugSdkHtml'])
+        ->whereNumber('id')
+        ->withoutMiddleware(['auth:sanctum']);
 
     Route::prefix('branches')->group(function () {
         Route::middleware('has_permission:ver_sucursales')->group(function () {
