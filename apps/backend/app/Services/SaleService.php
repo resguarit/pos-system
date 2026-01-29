@@ -15,6 +15,7 @@ use App\Models\SaleIva;
 use App\Models\PaymentMethod;
 use App\Models\ReceiptType;
 use App\Helpers\SettingHelper;
+use Resguar\AfipSdk\DTOs\InvoiceResponse;
 use Resguar\AfipSdk\Facades\Afip;
 use Carbon\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
@@ -962,7 +963,8 @@ class SaleService implements SaleServiceInterface
     private function downloadPdfViaSdk(SaleHeader $sale, string $format): \Illuminate\Http\Response
     {
         $invoice = $this->buildInvoiceDataForSdk($sale);
-        $response = $this->buildAfipResponseFromSale($sale);
+        $responseArray = $this->buildAfipResponseFromSale($sale);
+        $response = InvoiceResponse::fromArray($this->normalizeArrayForInvoiceResponse($responseArray));
 
         $isThermal = $format === 'thermal';
         $html = $isThermal
@@ -2033,6 +2035,23 @@ class SaleService implements SaleServiceInterface
             'date' => Carbon::parse($sale->date)->format('Ymd'),
             'concept' => $this->determineConcept($sale),
             'condicion_venta' => $condicionVenta,
+        ];
+    }
+
+    /**
+     * Adapta el array de respuesta (camelCase) al formato que espera InvoiceResponse::fromArray().
+     *
+     * @param array{cae: ?string, caeExpirationDate: ?string, invoiceNumber: ?int, pointOfSale: ?int, invoiceType: ?int} $data
+     * @return array{cae: string, cae_expiration_date: string, invoice_number: int, point_of_sale: int, invoice_type: int}
+     */
+    private function normalizeArrayForInvoiceResponse(array $data): array
+    {
+        return [
+            'cae' => (string) ($data['cae'] ?? ''),
+            'cae_expiration_date' => (string) ($data['caeExpirationDate'] ?? ''),
+            'invoice_number' => (int) ($data['invoiceNumber'] ?? 0),
+            'point_of_sale' => (int) ($data['pointOfSale'] ?? 0),
+            'invoice_type' => (int) ($data['invoiceType'] ?? 0),
         ];
     }
 
