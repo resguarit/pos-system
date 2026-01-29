@@ -27,6 +27,7 @@ class Branch extends Model
         'color',
         'cuit',
         'razon_social',
+        'domicilio_comercial',
         'iibb',
         'start_date',
         'enabled_receipt_types',

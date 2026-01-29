@@ -2008,6 +2008,7 @@ class SaleService implements SaleServiceInterface
         $issuer = [
             'razon_social' => (string) (SettingHelper::get('company_name') ?? $branch->razon_social ?? $branch->description ?? ''),
             'domicilio' => (string) (SettingHelper::get('company_address') ?? $branch->address ?? ''),
+            'domicilio_fiscal' => (string) ($branch->domicilio_comercial ?? ''),
             'cuit' => (string) (preg_replace('/[^0-9]/', '', (string) ($branch->cuit ?? SettingHelper::get('company_ruc') ?? '')) ?: '0'),
             'condicion_iva' => (string) ($branch->iva_condition ?? 'Responsable Inscripto'),
             'iibb' => $branch->iibb ? (string) $branch->iibb : null,

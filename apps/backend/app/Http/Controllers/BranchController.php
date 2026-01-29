@@ -111,6 +111,7 @@ class BranchController extends Controller
             'color' => 'string|max:7|regex:/^#[0-9A-F]{6}$/i',
             'cuit' => 'nullable|string|regex:/^[0-9]{11}$/',
             'razon_social' => 'nullable|string|max:255',
+            'domicilio_comercial' => 'nullable|string|max:500',
             'enabled_receipt_types' => 'nullable|array',
             'enabled_receipt_types.*' => 'integer|exists:receipt_type,id',
         ]);
@@ -172,6 +173,7 @@ class BranchController extends Controller
             'color' => 'string|max:7|regex:/^#[0-9A-F]{6}$/i',
             'cuit' => 'nullable|string|regex:/^[0-9]{11}$/',
             'razon_social' => 'nullable|string|max:255',
+            'domicilio_comercial' => 'nullable|string|max:500',
             'enabled_receipt_types' => 'nullable|array',
             'enabled_receipt_types.*' => 'integer|exists:receipt_type,id',
         ]);

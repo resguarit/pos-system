@@ -45,6 +45,7 @@ interface Branch {
   color?: string
   cuit?: string
   razon_social?: string
+  domicilio_comercial?: string
   enabled_receipt_types?: number[]
 }
 
@@ -64,6 +65,7 @@ const initialBranch: Branch = {
   color: "#0ea5e9",
   cuit: "",
   razon_social: "",
+  domicilio_comercial: "",
   enabled_receipt_types: [],
 }
 
@@ -91,6 +93,7 @@ function initializeFormState(currentBranch?: Branch): Branch {
           : initialBranch.color,
       cuit: currentBranch.cuit || "",
       razon_social: currentBranch.razon_social || "",
+      domicilio_comercial: (currentBranch as any).domicilio_comercial || "",
       enabled_receipt_types: (currentBranch as any).enabled_receipt_types || [],
     }
   }
@@ -393,6 +396,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         color: formData.color,
         cuit: formData.cuit || null,
         razon_social: formData.razon_social || null,
+        domicilio_comercial: formData.domicilio_comercial || null,
         enabled_receipt_types: formData.enabled_receipt_types || [],
       }
 
@@ -638,6 +642,21 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                         Se obtiene automáticamente del certificado AFIP registrado.
                       </p>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="domicilio_comercial">Domicilio comercial</Label>
+                    <Input
+                      id="domicilio_comercial"
+                      name="domicilio_comercial"
+                      value={formData.domicilio_comercial || ""}
+                      onChange={(e) => setFormData(prev => ({ ...prev, domicilio_comercial: e.target.value }))}
+                      placeholder="Ej: Av. Principal 123, Ciudad"
+                      disabled={isReadOnly}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Dirección que aparecerá en los PDFs de facturación electrónica (ticket y factura A4).
+                    </p>
                   </div>
                   
                   {formData.cuit && formData.cuit.replace(/[^0-9]/g, '').length === 11 && (
