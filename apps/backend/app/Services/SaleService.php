@@ -1656,6 +1656,55 @@ class SaleService implements SaleServiceInterface
             // Normalizar respuesta: el SDK puede devolver camelCase, snake_case o claves AFIP (CAE, CAEFchVto, CbteDesde, PtoVta, CbteTipo)
             $resultArray = $this->normalizeAfipAuthorizationResponse($rawResult);
 
+            // VALIDACIÓN DE CAE: Si no hay CAE, la autorización falló (o fue rechazada)
+            if (empty($resultArray['cae'])) {
+                $errorMsg = 'AFIP no devolvió CAE (Comprobante rechazado o error).';
+
+                // Intentar extraer observaciones (Obs) de la respuesta cruda para dar más detalle
+                $observations = null;
+                if (isset($rawResult['FeDetResp']['FECAEDetResponse']['Observaciones']['Obs'])) {
+                    $observations = $rawResult['FeDetResp']['FECAEDetResponse']['Observaciones']['Obs'];
+                } elseif (isset($rawResult['FeDetResp'][0]['Observaciones']['Obs'])) {
+                    $observations = $rawResult['FeDetResp'][0]['Observaciones']['Obs'];
+                } elseif (isset($rawResult['Observaciones']['Obs'])) {
+                    $observations = $rawResult['Observaciones']['Obs'];
+                }
+
+                if ($observations) {
+                    // Puede ser un array de obs o una sola obs
+                    if (isset($observations['Msg'])) {
+                        $errorMsg .= " Detalle: {$observations['Msg']} (Cod: {$observations['Code']})";
+                    } elseif (is_array($observations)) {
+                        foreach ($observations as $obs) {
+                            if (isset($obs['Msg'])) {
+                                $errorMsg .= " [{$obs['Msg']}]";
+                            }
+                        }
+                    }
+                }
+
+                // Intentar extraer Errores (Errors)
+                if (isset($rawResult['Errors']['Err'])) {
+                    $errs = $rawResult['Errors']['Err'];
+                    if (isset($errs['Msg'])) {
+                        $errorMsg .= " Error: {$errs['Msg']}";
+                    } elseif (is_array($errs)) {
+                        foreach ($errs as $e) {
+                            if (isset($e['Msg'])) {
+                                $errorMsg .= " [Error: {$e['Msg']}]";
+                            }
+                        }
+                    }
+                }
+
+                Log::error('AFIP AuthorizeInvoice falló: CAE vacío', [
+                    'sale_id' => $sale->id,
+                    'raw_response' => $rawResult
+                ]);
+
+                throw new \Exception($errorMsg);
+            }
+
             // Asegurar vto CAE: si la normalización no lo trajo, leer del objeto (InvoiceResponse->caeExpirationDate)
             if (empty($resultArray['caeExpirationDate']) && is_object($result) && property_exists($result, 'caeExpirationDate')) {
                 $v = $result->caeExpirationDate ?? null;
