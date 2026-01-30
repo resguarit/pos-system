@@ -1066,7 +1066,7 @@ class SaleService implements SaleServiceInterface
      */
     private function pdfFilename(SaleHeader $sale): string
     {
-        return 'comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf';
+        return 'comprobante_' . $sale->receipt_number . '_' . $sale->id . '_' . time() . '.pdf';
     }
 
     /**
@@ -1097,9 +1097,23 @@ class SaleService implements SaleServiceInterface
             return null;
         }
 
+        // Check for CAE existence in Preview too
+        if (empty($sale->cae)) {
+            // In preview we might return null or a placeholder, but for consistency let's log
+            Log::warning("Preview de PDF sin CAE. Venta ID: {$sale->id}");
+            // We continue, but it might show empty. OR we can throw exception?
+            // Preview is mostly UI, maybe better to show what we have.
+        }
+
         $invoice = $this->buildInvoiceDataForSdk($sale);
+        // Ensure codAut is explicitly present
+        if (!empty($sale->cae) && empty($invoice['codAut'])) {
+            $invoice['codAut'] = (string) $sale->cae;
+        }
+
         $responseArray = $this->buildAfipResponseFromSale($sale);
-        $response = InvoiceResponse::fromArray($this->normalizeArrayForInvoiceResponse($responseArray));
+        $normalizedArray = $this->normalizeArrayForInvoiceResponse($responseArray);
+        $response = InvoiceResponse::fromArray($normalizedArray);
 
         $isThermal = $format === 'thermal';
         $html = $isThermal
