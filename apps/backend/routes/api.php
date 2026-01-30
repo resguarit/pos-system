@@ -459,7 +459,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Rutas que requieren caja abierta
         Route::middleware('cash.open')->group(function () {
             Route::middleware('has_permission:crear_ventas')->post('/', [SaleController::class, 'store']);
-            Route::middleware('has_permission:editar_ventas')->put('/{id}', [SaleController::class, 'update'])->whereNumber('id');
+            Route::middleware('has_permission:crear_ventas')->put('/{id}', [SaleController::class, 'update'])->whereNumber('id');
         });
 
         Route::middleware('has_permission:anular_ventas')->delete('/{id}', [SaleController::class, 'destroy'])->whereNumber('id');
