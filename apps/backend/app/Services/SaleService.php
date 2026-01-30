@@ -8,6 +8,7 @@ use App\Services\CurrentAccountService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\Customer;
 use App\Models\SaleHeader;
 use App\Models\Product;
 use App\Models\SaleItem;
@@ -291,6 +292,16 @@ class SaleService implements SaleServiceInterface
 
                 if ($existingSale) {
                     throw new \Exception("No se pudo generar un número de comprobante único después de varios intentos. Contacte al administrador.");
+                }
+            }
+
+            // 6.1) Si hay cliente pero no se envió condición fiscal, derivarla de la identidad fiscal por defecto del cliente
+            if (!empty($data['customer_id']) && empty($data['sale_fiscal_condition_id'])) {
+                $customer = Customer::with('taxIdentities')->find($data['customer_id']);
+                $defaultIdentity = $customer?->taxIdentities->where('is_default', true)->first()
+                    ?? $customer?->taxIdentities->first();
+                if ($defaultIdentity && !empty($defaultIdentity->fiscal_condition_id)) {
+                    $data['sale_fiscal_condition_id'] = (int) $defaultIdentity->fiscal_condition_id;
                 }
             }
 
