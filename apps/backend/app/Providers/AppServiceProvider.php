@@ -107,12 +107,6 @@ class AppServiceProvider extends ServiceProvider
 
         // Audit Service binding
         $this->app->bind(\App\Interfaces\AuditServiceInterface::class, \App\Services\AuditService::class);
-
-        // Override Afip SDK ReceiptRenderer to use local templates (custom path)
-        $this->app->singleton(\Resguar\AfipSdk\Services\ReceiptRenderer::class, function ($app) {
-            // Using resource_path because we stored templates in resources/templates/afip
-            return new \Resguar\AfipSdk\Services\ReceiptRenderer(resource_path('templates/afip'));
-        });
     }
 
     /**
