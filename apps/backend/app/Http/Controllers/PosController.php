@@ -268,4 +268,103 @@ class PosController extends Controller
 
         $saleHeader->save();
     }
+
+    /**
+     * DEBUG: Retorna el payload exacto que se usaría para el QR.
+     */
+    public function debugQrPayload($saleId)
+    {
+        $sale = SaleHeader::with([
+            'items.product.iva',
+            'branch',
+            'customer.person',
+            'customerTaxIdentity.fiscalCondition',
+            'receiptType',
+            'saleIvas.iva',
+            'saleFiscalCondition',
+            'paymentType',
+        ])->find($saleId);
+
+        if (!$sale) {
+            return response()->json(['error' => 'Venta no encontrada'], 404);
+        }
+
+        // 1. Replicar lógica de SaleService::downloadPdfViaSdk
+        try {
+            // Acceso "sucio" a métodos privados via Reflection para ser exactos
+            $service = $this->saleService;
+            $reflection = new \ReflectionClass($service);
+
+            $methodInvoice = $reflection->getMethod('buildInvoiceDataForSdk');
+            $methodInvoice->setAccessible(true);
+            $invoice = $methodInvoice->invoke($service, $sale);
+
+            // PATCH REPLICATION: Ensure codAut logic applied in service
+            if (empty($invoice['codAut']) && !empty($sale->cae)) {
+                $invoice['codAut'] = (string) $sale->cae;
+            }
+
+            $methodResponse = $reflection->getMethod('buildAfipResponseFromSale');
+            $methodResponse->setAccessible(true);
+            $responseArray = $methodResponse->invoke($service, $sale);
+
+            $methodNormalize = $reflection->getMethod('normalizeArrayForInvoiceResponse');
+            $methodNormalize->setAccessible(true);
+            $normalizedArray = $methodNormalize->invoke($service, $responseArray);
+
+            $responseDto = \Resguar\AfipSdk\DTOs\InvoiceResponse::fromArray($normalizedArray);
+
+            // 2. Simular lógica del SDK ReceiptRenderer para el QR
+            // Copiado de ReceiptRenderer.php para ver qué generaría
+            $qrParams = [
+                'fecha' => $normalizedArray['additional_data']['CbteFch'] ?? $invoice['date'] ?? date('Ymd'),
+                'cuit' => $invoice['issuer']['cuit'] ?? $invoice['cuit'] ?? '',
+                'ptoVta' => $responseDto->pointOfSale,
+                'tipoCmp' => $responseDto->invoiceType,
+                'nroCmp' => $responseDto->invoiceNumber,
+                'importe' => (float) ($invoice['total'] ?? 0),
+                'moneda' => $invoice['moneda'] ?? 'PES',
+                'ctz' => (float) ($invoice['cotizacionMoneda'] ?? 1),
+                'tipoCodAut' => 'E',
+                'codAut' => $responseDto->cae ?: ($invoice['codAut'] ?? ''), // THE CRITICAL LINE
+            ];
+
+            if (!empty($invoice['customerDocumentType'])) {
+                $qrParams['tipoDocRec'] = $invoice['customerDocumentType'];
+            }
+            if (!empty($invoice['customerDocumentNumber'])) {
+                $qrParams['nroDocRec'] = $invoice['customerDocumentNumber'];
+            }
+
+            // Generar JSON
+            $json = json_encode([
+                'ver' => 1,
+                'fecha' => $qrParams['fecha'],
+                'cuit' => (int) preg_replace('/\D/', '', (string) $qrParams['cuit']),
+                'ptoVta' => (int) $qrParams['ptoVta'],
+                'tipoCmp' => (int) $qrParams['tipoCmp'],
+                'nroCmp' => (int) $qrParams['nroCmp'],
+                'importe' => (float) $qrParams['importe'],
+                'moneda' => (string) $qrParams['moneda'],
+                'ctz' => (float) $qrParams['ctz'],
+                'tipoCodAut' => (string) $qrParams['tipoCodAut'],
+                'codAut' => (string) ($qrParams['codAut']), // FORCE STRING
+                'tipoDocRec' => isset($qrParams['tipoDocRec']) ? (int) $qrParams['tipoDocRec'] : null,
+                'nroDocRec' => isset($qrParams['nroDocRec']) ? (int) preg_replace('/\D/', '', (string) $qrParams['nroDocRec']) : null,
+            ]);
+
+            return response()->json([
+                'sale_id' => $sale->id,
+                'sale_cae_db' => $sale->cae,
+                'invoice_codAut_in_array' => $invoice['codAut'] ?? null,
+                'dto_cae' => $responseDto->cae,
+                'sdk_logic_result_codAut' => $qrParams['codAut'],
+                'qr_json_payload' => json_decode($json), // Return as object for readability
+                'qr_base64' => base64_encode($json),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()], 500);
+        }
+    }
 }
