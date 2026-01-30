@@ -1012,22 +1012,23 @@ class SaleService implements SaleServiceInterface
     {
         $invoice = $this->buildInvoiceDataForSdk($sale);
         $responseArray = $this->buildAfipResponseFromSale($sale);
-        $response = InvoiceResponse::fromArray($this->normalizeArrayForInvoiceResponse($responseArray));
+        $normalizedArray = $this->normalizeArrayForInvoiceResponse($responseArray);
+        $response = InvoiceResponse::fromArray($normalizedArray);
+
+        Log::info('[PDF-SDK] Debug QR Data Flow', [
+            'sale_id' => $sale->id,
+            'sale_cae_in_object' => $sale->cae,
+            'responseArray_cae' => $responseArray['cae'] ?? 'MISSING',
+            'responseArray_codAut' => $responseArray['codAut'] ?? 'MISSING',
+            'normalized_cae' => $normalizedArray['cae'] ?? 'MISSING',
+            'normalized_codAut' => $normalizedArray['codAut'] ?? 'MISSING',
+            'dto_cae' => $response->cae,
+            'invoice_customerDocType' => $invoice['customerDocumentType'] ?? 'MISSING',
+            'invoice_customerDocNumber' => $invoice['customerDocumentNumber'] ?? 'MISSING',
+            'invoice_codAut' => $invoice['codAut'] ?? 'MISSING',
+        ]);
 
         $isThermal = $format === 'thermal';
-        $html = $isThermal
-            ? Afip::renderTicketHtml($invoice, $response)
-            : Afip::renderFacturaA4Html($invoice, $response);
-
-        // Debug: loguear HTML generado y datos
-        Log::debug('[PDF-SDK] Generando PDF', [
-            'sale_id' => $sale->id,
-            'format' => $format,
-            'html_length' => strlen($html),
-            'html_preview' => substr($html, 0, 500),
-            'invoice_keys' => array_keys($invoice),
-            'response_cae' => $response->cae,
-        ]);
 
         $pdf = Pdf::loadHtml($html);
         $pdf->setOption('enable_remote', true);
