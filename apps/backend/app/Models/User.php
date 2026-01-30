@@ -210,9 +210,10 @@ class User extends Authenticatable
             return false;
         }
 
-        return $this->role->permissions()
-            ->where('name', $permissionName)
-            ->exists();
+        // Load permissions if not already loaded (prevents repeated DB queries)
+        $this->role->loadMissing('permissions');
+
+        return $this->role->permissions->contains('name', $permissionName);
     }
 
     /**

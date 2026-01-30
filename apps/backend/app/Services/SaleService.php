@@ -1682,7 +1682,7 @@ class SaleService implements SaleServiceInterface
                 if ($invoiceNumber !== null && $invoiceNumber !== '') {
                     $newReceiptNumber = str_pad((string) $invoiceNumber, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT);
                     $duplicateExists = SaleHeader::where('branch_id', $sale->branch_id)
-                        ->where('receipt_type_id', $sale->receipt_type_id)
+                        ->where('numbering_scope', $sale->numbering_scope)
                         ->where('receipt_number', $newReceiptNumber)
                         ->where('id', '!=', $sale->id)
                         ->exists();
