@@ -1010,6 +1010,11 @@ class SaleService implements SaleServiceInterface
      */
     private function downloadPdfViaSdk(SaleHeader $sale, string $format): \Illuminate\Http\Response
     {
+        if (empty($sale->cae)) {
+            Log::error("[PDF-SDK] Venta {$sale->id} sin CAE. No se puede generar PDF.");
+            throw new \Exception("Esta venta no tiene CAE autorizado por AFIP. No se puede generar el comprobante fiscal.");
+        }
+
         $invoice = $this->buildInvoiceDataForSdk($sale);
         $responseArray = $this->buildAfipResponseFromSale($sale);
         $normalizedArray = $this->normalizeArrayForInvoiceResponse($responseArray);
