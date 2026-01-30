@@ -1010,44 +1010,15 @@ class SaleService implements SaleServiceInterface
      */
     private function downloadPdfViaSdk(SaleHeader $sale, string $format): \Illuminate\Http\Response
     {
-        // BEST PRACTICE: Validar integridad de datos antes de intentar generar el documento legal
-        if (empty($sale->cae)) {
-            Log::error("Intento de descarga de PDF sin CAE. Venta ID: {$sale->id}");
-            throw new \Exception("Esta venta no tiene CAE asignado. No se puede generar el comprobante fiscal.");
-        }
-
         $invoice = $this->buildInvoiceDataForSdk($sale);
-
-        // Ensure codAut is explicitly present in invoice data (Redundancy for SDK safety)
-        if (empty($invoice['codAut'])) {
-            $invoice['codAut'] = (string) $sale->cae;
-        }
-
         $responseArray = $this->buildAfipResponseFromSale($sale);
         $normalizedArray = $this->normalizeArrayForInvoiceResponse($responseArray);
         $response = InvoiceResponse::fromArray($normalizedArray);
-
-        // Ultimate Check: Ensure DTO has CAE
-        if (empty($response->cae)) {
-            throw new \Exception("Error interno: El objeto de respuesta no contiene CAE a pesar de existir en la venta.");
-        }
-
-        Log::info('[PDF-SDK] Debug QR Data Flow', [
-            'sale_id' => $sale->id,
-            'sale_cae' => $sale->cae,
-            'dto_cae' => $response->cae,
-            'invoice_codAut' => $invoice['codAut']
-        ]);
 
         $isThermal = $format === 'thermal';
         $html = $isThermal
             ? Afip::renderTicketHtml($invoice, $response)
             : Afip::renderFacturaA4Html($invoice, $response);
-
-        // Debug HTML length separately
-        Log::debug('[PDF-SDK] HTML Generado', [
-            'length' => strlen($html),
-        ]);
 
         $pdf = Pdf::loadHtml($html);
         $pdf->setOption('enable_remote', true);
@@ -1062,11 +1033,11 @@ class SaleService implements SaleServiceInterface
     }
 
     /**
-     * Nombre de archivo para descarga del comprobante.
+     * Nombre base del archivo PDF.
      */
     private function pdfFilename(SaleHeader $sale): string
     {
-        return 'comprobante_' . $sale->receipt_number . '_' . $sale->id . '_' . time() . '.pdf';
+        return 'comprobante_' . $sale->receipt_number . '_' . $sale->id . '.pdf';
     }
 
     /**
