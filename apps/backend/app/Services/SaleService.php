@@ -2241,6 +2241,7 @@ class SaleService implements SaleServiceInterface
         $caeExpiration = $data['caeExpirationDate'] ?? $data['cae_expiration_date'] ?? '';
         return [
             'cae' => (string) ($data['cae'] ?? ''),
+            'codAut' => (string) ($data['cae'] ?? ''), // Add param codAut
             'cae_expiration_date' => (string) $caeExpiration,
             'caeExpirationDate' => (string) $caeExpiration,
             'invoice_number' => (int) ($data['invoiceNumber'] ?? 0),
@@ -2282,6 +2283,7 @@ class SaleService implements SaleServiceInterface
 
         return [
             'cae' => $sale->cae ? (string) $sale->cae : null,
+            'codAut' => $sale->cae ? (string) $sale->cae : null, // Add param codAut
             'caeExpirationDate' => $caeExpiration,
             'invoiceNumber' => $invoiceNumber,
             'pointOfSale' => $pointOfSale,
