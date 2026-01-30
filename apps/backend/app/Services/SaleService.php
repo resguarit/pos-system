@@ -1023,12 +1023,18 @@ class SaleService implements SaleServiceInterface
             'normalized_cae' => $normalizedArray['cae'] ?? 'MISSING',
             'normalized_codAut' => $normalizedArray['codAut'] ?? 'MISSING',
             'dto_cae' => $response->cae,
-            'invoice_customerDocType' => $invoice['customerDocumentType'] ?? 'MISSING',
-            'invoice_customerDocNumber' => $invoice['customerDocumentNumber'] ?? 'MISSING',
-            'invoice_codAut' => $invoice['codAut'] ?? 'MISSING',
+            'invoice_id' => $invoice['customerDocumentNumber'] ?? 'MISSING',
         ]);
 
         $isThermal = $format === 'thermal';
+        $html = $isThermal
+            ? Afip::renderTicketHtml($invoice, $response)
+            : Afip::renderFacturaA4Html($invoice, $response);
+
+        // Debug HTML length separately
+        Log::debug('[PDF-SDK] HTML Generado', [
+            'length' => strlen($html),
+        ]);
 
         $pdf = Pdf::loadHtml($html);
         $pdf->setOption('enable_remote', true);
