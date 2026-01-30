@@ -44,22 +44,16 @@ return new class extends Migration
 
         $oldIndexExists = $this->indexExists('sales_header', 'unique_receipt_per_branch_type');
         if ($oldIndexExists) {
-            try {
-                Schema::table('sales_header', function (Blueprint $table) {
-                    $table->dropUnique('unique_receipt_per_branch_type');
-                });
-            } catch (QueryException $e) {
-                if (str_contains($e->getMessage(), 'foreign key') || $e->getCode() === '42000') {
-                    throw new \RuntimeException(
-                        'Cannot drop index unique_receipt_per_branch_type: it is required by a foreign key. '
-                        . 'Find the table that references sales_header(branch_id, receipt_type_id, receipt_number), '
-                        . 'drop that foreign key, then re-run migrations.',
-                        0,
-                        $e
-                    );
-                }
-                throw $e;
+            // InnoDB can use the unique (branch_id, receipt_type_id, receipt_number) as the index
+            // for FKs on branch_id and receipt_type_id. Create standalone indexes so we can drop the unique.
+            $driver = Schema::getConnection()->getDriverName();
+            if ($driver === 'mysql') {
+                $this->addIndexIfNotExists('sales_header', 'branch_id', 'sales_header_numbering_scope_branch_id_idx');
+                $this->addIndexIfNotExists('sales_header', 'receipt_type_id', 'sales_header_numbering_scope_receipt_type_id_idx');
             }
+            Schema::table('sales_header', function (Blueprint $table) {
+                $table->dropUnique('unique_receipt_per_branch_type');
+            });
         }
 
         Schema::table('sales_header', function (Blueprint $table) {
@@ -95,5 +89,15 @@ return new class extends Migration
         $results = DB::select("SHOW INDEX FROM {$table} WHERE Key_name = ?", [$indexName]);
 
         return ! empty($results);
+    }
+
+    /** Add a single-column index only if no other index on that column exists (except unique_receipt_per_branch_type). */
+    private function addIndexIfNotExists(string $table, string $column, string $newIndexName): void
+    {
+        $rows = DB::select("SHOW INDEX FROM {$table} WHERE Column_name = ? AND Key_name != 'unique_receipt_per_branch_type'", [$column]);
+        if (! empty($rows)) {
+            return;
+        }
+        DB::statement("CREATE INDEX {$newIndexName} ON {$table} ({$column})");
     }
 };
