@@ -2,6 +2,7 @@
 namespace App\Services;
 
 use App\Constants\AfipConstants;
+use App\Constants\SaleNumberingScope;
 use App\Interfaces\SaleServiceInterface;
 use App\Services\CashMovementService;
 use App\Services\CurrentAccountService;
@@ -264,8 +265,8 @@ class SaleService implements SaleServiceInterface
 
             // Alcance de numeración: presupuesto tiene secuencia propia; el resto comparte secuencia contigua.
             $data['numbering_scope'] = ($receiptTypeForStatus && AfipConstants::isPresupuesto($receiptTypeForStatus->afip_code))
-                ? 'presupuesto'
-                : 'sale';
+                ? SaleNumberingScope::PRESUPUESTO
+                : SaleNumberingScope::SALE;
 
             // 6) Numeración de comprobante
             // Presupuesto (016): secuencia propia por tipo. Resto: secuencia contigua única por sucursal (todas las ventas).
@@ -2322,12 +2323,12 @@ class SaleService implements SaleServiceInterface
             // Generar número de comprobante
             $newReceiptNumber = $this->generateNextReceiptNumber($budget->branch_id, $newReceiptTypeId);
 
-            // Crear la nueva venta basada en el presupuesto (numbering_scope 'sale' = secuencia contigua de ventas)
+            // Crear la nueva venta basada en el presupuesto (secuencia contigua de ventas)
             $sale = SaleHeader::create([
                 'branch_id' => $budget->branch_id,
                 'receipt_type_id' => $newReceiptTypeId,
                 'receipt_number' => $newReceiptNumber,
-                'numbering_scope' => 'sale',
+                'numbering_scope' => SaleNumberingScope::SALE,
                 'date' => Carbon::now(),
                 'customer_id' => $budget->customer_id,
                 'user_id' => $userId,

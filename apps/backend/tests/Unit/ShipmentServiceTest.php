@@ -51,7 +51,7 @@ class ShipmentServiceTest extends TestCase
             'receipt_type_id' => 1,
             'branch_id' => 1,
             'receipt_number' => 'V-001',
-            'numbering_scope' => 'sale',
+            'numbering_scope' => \App\Constants\SaleNumberingScope::SALE,
             'subtotal' => 1000,
             'total' => 1210,
             'user_id' => $this->user->id,

@@ -232,6 +232,19 @@ class ShipmentService implements ShipmentServiceInterface
                 $shipment->sales()->sync($data['sale_ids']);
             }
 
+            // Si se actualizó el cliente en la metadata, actualizar las ventas asociadas
+            if (isset($updateData['metadata']) && isset($updateData['metadata']['cliente_id'])) {
+                $clientId = $updateData['metadata']['cliente_id'];
+                if ($clientId) {
+                    // Recargar las ventas para asegurar que tenemos las correctas (incluyendo las recién sincronizadas)
+                    $shipment->load('sales');
+                    foreach ($shipment->sales as $sale) {
+                        $sale->customer_id = $clientId;
+                        $sale->save();
+                    }
+                }
+            }
+
             $shipment->incrementVersion();
 
             return $shipment->fresh(['currentStage', 'creator.person', 'sales.customer.person', 'sales.receiptType']);

@@ -36,9 +36,12 @@ class PosController extends Controller
             return response()->json([]);
         }
 
-        $products = Product::where('description', 'LIKE', "%{$query}%")
-            ->orWhere('code', '=', $query)
-            ->take(20) // Limitar el número de resultados
+        $products = Product::where('status', true)
+            ->where(function ($q) use ($query) {
+                $q->where('description', 'LIKE', "%{$query}%")
+                    ->orWhere('code', '=', $query);
+            })
+            ->take(20)
             ->get();
 
         return response()->json($products);

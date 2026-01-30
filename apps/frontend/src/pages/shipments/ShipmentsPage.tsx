@@ -757,17 +757,20 @@ export default function ShipmentsPage() {
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
                           onClick={() => {
                             const name = customer.person
-                              ? `${customer.person.first_name} ${customer.person.last_name}`.trim()
-                              : customer.email || `ID: ${customer.id}`;
-                            setCustomerSearch(name);
+                              ? [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' ').trim()
+                              : (customer as { business_name?: string })?.business_name?.trim() || customer.email || `ID: ${customer.id}`;
+                            setCustomerSearch(name || 'Sin nombre');
                             handleFilterChange('customer', customer.id.toString());
                             setShowCustomerDropdown(false);
                           }}
                         >
                           <div className="text-sm font-medium">
-                            {customer.person
-                              ? `${customer.person.first_name} ${customer.person.last_name}`.trim()
-                              : 'Sin nombre'}
+                            {(() => {
+                              const displayName = customer.person
+                                ? [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' ').trim()
+                                : (customer as { business_name?: string })?.business_name?.trim();
+                              return displayName || customer.email || 'Sin nombre';
+                            })()}
                           </div>
                           {customer.email && <div className="text-xs text-gray-500">{customer.email}</div>}
                         </div>

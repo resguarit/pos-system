@@ -92,7 +92,7 @@ const ViewShipmentPage: React.FC = () => {
     if (shipment.sales && shipment.sales.length > 0 && shipment.sales[0].customer) {
       const customer = shipment.sales[0].customer;
       return customer.person ? {
-        name: `${customer.person.first_name} ${customer.person.last_name}`,
+        name: [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' '),
         phone: customer.person.phone || 'No disponible',
         address: customer.person.address || 'No disponible',
         dni: customer.person.documento || 'No disponible',
@@ -109,8 +109,8 @@ const ViewShipmentPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="icon"
             onClick={() => navigate('/dashboard/envios')}
           >
@@ -123,10 +123,10 @@ const ViewShipmentPage: React.FC = () => {
             </p>
           </div>
         </div>
-        
+
         {shipment.current_stage && (
-          <Badge 
-            style={{ 
+          <Badge
+            style={{
               backgroundColor: `${shipment.current_stage.color}15`,
               borderColor: shipment.current_stage.color,
               color: shipment.current_stage.color
@@ -243,7 +243,7 @@ const ViewShipmentPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground">Transportista</p>
                   <p className="text-sm font-medium flex items-center gap-2">
                     <User className="h-4 w-4" />
-                    {shipment.transporter?.person ? `${shipment.transporter.person.first_name} ${shipment.transporter.person.last_name}` : 'N/A'}
+                    {shipment.transporter?.person ? [shipment.transporter.person.first_name, shipment.transporter.person.last_name].filter(Boolean).join(' ') : 'N/A'}
                   </p>
                 </div>
               )}
@@ -269,7 +269,7 @@ const ViewShipmentPage: React.FC = () => {
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-lg">Venta #{sale.receipt_number}</CardTitle>
-                          <Badge 
+                          <Badge
                             variant={sale.payment_status === 'paid' ? 'default' : 'secondary'}
                             className={sale.payment_status === 'paid' ? 'bg-green-500' : ''}
                           >
@@ -289,8 +289,8 @@ const ViewShipmentPage: React.FC = () => {
                           <div>
                             <p className="text-sm text-muted-foreground">Cliente</p>
                             <p className="text-sm font-medium">
-                              {sale.customer?.person ? 
-                                `${sale.customer.person.first_name} ${sale.customer.person.last_name}` : 
+                              {sale.customer?.person ?
+                                [sale.customer.person.first_name, sale.customer.person.last_name].filter(Boolean).join(' ') :
                                 'Consumidor Final'
                               }
                             </p>
@@ -327,7 +327,7 @@ const ViewShipmentPage: React.FC = () => {
                             )}
                           </div>
                         )}
-                        
+
                         {/* Productos de la venta */}
                         {sale.items && sale.items.length > 0 && (
                           <div>
@@ -362,7 +362,7 @@ const ViewShipmentPage: React.FC = () => {
                             </div>
                           </div>
                         )}
-                        
+
                         <Separator />
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
@@ -463,8 +463,8 @@ const ViewShipmentPage: React.FC = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Creado por</p>
                 <p className="text-sm font-medium">
-                  {shipment.creator?.person ? 
-                    `${shipment.creator.person.first_name} ${shipment.creator.person.last_name}` : 
+                  {shipment.creator?.person ?
+                    [shipment.creator.person.first_name, shipment.creator.person.last_name].filter(Boolean).join(' ') :
                     shipment.creator?.email || 'N/A'
                   }
                 </p>

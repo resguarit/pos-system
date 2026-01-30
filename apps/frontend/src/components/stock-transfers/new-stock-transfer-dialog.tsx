@@ -90,6 +90,19 @@ export function StockTransferDialog({
     : 'Transfiera productos entre sucursales';
   const submitButtonText = isEditMode ? 'Guardar Cambios' : 'Crear Transferencia';
 
+  // User requested: Source can be ANY branch. Destination must be one of the SELECTED branches (or the current one if editing).
+  // HOWEVER, if the user selects one of their selected branches as Source (Sending stock), 
+  // restricting Destination to selected branches would result in 0 options.
+  // So: If the restriction results in empty options, we unblock and show All Branches (Switch to "Sending" mode).
+  const sourceBranchOptions = allBranches;
+
+  const filteredSelectedBranches = branches.filter(b => b.id.toString() !== form.source_branch_id);
+  // If we have selected branches, but filtering removes them all, it means we selected the ONLY allowed branch as source.
+  const isDestinationBlocked = filteredSelectedBranches.length === 0 && branches.length > 0;
+
+  const destinationBaseOptions = (isEditMode || isDestinationBlocked) ? allBranches : branches;
+  const destinationBranchOptions = destinationBaseOptions.filter(b => b.id.toString() !== form.source_branch_id);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl w-full max-h-[95vh] flex flex-col">
@@ -118,7 +131,7 @@ export function StockTransferDialog({
                     <SelectValue placeholder="Seleccione sucursal de origen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.map((branch) => (
+                    {sourceBranchOptions.map((branch) => (
                       <SelectItem key={branch.id} value={branch.id.toString()}>
                         {branch.description || branch.name}
                       </SelectItem>
@@ -138,13 +151,11 @@ export function StockTransferDialog({
                     <SelectValue placeholder="Seleccione sucursal de destino" />
                   </SelectTrigger>
                   <SelectContent>
-                    {allBranches
-                      .filter(b => b.id.toString() !== form.source_branch_id)
-                      .map((branch) => (
-                        <SelectItem key={branch.id} value={branch.id.toString()}>
-                          {branch.description || branch.name}
-                        </SelectItem>
-                      ))}
+                    {destinationBranchOptions.map((branch) => (
+                      <SelectItem key={branch.id} value={branch.id.toString()}>
+                        {branch.description || branch.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

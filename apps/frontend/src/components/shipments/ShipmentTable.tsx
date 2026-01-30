@@ -443,12 +443,15 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     {(() => {
                       const customer = shipment.sales?.[0]?.customer;
                       if (customer?.person) {
-                        return `${customer.person.first_name} ${customer.person.last_name}`;
+                        const name = [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' ').trim();
+                        if (name) return name;
                       }
-                      if (customer?.first_name && customer?.last_name) {
-                        return `${customer.first_name} ${customer.last_name}`;
+                      if (customer?.first_name != null || customer?.last_name != null) {
+                        const name = [customer.first_name, customer.last_name].filter(Boolean).join(' ').trim();
+                        if (name) return name;
                       }
-                      return '-';
+                      const businessName = (customer as { business_name?: string })?.business_name?.trim();
+                      return businessName || '-';
                     })()}
                   </div>
                 </td>

@@ -417,6 +417,13 @@ export default function InventarioPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only run when filters change, not on initialDataLoaded
   }, [selectedBranches, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
 
+  // Sync with global branch context
+  useEffect(() => {
+    if (selectedBranchIds.length > 0) {
+      setSelectedBranches(selectedBranchIds);
+    }
+  }, [selectedBranchIds]);
+
   // Remove client-side applyFilters logic
 
 
@@ -1166,9 +1173,9 @@ export default function InventarioPage() {
                                       <Eye className="h-4 w-4" />
                                     </Button>
                                     {hasPermission('ver_trazabilidad_producto') && (
-                                    <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${p.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
-                                      <History className="h-4 w-4" />
-                                    </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${p.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
+                                        <History className="h-4 w-4" />
+                                      </Button>
                                     )}
                                     {hasPermission('editar_productos') && (
                                       <Button variant="ghost" size="sm" onClick={() => handleEditClick(p)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">
@@ -1416,9 +1423,9 @@ export default function InventarioPage() {
                                     <Eye className="h-4 w-4" />
                                   </Button>
                                   {hasPermission('ver_trazabilidad_producto') && (
-                                  <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${product.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
-                                    <History className="h-4 w-4" />
-                                  </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => navigate(`/dashboard/inventario/${product.id}/trazabilidad`)} className="h-8 w-8 p-0 text-gray-500 hover:text-gray-700 hover:bg-gray-50" title="Ver Trazabilidad">
+                                      <History className="h-4 w-4" />
+                                    </Button>
                                   )}
                                   {hasPermission('editar_productos') && (
                                     <Button variant="ghost" size="sm" onClick={() => handleEditClick(product)} className="h-8 w-8 p-0 text-orange-500 hover:text-orange-700 hover:bg-orange-50">

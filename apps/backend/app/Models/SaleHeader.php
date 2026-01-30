@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Constants\SaleNumberingScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -74,6 +75,19 @@ class SaleHeader extends Model
     ];
 
     protected $appends = ['pending_amount'];
+
+    protected static function booted(): void
+    {
+        static::saving(function (SaleHeader $model) {
+            if (array_key_exists('numbering_scope', $model->getDirty()) && $model->numbering_scope !== null) {
+                if (! SaleNumberingScope::isValid($model->numbering_scope)) {
+                    throw new \InvalidArgumentException(
+                        'numbering_scope inválido: "' . $model->numbering_scope . '". Valores permitidos: ' . implode(', ', SaleNumberingScope::allowedValues())
+                    );
+                }
+            }
+        });
+    }
 
     public function receiptType()
     {
@@ -265,6 +279,22 @@ class SaleHeader extends Model
             $q->whereNull('payment_status')
                 ->orWhereIn('payment_status', ['pending', 'partial']);
         });
+    }
+
+    /**
+     * Scope por alcance de numeración (venta vs presupuesto).
+     */
+    public function scopeWithNumberingScope($query, string $scope): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('numbering_scope', $scope);
+    }
+
+    /**
+     * Indica si este registro usa la secuencia de presupuestos.
+     */
+    public function isNumberingScopePresupuesto(): bool
+    {
+        return $this->numbering_scope === SaleNumberingScope::PRESUPUESTO;
     }
 
     /**

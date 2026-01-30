@@ -256,14 +256,36 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   const updateAllItemStocks = useCallback(async () => {
     if (!form.source_branch_id) return;
 
-    const updatedItems = await Promise.all(
-      items.map(async (item) => {
-        const stock = await getProductStock(item.product_id);
-        return { ...item, availableStock: stock };
-      })
-    );
-    setItems(updatedItems);
-  }, [form.source_branch_id, items, getProductStock]);
+    // Use functional setState to get current items without making items a dependency
+    setItems(currentItems => {
+      // We need to update asynchronously, but we can't use async inside the updater
+      // So we trigger the async update and return currentItems unchanged initially
+      return currentItems;
+    });
+
+    // Get fresh items via ref pattern - we need to access items for the async operation
+    // But to avoid the dependency loop, we'll fetch them inside a separate async function
+    const fetchAndUpdateStocks = async () => {
+      // We need to get current items state - use a workaround
+      let currentItemsSnapshot: TransferItem[] = [];
+      setItems(curr => {
+        currentItemsSnapshot = curr;
+        return curr;
+      });
+
+      if (currentItemsSnapshot.length === 0) return;
+
+      const updatedItems = await Promise.all(
+        currentItemsSnapshot.map(async (item) => {
+          const stock = await getProductStock(item.product_id);
+          return { ...item, availableStock: stock };
+        })
+      );
+      setItems(updatedItems);
+    };
+
+    fetchAndUpdateStocks();
+  }, [form.source_branch_id, getProductStock]);
 
   // Load branches and products on mount or when user branch IDs change
   useEffect(() => {
@@ -280,12 +302,17 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     }
   }, [transferId, dataLoaded, products, isEditMode, loadTransferData]);
 
-  // Update item stocks when source branch changes
+  // Update item stocks when source branch changes (but not when items change)
+  // Using a ref to track the previous source branch ID
+  const previousSourceBranchId = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    if (form.source_branch_id && items.length > 0 && dataLoaded) {
+    // Only update stocks if source branch actually changed (not on every items change)
+    if (form.source_branch_id && dataLoaded && previousSourceBranchId.current !== form.source_branch_id) {
+      previousSourceBranchId.current = form.source_branch_id;
       updateAllItemStocks();
     }
-  }, [form.source_branch_id, dataLoaded, items.length, updateAllItemStocks]);
+  }, [form.source_branch_id, dataLoaded, updateAllItemStocks]);
 
   const addItem = useCallback(async (productId: number, quantity: number): Promise<boolean> => {
     if (!form.source_branch_id) {

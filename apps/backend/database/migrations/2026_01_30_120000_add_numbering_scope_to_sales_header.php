@@ -23,7 +23,7 @@ return new class extends Migration
         }
 
         // Backfill: presupuesto (016) -> 'presupuesto'; resto -> 'sale_{receipt_type_id}' para evitar
-        // duplicados (antes era único por branch+receipt_type+number; varios tipos pueden tener mismo number).
+        // duplicados si ya existían números por tipo (antes era único por branch+receipt_type+number).
         if (Schema::hasColumn('sales_header', 'numbering_scope')) {
             DB::statement("
                 UPDATE sales_header sh

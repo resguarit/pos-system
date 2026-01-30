@@ -51,7 +51,7 @@ class CurrentAccountBalanceReproductionTest extends TestCase
             'receipt_type_id' => $receiptType->id ?? 1,
             'branch_id' => $branch->id,
             'receipt_number' => '00000999',
-            'numbering_scope' => 'sale',
+            'numbering_scope' => \App\Constants\SaleNumberingScope::SALE,
             'customer_id' => $customer->id,
             'total' => 12900.00,
             'subtotal' => 12900.00,

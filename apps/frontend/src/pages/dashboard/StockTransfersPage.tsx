@@ -92,6 +92,25 @@ export default function StockTransfersPage() {
 
   const { selectedBranchIds } = useBranch()
 
+  /**
+   * Check if the user can complete a specific transfer.
+   * They can only complete if:
+   * - No specific branches are selected (all branches view), OR
+   * - The destination branch is included in the selected branches
+   * 
+   * This prevents users from completing a transfer when they only have the source branch selected.
+   */
+  const canCompleteTransfer = (transfer: StockTransfer): boolean => {
+    // If no branches selected, user can see/complete all
+    if (selectedBranchIds.length === 0) return true
+
+    const selectedBranchNumbers = new Set(selectedBranchIds.map(Number))
+    const destinationBranchId = Number(transfer.destination_branch_id)
+
+    // User can only complete if they have the destination branch selected
+    return selectedBranchNumbers.has(destinationBranchId)
+  }
+
   useEffect(() => { loadTransfers() }, [])
 
   const loadTransfers = async () => {
@@ -437,7 +456,7 @@ export default function StockTransfersPage() {
                               <Pencil className="h-4 w-4" />
                             </Button>
                           )}
-                          {canComplete && (
+                          {canComplete && canCompleteTransfer(transfer) && (
                             <Button variant="ghost" size="icon" onClick={() => setTransferToComplete(transfer.id!)} className="text-green-600 hover:text-green-700 hover:bg-green-50" title="Completar">
                               <CheckCircle className="h-4 w-4" />
                             </Button>
@@ -508,14 +527,77 @@ export default function StockTransfersPage() {
       <ViewStockTransferDialog open={viewDialogOpen} onOpenChange={setViewDialogOpen} transferId={viewTransferId} />
 
       <AlertDialog open={transferToComplete !== null} onOpenChange={() => setTransferToComplete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Completar Transferencia</AlertDialogTitle>
-            <AlertDialogDescription>¿Completar esta transferencia? El stock se moverá entre sucursales.</AlertDialogDescription>
+            <AlertDialogTitle>Confirmar Completar Transferencia</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4">
+                <p>¿Está seguro que desea completar esta transferencia? El stock se moverá entre sucursales.</p>
+
+                {/* Transfer details */}
+                {transferToComplete && (() => {
+                  const transfer = transfers.find(t => t.id === transferToComplete);
+                  if (!transfer) return null;
+
+                  return (
+                    <div className="space-y-3 pt-2">
+                      {/* Branches info */}
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="font-medium">De:</span>
+                        <BranchBadge
+                          name={getBranchName(transfer, 'source')}
+                          color={resolveBranchColorFromTransfer(transfer, 'source')}
+                        />
+                        <span className="mx-1">→</span>
+                        <BranchBadge
+                          name={getBranchName(transfer, 'destination')}
+                          color={resolveBranchColorFromTransfer(transfer, 'destination')}
+                        />
+                      </div>
+
+                      {/* Products list */}
+                      <div className="border rounded-md">
+                        <div className="bg-muted px-3 py-2 text-xs font-medium border-b">
+                          Productos a transferir ({transfer.items?.length || 0})
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          <table className="w-full text-sm">
+                            <thead className="bg-muted/50">
+                              <tr>
+                                <th className="text-left px-3 py-1.5 font-medium">Producto</th>
+                                <th className="text-right px-3 py-1.5 font-medium w-20">Cantidad</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {transfer.items?.map((item, idx) => (
+                                <tr key={idx} className="border-t">
+                                  <td className="px-3 py-1.5">{item.product?.description || `Producto #${item.product_id}`}</td>
+                                  <td className="text-right px-3 py-1.5 font-mono">{item.quantity}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="bg-muted/50 px-3 py-1.5 text-xs border-t flex justify-between">
+                          <span>Total productos: {transfer.items?.length || 0}</span>
+                          <span>Total unidades: {transfer.items?.reduce((sum, i) => sum + i.quantity, 0) || 0}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => transferToComplete && handleCompleteTransfer(transferToComplete)}>Completar</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => transferToComplete && handleCompleteTransfer(transferToComplete)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Completar Transferencia
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Constants\SaleNumberingScope;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\ReceiptType;
@@ -29,7 +30,7 @@ class SaleHeaderFactory extends Factory
             'receipt_type_id' => ReceiptType::inRandomOrder()->first()->id ?? ReceiptType::factory(),
             'user_id' => User::inRandomOrder()->first()->id ?? User::factory(),
             'receipt_number' => $this->faker->unique()->numberBetween(1000, 9999),
-            'numbering_scope' => 'sale',
+            'numbering_scope' => SaleNumberingScope::SALE,
             'date' => $this->faker->dateTimeBetween('-1 year', 'now'),
             'subtotal' => $subtotal,
             'total_iva_amount' => $total_iva_amount,

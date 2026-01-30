@@ -191,9 +191,11 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       if (customerId) {
         const selectedCustomer = customers.find(c => c.id === customerId);
         if (selectedCustomer && selectedCustomer.person) {
-          const name = `${selectedCustomer.person.first_name} ${selectedCustomer.person.last_name}`;
+          const firstName = selectedCustomer.person.first_name?.trim() || '';
+          const lastName = selectedCustomer.person.last_name?.trim() || '';
+          const fullName = [firstName, lastName].filter(Boolean).join(' ');
           const email = selectedCustomer.email || '';
-          setCustomerSearch(`${name}${email ? ` (${email})` : ''}`);
+          setCustomerSearch(`${fullName}${email ? ` (${email})` : ''}`);
         }
       }
     }
@@ -367,7 +369,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* @ts-expect-error - Radix type issues */}
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Editar Envío {shipment?.reference}</DialogTitle>
           <DialogDescription>
@@ -375,7 +377,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 overflow-y-auto pr-2">
           <div className="space-y-2">
             <label className="text-sm font-medium">Estado/Etapa *</label>
             <Select
@@ -503,25 +505,26 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
               />
               {showCustomerOptions && customers.filter(customer => {
                 const searchLower = customerSearch.toLowerCase();
-                const firstName = customer.person?.first_name || '';
-                const lastName = customer.person?.last_name || '';
+                const firstName = customer.person?.first_name?.trim() || '';
+                const lastName = customer.person?.last_name?.trim() || '';
                 const email = customer.email || '';
-                const fullName = `${firstName} ${lastName}`.toLowerCase();
+                const fullName = [firstName, lastName].filter(Boolean).join(' ').toLowerCase();
                 return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
               }).length > 0 && (
                   <div className="absolute left-0 right-0 border rounded-lg bg-white mt-1 max-h-40 overflow-auto z-50 shadow-xl border-slate-200">
                     {customers.filter(customer => {
                       const searchLower = customerSearch.toLowerCase();
-                      const firstName = customer.person?.first_name || '';
-                      const lastName = customer.person?.last_name || '';
+                      const firstName = customer.person?.first_name?.trim() || '';
+                      const lastName = customer.person?.last_name?.trim() || '';
                       const email = customer.email || '';
-                      const fullName = `${firstName} ${lastName}`.toLowerCase();
+                      const fullName = [firstName, lastName].filter(Boolean).join(' ').toLowerCase();
                       return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
                     }).map((customer) => {
-                      const firstName = customer.person?.first_name || '';
-                      const lastName = customer.person?.last_name || '';
+                      const firstName = customer.person?.first_name?.trim() || '';
+                      const lastName = customer.person?.last_name?.trim() || '';
                       const email = customer.email || '';
-                      const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Cliente sin nombre';
+                      const fullName = [firstName, lastName].filter(Boolean).join(' ');
+                      const name = fullName || email || 'Cliente sin nombre';
 
                       return (
                         <div
@@ -776,7 +779,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-100">
+        <div className="flex flex-col sm:flex-row gap-3 pt-4 pb-2 border-t border-slate-100 bg-white flex-shrink-0">
           <Button
             variant="outline"
             className="flex-1 rounded-xl border-slate-200 hover:bg-slate-50"
@@ -788,7 +791,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           </Button>
 
           <Button
-            className="flex-1 rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20"
+            className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20"
             onClick={handleUpdateShipment}
             disabled={loading}
           >

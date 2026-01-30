@@ -145,7 +145,7 @@ export default function POSPage() {
 
   const fetchProducts = useCallback(async () => {
     try {
-      const response = await request({ method: "GET", url: "/products?include=category,iva&per_page=3000" })
+      const response = await request({ method: "GET", url: "/products?include=category,iva&per_page=3000&status=active" })
       // Manejar estructura paginada para productos también
       const productData = Array.isArray(response) ? response :
         Array.isArray(response?.data?.data) ? response.data.data :

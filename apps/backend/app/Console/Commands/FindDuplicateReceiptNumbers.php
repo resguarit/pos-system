@@ -2,8 +2,9 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
+use App\Constants\SaleNumberingScope;
 use App\Models\SaleHeader;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class FindDuplicateReceiptNumbers extends Command
@@ -43,7 +44,7 @@ class FindDuplicateReceiptNumbers extends Command
                 ->get();
 
             $branch = $sales->first()->branch;
-            $scopeLabel = $duplicate->numbering_scope === 'presupuesto' ? 'Presupuesto' : 'Venta';
+            $scopeLabel = SaleNumberingScope::label($duplicate->numbering_scope);
 
             $branchName = $branch ? ($branch->description ?? 'N/A') : 'N/A';
             

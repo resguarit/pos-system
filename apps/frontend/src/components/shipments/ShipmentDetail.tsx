@@ -298,14 +298,20 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                           )}
                         </div>
                       )}
-                      {clientCustomer && clientCustomer.person && (
+                      {clientCustomer && (clientCustomer.person || (clientCustomer as { business_name?: string })?.business_name) && (
                         <div className="border rounded-lg p-4">
                           <p className="text-sm font-medium text-muted-foreground mb-2">Cliente del Envío</p>
                           <p className="text-base font-medium mb-2">
-                            {clientCustomer.person.first_name} {clientCustomer.person.last_name}
+                            {(() => {
+                              if (clientCustomer.person) {
+                                const name = [clientCustomer.person.first_name, clientCustomer.person.last_name].filter(Boolean).join(' ').trim();
+                                if (name) return name;
+                              }
+                              return (clientCustomer as { business_name?: string })?.business_name?.trim() || 'Sin nombre';
+                            })()}
                           </p>
                           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                          {(clientCustomer.person as any).phone && (
+                          {(clientCustomer.person as any)?.phone && (
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <Phone className="h-3 w-3 text-green-600" />
                               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
@@ -313,14 +319,14 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                             </p>
                           )}
                           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                          {(clientCustomer.person as any).address && (
+                          {(clientCustomer.person as any)?.address && (
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <MapPin className="h-3 w-3 text-red-600" />
                               {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                               {(clientCustomer.person as any).address}
                             </p>
                           )}
-                          {clientCustomer.person.documento && (
+                          {clientCustomer.person?.documento && (
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <CreditCard className="h-3 w-3 text-purple-600" />
                               DNI: {clientCustomer.person.documento}
@@ -374,11 +380,18 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                             const customer = sale.customer;
                             const person = customer?.person;
 
-                            if (person) {
+                            const displayName = person
+                              ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || (customer as { business_name?: string })?.business_name?.trim()
+                              : (customer as { business_name?: string })?.business_name?.trim() ||
+                                (customer?.first_name != null || customer?.last_name != null
+                                  ? [customer?.first_name, customer?.last_name].filter(Boolean).join(' ').trim()
+                                  : null);
+
+                            if (person || displayName) {
                               return (
                                 <div className="space-y-1">
                                   <div className="text-sm font-medium">
-                                    Cliente: {person.first_name} {person.last_name}
+                                    Cliente: {displayName || 'Sin nombre'}
                                   </div>
                                   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                   {(person as any).phone && (
@@ -402,13 +415,6 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                                       DNI: {person.documento}
                                     </div>
                                   )}
-                                </div>
-                              );
-                            }
-                            if (customer?.first_name && customer?.last_name) {
-                              return (
-                                <div className="text-sm text-muted-foreground">
-                                  Cliente: {customer.first_name} {customer.last_name}
                                 </div>
                               );
                             }
