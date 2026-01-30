@@ -95,6 +95,7 @@ export interface SaleHeader {
   }
   /** Código AFIP del tipo (viene en la lista cuando receipt_type es string) */
   receipt_type_code?: string | number
+  customer_id?: number | null
   customer?: {
     id: number
     person?: {
@@ -103,6 +104,13 @@ export interface SaleHeader {
       cuit?: string
     }
     business_name?: string
+    tax_identities?: Array<{
+      id: number
+      cuit: string
+      business_name?: string
+      fiscal_condition?: { name: string }
+      is_default?: boolean
+    }>
   }
   branch?: string | {
     id: number

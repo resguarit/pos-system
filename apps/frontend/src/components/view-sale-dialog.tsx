@@ -71,8 +71,8 @@ const ViewSaleDialog = ({
         }
     }, [sale]);
 
-    const customerTaxIdentities = (currentSale?.customer as { tax_identities?: Array<{ id: number; cuit: string; business_name?: string; fiscal_condition?: { name: string }; is_default?: boolean }> } | undefined)?.tax_identities ?? [];
-    const needsCuitChoice = currentSale?.customer_id && customerTaxIdentities.length > 1 && !currentSale.customer_tax_identity_id;
+    const customerTaxIdentities = currentSale?.customer?.tax_identities ?? [];
+    const needsCuitChoice = !!(currentSale?.customer_id && customerTaxIdentities.length > 1 && !currentSale.customer_tax_identity_id);
 
     /**
      * Updates the sale's tax identity and returns the updated sale.
@@ -256,6 +256,18 @@ const ViewSaleDialog = ({
         p?.method_name ||
         p?.name ||
         "Método";
+
+    const [isDownloading, setIsDownloading] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        if (!saleToDisplay) return;
+        try {
+            setIsDownloading(true);
+            await onDownloadPdf(saleToDisplay);
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     return (
         <>
@@ -467,8 +479,21 @@ const ViewSaleDialog = ({
                                     <Printer className="mr-2 h-4 w-4" /> Imprimir
                                 </Button>
                             )}
-                            <Button onClick={() => onDownloadPdf(saleToDisplay)} size="sm" variant="secondary">
-                                <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                            <Button
+                                onClick={handleDownloadPdf}
+                                size="sm"
+                                variant="secondary"
+                                disabled={isDownloading}
+                            >
+                                {isDownloading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Descargando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="mr-2 h-4 w-4" /> Descargar PDF
+                                    </>
+                                )}
                             </Button>
                             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cerrar</Button>
                         </div>
