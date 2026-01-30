@@ -32,6 +32,7 @@ export interface SaleItem {
 export interface SaleData {
   branch_id: number
   customer_id: number | null
+  customer_tax_identity_id?: number | null
   sale_document_number: string | null
   receipt_type_id: number | undefined
   sale_fiscal_condition_id: number | null
@@ -133,6 +134,14 @@ export interface SaleHeader {
   seller_name?: string
   cae?: string | null
   cae_expiration_date?: string | null
+  customer_tax_identity_id?: number | null
+  /** Identidad fiscal usada en la venta (CUIT / razón social con que se facturó) */
+  customer_tax_identity?: {
+    id: number
+    cuit?: string
+    business_name?: string
+    fiscal_condition?: { id: number; name?: string }
+  } | null
   sale_fiscal_condition?: {
     id: number
     name?: string

@@ -1,18 +1,21 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2, AlertCircle } from "lucide-react"
-import type { CustomerOption } from '@/hooks/useCustomerSearch'
+import { Loader2, AlertCircle, Building2 } from "lucide-react"
+import type { CustomerOption, TaxIdentityOption } from '@/hooks/useCustomerSearch'
 
 interface CustomerSearchSectionProps {
   customerSearch: string
   customerOptions: CustomerOption[]
   showCustomerOptions: boolean
   selectedCustomer: CustomerOption | null
+  /** Identidad fiscal elegida (cuando el cliente tiene varios CUITs) */
+  selectedTaxIdentityId: number | null
   customerBalance?: number | null
   loadingBalance?: boolean
   onSearchChange: (value: string) => void
   onCustomerSelect: (customer: CustomerOption) => void
+  onTaxIdentitySelect: (identity: TaxIdentityOption | null) => void
   onShowOptionsChange: (show: boolean) => void
   onNewCustomerClick: () => void
 }
@@ -31,10 +34,12 @@ export function CustomerSearchSection({
   customerOptions,
   showCustomerOptions,
   selectedCustomer,
+  selectedTaxIdentityId,
   customerBalance,
   loadingBalance = false,
   onSearchChange,
   onCustomerSelect,
+  onTaxIdentitySelect,
   onShowOptionsChange,
   onNewCustomerClick,
 }: CustomerSearchSectionProps) {
@@ -86,6 +91,43 @@ export function CustomerSearchSection({
         <div className="mt-4">
           <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="text-sm font-medium text-blue-900 mb-3">Información del Cliente</h4>
+            {/* Si el cliente tiene varios CUITs, permitir elegir cuál usar */}
+            {selectedCustomer.tax_identities && selectedCustomer.tax_identities.length > 1 && (
+              <div className="mb-4">
+                <Label className="text-blue-800 text-xs font-medium uppercase tracking-wide">
+                  Elegir CUIT / identidad fiscal para esta venta
+                </Label>
+                <div className="mt-2 space-y-2">
+                  {selectedCustomer.tax_identities.map((ti) => (
+                    <label
+                      key={ti.id}
+                      className={`flex items-center gap-3 p-2 rounded-md border cursor-pointer transition-colors ${
+                        selectedTaxIdentityId === ti.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-blue-200 hover:bg-blue-100/50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="tax-identity"
+                        value={ti.id}
+                        checked={selectedTaxIdentityId === ti.id}
+                        onChange={() => onTaxIdentitySelect(ti)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      <Building2 className="h-4 w-4 text-blue-600 shrink-0" />
+                      <div className="min-w-0">
+                        <span className="font-medium text-blue-900 block truncate">{ti.business_name || 'Sin razón social'}</span>
+                        <span className="text-xs text-blue-700">CUIT {ti.cuit}</span>
+                        {ti.fiscal_condition?.name && (
+                          <span className="text-xs text-blue-600 ml-1"> · {ti.fiscal_condition.name}</span>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               {/* Columna izquierda - Datos del cliente */}
               <div className="space-y-2 text-sm">
@@ -93,10 +135,12 @@ export function CustomerSearchSection({
                   <span className="text-blue-700">Nombre:</span>
                   <span className="font-medium text-blue-900">{selectedCustomer.name}</span>
                 </div>
-                {selectedCustomer.cuit && (
+                {((selectedTaxIdentityId && selectedCustomer.tax_identities?.find(t => t.id === selectedTaxIdentityId)?.cuit) ?? selectedCustomer.cuit) && (
                   <div className="flex justify-between">
                     <span className="text-blue-700">CUIT:</span>
-                    <span className="font-medium text-blue-900">{selectedCustomer.cuit}</span>
+                    <span className="font-medium text-blue-900">
+                      {(selectedTaxIdentityId && selectedCustomer.tax_identities?.find(t => t.id === selectedTaxIdentityId)?.cuit) ?? selectedCustomer.cuit}
+                    </span>
                   </div>
                 )}
                 {selectedCustomer.dni && !selectedCustomer.cuit && (

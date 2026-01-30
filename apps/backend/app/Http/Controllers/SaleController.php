@@ -143,6 +143,7 @@ class SaleController extends Controller
             'branch_id' => 'sometimes|required|integer|exists:branches,id',
             'receipt_number' => 'sometimes|required|string|max:255',
             'customer_id' => 'nullable|integer|exists:customers,id',
+            'customer_tax_identity_id' => 'nullable|integer|exists:customer_tax_identities,id',
             'sale_fiscal_condition_id' => 'nullable|integer|exists:fiscal_conditions,id',
             'sale_document_type_id' => 'nullable|integer|exists:document_types,id',
             'sale_document_number' => 'nullable|string|max:255',

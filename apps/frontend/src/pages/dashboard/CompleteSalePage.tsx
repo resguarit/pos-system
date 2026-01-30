@@ -97,6 +97,8 @@ export default function CompleteSalePage() {
   const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false)
   const [pendingChangeAmount, setPendingChangeAmount] = useState(0)
   const [lockedPaymentDiscount, setLockedPaymentDiscount] = useState<number | null>(null)
+  /** Identidad fiscal elegida cuando el cliente tiene varios CUITs */
+  const [selectedTaxIdentityId, setSelectedTaxIdentityId] = useState<number | null>(null)
 
   // Hook personalizado para búsqueda de clientes
   const {
@@ -421,14 +423,18 @@ export default function CompleteSalePage() {
       const pad = (n: number) => n.toString().padStart(2, '0')
       const argDateString = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
+      const chosenIdentity = selectedTaxIdentityId && selectedCustomer?.tax_identities
+        ? selectedCustomer.tax_identities.find((t) => t.id === selectedTaxIdentityId)
+        : null
       const saleData: SaleData = {
         branch_id: Number(activeBranch.id),
         customer_id: selectedCustomer?.id || null,
-        sale_document_number: (selectedCustomer?.cuit || selectedCustomer?.dni)
-          ? String(selectedCustomer?.cuit || selectedCustomer?.dni)
+        customer_tax_identity_id: chosenIdentity?.id ?? selectedTaxIdentityId ?? undefined,
+        sale_document_number: (chosenIdentity?.cuit ?? selectedCustomer?.cuit ?? selectedCustomer?.dni)
+          ? String(chosenIdentity?.cuit ?? selectedCustomer?.cuit ?? selectedCustomer?.dni)
           : null,
         receipt_type_id: receiptTypeId,
-        sale_fiscal_condition_id: selectedCustomer?.fiscal_condition_id || null,
+        sale_fiscal_condition_id: chosenIdentity?.fiscal_condition_id ?? selectedCustomer?.fiscal_condition_id ?? null,
         sale_date: argDateString,
         subtotal_net: subtotalNet,
         total_iva: totalIva,
@@ -673,7 +679,9 @@ export default function CompleteSalePage() {
     setSelectedCustomer(customer)
     setCustomerSearch(customer.name)
     setShowCustomerOptions(false)
-    
+    const defaultIdentityId = customer.tax_identities?.find((t) => t.is_default)?.id ?? customer.tax_identities?.[0]?.id ?? null
+    setSelectedTaxIdentityId(defaultIdentityId ?? null)
+
     // Cargar el saldo del cliente
     if (customer.id) {
       setLoadingBalance(true)
@@ -720,6 +728,10 @@ export default function CompleteSalePage() {
     toast.success("Cliente agregado y seleccionado")
   }, [setSelectedCustomer, setCustomerSearch])
 
+  useEffect(() => {
+    if (!selectedCustomer) setSelectedTaxIdentityId(null)
+  }, [selectedCustomer])
+
   if (initialCart.length === 0) {
     return null
   }
@@ -752,10 +764,12 @@ export default function CompleteSalePage() {
                     customerOptions={customerOptions}
                     showCustomerOptions={showCustomerOptions}
                     selectedCustomer={selectedCustomer}
+                    selectedTaxIdentityId={selectedTaxIdentityId}
                     customerBalance={customerBalance}
                     loadingBalance={loadingBalance}
                     onSearchChange={setCustomerSearch}
                     onCustomerSelect={handleCustomerSelect}
+                    onTaxIdentitySelect={(identity) => setSelectedTaxIdentityId(identity?.id ?? null)}
                     onShowOptionsChange={setShowCustomerOptions}
                     onNewCustomerClick={() => setShowNewCustomerDialog(true)}
                   />

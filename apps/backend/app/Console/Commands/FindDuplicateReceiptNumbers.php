@@ -9,18 +9,18 @@ use Illuminate\Support\Facades\DB;
 class FindDuplicateReceiptNumbers extends Command
 {
     protected $signature = 'sales:find-duplicates {--fix : Intentar corregir los duplicados automáticamente}';
-    protected $description = 'Encontrar ventas con números de comprobante duplicados por sucursal y tipo';
+    protected $description = 'Encontrar ventas con números de comprobante duplicados por sucursal y alcance (venta/presupuesto)';
 
     public function handle()
     {
         $this->info('🔍 Buscando números de comprobante duplicados...');
         $this->newLine();
 
-        // Buscar duplicados agrupando por branch_id, receipt_type_id y receipt_number
+        // Duplicados por alcance: (branch_id, numbering_scope, receipt_number)
         $duplicates = DB::table('sales_header')
-            ->select('branch_id', 'receipt_type_id', 'receipt_number', DB::raw('COUNT(*) as count'))
-            ->whereNull('deleted_at') // Solo ventas no eliminadas
-            ->groupBy('branch_id', 'receipt_type_id', 'receipt_number')
+            ->select('branch_id', 'numbering_scope', 'receipt_number', DB::raw('COUNT(*) as count'))
+            ->whereNull('deleted_at')
+            ->groupBy('branch_id', 'numbering_scope', 'receipt_number')
             ->having('count', '>', 1)
             ->get();
 
@@ -36,19 +36,18 @@ class FindDuplicateReceiptNumbers extends Command
 
         foreach ($duplicates as $duplicate) {
             $sales = SaleHeader::where('branch_id', $duplicate->branch_id)
-                ->where('receipt_type_id', $duplicate->receipt_type_id)
+                ->where('numbering_scope', $duplicate->numbering_scope)
                 ->where('receipt_number', $duplicate->receipt_number)
                 ->whereNull('deleted_at')
                 ->orderBy('id', 'asc')
                 ->get();
 
             $branch = $sales->first()->branch;
-            $receiptType = $sales->first()->receiptType;
+            $scopeLabel = $duplicate->numbering_scope === 'presupuesto' ? 'Presupuesto' : 'Venta';
 
             $branchName = $branch ? ($branch->description ?? 'N/A') : 'N/A';
-            $receiptTypeName = $receiptType ? ($receiptType->description ?? 'N/A') : 'N/A';
             
-            $this->line("📋 Sucursal: {$branchName} | Tipo: {$receiptTypeName} | Número: {$duplicate->receipt_number}");
+            $this->line("📋 Sucursal: {$branchName} | Alcance: {$scopeLabel} | Número: {$duplicate->receipt_number}");
             $this->line("   Cantidad de ventas con este número: {$duplicate->count}");
             $this->newLine();
 
@@ -108,7 +107,7 @@ class FindDuplicateReceiptNumbers extends Command
         try {
             foreach ($duplicates as $duplicate) {
                 $sales = SaleHeader::where('branch_id', $duplicate->branch_id)
-                    ->where('receipt_type_id', $duplicate->receipt_type_id)
+                    ->where('numbering_scope', $duplicate->numbering_scope)
                     ->where('receipt_number', $duplicate->receipt_number)
                     ->whereNull('deleted_at')
                     ->orderBy('id', 'asc')
@@ -122,11 +121,7 @@ class FindDuplicateReceiptNumbers extends Command
 
                 // Renumerar las demás
                 foreach ($salesToRenumber as $sale) {
-                    // Buscar el siguiente número disponible
-                    $nextNumber = $this->findNextAvailableNumber(
-                        $sale->branch_id,
-                        $sale->receipt_type_id
-                    );
+                    $nextNumber = $this->findNextAvailableNumber($sale->branch_id, $sale->numbering_scope);
 
                     $oldNumber = $sale->receipt_number;
                     $sale->receipt_number = $nextNumber;
@@ -150,30 +145,29 @@ class FindDuplicateReceiptNumbers extends Command
         }
     }
 
-    private function findNextAvailableNumber(int $branchId, int $receiptTypeId): string
+    private function findNextAvailableNumber(int $branchId, string $numberingScope): string
     {
         $lastSale = SaleHeader::where('branch_id', $branchId)
-            ->where('receipt_type_id', $receiptTypeId)
+            ->where('numbering_scope', $numberingScope)
             ->orderByRaw('CAST(receipt_number AS UNSIGNED) DESC')
             ->first();
 
-        $nextNumber = $lastSale ? ((int)$lastSale->receipt_number) + 1 : 1;
+        $nextNumber = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
 
-        // Verificar que el número no esté en uso
         $attempts = 0;
         while (
             SaleHeader::where('branch_id', $branchId)
-                ->where('receipt_type_id', $receiptTypeId)
-                ->where('receipt_number', str_pad($nextNumber, 8, '0', STR_PAD_LEFT))
+                ->where('numbering_scope', $numberingScope)
+                ->where('receipt_number', str_pad((string) $nextNumber, 8, '0', STR_PAD_LEFT))
                 ->whereNull('deleted_at')
-                ->exists() 
+                ->exists()
             && $attempts < 100
         ) {
             $nextNumber++;
             $attempts++;
         }
 
-        return str_pad($nextNumber, 8, '0', STR_PAD_LEFT);
+        return str_pad((string) $nextNumber, 8, '0', STR_PAD_LEFT);
     }
 }
 

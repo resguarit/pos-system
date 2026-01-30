@@ -57,6 +57,7 @@ class PosController extends Controller
             'receipt_type_id' => 'required|integer|exists:receipt_type,id', // Corregido a receipt_types por convención
             'branch_id' => 'required|integer|exists:branches,id',
             'customer_id' => 'nullable|integer|exists:customers,id',
+            'customer_tax_identity_id' => 'nullable|integer|exists:customer_tax_identities,id',
             'sale_fiscal_condition_id' => 'nullable|integer|exists:fiscal_conditions,id',
             'sale_document_type_id' => 'nullable|integer|exists:document_types,id',
             'sale_document_number' => 'nullable|string|max:255',

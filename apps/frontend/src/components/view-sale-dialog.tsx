@@ -16,10 +16,12 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { Download, Printer, ShieldCheck, Loader2 } from "lucide-react";
+import { Download, Printer, ShieldCheck, Loader2, Building2 } from "lucide-react";
 import { type Dispatch, type SetStateAction, useState, useEffect } from "react";
 import { type SaleHeader } from "@/types/sale";
 import { useAfipAuthorization } from "@/hooks/useAfipAuthorization";
+import useApi from "@/hooks/useApi";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
 import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
@@ -56,7 +58,11 @@ const ViewSaleDialog = ({
     const { authorizeSale, canAuthorize, isAuthorizing } = useAfipAuthorization();
     const { hasCertificateForCuit } = useAfipContext();
     const { branches } = useBranch();
+    const { request } = useApi();
     const [currentSale, setCurrentSale] = useState<SaleHeader | null>(sale);
+    const [showChooseCuitDialog, setShowChooseCuitDialog] = useState(false);
+    const [chosenTaxIdentityId, setChosenTaxIdentityId] = useState<number | null>(null);
+    const [isUpdatingCuit, setIsUpdatingCuit] = useState(false);
 
     // Actualizar venta cuando cambia la prop
     useEffect(() => {
@@ -65,17 +71,50 @@ const ViewSaleDialog = ({
         }
     }, [sale]);
 
-    const handleAuthorizeAfip = async () => {
-        if (!currentSale) return;
+    const customerTaxIdentities = (currentSale?.customer as { tax_identities?: Array<{ id: number; cuit: string; business_name?: string; fiscal_condition?: { name: string }; is_default?: boolean }> } | undefined)?.tax_identities ?? [];
+    const needsCuitChoice = currentSale?.customer_id && customerTaxIdentities.length > 1 && !currentSale.customer_tax_identity_id;
 
-        const result = await authorizeSale(currentSale);
+    const handleAuthorizeAfipClick = () => {
+        if (!currentSale) return;
+        if (needsCuitChoice) {
+            setChosenTaxIdentityId(customerTaxIdentities.find(t => t.is_default)?.id ?? customerTaxIdentities[0]?.id ?? null);
+            setShowChooseCuitDialog(true);
+            return;
+        }
+        handleAuthorizeAfip(currentSale);
+    };
+
+    const handleConfirmCuitAndAuthorize = async () => {
+        if (!currentSale || chosenTaxIdentityId == null) return;
+        setIsUpdatingCuit(true);
+        try {
+            const res = await request({
+                method: "PUT",
+                url: `/sales/${currentSale.id}`,
+                data: { customer_tax_identity_id: chosenTaxIdentityId },
+            });
+            const updated = (res as { data?: SaleHeader })?.data ?? res as SaleHeader;
+            setCurrentSale(updated);
+            onSaleUpdated?.(updated);
+            setShowChooseCuitDialog(false);
+            await handleAuthorizeAfip(updated);
+        } catch (err) {
+            console.error("Error al actualizar identidad fiscal:", err);
+        } finally {
+            setIsUpdatingCuit(false);
+        }
+    };
+
+    const handleAuthorizeAfip = async (saleToUse: SaleHeader) => {
+        if (!saleToUse) return;
+
+        const result = await authorizeSale(saleToUse);
         if (result && onSaleUpdated) {
-            // Actualizar la venta con los nuevos datos
             const updatedSale: SaleHeader = {
-                ...currentSale,
+                ...saleToUse,
                 cae: result.cae,
                 cae_expiration_date: result.cae_expiration_date,
-                receipt_number: result.invoice_number?.toString().padStart(8, '0') || currentSale.receipt_number,
+                receipt_number: result.invoice_number?.toString().padStart(8, '0') || saleToUse.receipt_number,
             };
             setCurrentSale(updatedSale);
             onSaleUpdated(updatedSale);
@@ -189,6 +228,7 @@ const ViewSaleDialog = ({
         "Método";
 
     return (
+        <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-3xl w-full p-0 flex flex-col max-h-[85vh]">
                 <DialogHeader className="px-6 pt-4 pb-2 shrink-0">
@@ -250,6 +290,15 @@ const ViewSaleDialog = ({
                         <div>
                             <strong>Cliente:</strong> {getCustomerName(saleToDisplay)}
                         </div>
+                        {(saleToDisplay.customer_tax_identity?.cuit ?? saleToDisplay.sale_document_number) && (
+                            <div className="md:col-span-2">
+                                <strong>CUIT de facturación:</strong>{' '}
+                                {saleToDisplay.customer_tax_identity?.cuit ?? saleToDisplay.sale_document_number}
+                                {saleToDisplay.customer_tax_identity?.business_name && (
+                                    <span className="text-muted-foreground"> — {saleToDisplay.customer_tax_identity.business_name}</span>
+                                )}
+                            </div>
+                        )}
                         <div>
                             <strong>Fecha:</strong> {formatDate(saleToDisplay.date)}
                         </div>
@@ -364,7 +413,7 @@ const ViewSaleDialog = ({
                         {/* Botón de autorización AFIP - No mostrar para Presupuesto ni Factura X (solo uso interno) */}
                         {!isBudget && showAfipUI && !isInternalOnly && canAuthorizeThis && !isAuthorized && (
                             <Button
-                                onClick={handleAuthorizeAfip}
+                                onClick={handleAuthorizeAfipClick}
                                 size="sm"
                                 variant="default"
                                 disabled={isAuthorizing}
@@ -396,6 +445,72 @@ const ViewSaleDialog = ({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
+        {/* Diálogo: elegir CUIT del cliente antes de autorizar con AFIP */}
+        <Dialog open={showChooseCuitDialog} onOpenChange={setShowChooseCuitDialog}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Elegir CUIT para autorizar con AFIP</DialogTitle>
+                    <DialogDescription>
+                        Este cliente tiene varias identidades fiscales (CUIT). Elegí cuál usar para esta factura.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3 py-2">
+                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Identidad fiscal
+                    </Label>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {customerTaxIdentities.map((ti) => (
+                            <label
+                                key={ti.id}
+                                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                    chosenTaxIdentityId === ti.id ? "border-primary bg-primary/10" : "hover:bg-muted/50"
+                                }`}
+                            >
+                                <input
+                                    type="radio"
+                                    name="choose-cuit"
+                                    value={ti.id}
+                                    checked={chosenTaxIdentityId === ti.id}
+                                    onChange={() => setChosenTaxIdentityId(ti.id)}
+                                    className="h-4 w-4 accent-primary"
+                                />
+                                <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <div className="min-w-0">
+                                    <span className="font-medium block truncate">{ti.business_name || "Sin razón social"}</span>
+                                    <span className="text-xs text-muted-foreground">CUIT {ti.cuit}</span>
+                                    {ti.fiscal_condition?.name && (
+                                        <span className="text-xs text-muted-foreground ml-1"> · {ti.fiscal_condition.name}</span>
+                                    )}
+                                </div>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setShowChooseCuitDialog(false)} disabled={isUpdatingCuit}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        onClick={handleConfirmCuitAndAuthorize}
+                        disabled={chosenTaxIdentityId == null || isUpdatingCuit}
+                    >
+                        {isUpdatingCuit ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Guardando...
+                            </>
+                        ) : (
+                            <>
+                                <ShieldCheck className="mr-2 h-4 w-4" />
+                                Confirmar y autorizar con AFIP
+                            </>
+                        )}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 };
 

@@ -50,16 +50,14 @@ export const useCashRegistersHistory = ({ selectedBranchIdsArray }: UseCashRegis
         params: requestParams
       })
       
-      const data = response.data
-      
-      // El backend devuelve directamente el array de cajas
-      if (data && Array.isArray(data)) {
-        setCashRegistersHistory(data)
-      } else if (data && data.data && Array.isArray(data.data)) {
-        setCashRegistersHistory(data.data)
-      } else {
-        setCashRegistersHistory([])
-      }
+      // Backend devuelve { message, data: [...], total }. useApi retorna ese objeto como response.
+      const list =
+        response != null && Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response)
+            ? response
+            : []
+      setCashRegistersHistory(list)
     } catch (error) {
       console.error('Error loading cash registers history:', error)
       setCashRegistersHistory([])

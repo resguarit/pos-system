@@ -262,16 +262,21 @@ class SaleService implements SaleServiceInterface
                 $data['status'] = 'active';
             }
 
+            // Alcance de numeración: presupuesto tiene secuencia propia; el resto comparte secuencia contigua.
+            $data['numbering_scope'] = ($receiptTypeForStatus && AfipConstants::isPresupuesto($receiptTypeForStatus->afip_code))
+                ? 'presupuesto'
+                : 'sale';
+
             // 6) Numeración de comprobante
-            // Presupuesto (016): secuencia propia por tipo. Resto: secuencia contigua única por sucursal.
+            // Presupuesto (016): secuencia propia por tipo. Resto: secuencia contigua única por sucursal (todas las ventas).
             $data['receipt_number'] = $this->getNextReceiptNumberForBranch(
                 (int) $data['branch_id'],
                 (int) $data['receipt_type_id']
             );
 
-            // Verificar que el número no exista ya (protección adicional contra duplicados)
+            // Verificar que el número no exista ya en el mismo alcance (protección contra duplicados y condiciones de carrera)
             $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
-                ->where('receipt_type_id', $data['receipt_type_id'])
+                ->where('numbering_scope', $data['numbering_scope'])
                 ->where('receipt_number', $data['receipt_number'])
                 ->lockForUpdate()
                 ->first();
@@ -283,7 +288,7 @@ class SaleService implements SaleServiceInterface
                     $nextReceiptNumber++;
                     $data['receipt_number'] = str_pad((string) $nextReceiptNumber, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT);
                     $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
-                        ->where('receipt_type_id', $data['receipt_type_id'])
+                        ->where('numbering_scope', $data['numbering_scope'])
                         ->where('receipt_number', $data['receipt_number'])
                         ->lockForUpdate()
                         ->first();
@@ -295,13 +300,29 @@ class SaleService implements SaleServiceInterface
                 }
             }
 
-            // 6.1) Si hay cliente pero no se envió condición fiscal, derivarla de la identidad fiscal por defecto del cliente
+            // 6.1) Identidad fiscal del cliente: si se envió customer_tax_identity_id, usarla para CUIT y condición fiscal
+            if (!empty($data['customer_tax_identity_id'])) {
+                $chosenIdentity = \App\Models\CustomerTaxIdentity::with('fiscalCondition')
+                    ->where('id', $data['customer_tax_identity_id'])
+                    ->where('customer_id', $data['customer_id'] ?? null)
+                    ->first();
+                if ($chosenIdentity) {
+                    $data['sale_fiscal_condition_id'] = (int) $chosenIdentity->fiscal_condition_id;
+                    $data['sale_document_number'] = $chosenIdentity->cuit
+                        ? preg_replace('/[^0-9]/', '', (string) $chosenIdentity->cuit)
+                        : ($data['sale_document_number'] ?? null);
+                }
+            }
+            // Si hay cliente pero no identidad elegida ni condición fiscal, derivar de la identidad por defecto
             if (!empty($data['customer_id']) && empty($data['sale_fiscal_condition_id'])) {
                 $customer = Customer::with('taxIdentities')->find($data['customer_id']);
                 $defaultIdentity = $customer?->taxIdentities->where('is_default', true)->first()
                     ?? $customer?->taxIdentities->first();
                 if ($defaultIdentity && !empty($defaultIdentity->fiscal_condition_id)) {
                     $data['sale_fiscal_condition_id'] = (int) $defaultIdentity->fiscal_condition_id;
+                    if (empty($data['sale_document_number']) && !empty($defaultIdentity->cuit)) {
+                        $data['sale_document_number'] = preg_replace('/[^0-9]/', '', (string) $defaultIdentity->cuit);
+                    }
                 }
             }
 
@@ -775,12 +796,13 @@ class SaleService implements SaleServiceInterface
             'receiptType',
             'branch',
             'customer.person',
+            'customer.taxIdentities.fiscalCondition',
+            'customerTaxIdentity.fiscalCondition',
             'user.person',
             'saleFiscalCondition',
             'saleDocumentType',
             'items.product.iva',
             'saleIvas.iva',
-            // Include payments and their methods for detailed view
             'salePayments.paymentMethod',
             'convertedToSale',
             'convertedFromBudget',
@@ -819,6 +841,19 @@ class SaleService implements SaleServiceInterface
 
         if (isset($data['date'])) {
             $data['date'] = Carbon::parse($data['date']);
+        }
+
+        // Si se actualiza la identidad fiscal del cliente, sincronizar CUIT y condición fiscal
+        if (!empty($data['customer_tax_identity_id'])) {
+            $chosenIdentity = \App\Models\CustomerTaxIdentity::where('id', $data['customer_tax_identity_id'])
+                ->where('customer_id', $sale->customer_id)
+                ->first();
+            if ($chosenIdentity) {
+                $data['sale_fiscal_condition_id'] = (int) $chosenIdentity->fiscal_condition_id;
+                $data['sale_document_number'] = $chosenIdentity->cuit
+                    ? preg_replace('/[^0-9]/', '', (string) $chosenIdentity->cuit)
+                    : ($data['sale_document_number'] ?? $sale->sale_document_number);
+            }
         }
 
         $sale->update($data);
@@ -940,6 +975,7 @@ class SaleService implements SaleServiceInterface
             'items.product.iva',
             'branch',
             'customer.person',
+            'customerTaxIdentity.fiscalCondition',
             'receiptType',
             'saleIvas.iva',
             'saleFiscalCondition',
@@ -1024,6 +1060,7 @@ class SaleService implements SaleServiceInterface
             'items.product.iva',
             'branch',
             'customer.person',
+            'customerTaxIdentity.fiscalCondition',
             'receiptType',
             'saleIvas.iva',
             'saleFiscalCondition',
@@ -1631,17 +1668,35 @@ class SaleService implements SaleServiceInterface
                 $caeExpiration = $resultArray['caeExpirationDate'] ?? null;
                 $invoiceNumber = $resultArray['invoiceNumber'] ?? null;
 
-                $sale->update([
+                $updateData = [
                     'cae' => $resultArray['cae'] ?? null,
                     'cae_expiration_date' => $caeExpiration
                         ? (is_string($caeExpiration) && strlen($caeExpiration) === 8
                             ? Carbon::createFromFormat('Ymd', $caeExpiration)
                             : Carbon::parse($caeExpiration))
                         : null,
-                    'receipt_number' => $invoiceNumber !== null && $invoiceNumber !== ''
-                        ? str_pad((string) $invoiceNumber, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT)
-                        : $sale->receipt_number,
-                ]);
+                ];
+
+                // Actualizar receipt_number solo si AFIP devolvió uno y no genera duplicado (unique: branch_id, receipt_type_id, receipt_number)
+                if ($invoiceNumber !== null && $invoiceNumber !== '') {
+                    $newReceiptNumber = str_pad((string) $invoiceNumber, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT);
+                    $duplicateExists = SaleHeader::where('branch_id', $sale->branch_id)
+                        ->where('receipt_type_id', $sale->receipt_type_id)
+                        ->where('receipt_number', $newReceiptNumber)
+                        ->where('id', '!=', $sale->id)
+                        ->exists();
+                    if (!$duplicateExists) {
+                        $updateData['receipt_number'] = $newReceiptNumber;
+                    } else {
+                        Log::warning('Autorización AFIP: número de comprobante devuelto ya existe para otra venta, se mantiene el actual', [
+                            'sale_id' => $sale->id,
+                            'afip_invoice_number' => $invoiceNumber,
+                            'current_receipt_number' => $sale->receipt_number,
+                        ]);
+                    }
+                }
+
+                $sale->update($updateData);
             });
 
             Log::info('Venta autorizada con AFIP exitosamente', [
@@ -2053,7 +2108,22 @@ class SaleService implements SaleServiceInterface
         $receiverDoc = '0';
         $receiverCondicionIva = 'Consumidor final';
 
-        if ($sale->customer) {
+        // Prioridad: identidad fiscal elegida en la venta (CUIT/razón social/condición)
+        $chosenIdentity = $sale->relationLoaded('customerTaxIdentity')
+            ? $sale->customerTaxIdentity
+            : $sale->customerTaxIdentity()->with('fiscalCondition')->first();
+
+        if ($chosenIdentity) {
+            $receiverName = (string) ($chosenIdentity->business_name ?: 'Consumidor Final');
+            $receiverDoc = $chosenIdentity->cuit && strlen(preg_replace('/[^0-9]/', '', (string) $chosenIdentity->cuit)) === AfipConstants::CUIT_LENGTH
+                ? preg_replace('/[^0-9]/', '', (string) $chosenIdentity->cuit)
+                : ($sale->sale_document_number ? (string) $sale->sale_document_number : '0');
+            if ($chosenIdentity->relationLoaded('fiscalCondition') && $chosenIdentity->fiscalCondition?->name) {
+                $receiverCondicionIva = (string) $chosenIdentity->fiscalCondition->name;
+            } elseif ($sale->saleFiscalCondition && !empty($sale->saleFiscalCondition->name)) {
+                $receiverCondicionIva = (string) $sale->saleFiscalCondition->name;
+            }
+        } elseif ($sale->customer) {
             $receiverName = (string) ($sale->customer->business_name ?? trim(
                 ($sale->customer->person->first_name ?? '') . ' ' . ($sale->customer->person->last_name ?? '')
             ) ?: 'Consumidor Final');
@@ -2252,11 +2322,12 @@ class SaleService implements SaleServiceInterface
             // Generar número de comprobante
             $newReceiptNumber = $this->generateNextReceiptNumber($budget->branch_id, $newReceiptTypeId);
 
-            // Crear la nueva venta basada en el presupuesto
+            // Crear la nueva venta basada en el presupuesto (numbering_scope 'sale' = secuencia contigua de ventas)
             $sale = SaleHeader::create([
                 'branch_id' => $budget->branch_id,
                 'receipt_type_id' => $newReceiptTypeId,
                 'receipt_number' => $newReceiptNumber,
+                'numbering_scope' => 'sale',
                 'date' => Carbon::now(),
                 'customer_id' => $budget->customer_id,
                 'user_id' => $userId,

@@ -20,7 +20,9 @@ class SaleHeader extends Model
         'receipt_type_id',
         'branch_id',
         'receipt_number',
+        'numbering_scope',
         'customer_id',
+        'customer_tax_identity_id',
         'sale_fiscal_condition_id',
         'sale_document_type_id',
         'sale_document_number',
@@ -86,6 +88,12 @@ class SaleHeader extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class, 'customer_id');
+    }
+
+    /** Identidad fiscal del cliente usada en esta venta (CUIT, razón social, condición IVA). */
+    public function customerTaxIdentity()
+    {
+        return $this->belongsTo(CustomerTaxIdentity::class, 'customer_tax_identity_id');
     }
 
     public function user()
