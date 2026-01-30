@@ -61,8 +61,12 @@ class CustomerService implements CustomerServiceInterface
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            // Handle tax identities
+            // Handle tax identities (fuente de verdad para condición fiscal en facturación)
             $this->syncTaxIdentities($customer, $data);
+
+            // Alinear persona con la identidad fiscal por defecto
+            $fiscalConditionId = $this->resolvePersonFiscalConditionId($customer, $data);
+            $customer->person->update(['fiscal_condition_id' => $fiscalConditionId]);
 
             // Crear cuenta corriente automáticamente
             $currentAccountData = [
@@ -73,31 +77,37 @@ class CustomerService implements CustomerServiceInterface
 
             $this->currentAccountService->createAccount($currentAccountData);
 
-            return $customer->load(['person', 'taxIdentities.fiscalCondition']);
+            return $customer->load(['person.fiscalCondition', 'taxIdentities.fiscalCondition']);
         });
     }
     public function updateCustomer($id, array $data)
     {
-
         return DB::transaction(function () use ($id, $data) {
             $customer = Customer::with('person')->find($id);
-            if (!$customer)
+            if (!$customer) {
                 return null;
+            }
+
+            // Sincronizar identidades fiscales primero (fuente de verdad para condición fiscal en facturación)
+            $this->syncTaxIdentities($customer, $data);
+
+            // Condición fiscal de la persona: alinear con la identidad fiscal por defecto si existe
+            $fiscalConditionId = $this->resolvePersonFiscalConditionId($customer, $data);
 
             $personData = [
-                'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
-                'cuit' => $data['cuit'] ?? null,
-                'address' => $data['address'] ?? null,
-                'city' => $data['city'] ?? null,
-                'state' => $data['state'] ?? null,
-                'postal_code' => $data['postal_code'] ?? null,
-                'phone' => $data['phone'] ?? null,
-                'fiscal_condition_id' => isset($data['fiscal_condition_id']) && $data['fiscal_condition_id'] ? $data['fiscal_condition_id'] : 1, // Default a 1 si es nulo o 0
-                'person_type_id' => isset($data['person_type_id']) && $data['person_type_id'] ? $data['person_type_id'] : 1, // Default a 1 si es nulo o 0
-                'document_type_id' => isset($data['document_type_id']) && $data['document_type_id'] ? $data['document_type_id'] : 1,
-                'documento' => isset($data['documento']) && $data['documento'] ? $data['documento'] : 0,
-                'credit_limit' => $data['credit_limit'] ?? 0,
+                'first_name' => array_key_exists('first_name', $data) ? $data['first_name'] : $customer->person->first_name,
+                'last_name' => array_key_exists('last_name', $data) ? $data['last_name'] : $customer->person->last_name,
+                'cuit' => array_key_exists('cuit', $data) ? $data['cuit'] : $customer->person->cuit,
+                'address' => array_key_exists('address', $data) ? $data['address'] : $customer->person->address,
+                'city' => array_key_exists('city', $data) ? $data['city'] : $customer->person->city,
+                'state' => array_key_exists('state', $data) ? $data['state'] : $customer->person->state,
+                'postal_code' => array_key_exists('postal_code', $data) ? $data['postal_code'] : $customer->person->postal_code,
+                'phone' => array_key_exists('phone', $data) ? $data['phone'] : $customer->person->phone,
+                'fiscal_condition_id' => $fiscalConditionId,
+                'person_type_id' => isset($data['person_type_id']) && $data['person_type_id'] ? (int) $data['person_type_id'] : $customer->person->person_type_id,
+                'document_type_id' => isset($data['document_type_id']) && $data['document_type_id'] ? (int) $data['document_type_id'] : $customer->person->document_type_id,
+                'documento' => isset($data['documento']) && $data['documento'] ? (int) $data['documento'] : $customer->person->documento,
+                'credit_limit' => array_key_exists('credit_limit', $data) ? $data['credit_limit'] : $customer->person->credit_limit,
             ];
 
             $customer->person->update($personData);
@@ -108,11 +118,26 @@ class CustomerService implements CustomerServiceInterface
                 'notes' => array_key_exists('notes', $data) ? $data['notes'] : $customer->notes,
             ]);
 
-            // Handle tax identities
-            $this->syncTaxIdentities($customer, $data);
-
-            return $customer->load(['person', 'taxIdentities.fiscalCondition']);
+            return $customer->load(['person.fiscalCondition', 'taxIdentities.fiscalCondition']);
         });
+    }
+
+    /**
+     * Resuelve la condición fiscal para la persona: prioriza la identidad fiscal por defecto
+     * (fuente de verdad para facturación) y cae al dato del request si no hay identidades.
+     *
+     * @param  Customer  $customer  Cliente con taxIdentities ya sincronizadas
+     * @param  array<string, mixed>  $data  Datos del request (p. ej. fiscal_condition_id)
+     * @return int ID de condición fiscal (>= 1)
+     */
+    protected function resolvePersonFiscalConditionId(Customer $customer, array $data): int
+    {
+        $defaultIdentity = $customer->taxIdentities()->where('is_default', true)->first();
+        if ($defaultIdentity && $defaultIdentity->fiscal_condition_id) {
+            return (int) $defaultIdentity->fiscal_condition_id;
+        }
+        $fromRequest = $data['fiscal_condition_id'] ?? null;
+        return $fromRequest ? (int) $fromRequest : 1;
     }
 
     /**
@@ -276,7 +301,7 @@ class CustomerService implements CustomerServiceInterface
 
     public function searchCustomers($searchTerm)
     {
-        return Customer::with(['person.fiscalCondition'])
+        return Customer::with(['person.fiscalCondition', 'taxIdentities.fiscalCondition'])
             ->where(function ($query) use ($searchTerm) {
                 // Buscar en el email del customer
                 $query->where('email', 'like', "%{$searchTerm}%");

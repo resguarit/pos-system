@@ -34,6 +34,10 @@ export const useCustomerSearch = (): CustomerSearchResult => {
   const mapCustomerToOption = useCallback((customer: any): CustomerOption => {
     const hasCuit = customer.person?.cuit
     const hasDni = customer.person?.documento
+    // Preferir la condición fiscal de la identidad fiscal por defecto (la que se ve en Ver Cliente)
+    const defaultTaxIdentity = customer.tax_identities?.find((t: any) => t.is_default) ?? customer.tax_identities?.[0]
+    const fiscalConditionId = defaultTaxIdentity?.fiscal_condition_id ?? customer.person?.fiscal_condition_id ?? null
+    const fiscalConditionName = defaultTaxIdentity?.fiscal_condition?.name ?? customer.person?.fiscal_condition?.description ?? customer.person?.fiscal_condition?.name ?? null
 
     return {
       id: customer.id,
@@ -42,9 +46,8 @@ export const useCustomerSearch = (): CustomerSearchResult => {
         : `Cliente ${customer.id}`,
       dni: hasDni ? customer.person.documento : null,
       cuit: hasCuit ? customer.person.cuit : null,
-      fiscal_condition_id: customer.person?.fiscal_condition_id || null,
-      fiscal_condition_name: customer.person?.fiscal_condition?.description ||
-        customer.person?.fiscal_condition?.name || null,
+      fiscal_condition_id: fiscalConditionId,
+      fiscal_condition_name: fiscalConditionName,
     }
   }, [])
 

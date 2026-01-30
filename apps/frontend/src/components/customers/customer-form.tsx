@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Loader2, Save, Plus, Trash2, ChevronDown } from "lucide-react"
 import useApi from "@/hooks/useApi"
+import { useFiscalConditions, type FiscalCondition } from "@/hooks/useFiscalConditions"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
@@ -96,6 +97,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
   // Tax identities state for multiple CUITs
   const [taxIdentities, setTaxIdentities] = useState<TaxIdentity[]>([])
+
+  const { fiscalConditions, isLoading: fiscalConditionsLoading } = useFiscalConditions()
 
   const [isLoading, setIsLoading] = useState(false)
 
@@ -760,16 +763,17 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                                       <Select
                                         value={identity.fiscal_condition_id}
                                         onValueChange={(value) => updateTaxIdentity(index, "fiscal_condition_id", value)}
-                                        disabled={viewOnly || isLoading}
+                                        disabled={viewOnly || isLoading || fiscalConditionsLoading}
                                       >
                                         <SelectTrigger className="h-9 cursor-pointer">
-                                          <SelectValue placeholder="Condición fiscal" />
+                                          <SelectValue placeholder={fiscalConditionsLoading ? "Cargando…" : "Condición fiscal"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="1">Consumidor Final</SelectItem>
-                                          <SelectItem value="2">Responsable Inscripto</SelectItem>
-                                          <SelectItem value="3">Monotributista</SelectItem>
-                                          <SelectItem value="4">Exento</SelectItem>
+                                          {fiscalConditions.map((fc) => (
+                                            <SelectItem key={fc.id} value={String(fc.id)}>
+                                              {fc.name}
+                                            </SelectItem>
+                                          ))}
                                         </SelectContent>
                                       </Select>
                                     </div>
