@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Deploy backend de todos los clientes en el VPS (directorio /home, api.*).
+# Deploy backend de todos los clientes en el VPS (directorio /home: api.* y dipag-api.*).
 # Uso:
 #   ./deploy-all-clients-server.sh
 # Actualizar script desde el repo y ejecutar:
@@ -15,7 +15,7 @@ readonly HOME_DIR="/home"
 readonly SCRIPT_NAME="${0##*/}"
 
 # -----------------------------------------------------------------------------
-# Descubre la ruta del backend Laravel dentro de un directorio api.*
+# Descubre la ruta del backend Laravel dentro de un directorio api.* o dipag-api.*
 # Uso: discover_backend_path "/home/api.ejemplo.com.ar"
 # Devuelve la ruta al directorio con artisan o vacío si no hay.
 # -----------------------------------------------------------------------------
@@ -89,9 +89,9 @@ main() {
   cd "${HOME_DIR}" || { echo "❌ Cannot cd to ${HOME_DIR}"; exit 1; }
 
   local api_dirs
-  api_dirs=$(ls -d api.* 2>/dev/null || true)
+  api_dirs=$(ls -d api.* dipag-api.* 2>/dev/null | sort -u || true)
   if [[ -z "${api_dirs}" ]]; then
-    echo "❌ No api.* directories found in ${HOME_DIR}"
+    echo "❌ No api.* ni dipag-api.* directories found in ${HOME_DIR}"
     exit 1
   fi
 
@@ -105,6 +105,7 @@ main() {
 
     total=$((total + 1))
     local client_name="${api_dir#api.}"
+    client_name="${client_name#dipag-api.}"
     client_name="${client_name%.com.ar}"
     client_name="${client_name%.net.ar}"
 

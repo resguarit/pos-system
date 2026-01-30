@@ -15,6 +15,7 @@
         "php": "^8.1",
         "barryvdh/laravel-dompdf": "^3.0",
         "darkaonline/l5-swagger": "^9.0",
+        "endroid/qr-code": "^6.1",
         "guzzlehttp/guzzle": "^7.2",
         "knuckleswtf/scribe": "^5.3",
         "laravel/framework": "^11.0",
