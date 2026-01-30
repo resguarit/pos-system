@@ -22,12 +22,13 @@ return new class extends Migration
             });
         }
 
-        // Backfill: presupuesto (016) -> 'presupuesto', resto -> 'sale'
+        // Backfill: presupuesto (016) -> 'presupuesto'; resto -> 'sale_{receipt_type_id}' para evitar
+        // duplicados (antes era único por branch+receipt_type+number; varios tipos pueden tener mismo number).
         if (Schema::hasColumn('sales_header', 'numbering_scope')) {
             DB::statement("
                 UPDATE sales_header sh
                 INNER JOIN receipt_type rt ON sh.receipt_type_id = rt.id
-                SET sh.numbering_scope = IF(rt.afip_code = '016', 'presupuesto', 'sale')
+                SET sh.numbering_scope = IF(rt.afip_code = '016', 'presupuesto', CONCAT('sale_', sh.receipt_type_id))
             ");
             DB::table('sales_header')->whereNull('numbering_scope')->update(['numbering_scope' => 'sale']);
 
@@ -55,6 +56,15 @@ return new class extends Migration
                 $table->dropUnique('unique_receipt_per_branch_type');
             });
         }
+
+        // Repair: si quedaron filas con numbering_scope = 'sale' (backfill viejo), convertirlas a sale_{type_id}
+        // para que (branch_id, numbering_scope, receipt_number) sea único antes de crear el índice.
+        DB::statement("
+            UPDATE sales_header sh
+            INNER JOIN receipt_type rt ON sh.receipt_type_id = rt.id
+            SET sh.numbering_scope = CONCAT('sale_', sh.receipt_type_id)
+            WHERE sh.numbering_scope = 'sale' AND (rt.afip_code IS NULL OR rt.afip_code != '016')
+        ");
 
         Schema::table('sales_header', function (Blueprint $table) {
             $table->unique(['branch_id', 'numbering_scope', 'receipt_number'], 'unique_receipt_per_branch_scope');
