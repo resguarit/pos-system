@@ -82,6 +82,47 @@ class UserService implements UserServiceInterface // Implement the interface
             throw new Exception("Missing required fields (Name) for user creation.");
         }
 
+        // Check for existing users (including soft deleted)
+        $existingUser = User::withTrashed()
+            ->where(function ($query) use ($data) {
+                $query->where('email', $data['email'])
+                    ->orWhere('username', $data['username']);
+            })
+            ->first();
+
+        if ($existingUser) {
+            // If the user is active (not deleted), we cannot proceed (duplicate entry)
+            if (!$existingUser->trashed()) {
+                if ($existingUser->email === $data['email']) {
+                    throw new Exception("El email ya está en uso por un usuario activo.");
+                } else {
+                    throw new Exception("El nombre de usuario ya está en uso por un usuario activo.");
+                }
+            }
+
+            // If the user is soft deleted, we rename the deleted user's email/username to free up the unique constraint
+            try {
+                $timestamp = time();
+                $updates = [];
+
+                if ($existingUser->email === $data['email']) {
+                    $updates['email'] = "deleted_{$timestamp}_" . $existingUser->email;
+                }
+
+                if ($existingUser->username === $data['username']) {
+                    $updates['username'] = "deleted_{$timestamp}_" . $existingUser->username;
+                }
+
+                if (!empty($updates)) {
+                    $existingUser->update($updates);
+                    Log::info("Renamed soft-deleted user ID {$existingUser->id} to allow new user creation.", $updates);
+                }
+            } catch (Exception $e) {
+                Log::error("Failed to rename soft-deleted user: " . $e->getMessage());
+                throw new Exception("Error interno al procesar usuario eliminado existente.");
+            }
+        }
+
         DB::beginTransaction();
         try {
             $personId = null;
