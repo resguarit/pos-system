@@ -1599,8 +1599,8 @@ class SaleService implements SaleServiceInterface
             if ($sale->receiptType && AfipConstants::isInternalOnlyReceipt($sale->receiptType->afip_code ?? null)) {
                 throw new \Exception(
                     AfipConstants::isFacturaX($sale->receiptType->afip_code ?? null)
-                        ? 'La Factura X es solo de uso interno del sistema y no se autoriza con AFIP'
-                        : 'Los presupuestos no se pueden autorizar con AFIP'
+                    ? 'La Factura X es solo de uso interno del sistema y no se autoriza con AFIP'
+                    : 'Los presupuestos no se pueden autorizar con AFIP'
                 );
             }
 
@@ -2177,7 +2177,24 @@ class SaleService implements SaleServiceInterface
 
         $saleDate = Carbon::parse($sale->date);
 
+        // Determinar DocTipo para AFIP QR (ARCA)
+        $receiverDocType = AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL; // Default 99
+
+        // Si el documento tiene 11 dígitos se asume CUIT (80)
+        // Validación más estricta podría requerir ver el document_type del cliente si está disponible, 
+        // pero por ahora CUIT vs DNI vs CF se infiere bien por longitud/valor en la mayoría de casos de facturación.
+        if ($receiverDoc !== '0') {
+            if (strlen($receiverDoc) === AfipConstants::CUIT_LENGTH) {
+                $receiverDocType = AfipConstants::DOC_TIPO_CUIT; // 80 - CUIT
+            } elseif (strlen($receiverDoc) >= 7 && strlen($receiverDoc) <= 8) {
+                $receiverDocType = AfipConstants::DOC_TIPO_DNI; // 96 - DNI
+            }
+        }
+
         $invoice = [
+            // Datos específicos para QR (ARCA)
+            'customerDocumentType' => $receiverDocType,
+            'customerDocumentNumber' => $receiverDoc,
             'issuer' => $issuer,
             'receiver' => $receiver,
             'items' => $items,
