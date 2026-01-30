@@ -2195,6 +2195,7 @@ class SaleService implements SaleServiceInterface
             // Datos específicos para QR (ARCA)
             'customerDocumentType' => $receiverDocType,
             'customerDocumentNumber' => $receiverDoc,
+            'codAut' => $sale->cae ? (string) $sale->cae : null,
             'issuer' => $issuer,
             'receiver' => $receiver,
             'items' => $items,
