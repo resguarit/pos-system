@@ -2028,10 +2028,16 @@ class SaleService implements SaleServiceInterface
             throw new \Exception('El total de la venta debe ser mayor a cero');
         }
 
-        // Total debe ser netAmount + ivaTotal para que AFIP no rechace por incoherencia
-        $totalForAfip = round($netAmount + $ivaTotal, 2);
+        // ...
+        $isFacturaB = in_array($invoiceType, [6, 7, 8, 9, 10], true);
 
-        return [
+        // Total debe ser netAmount + ivaTotal para que AFIP no rechace por incoherencia en Factura A
+        // En Factura B, usamos el total de la venta directamente (o suma de items con IVA)
+        $totalForAfip = $isFacturaB
+            ? round((float) $sale->total, 2)
+            : round($netAmount + $ivaTotal, 2);
+
+        $payload = [
             'pointOfSale' => $pointOfSale,
             'invoiceType' => $invoiceType,
             'invoiceNumber' => $invoiceNumber,
@@ -2042,11 +2048,18 @@ class SaleService implements SaleServiceInterface
             'receiverConditionIVA' => $receiverConditionIVA,
             'concept' => $this->determineConcept($sale),
             'items' => $items,
-            'netAmount' => round($netAmount, 2),
-            'ivaTotal' => round($ivaTotal, 2),
             'total' => $totalForAfip,
-            'ivaItems' => $ivaItems,
         ];
+
+        // Para Factura A y otros (NO B), enviamos el desglose.
+        // Para Factura B, el SDK calcula el IVA contenido automáticamente y no requiere enviar netAmount/ivaTotal.
+        if (!$isFacturaB) {
+            $payload['netAmount'] = round($netAmount, 2);
+            $payload['ivaTotal'] = round($ivaTotal, 2);
+            $payload['ivaItems'] = $ivaItems;
+        }
+
+        return $payload;
     }
 
     /**
