@@ -2225,6 +2225,15 @@ class SaleService implements SaleServiceInterface
             'condicion_iva' => $receiverCondicionIva,
         ];
 
+        // Detectar si es Factura B (Consumer Invoice)
+        // Códigos 'B': 6 (Factura B), 7 (Nota Debito B), 8 (Nota Credito B), 9 (Recibo B), 10 (Nota Venta B)
+        // Wait, I need to get invoiceType first. It's not in the code I viewed.
+        // Let me re-read the function start to see where invoiceType comes from or if I need to calculate it.
+        // In prepareInvoiceDataForAfip it calls mapReceiptTypeToAfipType. I should do the same here.
+
+        $invoiceType = $this->mapReceiptTypeToAfipType($sale->receiptType);
+        $isFacturaB = in_array($invoiceType, [6, 7, 8, 9, 10], true);
+
         $items = [];
         foreach ($sale->items as $item) {
             $product = $item->product;
@@ -2234,9 +2243,29 @@ class SaleService implements SaleServiceInterface
             $description = mb_substr((string) $description, 0, 250);
 
             $quantity = (float) $item->quantity;
-            $unitPrice = (float) $item->unit_price;
+            $unitPrice = (float) $item->unit_price; // Por defecto NETO (Factura A)
             $ivaRate = (float) ($item->iva_rate ?? ($product && $product->iva ? $product->iva->rate : 0));
-            $subtotal = (float) ($item->item_total ?? ($unitPrice * $quantity * (1 + $ivaRate / 100)));
+
+            // Por defecto Subtotal NETO (Factura A)
+            // item_subtotal es la base neta
+            $subtotal = (float) ($item->item_subtotal ?? ($unitPrice * $quantity));
+
+            // Ajuste para Factura B: Precio Unitario y Subtotal deben ser CON IVA (Precio Final)
+            if ($isFacturaB) {
+                // Calcular precio unitario final (con IVA)
+                // Se usa item_total (Neto + IVA) dividido por cantidad para obtener el unitario final efectivo
+                $totalWithIva = (float) $item->item_total;
+
+                // Subtotal para Factura B es el Total con IVA
+                $subtotal = $totalWithIva;
+
+                // Evitar división por cero
+                if ($quantity > 0) {
+                    $unitPrice = round($totalWithIva / $quantity, 2);
+                } else {
+                    $unitPrice = 0.0;
+                }
+            }
 
             $items[] = [
                 'description' => $description,
@@ -2282,12 +2311,18 @@ class SaleService implements SaleServiceInterface
             'receiver' => $receiver,
             'items' => $items,
             'total' => round((float) $sale->total, 2),
-            'netAmount' => round((float) $sale->subtotal, 2),
-            'totalIva' => round((float) ($sale->total_iva_amount ?? 0), 2),
             'date' => $saleDate->format('Ymd'),
             'concept' => $this->determineConcept($sale),
             'condicion_venta' => $condicionVenta,
+            // Agregamos invoiceType para que el renderer sepa si es A o B
+            'invoiceType' => $invoiceType,
         ];
+
+        // Solo agregar netAmount y totalIva si NO es Factura B
+        if (!$isFacturaB) {
+            $invoice['netAmount'] = round((float) $sale->subtotal, 2);
+            $invoice['totalIva'] = round((float) ($sale->total_iva_amount ?? 0), 2);
+        }
 
         // Período facturado y vto. pago (template A4; si no se envían, el SDK usa la fecha del comprobante)
         if ($sale->service_from_date) {
