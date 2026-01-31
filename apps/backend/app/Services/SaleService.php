@@ -1934,6 +1934,21 @@ class SaleService implements SaleServiceInterface
             $unitPrice = (float) $item->unit_price;
             $itemSubtotal = (float) $item->item_subtotal ?? ($unitPrice * $quantity);
 
+            // Para Factura B (6) y comprobantes 'B' (7, 8, 9, 10), el precio unitario debe incluir IVA (Precio Final).
+            // Para el resto (A, M, C, etc.), se usa el precio neto.
+            // Códigos 'B': 6 (Factura B), 7 (Nota Debito B), 8 (Nota Credito B), 9 (Recibo B), 10 (Nota Venta B)
+            if (in_array($invoiceType, [6, 7, 8, 9, 10], true)) {
+                // Calcular precio unitario final (con IVA)
+                // Se usa item_total (Neto + IVA) dividido por cantidad para obtener el unitario final efectivo
+                $totalWithIva = (float) $item->item_total;
+                // Evitar división por cero
+                if ($quantity > 0) {
+                    $unitPrice = round($totalWithIva / $quantity, 2);
+                } else {
+                    $unitPrice = 0.0;
+                }
+            }
+
             $items[] = [
                 'description' => $description,
                 'quantity' => $quantity,
