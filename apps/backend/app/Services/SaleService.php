@@ -425,6 +425,10 @@ class SaleService implements SaleServiceInterface
         }
 
         try {
+            // Refrescar la venta desde la BD para asegurar que todos los datos estén sincronizados
+            // Esto es crítico cuando se llama inmediatamente después del commit
+            $sale->refresh();
+
             $result = $this->authorizeWithAfip($sale);
 
             // Refrescar la venta para obtener los datos actualizados (CAE, etc.)
