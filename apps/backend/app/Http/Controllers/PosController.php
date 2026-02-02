@@ -211,6 +211,9 @@ class PosController extends Controller
 
             DB::commit();
 
+            // Intentar autorización AFIP inmediata (delegado al servicio)
+            $afipAuthResult = $this->saleService->tryImmediateAfipAuthorization($saleHeader);
+
             return response()->json([
                 'message' => 'Venta creada con éxito',
                 'data' => $saleHeader->load([
@@ -221,7 +224,8 @@ class PosController extends Controller
                     'receiptType',
                     'branch',
                     'user.person'
-                ])
+                ]),
+                'afip_authorization' => $afipAuthResult,
             ], 201);
 
         } catch (\Exception $e) {

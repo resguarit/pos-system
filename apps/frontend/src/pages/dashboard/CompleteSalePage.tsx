@@ -42,7 +42,7 @@ export default function CompleteSalePage() {
   const { request } = useApi()
   const { selectedBranch, branches } = useBranch()
   const { user, hasPermission } = useAuth()
-  
+
   // Obtener datos del carrito, branchId, convertedFromBudgetId y cliente desde location.state
   const initialCart = (location.state?.cart as CartItem[]) || []
   const stateBranchId = location.state?.branchId
@@ -55,15 +55,15 @@ export default function CompleteSalePage() {
     fiscal_condition_id: number | null
     fiscal_condition_name: string | null
   } | null | undefined
-  
+
   // Usar la sucursal del state si está disponible, sino usar la del contexto
-  const activeBranch = stateBranchId 
+  const activeBranch = stateBranchId
     ? branches.find(b => b.id === stateBranchId) || selectedBranch
     : selectedBranch
 
   // Si no hay sucursal activa (ej. entró directo), usar la primera para cargar tipos de comprobante
   const effectiveBranch = activeBranch || (branches?.length ? branches[0] : null)
-  
+
   if (import.meta.env.DEV) {
     // Debug: verificar qué sucursal se está usando (solo en desarrollo)
     // eslint-disable-next-line no-console
@@ -73,7 +73,7 @@ export default function CompleteSalePage() {
       effectiveBranchId: effectiveBranch?.id
     })
   }
-  
+
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
   const { checkCuitCertificate, getReceiptTypes: getAfipReceiptTypes } = useAfip()
 
@@ -151,15 +151,15 @@ export default function CompleteSalePage() {
       if ((method?.discount_percentage || 0) > 0) return sum
       return sum + (parseFloat(p.amount || '0') || 0)
     }, 0)
-    
+
     const remainingToPay = Math.max(total - paidWithoutDiscount, 0)
-    
+
     // Aplicar el descuento más alto de los métodos seleccionados
     const maxRate = Math.max(...discountedPayments.map(p => {
       const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
       return (method?.discount_percentage || 0) / 100
     }))
-    
+
     return roundToTwoDecimals(remainingToPay * maxRate)
   }, [payments, paymentMethods, total])
 
@@ -189,7 +189,7 @@ export default function CompleteSalePage() {
   // Se ejecuta solo una vez al montar si hay datos del cliente
   useEffect(() => {
     if (!convertedFromBudgetCustomer?.id) return
-    
+
     // Mapear los datos del cliente del presupuesto al formato CustomerOption
     const customerOption: CustomerOption = {
       id: convertedFromBudgetCustomer.id,
@@ -199,7 +199,7 @@ export default function CompleteSalePage() {
       fiscal_condition_id: convertedFromBudgetCustomer.fiscal_condition_id,
       fiscal_condition_name: convertedFromBudgetCustomer.fiscal_condition_name,
     }
-    
+
     setSelectedCustomer(customerOption)
     setCustomerSearch(convertedFromBudgetCustomer.name || '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -277,12 +277,12 @@ export default function CompleteSalePage() {
       // PERO: Si viene de una conversión de presupuesto, NO puede crear otro presupuesto
       const isRestrictedToBudgets = hasPermission('solo_crear_presupuestos')
       const isConvertingBudget = !!convertedFromBudgetId
-      
+
       if (isConvertingBudget) {
         // Si estamos convirtiendo un presupuesto, excluir el tipo "Presupuesto" (016)
         // porque no tiene sentido crear otro presupuesto desde un presupuesto
         availableTypes = availableTypes.filter((t: ReceiptType) => t.afip_code !== '016')
-        
+
         if (availableTypes.length === 0) {
           toast.error('No hay tipos de comprobante de venta disponibles para convertir este presupuesto')
         }
@@ -480,12 +480,39 @@ export default function CompleteSalePage() {
       // Check if the sale is pending approval
       const saleStatus = (saleResponse as any)?.status || (saleResponse as any)?.data?.status
 
+      // Obtener resultado de autorización AFIP
+      const afipAuth = (saleResponse as any)?.afip_authorization || (saleResponse as any)?.data?.afip_authorization
+
+      // Determinar si es comprobante interno (no requiere AFIP)
+      const selectedReceiptTypeObj = receiptTypes.find((rt) => rt.id === receiptTypeId)
+      const isInternalReceipt = selectedReceiptTypeObj?.afip_code &&
+        INTERNAL_RECEIPT_CODES.includes(String(selectedReceiptTypeObj.afip_code))
+
       if (saleStatus === 'pending') {
         toast.info('Venta registrada - Pendiente de aprobación', {
           description: 'Tu venta ha sido registrada pero requiere aprobación de un supervisor antes de ser procesada. El stock y la caja no serán afectados hasta que sea aprobada.',
           duration: 8000,
         })
+      } else if (afipAuth?.cae) {
+        // Facturación AFIP exitosa
+        toast.success('¡Factura emitida correctamente!', {
+          description: `CAE: ${afipAuth.cae}`,
+          duration: 6000,
+        })
+      } else if (afipAuth?.error) {
+        // Error en la autorización AFIP - venta creada pero sin CAE
+        toast.warning('Venta registrada - Pendiente de autorización AFIP', {
+          description: `${afipAuth.error}. Podés autorizar la factura desde el historial de ventas.`,
+          duration: 10000,
+        })
+      } else if (!isInternalReceipt && !afipAuth) {
+        // Comprobante fiscal sin respuesta AFIP (edge case)
+        toast.info('Venta registrada - Requiere autorización AFIP', {
+          description: 'Podés autorizar la factura desde el historial de ventas.',
+          duration: 6000,
+        })
       } else {
+        // Comprobante interno (Presupuesto, Factura X) o venta exitosa sin necesidad de AFIP
         toast.success('¡Venta realizada con éxito!')
       }
 
@@ -567,8 +594,8 @@ export default function CompleteSalePage() {
     return payments.some(p => {
       if (!p.payment_method_id) return false
       const paymentMethod = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      return paymentMethod?.name?.toLowerCase().includes('efectivo') || 
-             paymentMethod?.name?.toLowerCase().includes('cash')
+      return paymentMethod?.name?.toLowerCase().includes('efectivo') ||
+        paymentMethod?.name?.toLowerCase().includes('cash')
     })
   }, [payments, paymentMethods])
 
@@ -685,14 +712,14 @@ export default function CompleteSalePage() {
     // Cargar el saldo del cliente
     if (customer.id) {
       setLoadingBalance(true)
-      request({ 
-        method: 'GET', 
-        url: `/customers/${customer.id}/current-account-balance` 
+      request({
+        method: 'GET',
+        url: `/customers/${customer.id}/current-account-balance`
       })
         .then((response) => {
           const balance = response?.balance ?? response?.data?.balance ?? 0
           setCustomerBalance(balance)
-          
+
           // Mostrar alerta si tiene deuda
           if (balance > 0) {
             setShowDebtDialog(true)
@@ -998,7 +1025,7 @@ export default function CompleteSalePage() {
               <p className="text-center text-sm text-blue-700 font-medium mb-3">Cambio a Entregar al Cliente</p>
               <p className="text-center text-4xl font-bold text-blue-600">{formatCurrency(pendingChangeAmount)}</p>
             </div>
-            
+
             {/* Instructions */}
             <div className="space-y-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
               <p className="text-sm font-semibold text-amber-900">⚠️ Antes de continuar:</p>
