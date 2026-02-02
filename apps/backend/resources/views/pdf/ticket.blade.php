@@ -22,6 +22,7 @@
         .ticket-wrapper {
             /* MARGEN IZQUIERDO 10mm (Para salvar el corte de impresora) */
             margin-left: 10mm;
+            padding-top: 15mm;
 
             /* ANCHO 60mm (Para asegurar que entre todo a la derecha) */
             width: 60mm;
@@ -122,9 +123,11 @@
         <table style="font-size: 9px;">
             <tr>
                 <td class="left bold">Fecha:
-                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y') : date('d/m/Y') }}</td>
+                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y') : date('d/m/Y') }}
+                </td>
                 <td class="right bold">Hora:
-                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('H:i') : date('H:i') }}</td>
+                    {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('H:i') : date('H:i') }}
+                </td>
             </tr>
         </table>
 
