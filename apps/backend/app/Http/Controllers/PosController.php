@@ -219,14 +219,10 @@ class PosController extends Controller
 
             if (!$isInternalOnly) {
                 try {
-                    // Recargar la venta con las relaciones necesarias para AFIP
-                    $saleHeader->load([
-                        'receiptType',
-                        'customer.person',
-                        'items.product.iva',
-                        'saleIvas.iva',
-                        'branch',
-                    ]);
+                    // Refrescar el modelo desde la BD para obtener todos los valores calculados
+                    // (totales, IVA, etc.) que el SaleService pudo haber actualizado.
+                    // El SaleService.authorizeWithAfip() cargará las relaciones que necesita.
+                    $saleHeader->refresh();
 
                     $afipAuthResult = $this->saleService->authorizeWithAfip($saleHeader);
 
