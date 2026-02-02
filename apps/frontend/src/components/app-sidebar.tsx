@@ -101,7 +101,7 @@ export function AppSidebar({ className }: { className?: string }) {
           title: "Análisis de Ventas",
           url: "/dashboard/analisis-ventas",
           icon: BarChart3,
-          visible: features.analisisventas && hasPermission('ver_ventas') && hasPermission('ver_estadisticas'),
+          visible: features.analisisventas && hasPermission('ver_estadisticas'),
         },
       ],
     },
@@ -380,7 +380,7 @@ export function AppSidebar({ className }: { className?: string }) {
                 if (visibleItems.length === 0 && group.url && group.url !== "#") {
                   // Skip if group itself is not visible
                   if (group.visible === false) return null
-                  
+
                   return (
                     <SidebarMenuItem key={group.title}>
                       <SidebarMenuButton asChild isActive={pathname.startsWith(group.url)} tooltip={group.title}>
