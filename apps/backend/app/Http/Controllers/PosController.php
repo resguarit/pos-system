@@ -211,8 +211,10 @@ class PosController extends Controller
 
             DB::commit();
 
-            // Intentar autorización AFIP inmediata (delegado al servicio)
-            $afipAuthResult = $this->saleService->tryImmediateAfipAuthorization($saleHeader);
+            // Autorización AFIP se realiza manualmente desde el historial de ventas
+            // (Comentado temporalmente para debug)
+            // $afipAuthResult = $this->saleService->tryImmediateAfipAuthorization($saleHeader);
+            $afipAuthResult = null;
 
             return response()->json([
                 'message' => 'Venta creada con éxito',
