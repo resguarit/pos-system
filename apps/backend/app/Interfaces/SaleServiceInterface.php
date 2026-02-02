@@ -13,14 +13,6 @@ interface SaleServiceInterface
     public function getSaleById(int $id): ?SaleHeader;
     public function createSale(array $data, bool $registerMovement = true): SaleHeader;
     public function registerSaleMovementFromPayments(SaleHeader $sale, ?int $cashRegisterId = null): void;
-
-    /**
-     * Intenta autorizar una venta con AFIP de forma inmediata (no bloqueante).
-     * 
-     * @param SaleHeader $sale La venta a autorizar
-     * @return array|null null si no requiere autorización, array con 'cae' o 'error'
-     */
-    public function tryImmediateAfipAuthorization(SaleHeader $sale): ?array;
     public function updateSale(int $id, array $data): ?SaleHeader;
     public function deleteSale(int $id): bool;
     public function getSalesTotalByBranchAndDate(int $branchId, string $from, string $to): float;

@@ -403,58 +403,6 @@ class SaleService implements SaleServiceInterface
     }
 
     /**
-     * Intenta autorizar una venta con AFIP de forma inmediata (no bloqueante).
-     * 
-     * Este método encapsula la lógica de autorización AFIP para comprobantes fiscales.
-     * Si el comprobante es interno (Presupuesto, Factura X), retorna null.
-     * Si la autorización falla, no lanza excepción sino que retorna el error en el array.
-     * 
-     * @param SaleHeader $sale La venta a autorizar
-     * @return array|null null si no requiere autorización, array con 'cae' o 'error'
-     */
-    public function tryImmediateAfipAuthorization(SaleHeader $sale): ?array
-    {
-        // Cargar tipo de comprobante si no está cargado
-        $sale->loadMissing('receiptType');
-
-        $receiptType = $sale->receiptType;
-
-        // Si no hay tipo de comprobante o es interno (Presupuesto/Factura X), no autorizar
-        if (!$receiptType || AfipConstants::isInternalOnlyReceipt($receiptType->afip_code ?? null)) {
-            return null;
-        }
-
-        try {
-            // Refrescar la venta desde la BD para asegurar que todos los datos estén sincronizados
-            // Esto es crítico cuando se llama inmediatamente después del commit
-            $sale->refresh();
-
-            $result = $this->authorizeWithAfip($sale);
-
-            // Refrescar la venta para obtener los datos actualizados (CAE, etc.)
-            $sale->refresh();
-
-            Log::info('Facturación AFIP inmediata exitosa', [
-                'sale_id' => $sale->id,
-                'cae' => $result['cae'] ?? null,
-                'invoice_number' => $result['invoice_number'] ?? null,
-            ]);
-
-            return $result;
-
-        } catch (\Exception $e) {
-            // Si falla la autorización AFIP, NO propagar la excepción
-            // La venta ya está creada y se puede autorizar manualmente desde historial
-            Log::warning('Facturación AFIP inmediata falló - venta pendiente de autorización', [
-                'sale_id' => $sale->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return ['error' => $e->getMessage()];
-        }
-    }
-
-    /**
      * Registra el movimiento de caja basándose en los pagos de la venta
      */
     public function registerSaleMovementFromPayments(SaleHeader $sale, ?int $cashRegisterId = null): void

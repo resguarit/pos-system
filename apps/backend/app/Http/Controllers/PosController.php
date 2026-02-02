@@ -211,10 +211,45 @@ class PosController extends Controller
 
             DB::commit();
 
-            // Autorización AFIP se realiza manualmente desde el historial de ventas
-            // (Comentado temporalmente para debug)
-            // $afipAuthResult = $this->saleService->tryImmediateAfipAuthorization($saleHeader);
+            // --- AUTORIZACIÓN AUTOMÁTICA CON AFIP ---
+            // Si el tipo de comprobante requiere AFIP (no es Presupuesto ni Factura X),
+            // intentar autorizar inmediatamente después del commit.
             $afipAuthResult = null;
+            $isInternalOnly = AfipConstants::isInternalOnlyReceipt($receiptType?->afip_code);
+
+            if (!$isInternalOnly) {
+                try {
+                    // Recargar la venta con las relaciones necesarias para AFIP
+                    $saleHeader->load([
+                        'receiptType',
+                        'customer.person',
+                        'items.product.iva',
+                        'saleIvas.iva',
+                        'branch',
+                    ]);
+
+                    $afipAuthResult = $this->saleService->authorizeWithAfip($saleHeader);
+
+                    // Recargar para obtener los datos actualizados (CAE, receipt_number, etc.)
+                    $saleHeader->refresh();
+
+                    // Marcar como exitoso
+                    $afipAuthResult['success'] = true;
+
+                } catch (\Exception $e) {
+                    // Logear el error pero NO fallar la venta (ya está guardada)
+                    Log::warning('Error al autorizar venta con AFIP inmediatamente', [
+                        'sale_id' => $saleHeader->id,
+                        'error' => $e->getMessage(),
+                    ]);
+
+                    $afipAuthResult = [
+                        'success' => false,
+                        'error' => $e->getMessage(),
+                    ];
+                }
+            }
+            // --- FIN AUTORIZACIÓN AUTOMÁTICA CON AFIP ---
 
             return response()->json([
                 'message' => 'Venta creada con éxito',

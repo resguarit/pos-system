@@ -480,39 +480,30 @@ export default function CompleteSalePage() {
       // Check if the sale is pending approval
       const saleStatus = (saleResponse as any)?.status || (saleResponse as any)?.data?.status
 
-      // Obtener resultado de autorización AFIP
-      const afipAuth = (saleResponse as any)?.afip_authorization || (saleResponse as any)?.data?.afip_authorization
-
-      // Determinar si es comprobante interno (no requiere AFIP)
-      const selectedReceiptTypeObj = receiptTypes.find((rt) => rt.id === receiptTypeId)
-      const isInternalReceipt = selectedReceiptTypeObj?.afip_code &&
-        INTERNAL_RECEIPT_CODES.includes(String(selectedReceiptTypeObj.afip_code))
+      // Handle AFIP authorization result
+      const afipAuth = (saleResponse as any)?.afip_authorization
 
       if (saleStatus === 'pending') {
         toast.info('Venta registrada - Pendiente de aprobación', {
           description: 'Tu venta ha sido registrada pero requiere aprobación de un supervisor antes de ser procesada. El stock y la caja no serán afectados hasta que sea aprobada.',
           duration: 8000,
         })
-      } else if (afipAuth?.cae) {
-        // Facturación AFIP exitosa
-        toast.success('¡Factura emitida correctamente!', {
-          description: `CAE: ${afipAuth.cae}`,
-          duration: 6000,
-        })
-      } else if (afipAuth?.error) {
-        // Error en la autorización AFIP - venta creada pero sin CAE
-        toast.warning('Venta registrada - Pendiente de autorización AFIP', {
-          description: `${afipAuth.error}. Podés autorizar la factura desde el historial de ventas.`,
-          duration: 10000,
-        })
-      } else if (!isInternalReceipt && !afipAuth) {
-        // Comprobante fiscal sin respuesta AFIP (edge case)
-        toast.info('Venta registrada - Requiere autorización AFIP', {
-          description: 'Podés autorizar la factura desde el historial de ventas.',
-          duration: 6000,
-        })
+      } else if (afipAuth) {
+        // Si se intentó autorizar con AFIP
+        if (afipAuth.success && afipAuth.cae) {
+          toast.success('¡Venta facturada con AFIP!', {
+            description: `CAE: ${afipAuth.cae}`,
+            duration: 6000,
+          })
+        } else if (afipAuth.success === false) {
+          toast.warning('Venta guardada - Autorización AFIP pendiente', {
+            description: afipAuth.error || 'Podrás autorizar la venta desde el historial de ventas.',
+            duration: 8000,
+          })
+        } else {
+          toast.success('¡Venta realizada con éxito!')
+        }
       } else {
-        // Comprobante interno (Presupuesto, Factura X) o venta exitosa sin necesidad de AFIP
         toast.success('¡Venta realizada con éxito!')
       }
 
