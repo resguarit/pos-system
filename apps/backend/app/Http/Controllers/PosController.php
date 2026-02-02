@@ -219,12 +219,15 @@ class PosController extends Controller
 
             if (!$isInternalOnly) {
                 try {
-                    // Refrescar el modelo desde la BD para obtener todos los valores calculados
-                    // (totales, IVA, etc.) que el SaleService pudo haber actualizado.
-                    // El SaleService.authorizeWithAfip() cargará las relaciones que necesita.
-                    $saleHeader->refresh();
+                    // Obtener una instancia completamente nueva desde la BD,
+                    // igual que hace SaleController::authorizeWithAfip()
+                    // Esto garantiza que no haya estado en memoria que cause problemas.
+                    $freshSale = SaleHeader::with([
+                        'receiptType',
+                        'customer.person',
+                    ])->findOrFail($saleHeader->id);
 
-                    $afipAuthResult = $this->saleService->authorizeWithAfip($saleHeader);
+                    $afipAuthResult = $this->saleService->authorizeWithAfip($freshSale);
 
                     // Recargar para obtener los datos actualizados (CAE, receipt_number, etc.)
                     $saleHeader->refresh();
