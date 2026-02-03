@@ -114,6 +114,8 @@ class BranchController extends Controller
             'domicilio_comercial' => 'nullable|string|max:500',
             'enabled_receipt_types' => 'nullable|array',
             'enabled_receipt_types.*' => 'integer|exists:receipt_type,id',
+            'iibb' => 'nullable|string|max:50',
+            'start_date' => 'nullable|date',
         ]);
 
         $validatedData['status'] = $request->input('status', true);
@@ -176,6 +178,8 @@ class BranchController extends Controller
             'domicilio_comercial' => 'nullable|string|max:500',
             'enabled_receipt_types' => 'nullable|array',
             'enabled_receipt_types.*' => 'integer|exists:receipt_type,id',
+            'iibb' => 'nullable|string|max:50',
+            'start_date' => 'nullable|date',
         ]);
 
         $branch = $this->branchService->updateBranch($id, $validatedData);
