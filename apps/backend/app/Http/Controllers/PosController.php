@@ -211,44 +211,25 @@ class PosController extends Controller
 
             DB::commit();
 
-            // --- AUTORIZACIÓN AUTOMÁTICA CON AFIP ---
-            // Si el tipo de comprobante requiere AFIP (no es Presupuesto ni Factura X),
-            // intentar autorizar inmediatamente después del commit.
-            $afipAuthResult = null;
-            $isInternalOnly = AfipConstants::isInternalOnlyReceipt($receiptType?->afip_code);
+            // --- AUTORIZACIÓN AFIP INMEDIATA ---
+            // Intentamos autorizar de inmediato si corresponde.
+            // Si falla, no interrumpimos el flujo (la venta ya se creó),
+            // simplemente quedará como "pendiente" para reintentar desde Historial.
+            try {
+                if ($saleHeader && $saleHeader->receiptType && !\App\Constants\AfipConstants::isInternalOnlyReceipt($saleHeader->receiptType->afip_code)) {
+                    // Esto lanza excepción si falla, capturada abajo.
+                    $this->saleService->authorizeWithAfip($saleHeader);
 
-            if (!$isInternalOnly) {
-                try {
-                    // Obtener una instancia completamente nueva desde la BD,
-                    // igual que hace SaleController::authorizeWithAfip()
-                    // Esto garantiza que no haya estado en memoria que cause problemas.
-                    $freshSale = SaleHeader::with([
-                        'receiptType',
-                        'customer.person',
-                    ])->findOrFail($saleHeader->id);
-
-                    $afipAuthResult = $this->saleService->authorizeWithAfip($freshSale);
-
-                    // Recargar para obtener los datos actualizados (CAE, receipt_number, etc.)
+                    // Si tuvo éxito, refrescamos el modelo para que la respuesta incluya CAE y FEchVto
                     $saleHeader->refresh();
-
-                    // Marcar como exitoso
-                    $afipAuthResult['success'] = true;
-
-                } catch (\Exception $e) {
-                    // Logear el error pero NO fallar la venta (ya está guardada)
-                    Log::warning('Error al autorizar venta con AFIP inmediatamente', [
-                        'sale_id' => $saleHeader->id,
-                        'error' => $e->getMessage(),
-                    ]);
-
-                    $afipAuthResult = [
-                        'success' => false,
-                        'error' => $e->getMessage(),
-                    ];
                 }
+            } catch (\Exception $e) {
+                // Loguear el error pero no fallar el request
+                Log::error('Fallo autorización inmediata AFIP en POS: ' . $e->getMessage(), [
+                    'sale_id' => $saleHeader->id,
+                    'receipt_number' => $saleHeader->receipt_number
+                ]);
             }
-            // --- FIN AUTORIZACIÓN AUTOMÁTICA CON AFIP ---
 
             return response()->json([
                 'message' => 'Venta creada con éxito',
@@ -260,8 +241,7 @@ class PosController extends Controller
                     'receiptType',
                     'branch',
                     'user.person'
-                ]),
-                'afip_authorization' => $afipAuthResult,
+                ])
             ], 201);
 
         } catch (\Exception $e) {

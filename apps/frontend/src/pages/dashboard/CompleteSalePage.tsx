@@ -480,29 +480,11 @@ export default function CompleteSalePage() {
       // Check if the sale is pending approval
       const saleStatus = (saleResponse as any)?.status || (saleResponse as any)?.data?.status
 
-      // Handle AFIP authorization result
-      const afipAuth = (saleResponse as any)?.afip_authorization
-
       if (saleStatus === 'pending') {
         toast.info('Venta registrada - Pendiente de aprobación', {
           description: 'Tu venta ha sido registrada pero requiere aprobación de un supervisor antes de ser procesada. El stock y la caja no serán afectados hasta que sea aprobada.',
           duration: 8000,
         })
-      } else if (afipAuth) {
-        // Si se intentó autorizar con AFIP
-        if (afipAuth.success && afipAuth.cae) {
-          toast.success('¡Venta facturada con AFIP!', {
-            description: `CAE: ${afipAuth.cae}`,
-            duration: 6000,
-          })
-        } else if (afipAuth.success === false) {
-          toast.warning('Venta guardada - Autorización AFIP pendiente', {
-            description: afipAuth.error || 'Podrás autorizar la venta desde el historial de ventas.',
-            duration: 8000,
-          })
-        } else {
-          toast.success('¡Venta realizada con éxito!')
-        }
       } else {
         toast.success('¡Venta realizada con éxito!')
       }
