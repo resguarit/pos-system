@@ -1596,6 +1596,7 @@ class SaleService implements SaleServiceInterface
             $sale->load([
                 'receiptType',
                 'customer.person',
+                'customerTaxIdentity',
                 'items.product.iva',
                 'saleIvas.iva',
                 'branch',
@@ -1897,7 +1898,16 @@ class SaleService implements SaleServiceInterface
         $customerDocumentType = AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL;
         $customerDocumentNumber = '00000000000';
 
-        if ($sale->customer && $sale->customer->person) {
+        // Priorizar la identidad fiscal seleccionada (customerTaxIdentity) si existe
+        if ($sale->customerTaxIdentity && !empty($sale->customerTaxIdentity->cuit)) {
+            $cuit = preg_replace('/[^0-9]/', '', $sale->customerTaxIdentity->cuit);
+            if (strlen($cuit) === AfipConstants::CUIT_LENGTH) {
+                $customerCuit = $cuit;
+                $customerDocumentType = AfipConstants::DOC_TIPO_CUIT;
+                $customerDocumentNumber = $cuit;
+            }
+        } elseif ($sale->customer && $sale->customer->person) {
+            // Fallback: usar CUIT del person del customer
             $cuit = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit ?? '');
             if (strlen($cuit) === AfipConstants::CUIT_LENGTH) {
                 $customerCuit = $cuit;
