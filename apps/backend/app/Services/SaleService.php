@@ -2051,13 +2051,10 @@ class SaleService implements SaleServiceInterface
             'total' => $totalForAfip,
         ];
 
-        // Para Factura A y otros (NO B), enviamos el desglose.
-        // Para Factura B, el SDK calcula el IVA contenido automáticamente y no requiere enviar netAmount/ivaTotal.
-        if (!$isFacturaB) {
-            $payload['netAmount'] = round($netAmount, 2);
-            $payload['ivaTotal'] = round($ivaTotal, 2);
-            $payload['ivaItems'] = $ivaItems;
-        }
+        // Siempre incluir desglose de montos para evitar error 10048 de AFIP
+        $payload['netAmount'] = round($netAmount, 2);
+        $payload['ivaTotal'] = round($ivaTotal, 2);
+        $payload['ivaItems'] = $ivaItems;
 
         return $payload;
     }

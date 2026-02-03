@@ -197,7 +197,7 @@ class PosController extends Controller
             // Actualizar payment_status y paid_amount de la venta
             $this->updateSalePaymentStatus($saleHeader);
 
-            // --- INICIO DE LA MODIFICACIÓN ---
+
 
             // Buscamos el tipo de comprobante para la verificación.
             $receiptType = ReceiptType::find($saleData['receipt_type_id']);
@@ -207,7 +207,6 @@ class PosController extends Controller
                 $this->saleService->registerSaleMovementFromPayments($saleHeader, $cashRegisterId);
             }
 
-            // --- FIN DE LA MODIFICACIÓN ---
 
             DB::commit();
 
