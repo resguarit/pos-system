@@ -216,7 +216,7 @@ class PosController extends Controller
             // Si falla, no interrumpimos el flujo (la venta ya se creó),
             // simplemente quedará como "pendiente" para reintentar desde Historial.
             try {
-                if ($saleHeader && $saleHeader->receiptType && !\App\Constants\AfipConstants::isInternalOnlyReceipt($saleHeader->receiptType->afip_code)) {
+                if ($saleHeader && $receiptType && !\App\Constants\AfipConstants::isInternalOnlyReceipt($receiptType->afip_code)) {
                     // Esto lanza excepción si falla, capturada abajo.
                     $this->saleService->authorizeWithAfip($saleHeader);
 
