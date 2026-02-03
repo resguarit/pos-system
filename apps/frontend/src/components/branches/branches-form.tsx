@@ -47,6 +47,8 @@ interface Branch {
   razon_social?: string
   domicilio_comercial?: string
   enabled_receipt_types?: number[]
+  iibb?: string
+  start_date?: string
 }
 
 interface BranchFormProps {
@@ -67,6 +69,8 @@ const initialBranch: Branch = {
   razon_social: "",
   domicilio_comercial: "",
   enabled_receipt_types: [],
+  iibb: "",
+  start_date: "",
 }
 
 function initializeFormState(currentBranch?: Branch): Branch {
@@ -87,14 +91,16 @@ function initializeFormState(currentBranch?: Branch): Branch {
       point_of_sale: currentBranch.point_of_sale || "",
       color:
         typeof currentBranch.color === "string" &&
-        currentBranch.color.startsWith("#") &&
-        currentBranch.color.length === 7
+          currentBranch.color.startsWith("#") &&
+          currentBranch.color.length === 7
           ? currentBranch.color
           : initialBranch.color,
       cuit: currentBranch.cuit || "",
       razon_social: currentBranch.razon_social || "",
       domicilio_comercial: (currentBranch as any).domicilio_comercial || "",
       enabled_receipt_types: (currentBranch as any).enabled_receipt_types || [],
+      iibb: (currentBranch as any).iibb || "",
+      start_date: (currentBranch as any).start_date || "",
     }
   }
   return initialBranch
@@ -113,14 +119,14 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
   // Estados para validación de duplicados
   const [nameError, setNameError] = useState<string>("")
   const [isCheckingName, setIsCheckingName] = useState<boolean>(false)
-  
+
   // Estado para la pestaña activa
   const [activeTab, setActiveTab] = useState("general")
 
   // Estados para puntos de venta AFIP
   const [afipPointsOfSale, setAfipPointsOfSale] = useState<AfipPointOfSale[]>([])
   const [loadingAfipPoints, setLoadingAfipPoints] = useState(false)
-  
+
   // Estados para tipos de comprobantes AFIP
   const [afipReceiptTypes, setAfipReceiptTypes] = useState<AfipReceiptType[]>([])
   const [loadingReceiptTypes, setLoadingReceiptTypes] = useState(false)
@@ -140,7 +146,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     return () => {
       controller.abort();
     };
-  }, []) 
+  }, [])
 
   const fetchUsers = async (signal?: AbortSignal) => {
     setLoadingUsers(true)
@@ -175,11 +181,11 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         setUsers([])
       }
     } catch (error: any) {
-        if (!axios.isCancel(error)) {
-          console.error("Error fetching users for branch form:", error)
-          toast.error("No se pudieron cargar los usuarios")
-        }
-        setUsers([])
+      if (!axios.isCancel(error)) {
+        console.error("Error fetching users for branch form:", error)
+        toast.error("No se pudieron cargar los usuarios")
+      }
+      setUsers([])
     } finally {
       setLoadingUsers(false)
     }
@@ -198,7 +204,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         method: 'GET',
         url: `/branches/check-name/${encodeURIComponent(name)}`
       });
-      
+
       if (response.exists && name !== (branch?.description || '')) {
         setNameError("Este nombre ya está en uso");
         toast.error("Este nombre ya está en uso", {
@@ -239,7 +245,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     setLoadingAfipPoints(true)
     try {
       const points = await getPointsOfSale(cleanCuit, { suppressError: silent })
-      
+
       if (points === null) {
         // Error ocurred (handled by hook)
         setAfipPointsOfSale([])
@@ -288,7 +294,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     setLoadingReceiptTypes(true)
     try {
       const types = await getReceiptTypes(cleanCuit)
-      
+
       if (types === null) {
         setAfipReceiptTypes([])
         return
@@ -296,7 +302,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
 
       if (types && types.length > 0) {
         setAfipReceiptTypes(types)
-        
+
         if (!silent) {
           toast.success(`Se encontraron ${types.length} tipo(s) de comprobante disponible(s)`)
         }
@@ -333,7 +339,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-    
+
     // Validación de duplicados con debounce para el nombre
     if (name === 'description') {
       const timeoutId = setTimeout(() => {
@@ -341,7 +347,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
       }, 500);
       return () => clearTimeout(timeoutId);
     }
-    
+
     // Cargar puntos de venta cuando se ingresa un CUIT
     if (name === 'cuit') {
       const cleanCuit = value.replace(/[^0-9]/g, '')
@@ -366,11 +372,11 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
 
     // Validación de campos obligatorios
     const errors: string[] = []
-    
+
     if (!formData.description?.trim()) {
       errors.push("El nombre de la sucursal es obligatorio")
     }
-    
+
     if (!formData.address?.trim()) {
       errors.push("La dirección es obligatoria")
     }
@@ -383,7 +389,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     }
 
     setLoading(true)
-    
+
     try {
       const branchDataToSave = {
         description: formData.description,
@@ -398,6 +404,8 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         razon_social: formData.razon_social || null,
         domicilio_comercial: formData.domicilio_comercial || null,
         enabled_receipt_types: formData.enabled_receipt_types || [],
+        iibb: formData.iibb || null,
+        start_date: formData.start_date || null,
       }
 
       let response;
@@ -414,7 +422,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
           data: branchDataToSave,
         });
       }
-      
+
       const savedBranch = response?.data || response;
 
       if (savedBranch && savedBranch.id) {
@@ -434,7 +442,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
       setLoading(false)
     }
   };
-  
+
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
       <div className="flex items-center justify-between">
@@ -485,12 +493,12 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                         Nombre <span className="text-red-500">*</span>
                       </Label>
                       <div className="relative">
-                        <Input 
-                          id="description" 
-                          name="description" 
-                          value={formData.description} 
-                          onChange={handleChange} 
-                          disabled={isReadOnly || loading} 
+                        <Input
+                          id="description"
+                          name="description"
+                          value={formData.description}
+                          onChange={handleChange}
+                          disabled={isReadOnly || loading}
                           required
                           className={nameError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                           style={{ borderColor: nameError ? '#ef4444' : undefined }}
@@ -506,32 +514,32 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                       <Label htmlFor="address">
                         Dirección <span className="text-red-500">*</span>
                       </Label>
-                      <Input 
-                        id="address" 
-                        name="address" 
-                        value={formData.address} 
-                        onChange={handleChange} 
-                        disabled={isReadOnly || loading} 
+                      <Input
+                        id="address"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        disabled={isReadOnly || loading}
                         required
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone">Teléfono</Label>
-                      <Input 
-                        id="phone" 
-                        name="phone" 
-                        value={formData.phone} 
-                        onChange={handleChange} 
-                        disabled={isReadOnly || loading} 
+                      <Input
+                        id="phone"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        disabled={isReadOnly || loading}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" name="email" type="email" value={formData.email || ""} onChange={handleChange} disabled={isReadOnly || loading}/>
+                      <Input id="email" name="email" type="email" value={formData.email || ""} onChange={handleChange} disabled={isReadOnly || loading} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="color">Color</Label>
-                      <Input id="color" name="color" type="color" value={formData.color || "#0ea5e9"} onChange={handleChange} disabled={isReadOnly || loading} className="h-10 w-full p-1 border-none bg-transparent"/>
+                      <Input id="color" name="color" type="color" value={formData.color || "#0ea5e9"} onChange={handleChange} disabled={isReadOnly || loading} className="h-10 w-full p-1 border-none bg-transparent" />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="manager_id">Encargado</Label>
@@ -594,7 +602,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                             cuit: value,
                             razon_social: selectedCert?.razon_social || prev.razon_social
                           }));
-                          
+
                           // Cargar datos AFIP para el CUIT seleccionado
                           if (value) {
                             loadAfipPointsOfSale(value);
@@ -658,7 +666,38 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                       Dirección que aparecerá en los PDFs de facturación electrónica (ticket y factura A4).
                     </p>
                   </div>
-                  
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="iibb">Ingresos Brutos (IIBB)</Label>
+                      <Input
+                        id="iibb"
+                        name="iibb"
+                        value={formData.iibb || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, iibb: e.target.value }))}
+                        placeholder="Ej: 30718708997"
+                        disabled={isReadOnly}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Número de inscripción en Ingresos Brutos.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="start_date">Fecha Inicio de Actividades</Label>
+                      <Input
+                        id="start_date"
+                        name="start_date"
+                        type="date"
+                        value={formData.start_date || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
+                        disabled={isReadOnly}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Fecha de inicio de actividades fiscales.
+                      </p>
+                    </div>
+                  </div>
+
                   {formData.cuit && formData.cuit.replace(/[^0-9]/g, '').length === 11 && (
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-2">
@@ -674,7 +713,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                           Actualizar
                         </Button>
                       </div>
-                      
+
                       {loadingAfipPoints ? (
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -695,8 +734,8 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                               {afipPointsOfSale.map((pos) => {
                                 const isSelected = String(pos.number) === String(formData.point_of_sale);
                                 return (
-                                  <tr 
-                                    key={pos.number} 
+                                  <tr
+                                    key={pos.number}
                                     className={`border-t transition-colors ${isSelected ? 'bg-blue-50/50' : 'hover:bg-muted/50'}`}
                                     onClick={() => !isReadOnly && setFormData(prev => ({ ...prev, point_of_sale: String(pos.number) }))}
                                     style={{ cursor: isReadOnly ? 'default' : 'pointer' }}
@@ -709,9 +748,8 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                                     <td className="px-4 py-2 text-sm font-medium">{pos.number}</td>
                                     <td className="px-4 py-2 text-sm text-muted-foreground">{pos.type}</td>
                                     <td className="px-4 py-2 text-sm">
-                                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                        pos.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                      }`}>
+                                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pos.enabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                        }`}>
                                         {pos.enabled ? 'Habilitado' : 'Deshabilitado'}
                                       </span>
                                     </td>
@@ -727,11 +765,11 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                           <p className="text-xs mt-1">Verifique que el CUIT esté habilitado en AFIP</p>
                         </div>
                       )}
-                      
+
                       <p className="text-xs text-muted-foreground mt-2">
                         Seleccione el punto de venta que desea utilizar para esta sucursal haciendo clic en la fila correspondiente.
                       </p>
-                      
+
                       {/* Tipos de Comprobantes Disponibles (informativo) */}
                       <div className="mt-8 pt-6 border-t">
                         <div className="flex items-center justify-between mb-4">
@@ -752,7 +790,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                             Consultar AFIP
                           </Button>
                         </div>
-                        
+
                         {loadingReceiptTypes ? (
                           <div className="flex items-center justify-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -772,7 +810,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                                 </span>
                               </div>
                             </div>
-                            
+
                             {/* Tipos AFIP (según condición fiscal) */}
                             {afipReceiptTypes.length > 0 && (
                               <div>
@@ -781,7 +819,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                                   {afipReceiptTypes
                                     .filter((type) => type.description?.toLowerCase().includes('factura'))
                                     .map((type) => (
-                                      <span 
+                                      <span
                                         key={type.id}
                                         className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200"
                                       >
@@ -791,7 +829,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                                 </div>
                               </div>
                             )}
-                            
+
                             {afipReceiptTypes.length === 0 && (
                               <div className="text-center py-4 text-muted-foreground border rounded-lg bg-muted/20">
                                 <p className="text-sm">Haga clic en "Consultar AFIP" para ver los tipos disponibles</p>
@@ -799,7 +837,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                             )}
                           </div>
                         )}
-                        
+
                         <p className="text-xs text-muted-foreground mt-3">
                           Los tipos internos siempre están disponibles. Las facturas AFIP (A, B o C) dependen de la condición fiscal del CUIT.
                         </p>
