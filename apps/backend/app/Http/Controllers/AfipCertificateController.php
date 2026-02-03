@@ -23,26 +23,26 @@ class AfipCertificateController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = AfipCertificate::query();
-        
+
         if ($request->has('active')) {
             $query->where('active', $request->boolean('active'));
         }
-        
+
         if ($request->has('environment')) {
             $query->where('environment', $request->input('environment'));
         }
-        
+
         if ($request->has('valid')) {
             $query->valid();
         }
-        
+
         $certificates = $query->orderBy('razon_social')->get();
-        
+
         // Sync status for each certificate
         foreach ($certificates as $cert) {
             $cert->syncCertificateStatus();
         }
-        
+
         return response()->json([
             'success' => true,
             'data' => $certificates->map(function ($cert) {
@@ -62,6 +62,8 @@ class AfipCertificateController extends Controller
                     'is_valid' => $cert->isValid(),
                     'is_expiring_soon' => $cert->isExpiringSoon(),
                     'notes' => $cert->notes,
+                    'iibb' => $cert->iibb,
+                    'fecha_inicio_actividades' => $cert->fecha_inicio_actividades?->format('Y-m-d'),
                 ];
             }),
             'count' => $certificates->count(),
@@ -85,7 +87,7 @@ class AfipCertificateController extends Controller
             ->forEnvironment($environment)
             ->orderBy('razon_social')
             ->get();
-        
+
         return response()->json([
             'success' => true,
             'data' => $certificates->map(function ($cert) {
@@ -96,6 +98,8 @@ class AfipCertificateController extends Controller
                     'display_name' => $cert->display_name,
                     'valid_to' => $cert->valid_to?->format('Y-m-d'),
                     'is_expiring_soon' => $cert->isExpiringSoon(),
+                    'iibb' => $cert->iibb,
+                    'fecha_inicio_actividades' => $cert->fecha_inicio_actividades?->format('Y-m-d'),
                 ];
             }),
             'count' => $certificates->count(),
@@ -113,8 +117,10 @@ class AfipCertificateController extends Controller
             'environment' => 'sometimes|in:production,testing',
             'alias' => 'nullable|string|max:100',
             'notes' => 'nullable|string',
+            'iibb' => 'nullable|string|max:50',
+            'fecha_inicio_actividades' => 'nullable|date',
         ]);
-        
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -122,10 +128,10 @@ class AfipCertificateController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-        
+
         $data = $validator->validated();
         $data['cuit'] = preg_replace('/[^0-9]/', '', $data['cuit']);
-        
+
         $certificate = AfipCertificate::create($data);
         $certificate->ensureDirectoryExists();
         // Sync with existing files on disk (e.g. when .crt/.key were placed manually)
@@ -144,7 +150,7 @@ class AfipCertificateController extends Controller
     public function show(AfipCertificate $afipCertificate): JsonResponse
     {
         $afipCertificate->syncCertificateStatus();
-        
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -164,6 +170,8 @@ class AfipCertificateController extends Controller
                 'is_expiring_soon' => $afipCertificate->isExpiringSoon(),
                 'certificate_path' => $afipCertificate->certificate_path,
                 'notes' => $afipCertificate->notes,
+                'iibb' => $afipCertificate->iibb,
+                'fecha_inicio_actividades' => $afipCertificate->fecha_inicio_actividades?->format('Y-m-d'),
             ],
         ]);
     }
@@ -179,8 +187,10 @@ class AfipCertificateController extends Controller
             'alias' => 'nullable|string|max:100',
             'active' => 'sometimes|boolean',
             'notes' => 'nullable|string',
+            'iibb' => 'nullable|string|max:50',
+            'fecha_inicio_actividades' => 'nullable|date',
         ]);
-        
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -188,9 +198,9 @@ class AfipCertificateController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-        
+
         $afipCertificate->update($validator->validated());
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Certificado actualizado exitosamente',
@@ -206,7 +216,7 @@ class AfipCertificateController extends Controller
         $validator = Validator::make($request->all(), [
             'certificate' => 'required|file|max:10240', // 10MB max
         ]);
-        
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -214,10 +224,10 @@ class AfipCertificateController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-        
+
         try {
             $content = file_get_contents($request->file('certificate')->getRealPath());
-            
+
             // Validate it's a valid certificate
             $certInfo = openssl_x509_parse($content);
             if (!$certInfo) {
@@ -226,9 +236,9 @@ class AfipCertificateController extends Controller
                     'message' => 'El archivo no es un certificado válido',
                 ], 422);
             }
-            
+
             $afipCertificate->storeCertificate($content);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Certificado subido exitosamente',
@@ -238,13 +248,13 @@ class AfipCertificateController extends Controller
                     'has_certificate' => true,
                 ],
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('Error uploading certificate', [
                 'cuit' => $afipCertificate->cuit,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al subir el certificado: ' . $e->getMessage(),
@@ -260,7 +270,7 @@ class AfipCertificateController extends Controller
         $validator = Validator::make($request->all(), [
             'private_key' => 'required|file|max:10240', // 10MB max
         ]);
-        
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -268,10 +278,10 @@ class AfipCertificateController extends Controller
                 'errors' => $validator->errors(),
             ], 422);
         }
-        
+
         try {
             $content = file_get_contents($request->file('private_key')->getRealPath());
-            
+
             // Validate it's a valid private key
             $key = openssl_pkey_get_private($content);
             if (!$key) {
@@ -280,9 +290,9 @@ class AfipCertificateController extends Controller
                     'message' => 'El archivo no es una clave privada válida',
                 ], 422);
             }
-            
+
             $afipCertificate->storePrivateKey($content);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Clave privada subida exitosamente',
@@ -290,13 +300,13 @@ class AfipCertificateController extends Controller
                     'has_private_key' => true,
                 ],
             ]);
-            
+
         } catch (\Exception $e) {
             Log::error('Error uploading private key', [
                 'cuit' => $afipCertificate->cuit,
                 'error' => $e->getMessage(),
             ]);
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error al subir la clave privada: ' . $e->getMessage(),
@@ -311,7 +321,7 @@ class AfipCertificateController extends Controller
     {
         // Soft delete - keep the record but mark as deleted
         $afipCertificate->delete();
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Certificado eliminado exitosamente',
@@ -324,7 +334,7 @@ class AfipCertificateController extends Controller
     public function checkCuit(Request $request): JsonResponse
     {
         $cuit = preg_replace('/[^0-9]/', '', $request->input('cuit', ''));
-        
+
         if (strlen($cuit) !== 11) {
             return response()->json([
                 'success' => false,
@@ -332,9 +342,9 @@ class AfipCertificateController extends Controller
                 'has_certificate' => false,
             ], 422);
         }
-        
+
         $certificate = AfipCertificate::findByCuit($cuit);
-        
+
         if (!$certificate) {
             return response()->json([
                 'success' => true,
@@ -342,9 +352,9 @@ class AfipCertificateController extends Controller
                 'message' => 'No existe certificado registrado para este CUIT',
             ]);
         }
-        
+
         $certificate->syncCertificateStatus();
-        
+
         return response()->json([
             'success' => true,
             'has_certificate' => true,

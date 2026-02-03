@@ -26,6 +26,8 @@ class AfipCertificate extends Model
         'has_certificate',
         'has_private_key',
         'notes',
+        'iibb',
+        'fecha_inicio_actividades',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -42,6 +44,7 @@ class AfipCertificate extends Model
         'active' => 'boolean',
         'has_certificate' => 'boolean',
         'has_private_key' => 'boolean',
+        'fecha_inicio_actividades' => 'date',
     ];
 
     /**

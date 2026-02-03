@@ -1596,10 +1596,11 @@ class SaleService implements SaleServiceInterface
             $sale->load([
                 'receiptType',
                 'customer.person',
-                'customerTaxIdentity',
+                'customerTaxIdentity.fiscalCondition',
                 'items.product.iva',
                 'saleIvas.iva',
                 'branch',
+                'saleFiscalCondition',
             ]);
 
             if ($sale->receiptType && AfipConstants::isInternalOnlyReceipt($sale->receiptType->afip_code ?? null)) {
@@ -1897,6 +1898,7 @@ class SaleService implements SaleServiceInterface
         $customerCuit = '00000000000';
         $customerDocumentType = AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL;
         $customerDocumentNumber = '00000000000';
+        $receiverConditionIVA = 5; // Consumidor Final por defecto
 
         // Priorizar la identidad fiscal seleccionada (customerTaxIdentity) si existe
         if ($sale->customerTaxIdentity && !empty($sale->customerTaxIdentity->cuit)) {
@@ -1905,6 +1907,10 @@ class SaleService implements SaleServiceInterface
                 $customerCuit = $cuit;
                 $customerDocumentType = AfipConstants::DOC_TIPO_CUIT;
                 $customerDocumentNumber = $cuit;
+            }
+            // Usar condición IVA de la identidad fiscal seleccionada si existe
+            if ($sale->customerTaxIdentity->fiscalCondition) {
+                $receiverConditionIVA = (int) ($sale->customerTaxIdentity->fiscalCondition->afip_code ?? 5);
             }
         } elseif ($sale->customer && $sale->customer->person) {
             // Fallback: usar CUIT del person del customer
@@ -1922,11 +1928,18 @@ class SaleService implements SaleServiceInterface
             }
         }
 
-        // Obtener condición IVA del receptor
-        $receiverConditionIVA = 5; // Consumidor Final por defecto
-        if ($sale->saleFiscalCondition) {
+        // Fallback: usar condición IVA de la venta si no se obtuvo de customerTaxIdentity
+        if ($receiverConditionIVA === 5 && $sale->saleFiscalCondition) {
             $receiverConditionIVA = (int) ($sale->saleFiscalCondition->afip_code ?? 5);
         }
+
+        Log::debug('prepareInvoiceDataForAfip: Datos del receptor resueltos', [
+            'sale_id' => $sale->id,
+            'customer_tax_identity_id' => $sale->customer_tax_identity_id,
+            'customerCuit' => $customerCuit,
+            'customerDocumentType' => $customerDocumentType,
+            'receiverConditionIVA' => $receiverConditionIVA,
+        ]);
 
         // Preparar items
         $items = [];
@@ -2183,15 +2196,37 @@ class SaleService implements SaleServiceInterface
     {
         $branch = $sale->branch;
 
+        // Intentar obtener datos fiscales del certificado AFIP (prioridad) o fallback a branch
+        $issuerIibb = null;
+        $issuerInicioActividad = null;
+
+        if ($branch && !empty($branch->cuit)) {
+            $cleanCuit = preg_replace('/[^0-9]/', '', $branch->cuit);
+            $afipCertificate = \App\Models\AfipCertificate::findByCuit($cleanCuit);
+
+            if ($afipCertificate) {
+                $issuerIibb = $afipCertificate->iibb;
+                $issuerInicioActividad = $afipCertificate->fecha_inicio_actividades
+                    ? Carbon::parse($afipCertificate->fecha_inicio_actividades)->format('d/m/Y')
+                    : null;
+            }
+        }
+
+        // Fallback a datos de la branch si no hay certificado
+        if (!$issuerIibb && $branch && $branch->iibb) {
+            $issuerIibb = (string) $branch->iibb;
+        }
+        if (!$issuerInicioActividad && $branch && $branch->start_date) {
+            $issuerInicioActividad = Carbon::parse($branch->start_date)->format('d/m/Y');
+        }
+
         $issuer = [
             'razon_social' => (string) (SettingHelper::get('company_name') ?? $branch->razon_social ?? $branch->description ?? ''),
             'domicilio' => $this->resolveIssuerDomicilioForFiscal($branch),
             'cuit' => (string) (preg_replace('/[^0-9]/', '', (string) ($branch->cuit ?? SettingHelper::get('company_ruc') ?? '')) ?: '0'),
             'condicion_iva' => (string) ($branch->iva_condition ?? 'Responsable Inscripto'),
-            'iibb' => $branch->iibb ? (string) $branch->iibb : null,
-            'inicio_actividad' => $branch->start_date
-                ? Carbon::parse($branch->start_date)->format('d/m/Y')
-                : null,
+            'iibb' => $issuerIibb,
+            'inicio_actividad' => $issuerInicioActividad,
         ];
 
         $receiverName = 'Consumidor Final';

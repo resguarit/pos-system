@@ -52,6 +52,8 @@ export interface AfipCertificate {
   is_valid?: boolean
   has_certificate?: boolean
   has_private_key?: boolean
+  iibb?: string | null
+  fecha_inicio_actividades?: string | null
 }
 
 /**
