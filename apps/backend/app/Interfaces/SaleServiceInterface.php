@@ -4,6 +4,7 @@ namespace App\Interfaces;
 
 use Illuminate\Support\Collection;
 use App\Models\SaleHeader;
+use App\Models\ReceiptType;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -36,4 +37,33 @@ interface SaleServiceInterface
     public function deleteBudget(int $budgetId, int $userId): bool;
     public function getBudgets(Request $request): LengthAwarePaginator;
     public function approveBudget(int $id): SaleHeader;
+
+    // AFIP authorization methods
+    /**
+     * Verifica si una venta puede ser autorizada con AFIP.
+     * 
+     * @param SaleHeader $sale La venta a verificar
+     * @param ReceiptType|null $receiptType El tipo de comprobante (opcional)
+     * @return array{can_authorize: bool, reason: string, branch_cuit: ?string, certificate: ?\App\Models\ArcaCertificate}
+     */
+    public function canAuthorizeWithAfip(SaleHeader $sale, ?ReceiptType $receiptType = null): array;
+
+    /**
+     * Intenta autorizar una venta con AFIP de forma segura (no lanza excepciones).
+     * 
+     * @param SaleHeader $sale La venta a autorizar
+     * @param ReceiptType|null $receiptType El tipo de comprobante (opcional)
+     * @param string $context Contexto para logging
+     * @return array{success: bool, cae: ?string, error: ?string, reason: ?string}
+     */
+    public function tryAuthorizeWithAfip(SaleHeader $sale, ?ReceiptType $receiptType = null, string $context = 'SaleService'): array;
+
+    /**
+     * Autoriza una venta con AFIP.
+     * 
+     * @param SaleHeader $sale La venta a autorizar
+     * @return array Datos de la autorización (cae, cae_expiration_date, invoice_number, etc.)
+     * @throws \Exception Si hay errores en la autorización
+     */
+    public function authorizeWithAfip(SaleHeader $sale): array;
 }

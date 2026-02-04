@@ -214,21 +214,7 @@ class PosController extends Controller
             // Intentamos autorizar de inmediato si corresponde.
             // Si falla, no interrumpimos el flujo (la venta ya se creó),
             // simplemente quedará como "pendiente" para reintentar desde Historial.
-            try {
-                if ($saleHeader && $receiptType && !\App\Constants\AfipConstants::isInternalOnlyReceipt($receiptType->afip_code)) {
-                    // Esto lanza excepción si falla, capturada abajo.
-                    $this->saleService->authorizeWithAfip($saleHeader);
-
-                    // Si tuvo éxito, refrescamos el modelo para que la respuesta incluya CAE y FEchVto
-                    $saleHeader->refresh();
-                }
-            } catch (\Exception $e) {
-                // Loguear el error pero no fallar el request
-                Log::error('Fallo autorización inmediata AFIP en POS: ' . $e->getMessage(), [
-                    'sale_id' => $saleHeader->id,
-                    'receipt_number' => $saleHeader->receipt_number
-                ]);
-            }
+            $this->saleService->tryAuthorizeWithAfip($saleHeader, $receiptType, 'PosController');
 
             return response()->json([
                 'message' => 'Venta creada con éxito',

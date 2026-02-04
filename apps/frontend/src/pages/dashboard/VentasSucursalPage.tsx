@@ -527,7 +527,7 @@ export default function BranchSalesPage() {
                       <Badge className={badgeClassName}>
                         {receiptTypeInfo.displayName}
                       </Badge>
-                      <ArcaStatusBadge sale={sale} />
+                      <ArcaStatusBadge sale={sale} showConfigWarning />
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">{formatDate(sale.date)}</TableCell>

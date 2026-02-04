@@ -1403,7 +1403,7 @@ export default function VentasPage() {
                               <div className="flex items-center gap-2">
                                 {getReceiptTypeBadge(getReceiptType(sale))}
                                 {getBudgetStatusBadge(sale)}
-                                <ArcaStatusBadge sale={sale} />
+                                <ArcaStatusBadge sale={sale} showConfigWarning />
 
                               </div>
                             </ResizableTableCell>

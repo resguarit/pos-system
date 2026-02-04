@@ -310,7 +310,7 @@ export default function SalesHistoryPage() {
                               <Badge variant="outline">
                                 {receiptTypeInfo.displayName}
                               </Badge>
-                              <ArcaStatusBadge sale={sale} />
+                              <ArcaStatusBadge sale={sale} showConfigWarning />
                             </div>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">

@@ -91,6 +91,12 @@ class SaleController extends Controller
 
             $sale = $this->saleService->createSale($validatedData);
 
+            // --- AUTORIZACIÓN AFIP INMEDIATA ---
+            // Intentamos autorizar de inmediato si corresponde.
+            // Si falla, no interrumpimos el flujo (la venta ya se creó),
+            // simplemente quedará como "pendiente" para reintentar desde Historial.
+            $this->saleService->tryAuthorizeWithAfip($sale, $receiptType, 'SaleController');
+
             return response()->json([
                 'success' => true,
                 'data' => $sale,

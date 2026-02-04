@@ -1583,6 +1583,193 @@ class SaleService implements SaleServiceInterface
     }
 
     /**
+     * Resultado de la verificación de autorización AFIP.
+     */
+    public const AFIP_CHECK_OK = 'ok';
+    public const AFIP_CHECK_INTERNAL_ONLY = 'internal_only';
+    public const AFIP_CHECK_NO_BRANCH_CUIT = 'no_branch_cuit';
+    public const AFIP_CHECK_NO_CERTIFICATE = 'no_certificate';
+    public const AFIP_CHECK_INVALID_CERTIFICATE = 'invalid_certificate';
+    public const AFIP_CHECK_ALREADY_AUTHORIZED = 'already_authorized';
+
+    /**
+     * Verifica si una venta puede ser autorizada con AFIP.
+     * 
+     * @param SaleHeader $sale La venta a verificar
+     * @param ReceiptType|null $receiptType El tipo de comprobante (opcional, se carga si no se pasa)
+     * @return array{can_authorize: bool, reason: string, branch_cuit: ?string, certificate: ?\App\Models\ArcaCertificate}
+     */
+    public function canAuthorizeWithAfip(SaleHeader $sale, ?ReceiptType $receiptType = null): array
+    {
+        // Cargar tipo de comprobante si no se pasó
+        if (!$receiptType) {
+            $sale->loadMissing('receiptType');
+            $receiptType = $sale->receiptType;
+        }
+
+        // Verificar si es comprobante interno (presupuesto o factura X)
+        $isInternalOnly = $receiptType ? AfipConstants::isInternalOnlyReceipt($receiptType->afip_code) : true;
+        if ($isInternalOnly) {
+            return [
+                'can_authorize' => false,
+                'reason' => self::AFIP_CHECK_INTERNAL_ONLY,
+                'branch_cuit' => null,
+                'certificate' => null,
+            ];
+        }
+
+        // Verificar si ya está autorizado
+        if (!empty($sale->cae)) {
+            return [
+                'can_authorize' => false,
+                'reason' => self::AFIP_CHECK_ALREADY_AUTHORIZED,
+                'branch_cuit' => null,
+                'certificate' => null,
+            ];
+        }
+
+        // Cargar sucursal
+        $sale->loadMissing('branch');
+        $branch = $sale->branch;
+        $branchCuit = $branch ? preg_replace('/[^0-9]/', '', $branch->cuit ?? '') : '';
+
+        // Verificar CUIT de sucursal
+        if (strlen($branchCuit) !== AfipConstants::CUIT_LENGTH) {
+            return [
+                'can_authorize' => false,
+                'reason' => self::AFIP_CHECK_NO_BRANCH_CUIT,
+                'branch_cuit' => $branchCuit ?: null,
+                'certificate' => null,
+            ];
+        }
+
+        // Verificar certificado
+        $certificate = \App\Models\ArcaCertificate::findByCuit($branchCuit);
+        if (!$certificate) {
+            return [
+                'can_authorize' => false,
+                'reason' => self::AFIP_CHECK_NO_CERTIFICATE,
+                'branch_cuit' => $branchCuit,
+                'certificate' => null,
+            ];
+        }
+
+        if (!$certificate->isValid()) {
+            return [
+                'can_authorize' => false,
+                'reason' => self::AFIP_CHECK_INVALID_CERTIFICATE,
+                'branch_cuit' => $branchCuit,
+                'certificate' => $certificate,
+            ];
+        }
+
+        return [
+            'can_authorize' => true,
+            'reason' => self::AFIP_CHECK_OK,
+            'branch_cuit' => $branchCuit,
+            'certificate' => $certificate,
+        ];
+    }
+
+    /**
+     * Intenta autorizar una venta con AFIP de forma segura (no lanza excepciones).
+     * Útil para autorización automática después de crear una venta.
+     * 
+     * @param SaleHeader $sale La venta a autorizar
+     * @param ReceiptType|null $receiptType El tipo de comprobante (opcional)
+     * @param string $context Contexto para logging (ej: 'PosController', 'SaleController')
+     * @return array{success: bool, cae: ?string, error: ?string, reason: ?string}
+     */
+    public function tryAuthorizeWithAfip(SaleHeader $sale, ?ReceiptType $receiptType = null, string $context = 'SaleService'): array
+    {
+        try {
+            $check = $this->canAuthorizeWithAfip($sale, $receiptType);
+
+            Log::info("{$context}: Evaluando autorización AFIP para venta", [
+                'sale_id' => $sale->id,
+                'receipt_number' => $sale->receipt_number,
+                'receipt_type_name' => $receiptType?->name ?? $sale->receiptType?->name,
+                'receipt_type_afip_code' => $receiptType?->afip_code ?? $sale->receiptType?->afip_code,
+                'can_authorize' => $check['can_authorize'],
+                'reason' => $check['reason'],
+                'branch_cuit' => $check['branch_cuit'],
+            ]);
+
+            if (!$check['can_authorize']) {
+                $errorMessages = [
+                    self::AFIP_CHECK_INTERNAL_ONLY => 'Comprobante de uso interno (no requiere AFIP)',
+                    self::AFIP_CHECK_ALREADY_AUTHORIZED => 'La venta ya está autorizada',
+                    self::AFIP_CHECK_NO_BRANCH_CUIT => 'La sucursal no tiene CUIT válido configurado',
+                    self::AFIP_CHECK_NO_CERTIFICATE => 'No hay certificado AFIP registrado para el CUIT de la sucursal',
+                    self::AFIP_CHECK_INVALID_CERTIFICATE => 'El certificado AFIP no es válido (falta .crt/.key o está vencido)',
+                ];
+
+                $errorMsg = $errorMessages[$check['reason']] ?? 'No se puede autorizar';
+
+                // Solo loguear warning si es un problema de configuración (no para internos o ya autorizados)
+                if (!in_array($check['reason'], [self::AFIP_CHECK_INTERNAL_ONLY, self::AFIP_CHECK_ALREADY_AUTHORIZED])) {
+                    Log::warning("{$context}: AFIP: {$errorMsg}", [
+                        'sale_id' => $sale->id,
+                        'branch_cuit' => $check['branch_cuit'],
+                        'certificate_status' => $check['certificate'] ? [
+                            'has_certificate' => $check['certificate']->has_certificate,
+                            'has_private_key' => $check['certificate']->has_private_key,
+                            'valid_to' => $check['certificate']->valid_to?->format('Y-m-d'),
+                            'active' => $check['certificate']->active,
+                        ] : null,
+                    ]);
+                }
+
+                return [
+                    'success' => false,
+                    'cae' => null,
+                    'error' => $errorMsg,
+                    'reason' => $check['reason'],
+                ];
+            }
+
+            // Proceder con la autorización
+            Log::info("{$context}: AFIP: Certificado válido encontrado, procediendo a autorizar", [
+                'sale_id' => $sale->id,
+                'branch_cuit' => $check['branch_cuit'],
+            ]);
+
+            $result = $this->authorizeWithAfip($sale);
+
+            // Refrescar el modelo para obtener el CAE actualizado
+            $sale->refresh();
+
+            Log::info("{$context}: AFIP: Venta autorizada exitosamente", [
+                'sale_id' => $sale->id,
+                'cae' => $sale->cae,
+                'cae_expiration_date' => $sale->cae_expiration_date?->format('Y-m-d'),
+            ]);
+
+            return [
+                'success' => true,
+                'cae' => $result['cae'] ?? $sale->cae,
+                'error' => null,
+                'reason' => self::AFIP_CHECK_OK,
+            ];
+
+        } catch (\Exception $e) {
+            Log::error("{$context}: Fallo autorización AFIP: " . $e->getMessage(), [
+                'sale_id' => $sale->id,
+                'receipt_number' => $sale->receipt_number,
+                'exception_class' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'cae' => null,
+                'error' => $e->getMessage(),
+                'reason' => 'exception',
+            ];
+        }
+    }
+
+    /**
      * Autoriza una venta con AFIP
      * 
      * @param SaleHeader $sale La venta a autorizar
@@ -2642,7 +2829,15 @@ class SaleService implements SaleServiceInterface
             $budget->converted_by = $userId;
             $budget->save();
 
-            return $sale->fresh(['items.product', 'saleIvas', 'receiptType', 'customer', 'branch', 'salePayments.paymentMethod']);
+            // Refrescar con relaciones para la respuesta
+            $sale = $sale->fresh(['items.product', 'saleIvas', 'receiptType', 'customer', 'branch', 'salePayments.paymentMethod']);
+
+            // --- AUTORIZACIÓN AFIP INMEDIATA ---
+            // Intentamos autorizar después de la transacción para que si falla AFIP,
+            // la venta ya esté guardada y quede como "pendiente" para reintentar.
+            $this->tryAuthorizeWithAfip($sale, $newReceiptType, 'ConvertBudget');
+
+            return $sale;
         });
     }
 
