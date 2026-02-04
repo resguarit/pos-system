@@ -72,6 +72,54 @@ final class AfipConstants
     public const CONCEPTO_SERVICIOS = 2;
 
     /**
+     * Mapeo de nombres de condiciones fiscales a códigos AFIP.
+     * Usado como fallback cuando fiscal_conditions.afip_code es null.
+     */
+    private const FISCAL_CONDITION_NAME_MAP = [
+        'responsable inscripto' => self::CONDICION_IVA_RESPONSABLE_INSCRIPTO,
+        'responsable inscrito' => self::CONDICION_IVA_RESPONSABLE_INSCRIPTO,
+        'ri' => self::CONDICION_IVA_RESPONSABLE_INSCRIPTO,
+        'monotributista' => self::CONDICION_IVA_MONOTRIBUTO,
+        'monotributo' => self::CONDICION_IVA_MONOTRIBUTO,
+        'consumidor final' => self::CONDICION_IVA_CONSUMIDOR_FINAL,
+        'cf' => self::CONDICION_IVA_CONSUMIDOR_FINAL,
+        'exento' => self::CONDICION_IVA_EXENTO,
+        'iva exento' => self::CONDICION_IVA_EXENTO,
+    ];
+
+    /**
+     * Resuelve el código AFIP de condición IVA desde un objeto FiscalCondition.
+     * Prioriza afip_code, y si es null, intenta resolver por nombre.
+     *
+     * @param mixed $fiscalCondition Objeto con propiedades afip_code y name
+     * @param int $default Valor por defecto si no se puede resolver
+     * @return int Código AFIP de condición IVA
+     */
+    public static function resolveConditionIvaCode($fiscalCondition, int $default = self::CONDICION_IVA_CONSUMIDOR_FINAL): int
+    {
+        if ($fiscalCondition === null) {
+            return $default;
+        }
+
+        // Priorizar afip_code si existe y no es null
+        $afipCode = $fiscalCondition->afip_code ?? null;
+        if ($afipCode !== null && $afipCode !== '') {
+            return (int) $afipCode;
+        }
+
+        // Fallback: resolver por nombre de la condición fiscal
+        $name = $fiscalCondition->name ?? null;
+        if ($name !== null && $name !== '') {
+            $normalizedName = strtolower(trim($name));
+            if (isset(self::FISCAL_CONDITION_NAME_MAP[$normalizedName])) {
+                return self::FISCAL_CONDITION_NAME_MAP[$normalizedName];
+            }
+        }
+
+        return $default;
+    }
+
+    /**
      * Indica si el tipo de comprobante exige un cliente con CUIT válido.
      * Solo Factura A (001) lo exige; B/C/M/FCE permiten consumidor final.
      */

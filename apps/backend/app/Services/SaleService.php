@@ -2138,7 +2138,16 @@ class SaleService implements SaleServiceInterface
             }
             // Usar condición IVA de la identidad fiscal seleccionada si existe
             if ($sale->customerTaxIdentity->fiscalCondition) {
-                $receiverConditionIVA = (int) ($sale->customerTaxIdentity->fiscalCondition->afip_code ?? AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL);
+                $receiverConditionIVA = AfipConstants::resolveConditionIvaCode(
+                    $sale->customerTaxIdentity->fiscalCondition,
+                    AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL
+                );
+                Log::debug('prepareInvoiceDataForAfip: Condición IVA resuelta desde customerTaxIdentity', [
+                    'sale_id' => $sale->id,
+                    'fiscal_condition_name' => $sale->customerTaxIdentity->fiscalCondition->name ?? null,
+                    'fiscal_condition_afip_code' => $sale->customerTaxIdentity->fiscalCondition->afip_code ?? null,
+                    'resolved_receiver_condition_iva' => $receiverConditionIVA,
+                ]);
             }
         } elseif ($sale->customer && $sale->customer->person) {
             // Fallback: usar CUIT del person del customer
@@ -2158,7 +2167,10 @@ class SaleService implements SaleServiceInterface
 
         // Fallback: usar condición IVA de la venta si no se obtuvo de customerTaxIdentity
         if ($receiverConditionIVA === AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL && $sale->saleFiscalCondition) {
-            $receiverConditionIVA = (int) ($sale->saleFiscalCondition->afip_code ?? AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL);
+            $receiverConditionIVA = AfipConstants::resolveConditionIvaCode(
+                $sale->saleFiscalCondition,
+                AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL
+            );
         }
 
         // Validar y corregir tipo de comprobante según reglas de emisión (solo si la sucursal tiene iva_condition)
