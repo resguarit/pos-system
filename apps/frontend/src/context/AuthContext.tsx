@@ -201,8 +201,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const interval = setInterval(checkRolesUpdate, 2000);
 
     return () => clearInterval(interval);
-     
+
   }, [user]);
+
+  /**
+   * Verificar periódicamente si el usuario está dentro del horario permitido.
+   */
+  useEffect(() => {
+    if (!user || user.role?.name === 'Admin' || user.role?.name === 'admin' || user.role?.name === 'Administrador') {
+      return;
+    }
+
+    const checkSchedule = () => {
+      const schedule = user.role?.access_schedule;
+
+      // Si no hay horario o no está habilitado, permitir acceso
+      if (!schedule || !schedule.enabled) {
+        return;
+      }
+
+      const now = new Date();
+      // Ajustar día: 0=Domingo en JS, pero 7=Domingo en backend/PHP
+      let currentDay = now.getDay();
+      if (currentDay === 0) currentDay = 7;
+
+      // Verificar día
+      if (schedule.days && !schedule.days.includes(currentDay)) {
+        logoutWithReason('Tu horario de acceso no incluye el día de hoy.');
+        return;
+      }
+
+      // Verificar hora
+      if (schedule.start_time && schedule.end_time) {
+        const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+        if (currentTime < schedule.start_time || currentTime > schedule.end_time) {
+          logoutWithReason(`Tu horario de trabajo ha finalizado (${schedule.start_time} - ${schedule.end_time} hs).`);
+          return;
+        }
+      }
+    };
+
+    const logoutWithReason = (reason: string) => {
+      toast.warning('Turno finalizado', {
+        description: reason,
+        duration: 5000,
+      });
+      logout();
+    };
+
+    // Verificar cada 1 minuto
+    const interval = setInterval(checkSchedule, 60000);
+
+    // Verificar inmediatamente al montar o cambiar usuario (si ya pasaron unos segundos del login)
+    // Damos un pequeño delay para no chocar con el login inmediato
+    const timeout = setTimeout(checkSchedule, 2000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [user, logout]);
 
   return (
     <AuthContext.Provider value={{

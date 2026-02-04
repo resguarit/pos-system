@@ -1,3 +1,11 @@
+export interface AccessSchedule {
+  enabled: boolean;
+  days: number[];
+  start_time: string;
+  end_time: string;
+  timezone?: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -15,6 +23,7 @@ export interface User {
     name: string;
     description?: string;
     is_system?: boolean;
+    access_schedule?: AccessSchedule;
   };
   permissions: string[];
   branches?: Branch[];
@@ -65,6 +74,7 @@ export interface Role {
   active?: boolean;
   permissions?: Permission[];
   permissions_count?: number;
+  access_schedule?: AccessSchedule;
   created_at?: string;
   updated_at?: string;
 }

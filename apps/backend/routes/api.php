@@ -63,7 +63,7 @@ Route::middleware('auth:sanctum')->get('/auth/me', function (Request $request) {
 });
 
 // Rutas para usuario autenticado
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
     Route::get('/profile', [UserController::class, 'getProfile']);
     Route::get('/my-branches', [UserController::class, 'getMyBranches']);
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -72,7 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 // Todas las rutas protegidas con autenticación
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
 
     Route::prefix('pos')->group(function () {
         // POS requiere permiso de crear ventas para operar
