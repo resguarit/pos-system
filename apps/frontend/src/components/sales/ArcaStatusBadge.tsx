@@ -91,6 +91,13 @@ export function ArcaStatusBadge({ sale, className = "", showConfigWarning = fals
     branchName = sale.branch;
   }
 
+  // Fallback: usar branch_id de la venta para buscar en el contexto
+  if (!branchCuit && (sale as any).branch_id) {
+    const branch = branches.find(b => b.id === (sale as any).branch_id);
+    branchCuit = branch?.cuit;
+    branchName = branch?.description;
+  }
+
   // Verificar si hay algún certificado configurado en el sistema
   const hasAnyCertificates = validCertificates && validCertificates.length > 0;
   const hasCertificate = branchCuit && hasCertificateForCuit(branchCuit);

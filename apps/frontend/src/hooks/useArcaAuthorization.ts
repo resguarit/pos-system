@@ -56,6 +56,12 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
       branchCuit = branch?.cuit;
     }
 
+    // Fallback: usar branch_id de la venta para buscar en el contexto
+    if (!branchCuit && (sale as any).branch_id) {
+      const branch = branches.find(b => b.id === (sale as any).branch_id);
+      branchCuit = branch?.cuit;
+    }
+
     if (!branchCuit || !hasCertificateForCuit(branchCuit)) {
       return { can: false, reason: 'La sucursal no posee un certificado ARCA válido configurado.' };
     }

@@ -86,6 +86,7 @@ export interface CompletedSale {
 export interface SaleHeader {
   id: number
   date: string
+  branch_id?: number
   receipt_number?: string
   receipt_type?: string | {
     id: number
