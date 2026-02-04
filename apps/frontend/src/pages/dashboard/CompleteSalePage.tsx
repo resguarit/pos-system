@@ -389,12 +389,20 @@ export default function CompleteSalePage() {
       })
       return
     }
-    if (requiresCuit && selectedCustomer && !isValidCuitForArca(selectedCustomer.cuit)) {
-      toast.error('Cliente sin CUIT válido', {
-        description: 'El cliente debe tener un CUIT de 11 dígitos para Factura A.',
-        duration: 5000,
-      })
-      return
+    
+    // Para Factura A, verificar CUIT en identidad fiscal seleccionada o en el cliente
+    if (requiresCuit && selectedCustomer) {
+      const chosenIdentity = selectedTaxIdentityId && selectedCustomer?.tax_identities
+        ? selectedCustomer.tax_identities.find((t) => t.id === selectedTaxIdentityId)
+        : null
+      const effectiveCuit = chosenIdentity?.cuit ?? selectedCustomer.cuit
+      if (!isValidCuitForArca(effectiveCuit)) {
+        toast.error('Cliente sin CUIT válido', {
+          description: 'El cliente debe tener un CUIT de 11 dígitos para Factura A.',
+          duration: 5000,
+        })
+        return
+      }
     }
 
     if (!activeBranch) {
@@ -633,8 +641,14 @@ export default function CompleteSalePage() {
   const requiresCustomerCuit = receiptTypeRequiresCustomerWithCuit(selectedReceiptType?.afip_code)
   const customerCuitValid = useMemo(() => {
     if (!requiresCustomerCuit) return true
-    return selectedCustomer != null && isValidCuitForArca(selectedCustomer.cuit)
-  }, [requiresCustomerCuit, selectedCustomer])
+    if (!selectedCustomer) return false
+    // Verificar CUIT en identidad fiscal seleccionada o en el cliente
+    const chosenIdentity = selectedTaxIdentityId && selectedCustomer?.tax_identities
+      ? selectedCustomer.tax_identities.find((t) => t.id === selectedTaxIdentityId)
+      : null
+    const effectiveCuit = chosenIdentity?.cuit ?? selectedCustomer.cuit
+    return isValidCuitForArca(effectiveCuit)
+  }, [requiresCustomerCuit, selectedCustomer, selectedTaxIdentityId])
 
   const canConfirm = useMemo(() => {
     // Validación básica

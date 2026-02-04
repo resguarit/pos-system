@@ -1807,13 +1807,26 @@ class SaleService implements SaleServiceInterface
 
             $receiptAfipCode = $sale->receiptType->afip_code ?? null;
             $requiresCuit = AfipConstants::receiptRequiresCuit($receiptAfipCode);
-            if ($requiresCuit && (!$sale->customer || !$sale->customer->person)) {
-                throw new \Exception('La Factura A requiere un cliente con CUIT asociado');
-            }
-            if ($requiresCuit && $sale->customer && $sale->customer->person) {
-                if (!AfipConstants::isValidCuit($sale->customer->person->cuit ?? null)) {
-                    throw new \Exception('El cliente debe tener un CUIT válido de 11 dígitos para Factura A');
+            
+            // Obtener el CUIT del receptor para Factura A
+            // Prioridad: customerTaxIdentity > sale_document_number > customer.person.cuit
+            $receiverCuit = null;
+            if ($sale->customerTaxIdentity && !empty($sale->customerTaxIdentity->cuit)) {
+                $receiverCuit = preg_replace('/[^0-9]/', '', $sale->customerTaxIdentity->cuit);
+            } elseif (!empty($sale->sale_document_number)) {
+                $docNum = preg_replace('/[^0-9]/', '', $sale->sale_document_number);
+                if (strlen($docNum) === 11) {
+                    $receiverCuit = $docNum;
                 }
+            } elseif ($sale->customer && $sale->customer->person && !empty($sale->customer->person->cuit)) {
+                $receiverCuit = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit);
+            }
+            
+            if ($requiresCuit && !$sale->customer) {
+                throw new \Exception('La Factura A requiere un cliente asociado');
+            }
+            if ($requiresCuit && !AfipConstants::isValidCuit($receiverCuit)) {
+                throw new \Exception('La Factura A requiere un cliente con CUIT válido de 11 dígitos');
             }
 
             // Obtener CUIT del contribuyente (sucursal o global)
