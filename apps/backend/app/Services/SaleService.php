@@ -19,6 +19,8 @@ use App\Models\ReceiptType;
 use App\Helpers\SettingHelper;
 use Resguar\AfipSdk\DTOs\InvoiceResponse;
 use Resguar\AfipSdk\Facades\Afip;
+use Resguar\AfipSdk\Services\CertificateManager;
+use App\Models\ArcaCertificate;
 use Carbon\Carbon;
 use Illuminate\Support\Collection as SupportCollection;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -26,6 +28,11 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class SaleService implements SaleServiceInterface
 {
+    public function __construct(
+        private readonly CertificateManager $certificateManager
+    ) {
+    }
+
     /**
      * Tipos de comprobante habilitados por AFIP (FEParamGetTiposCbte).
      * Clave = código AFIP, Valor = descripción de referencia.
@@ -1822,6 +1829,29 @@ class SaleService implements SaleServiceInterface
                 }
             }
 
+            // Si no hay CUIT de sucursal, usar el de configuración
+            if (!$taxpayerCuit) {
+                $taxpayerCuit = preg_replace('/[^0-9]/', '', config('afip.cuit', config('arca.cuit', '')) ?? '');
+                if (strlen($taxpayerCuit) !== 11) {
+                    throw new \Exception('No hay CUIT de sucursal configurado y el CUIT global no es válido. Configure el CUIT en la sucursal o en la configuración.');
+                }
+            }
+
+            // Cargar certificado para el CUIT desde afip_certificates (evita error "Certificado no encontrado")
+            $certificate = ArcaCertificate::where('cuit', $taxpayerCuit)->where('active', true)->first();
+            if (!$certificate || !$certificate->has_certificate || !$certificate->has_private_key) {
+                throw new \Exception("No hay certificado ARCA válido para el CUIT {$taxpayerCuit}. Configure el certificado en Configuración > ARCA.");
+            }
+            if (!file_exists($certificate->certificate_path) || !file_exists($certificate->private_key_path)) {
+                throw new \Exception("Los archivos del certificado para CUIT {$taxpayerCuit} no existen en disco.");
+            }
+            $this->certificateManager->setCertificatePaths($certificate->certificate_path, $certificate->private_key_path);
+
+            Log::info('Certificado ARCA cargado para autorización', [
+                'sale_id' => $sale->id,
+                'cuit' => $taxpayerCuit,
+            ]);
+
             // Preparar datos de la factura para AFIP
             $invoiceData = $this->prepareInvoiceDataForAfip($sale);
 
@@ -1831,9 +1861,7 @@ class SaleService implements SaleServiceInterface
             ]);
 
             // Autorizar con AFIP
-            $result = $taxpayerCuit
-                ? \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData, $taxpayerCuit)
-                : \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData);
+            $result = \Resguar\AfipSdk\Facades\Afip::authorizeInvoice($invoiceData, $taxpayerCuit);
 
             // Convertir a array si es objeto (InvoiceResponse usa toArray() con snake_case)
             $rawResult = is_array($result)
