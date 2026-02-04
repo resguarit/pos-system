@@ -46,7 +46,27 @@ export function ArcaStatusBadge({ sale, className = "", showConfigWarning = fals
     return null; // Presupuesto y Factura X son solo uso interno, no ARCA
   }
 
-  // Verificar si hay certificado para la sucursal de esta venta
+  // ============================================
+  // PRIORIDAD 1: Si la venta ya tiene CAE, mostrar "Autorizada ARCA"
+  // independientemente del estado actual del certificado
+  // ============================================
+  const isAuthorized = !!sale.cae;
+  if (isAuthorized) {
+    return (
+      <Badge
+        variant="default"
+        className={`bg-green-600 hover:bg-green-700 text-white ${className}`}
+        title={`CAE: ${sale.cae || 'N/A'}`}
+      >
+        <CheckCircle2 className="mr-1 h-3 w-3" />
+        Autorizada ARCA
+      </Badge>
+    );
+  }
+
+  // ============================================
+  // PRIORIDAD 2: Verificar certificado para ventas pendientes
+  // ============================================
   let branchCuit: string | undefined;
   let branchName: string | undefined;
 
@@ -96,7 +116,7 @@ export function ArcaStatusBadge({ sale, className = "", showConfigWarning = fals
       );
     }
     
-    // Si hay CUIT pero no hay certificado
+    // Si hay CUIT pero no hay certificados en el sistema
     if (!hasAnyCertificates) {
       return (
         <Badge
@@ -123,25 +143,13 @@ export function ArcaStatusBadge({ sale, className = "", showConfigWarning = fals
     );
   }
 
-  const isAuthorized = !!sale.cae;
+  // ============================================
+  // PRIORIDAD 3: Hay certificado, verificar si se puede autorizar
+  // ============================================
   const requiresCustomer = receiptTypeRequiresCustomerWithCuit(afipCode);
   const customerOk = requiresCustomer ? !!sale.customer : true;
-
   const totalOk = Number(sale.total) > 0;
-  const canAuthorize = !isAuthorized && customerOk && totalOk;
-
-  if (isAuthorized) {
-    return (
-      <Badge
-        variant="default"
-        className={`bg-green-600 hover:bg-green-700 text-white ${className}`}
-        title={`CAE: ${sale.cae || 'N/A'}`}
-      >
-        <CheckCircle2 className="mr-1 h-3 w-3" />
-        Autorizada ARCA
-      </Badge>
-    );
-  }
+  const canAuthorize = customerOk && totalOk;
 
   if (canAuthorize) {
     return (

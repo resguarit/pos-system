@@ -243,8 +243,10 @@ const ViewSaleDialog = ({
     // Estado AFIP
     const isAuthorized = !!saleToDisplay.cae;
     const canAuthorizeThis = canAuthorizeCheck(saleToDisplay);
-    // Solo mostrar UI de ARCA si la sucursal tiene certificado configurado
-    const showArcaUI = hasBranchCertificate(saleToDisplay);
+    // Mostrar UI de ARCA si:
+    // 1. La venta ya está autorizada (tiene CAE), O
+    // 2. La sucursal tiene certificado configurado
+    const showArcaUI = isAuthorized || hasBranchCertificate(saleToDisplay);
 
     const getPaymentMethodName = (p: PaymentData) =>
         p?.payment_method?.name ||

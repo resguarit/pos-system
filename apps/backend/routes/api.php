@@ -114,10 +114,20 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::get('/status', [ArcaController::class, 'checkAfipStatus']);
 
         // Certificate management routes (multi-CUIT support)
-        Route::prefix('certificates')->middleware('has_permission:ver_configuracion_sistema')->group(function () {
-            Route::get('/', [ArcaCertificateController::class, 'index']);
-            Route::get('/valid', [ArcaCertificateController::class, 'getValid']);
-            Route::get('/check', [ArcaCertificateController::class, 'checkCuit']);
+        Route::prefix('certificates')->group(function () {
+            // Rutas de solo lectura para verificar certificados (necesarias para autorizar ventas)
+            // Accesibles para usuarios que pueden crear ventas O ver configuración
+            Route::middleware('has_permission:ver_configuracion_sistema|crear_ventas')->group(function () {
+                Route::get('/valid', [ArcaCertificateController::class, 'getValid']);
+                Route::get('/check', [ArcaCertificateController::class, 'checkCuit']);
+            });
+            
+            // Rutas de administración de certificados (solo configuración del sistema)
+            Route::middleware('has_permission:ver_configuracion_sistema')->group(function () {
+                Route::get('/', [ArcaCertificateController::class, 'index']);
+                Route::get('/{arcaCertificate}', [ArcaCertificateController::class, 'show']);
+            });
+            
             Route::middleware('has_permission:editar_configuracion_sistema')->group(function () {
                 Route::post('/', [ArcaCertificateController::class, 'store']);
                 Route::put('/{arcaCertificate}', [ArcaCertificateController::class, 'update']);
@@ -125,7 +135,6 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
                 Route::post('/{arcaCertificate}/certificate', [ArcaCertificateController::class, 'uploadCertificate']);
                 Route::post('/{arcaCertificate}/private-key', [ArcaCertificateController::class, 'uploadPrivateKey']);
             });
-            Route::get('/{arcaCertificate}', [ArcaCertificateController::class, 'show']);
         });
     });
 
