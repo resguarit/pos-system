@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ArcaCertificate;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Resguar\AfipSdk\Services\AfipService;
+use Resguar\AfipSdk\Services\CertificateManager;
 use Resguar\AfipSdk\Exceptions\AfipException;
 use Illuminate\Support\Facades\Log;
 
@@ -13,6 +15,8 @@ use Illuminate\Support\Facades\Log;
  * 
  * Proporciona endpoints para obtener parámetros de ARCA como
  * tipos de comprobantes y puntos de venta habilitados por CUIT.
+ * 
+ * Soporta múltiples CUITs usando certificados de la tabla afip_certificates.
  */
 class ArcaController extends Controller
 {
@@ -20,8 +24,95 @@ class ArcaController extends Controller
      * Constructor
      */
     public function __construct(
-        private readonly AfipService $afip
+        private readonly AfipService $afip,
+        private readonly CertificateManager $certificateManager
     ) {
+    }
+
+    /**
+     * Cargar certificado para un CUIT específico
+     * 
+     * Busca el certificado en la tabla afip_certificates y lo carga en el SDK.
+     * 
+     * @param string $cuit CUIT limpio (11 dígitos)
+     * @return array{success: bool, message?: string, certificate?: ArcaCertificate}
+     */
+    private function loadCertificateForCuit(string $cuit): array
+    {
+        // Buscar certificado en la base de datos
+        $certificate = ArcaCertificate::where('cuit', $cuit)
+            ->where('active', true)
+            ->first();
+
+        if (!$certificate) {
+            return [
+                'success' => false,
+                'message' => "No hay certificado configurado para el CUIT {$cuit}. Configure uno en Configuración > ARCA.",
+            ];
+        }
+
+        // Verificar que tenga los archivos
+        if (!$certificate->has_certificate || !$certificate->has_private_key) {
+            return [
+                'success' => false,
+                'message' => "El certificado para CUIT {$cuit} no tiene los archivos completos. Suba el certificado y la clave privada.",
+            ];
+        }
+
+        // Verificar que el certificado no esté expirado
+        if (!$certificate->isValid()) {
+            $reason = !$certificate->active 
+                ? 'está desactivado' 
+                : ($certificate->valid_to && $certificate->valid_to->isPast() 
+                    ? 'está expirado' 
+                    : 'no tiene los archivos necesarios');
+            return [
+                'success' => false,
+                'message' => "El certificado para CUIT {$cuit} {$reason}.",
+            ];
+        }
+
+        // Verificar que los archivos existan en disco
+        if (!file_exists($certificate->certificate_path)) {
+            return [
+                'success' => false,
+                'message' => "Archivo de certificado no encontrado en disco para CUIT {$cuit}.",
+            ];
+        }
+
+        if (!file_exists($certificate->private_key_path)) {
+            return [
+                'success' => false,
+                'message' => "Archivo de clave privada no encontrado en disco para CUIT {$cuit}.",
+            ];
+        }
+
+        // Cargar certificado en el SDK
+        try {
+            $this->certificateManager->setCertificatePaths(
+                $certificate->certificate_path,
+                $certificate->private_key_path
+            );
+
+            Log::info('Certificado ARCA cargado correctamente', [
+                'cuit' => $cuit,
+                'certificate_path' => $certificate->certificate_path,
+            ]);
+
+            return [
+                'success' => true,
+                'certificate' => $certificate,
+            ];
+        } catch (\Exception $e) {
+            Log::error('Error al cargar certificado ARCA', [
+                'cuit' => $cuit,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'success' => false,
+                'message' => "Error al cargar certificado: {$e->getMessage()}",
+            ];
+        }
     }
 
     /**
@@ -62,6 +153,16 @@ class ArcaController extends Controller
                         'data' => [],
                     ], 422);
                 }
+            }
+
+            // Cargar certificado para el CUIT
+            $certResult = $this->loadCertificateForCuit($cuit);
+            if (!$certResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $certResult['message'],
+                    'data' => [],
+                ], 422);
             }
 
             // Obtener tipos de comprobantes según condición fiscal del CUIT
@@ -156,6 +257,16 @@ class ArcaController extends Controller
                 }
             }
 
+            // Cargar certificado para el CUIT
+            $certResult = $this->loadCertificateForCuit($cuit);
+            if (!$certResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $certResult['message'],
+                    'data' => [],
+                ], 422);
+            }
+
             // Obtener puntos de venta desde ARCA
             $pointsOfSale = $this->afip->getAvailablePointsOfSale($cuit);
 
@@ -212,39 +323,54 @@ class ArcaController extends Controller
      * Este endpoint permite verificar si el sistema tiene configurado
      * ARCA y puede realizar operaciones de facturación electrónica.
      * 
+     * Incluye información sobre certificados multi-CUIT disponibles.
+     * 
      * @return JsonResponse
      */
     public function checkAfipStatus(): JsonResponse
     {
         try {
-            $cuit = config('arca.cuit');
+            $defaultCuit = config('arca.cuit');
             $environment = config('arca.environment', 'testing');
-            $certPath = config('arca.certificates.path');
-            $certKey = config('arca.certificates.key');
-            $certCrt = config('arca.certificates.crt');
 
-            $hasConfig = !empty($cuit);
-            $hasCertificates = !empty($certPath) && !empty($certKey) && !empty($certCrt);
+            // Obtener todos los certificados válidos del sistema
+            $validCertificates = ArcaCertificate::valid()
+                ->forEnvironment($environment)
+                ->get(['id', 'cuit', 'razon_social', 'alias', 'valid_from', 'valid_to', 'environment']);
 
-            // Verificar si existen los archivos de certificado
-            $certificatesExist = false;
-            if ($hasCertificates && $certPath) {
-                $keyPath = $certPath . '/' . $certKey;
-                $crtPath = $certPath . '/' . $certCrt;
-                $certificatesExist = file_exists($keyPath) && file_exists($crtPath);
+            $hasValidCertificates = $validCertificates->isNotEmpty();
+
+            // Si hay CUIT por defecto, verificar si tiene certificado
+            $defaultCertificateValid = false;
+            if ($defaultCuit) {
+                $cleanCuit = preg_replace('/[^0-9]/', '', $defaultCuit);
+                $defaultCertificateValid = $validCertificates->contains('cuit', $cleanCuit);
             }
 
-            $isEnabled = $hasConfig && $hasCertificates && $certificatesExist;
+            // El sistema está habilitado si hay al menos un certificado válido
+            $isEnabled = $hasValidCertificates;
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'enabled' => $isEnabled,
                     'environment' => $environment,
-                    'has_cuit' => $hasConfig,
-                    'has_certificates_config' => $hasCertificates,
-                    'certificates_exist' => $certificatesExist,
-                    'cuit' => $hasConfig ? $cuit : null,
+                    'has_cuit' => !empty($defaultCuit),
+                    'cuit' => $defaultCuit ?: null,
+                    'default_certificate_valid' => $defaultCertificateValid,
+                    'valid_certificates_count' => $validCertificates->count(),
+                    'valid_certificates' => $validCertificates->map(function ($cert) {
+                        return [
+                            'id' => $cert->id,
+                            'cuit' => $cert->cuit,
+                            'razon_social' => $cert->razon_social,
+                            'alias' => $cert->alias,
+                            'valid_to' => $cert->valid_to?->toDateString(),
+                        ];
+                    }),
+                    // Compatibilidad con frontend antiguo
+                    'has_certificates_config' => $hasValidCertificates,
+                    'certificates_exist' => $hasValidCertificates,
                 ],
             ]);
 
@@ -258,6 +384,7 @@ class ArcaController extends Controller
                 'message' => 'Error al verificar estado de ARCA',
                 'data' => [
                     'enabled' => false,
+                    'valid_certificates_count' => 0,
                 ],
             ], 500);
         }

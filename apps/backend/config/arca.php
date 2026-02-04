@@ -158,7 +158,11 @@ return [
     */
 
     'certificates_base_path' => (function () {
-        $path = env('ARCA_CERTIFICATES_BASE_PATH', storage_path('certificates'));
+        // Soportar tanto ARCA_* como AFIP_* para compatibilidad
+        $path = env('ARCA_CERTIFICATES_BASE_PATH', 
+                env('AFIP_CERTIFICATES_BASE_PATH',
+                env('AFIP_CERTIFICATES_PATH', // Fallback a la vieja configuración
+                storage_path('certificates'))));
         if ($path === '' || $path === null) {
             return storage_path('certificates');
         }
