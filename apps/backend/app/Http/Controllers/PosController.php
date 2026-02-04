@@ -214,6 +214,16 @@ class PosController extends Controller
             // Intentamos autorizar de inmediato si corresponde.
             // Si falla, no interrumpimos el flujo (la venta ya se creó),
             // simplemente quedará como "pendiente" para reintentar desde Historial.
+            // Recargar la venta con todas las relaciones necesarias para la autorización
+            $saleHeader->load([
+                'receiptType',
+                'customer.person',
+                'customerTaxIdentity.fiscalCondition',
+                'items.product.iva',
+                'saleIvas.iva',
+                'branch',
+                'saleFiscalCondition',
+            ]);
             $this->saleService->tryAuthorizeWithAfip($saleHeader, $receiptType, 'PosController');
 
             return response()->json([
