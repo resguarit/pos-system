@@ -22,9 +22,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
-import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
+import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
-import { getReceiptTypeBadgeStyle } from "@/utils/afipReceiptTypes";
+import { getReceiptTypeBadgeStyle } from "@/utils/arcaReceiptTypes";
 
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart";
@@ -465,41 +465,41 @@ export default function VentasPage() {
 
   const getReceiptType = (
     sale: SaleHeader
-  ): { displayName: string; filterKey: string; afipCode: string } => {
+  ): { displayName: string; filterKey: string; arcaCode: string } => {
     if (sale.receipt_type && typeof sale.receipt_type === 'object') {
       const upperDescription = (sale.receipt_type.description || "").toUpperCase();
-      const afipCode = sale.receipt_type.afip_code || "N/A";
+      const arcaCode = sale.receipt_type.afip_code || "N/A";
       return {
         displayName: upperDescription,
         filterKey: upperDescription,
-        afipCode: String(afipCode),
+        arcaCode: String(arcaCode),
       };
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const actualReceiptType = (sale as any).receipt_type as string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const actualAfipCode = (sale as any).receipt_type_code as string;
+    const actualArcaCode = (sale as any).receipt_type_code as string;
 
     if (typeof actualReceiptType === 'string' && actualReceiptType.trim() !== '') {
       const upperDescription = actualReceiptType.toUpperCase();
-      const afipCode = actualAfipCode || "N/A";
+      const arcaCode = actualArcaCode || "N/A";
       return {
         displayName: upperDescription,
         filterKey: upperDescription,
-        afipCode: afipCode,
+        arcaCode: arcaCode,
       };
     }
-    return { displayName: "N/A", filterKey: "N/A", afipCode: "N/A" };
+    return { displayName: "N/A", filterKey: "N/A", arcaCode: "N/A" };
   };
 
   const getReceiptTypeBadge = (
-    receiptInfo: { displayName: string; filterKey: string; afipCode: string }
+    receiptInfo: { displayName: string; filterKey: string; arcaCode: string }
   ) => {
     const textToShow =
       receiptInfo.displayName !== "N/A"
         ? receiptInfo.displayName
-        : receiptInfo.afipCode;
-    const style = getReceiptTypeBadgeStyle(receiptInfo.afipCode);
+        : receiptInfo.arcaCode;
+    const style = getReceiptTypeBadgeStyle(receiptInfo.arcaCode);
 
     return (
       <Badge
@@ -511,14 +511,14 @@ export default function VentasPage() {
     );
   };
 
-  // Helper to check if a sale is a budget (AFIP code 016)
+  // Helper to check if a sale is a budget (ARCA code 016)
   const isBudget = (sale: SaleHeader): boolean => {
     if (sale.receipt_type && typeof sale.receipt_type === 'object') {
       return sale.receipt_type.afip_code === '016';
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const afipCode = (sale as any).receipt_type_code as string;
-    return afipCode === '016';
+    const arcaCode = (sale as any).receipt_type_code as string;
+    return arcaCode === '016';
   };
 
   // Helper to get budget status badge - matches PresupuestosPage styling
@@ -790,7 +790,7 @@ export default function VentasPage() {
 
 
   /**
-   * Maneja la actualización de una venta después de autorización AFIP
+   * Maneja la actualización de una venta después de autorización ARCA
    * Actualiza la venta en la lista local y recarga si es necesario
    */
   const handleSaleUpdated = async (updatedSale: SaleHeader) => {
@@ -1403,7 +1403,7 @@ export default function VentasPage() {
                               <div className="flex items-center gap-2">
                                 {getReceiptTypeBadge(getReceiptType(sale))}
                                 {getBudgetStatusBadge(sale)}
-                                <AfipStatusBadge sale={sale} />
+                                <ArcaStatusBadge sale={sale} />
 
                               </div>
                             </ResizableTableCell>

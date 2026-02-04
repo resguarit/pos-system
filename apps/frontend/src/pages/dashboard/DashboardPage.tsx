@@ -11,7 +11,6 @@ import { useBranch } from "@/context/BranchContext"
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 
-import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge"
 import useApi from "@/hooks/useApi"
 import { useState } from "react"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -147,6 +146,7 @@ export default function DashboardPage() {
   const getReceiptType = (sale: any) => {
     return {
       displayName: sale.receiptType?.name || sale.receipt_type?.name || 'Venta',
+      arcaCode: sale.receipt_type?.afip_code || 'N/A'
     }
   }
 

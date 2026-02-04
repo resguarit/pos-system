@@ -1,17 +1,17 @@
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle, XCircle } from "lucide-react";
 import type { SaleHeader } from "@/types/sale";
-import { useAfipContext } from "@/context/AfipContext";
+import { useArcaContext } from "@/context/ArcaContext";
 import { useBranch } from "@/context/BranchContext";
-import { receiptTypeRequiresCustomerWithCuit, isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
+import { receiptTypeRequiresCustomerWithCuit, isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
 
-interface AfipStatusBadgeProps {
+interface ArcaStatusBadgeProps {
   sale: SaleHeader;
   className?: string;
 }
 
 /**
- * Obtiene el afip_code del tipo de comprobante desde la venta.
+ * Obtiene el afip_code (ARCA code) del tipo de comprobante desde la venta.
  * La lista devuelve receipt_type (string) y receipt_type_code; el detalle devuelve receipt_type (objeto con afip_code).
  */
 function getAfipCodeFromSale(sale: SaleHeader): string | number | null | undefined {
@@ -23,11 +23,11 @@ function getAfipCodeFromSale(sale: SaleHeader): string | number | null | undefin
 }
 
 /**
- * Badge que muestra el estado de autorización AFIP de una venta.
- * No muestra nada para Presupuesto (016) ni Factura X (017) — son solo uso interno, no van a AFIP.
+ * Badge que muestra el estado de autorización ARCA de una venta.
+ * No muestra nada para Presupuesto (016) ni Factura X (017) — son solo uso interno, no van a ARCA.
  */
-export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) {
-  const { hasCertificateForCuit } = useAfipContext();
+export function ArcaStatusBadge({ sale, className = "" }: ArcaStatusBadgeProps) {
+  const { hasCertificateForCuit } = useArcaContext();
   const { branches } = useBranch();
 
   const afipCode = getAfipCodeFromSale(sale);
@@ -41,7 +41,7 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
     (receiptType != null && typeof receiptType === 'object' && (receiptType as { name?: string }).name?.toLowerCase().includes('presupuesto'));
 
   if (isInternalOnly) {
-    return null; // Presupuesto y Factura X son solo uso interno, no AFIP
+    return null; // Presupuesto y Factura X son solo uso interno, no ARCA
   }
 
   // Verificar si hay certificado para la sucursal de esta venta
@@ -62,7 +62,7 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
     branchCuit = branch?.cuit;
   }
 
-  // Si no tenemos CUIT o no hay certificado para ese CUIT, no mostramos UI de AFIP
+  // Si no tenemos CUIT o no hay certificado para ese CUIT, no mostramos UI de ARCA
   if (!branchCuit || !hasCertificateForCuit(branchCuit)) {
     return null;
   }
@@ -82,7 +82,7 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
         title={`CAE: ${sale.cae || 'N/A'}`}
       >
         <CheckCircle2 className="mr-1 h-3 w-3" />
-        Autorizada AFIP
+        Autorizada ARCA
       </Badge>
     );
   }
@@ -92,10 +92,10 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
       <Badge
         variant="outline"
         className={`border-amber-500 text-amber-700 ${className}`}
-        title="Pendiente de autorización AFIP"
+        title="Pendiente de autorización ARCA"
       >
         <AlertCircle className="mr-1 h-3 w-3" />
-        Pendiente AFIP
+        Pendiente ARCA
       </Badge>
     );
   }
@@ -104,13 +104,14 @@ export function AfipStatusBadge({ sale, className = "" }: AfipStatusBadgeProps) 
     <Badge
       variant="outline"
       className={`border-gray-400 text-gray-600 ${className}`}
-      title="No se puede autorizar con AFIP"
+      title="No se puede autorizar con ARCA"
     >
       <XCircle className="mr-1 h-3 w-3" />
       No autorizable
     </Badge>
   );
 }
+
 
 
 

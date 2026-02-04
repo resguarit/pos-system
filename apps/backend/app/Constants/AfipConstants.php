@@ -6,7 +6,8 @@ namespace App\Constants;
 
 /**
  * Constantes AFIP para facturación electrónica.
- * Centraliza códigos de tipo de comprobante y de documento (DocTipo).
+ * Centraliza códigos de tipo de comprobante, condición IVA y documento (DocTipo).
+ * Alineado con Resguar\AfipSdk\Helpers\InvoiceMapper (RG 5616).
  *
  * @see https://www.afip.gob.ar/fe/documentos/TABLACOMPROBANTES.xls
  * @see docs/AFIP-TIPOS-COMPROBANTES.md
@@ -28,7 +29,10 @@ final class AfipConstants
     /** DocTipo: DNI */
     public const DOC_TIPO_DNI = 96;
 
-    /** DocTipo: Consumidor final / no identificado */
+    /** DocTipo: Sin identificar / Consumidor final */
+    public const DOC_TIPO_SIN_IDENTIFICAR = 99;
+
+    /** DocTipo: Consumidor final (alias de DOC_TIPO_SIN_IDENTIFICAR) */
     public const DOC_TIPO_CONSUMIDOR_FINAL = 99;
 
     /** Longitud esperada del CUIT (solo dígitos) */
@@ -36,6 +40,36 @@ final class AfipConstants
 
     /** Cantidad de dígitos del número de comprobante (con ceros a la izquierda) */
     public const RECEIPT_NUMBER_PADDING = 8;
+
+    // --- Condición IVA del receptor (RG 5616 - obligatorio desde 1/12/2025) ---
+    /** Condición IVA: Responsable Inscripto */
+    public const CONDICION_IVA_RESPONSABLE_INSCRIPTO = 1;
+
+    /** Condición IVA: Exento */
+    public const CONDICION_IVA_EXENTO = 4;
+
+    /** Condición IVA: Consumidor Final */
+    public const CONDICION_IVA_CONSUMIDOR_FINAL = 5;
+
+    /** Condición IVA: Monotributo */
+    public const CONDICION_IVA_MONOTRIBUTO = 6;
+
+    // --- Tipos de comprobante (códigos numéricos AFIP) ---
+    /** Factura A */
+    public const COMPROBANTE_FACTURA_A = 1;
+
+    /** Factura B */
+    public const COMPROBANTE_FACTURA_B = 6;
+
+    /** Factura C */
+    public const COMPROBANTE_FACTURA_C = 11;
+
+    // --- Conceptos ---
+    /** Concepto: Productos */
+    public const CONCEPTO_PRODUCTOS = 1;
+
+    /** Concepto: Servicios */
+    public const CONCEPTO_SERVICIOS = 2;
 
     /**
      * Indica si el tipo de comprobante exige un cliente con CUIT válido.

@@ -26,13 +26,13 @@ import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
 import { DebtAlertDialog } from "@/components/sale/DebtAlertDialog"
 import type { PaymentMethod, ReceiptType, SaleData, SaleHeader } from '@/types/sale'
-import { useAfip } from "@/hooks/useAfip"
+import { useArca } from "@/hooks/useArca"
 import {
   INTERNAL_RECEIPT_CODES,
-  getAllowedAfipCodesForPos,
+  getAllowedArcaCodesForPos,
   receiptTypeRequiresCustomerWithCuit,
-  isValidCuitForAfip,
-} from '@/utils/afipReceiptTypes'
+  isValidCuitForArca,
+} from '@/utils/arcaReceiptTypes'
 
 const CART_STORAGE_KEY = 'pos_cart'
 
@@ -75,7 +75,7 @@ export default function CompleteSalePage() {
   }
 
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
-  const { checkCuitCertificate, getReceiptTypes: getAfipReceiptTypes } = useAfip()
+  const { checkCuitCertificate, getReceiptTypes: getArcaReceiptTypes } = useArca()
 
   const [cart, setCart] = useState<CartItem[]>(initialCart)
 
@@ -264,10 +264,10 @@ export default function CompleteSalePage() {
         } else if (enabledReceiptTypes?.length) {
           availableTypes = mappedTypes.filter((t) => enabledReceiptTypes.includes(t.id))
         } else {
-          const afipTypes = await getAfipReceiptTypes(branchCuit)
-          const allowedAfipCodes = getAllowedAfipCodesForPos(afipTypes ?? null)
+          const afipTypes = await getArcaReceiptTypes(branchCuit)
+          const allowedArcaCodes = getAllowedArcaCodesForPos(afipTypes ?? null)
           availableTypes = mappedTypes.filter(
-            (t) => t.afip_code && allowedAfipCodes.has(String(t.afip_code))
+            (t) => t.afip_code && allowedArcaCodes.has(String(t.afip_code))
           )
         }
       }
@@ -319,7 +319,7 @@ export default function CompleteSalePage() {
       setReceiptTypes([])
       toast.error("Error al cargar los tipos de comprobante.")
     }
-  }, [request, effectiveBranch, checkCuitCertificate, getAfipReceiptTypes, convertedFromBudgetId, hasPermission])
+  }, [request, effectiveBranch, checkCuitCertificate, getArcaReceiptTypes, convertedFromBudgetId, hasPermission])
 
   const addPayment = useCallback(() => {
     // Recalcular y bloquear el descuento basado en los montos actuales
@@ -389,7 +389,7 @@ export default function CompleteSalePage() {
       })
       return
     }
-    if (requiresCuit && selectedCustomer && !isValidCuitForAfip(selectedCustomer.cuit)) {
+    if (requiresCuit && selectedCustomer && !isValidCuitForArca(selectedCustomer.cuit)) {
       toast.error('Cliente sin CUIT válido', {
         description: 'El cliente debe tener un CUIT de 11 dígitos para Factura A.',
         duration: 5000,
@@ -633,7 +633,7 @@ export default function CompleteSalePage() {
   const requiresCustomerCuit = receiptTypeRequiresCustomerWithCuit(selectedReceiptType?.afip_code)
   const customerCuitValid = useMemo(() => {
     if (!requiresCustomerCuit) return true
-    return selectedCustomer != null && isValidCuitForAfip(selectedCustomer.cuit)
+    return selectedCustomer != null && isValidCuitForArca(selectedCustomer.cuit)
   }, [requiresCustomerCuit, selectedCustomer])
 
   const canConfirm = useMemo(() => {
@@ -661,7 +661,7 @@ export default function CompleteSalePage() {
     if (cart.length === 0) return 'El carrito está vacío'
     if (receiptTypeId === undefined) return 'Debe seleccionar un tipo de comprobante'
     if (requiresCustomerCuit && !selectedCustomer) return 'Factura A requiere un cliente con CUIT'
-    if (requiresCustomerCuit && selectedCustomer && !isValidCuitForAfip(selectedCustomer.cuit)) {
+    if (requiresCustomerCuit && selectedCustomer && !isValidCuitForArca(selectedCustomer.cuit)) {
       return 'El cliente debe tener CUIT de 11 dígitos para Factura A'
     }
     if (diff > 0) return `Falta ${formatCurrency(diff)} para completar el pago`

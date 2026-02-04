@@ -5,21 +5,21 @@ import { toast } from 'sonner'
 /**
  * Tipo de comprobante AFIP
  */
-export interface AfipReceiptType {
+export interface ArcaReceiptType {
   id: number
   description: string
   // Optional fields for backward compatibility
   code?: number
   from?: string
   to?: string | null
-  // Flag para tipos internos (no AFIP)
+  // Flag para tipos internos (no ARCA)
   isInternal?: boolean
 }
 
 /**
- * Punto de venta AFIP
+ * Punto de venta ARCA
  */
-export interface AfipPointOfSale {
+export interface ArcaPointOfSale {
   number: number
   type: string
   enabled: boolean
@@ -28,9 +28,9 @@ export interface AfipPointOfSale {
 }
 
 /**
- * Estado de AFIP
+ * Estado de ARCA
  */
-export interface AfipStatus {
+export interface ArcaStatus {
   enabled: boolean
   environment: string
   has_cuit: boolean
@@ -40,9 +40,9 @@ export interface AfipStatus {
 }
 
 /**
- * Certificado AFIP (multi-CUIT)
+ * Certificado ARCA (multi-CUIT)
  */
-export interface AfipCertificate {
+export interface ArcaCertificate {
   cuit: string
   formatted_cuit: string
   razon_social: string
@@ -57,25 +57,25 @@ export interface AfipCertificate {
 }
 
 /**
- * Hook para interactuar con la API de AFIP
+ * Hook para interactuar con la API de ARCA
  * 
  * Proporciona funciones para obtener tipos de comprobantes,
- * puntos de venta y verificar el estado de AFIP.
+ * puntos de venta y verificar el estado de ARCA.
  */
-export const useAfip = () => {
+export const useArca = () => {
   const { request } = useApi()
   const [loading, setLoading] = useState(false)
-  const [afipStatus, setAfipStatus] = useState<AfipStatus | null>(null)
-  const [validCertificates, setValidCertificates] = useState<AfipCertificate[]>([])
+  const [arcaStatus, setArcaStatus] = useState<ArcaStatus | null>(null)
+  const [validCertificates, setValidCertificates] = useState<ArcaCertificate[]>([])
 
   /**
    * Obtener certificados válidos (multi-CUIT)
    */
-  const getValidCertificates = useCallback(async (): Promise<AfipCertificate[]> => {
+  const getValidCertificates = useCallback(async (): Promise<ArcaCertificate[]> => {
     try {
       const response = await request({
         method: 'GET',
-        url: '/afip/certificates/valid',
+        url: '/arca/certificates/valid',
       })
 
       const data = response?.data || []
@@ -94,13 +94,13 @@ export const useAfip = () => {
   const checkCuitCertificate = useCallback(async (cuit: string): Promise<{
     has_certificate: boolean
     is_valid: boolean
-    data?: AfipCertificate
+    data?: ArcaCertificate
   }> => {
     try {
       const cleanCuit = cuit.replace(/[^0-9]/g, '')
       const response = await request({
         method: 'GET',
-        url: `/afip/certificates/check?cuit=${cleanCuit}`,
+        url: `/arca/certificates/check?cuit=${cleanCuit}`,
       })
 
       return {
@@ -115,21 +115,21 @@ export const useAfip = () => {
   }, [request])
 
   /**
-   * Verificar el estado de configuración de AFIP
+   * Verificar el estado de configuración de ARCA
    */
-  const checkAfipStatus = useCallback(async () => {
+  const checkArcaStatus = useCallback(async () => {
     try {
       const response = await request({
         method: 'GET',
-        url: '/afip/status',
+        url: '/arca/status',
       })
 
       const status = response?.data || response
-      setAfipStatus(status)
+      setArcaStatus(status)
       return status
     } catch (error) {
-      console.error('Error al verificar estado de AFIP:', error)
-      setAfipStatus({
+      console.error('Error al verificar estado de ARCA:', error)
+      setArcaStatus({
         enabled: false,
         environment: 'testing',
         has_cuit: false,
@@ -148,10 +148,10 @@ export const useAfip = () => {
    * @returns Array de tipos de comprobantes o null si hay error
    */
   const getReceiptTypes = useCallback(
-    async (cuit?: string): Promise<AfipReceiptType[] | null> => {
+    async (cuit?: string): Promise<ArcaReceiptType[] | null> => {
       setLoading(true)
       try {
-        const url = cuit ? `/afip/receipt-types?cuit=${cuit}` : '/afip/receipt-types'
+        const url = cuit ? `/arca/receipt-types?cuit=${cuit}` : '/arca/receipt-types'
         const response = await request({
           method: 'GET',
           url,
@@ -168,7 +168,7 @@ export const useAfip = () => {
         }
 
         toast.error('Error al obtener tipos de comprobantes', {
-          description: error?.response?.data?.message || 'No se pudieron cargar los tipos de comprobantes desde AFIP',
+          description: error?.response?.data?.message || 'No se pudieron cargar los tipos de comprobantes desde ARCA',
         })
         return null
       } finally {
@@ -186,10 +186,10 @@ export const useAfip = () => {
    * @returns Array de puntos de venta o null si hay error
    */
   const getPointsOfSale = useCallback(
-    async (cuit?: string, options: { suppressError?: boolean } = {}): Promise<AfipPointOfSale[] | null> => {
+    async (cuit?: string, options: { suppressError?: boolean } = {}): Promise<ArcaPointOfSale[] | null> => {
       setLoading(true)
       try {
-        const url = cuit ? `/afip/points-of-sale?cuit=${cuit}` : '/afip/points-of-sale'
+        const url = cuit ? `/arca/points-of-sale?cuit=${cuit}` : '/arca/points-of-sale'
         const response = await request({
           method: 'GET',
           url,
@@ -209,9 +209,9 @@ export const useAfip = () => {
           return []
         }
 
-        const errorMessage = error?.response?.data?.message || 'No se pudieron cargar los puntos de venta desde AFIP';
+        const errorMessage = error?.response?.data?.message || 'No se pudieron cargar los puntos de venta desde ARCA';
         const friendlyMessage = errorMessage.includes('Could not connect to host')
-          ? 'No se pudo conectar con AFIP. Verifique su conexión o intente más tarde.'
+          ? 'No se pudo conectar con ARCA. Verifique su conexión o intente más tarde.'
           : errorMessage;
 
         toast.error('Error al obtener puntos de venta', {
@@ -226,18 +226,18 @@ export const useAfip = () => {
   )
 
   /**
-   * Cargar estado de AFIP al montar el componente
+   * Cargar estado de ARCA al montar el componente
    */
   useEffect(() => {
-    checkAfipStatus()
+    checkArcaStatus()
     getValidCertificates()
-  }, [checkAfipStatus, getValidCertificates])
+  }, [checkArcaStatus, getValidCertificates])
 
   return {
     loading,
-    afipStatus,
+    arcaStatus,
     validCertificates,
-    checkAfipStatus,
+    checkArcaStatus,
     getReceiptTypes,
     getPointsOfSale,
     getValidCertificates,

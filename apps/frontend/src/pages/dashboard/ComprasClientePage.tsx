@@ -261,10 +261,19 @@ export default function CustomerPurchasesPage() {
     return purchase.branch?.description || 'N/A';
   };
 
-  const handleViewDetail = (sale: SaleHeader) => {
-    setSelectedSale(sale)
-    setIsDetailOpen(true)
-  }
+  const handleViewDetail = async (sale: SaleHeader) => {
+    try {
+      const response = await request({ method: 'GET', url: `/sales/${sale.id}` });
+      const fullSale = (response as any)?.data?.data ?? (response as any)?.data ?? response;
+      setSelectedSale(fullSale);
+      setIsDetailOpen(true);
+    } catch (error) {
+      console.error('Error al cargar el detalle de la venta:', error);
+      toast.error('No se pudo cargar el detalle de la venta');
+      setSelectedSale(sale);
+      setIsDetailOpen(true);
+    }
+  };
 
   const handleDownloadPdf = async (sale: SaleHeader) => {
     if (!sale || !sale.id) {

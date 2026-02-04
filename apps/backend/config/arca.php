@@ -3,7 +3,7 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Entorno de AFIP
+    | Entorno de ARCA
     |--------------------------------------------------------------------------
     |
     | Especifica el entorno en el que se trabajará:
@@ -12,25 +12,25 @@ return [
     |
     */
 
-    'environment' => env('AFIP_ENVIRONMENT', 'testing'),
+    'environment' => env('ARCA_ENVIRONMENT', 'testing'),
 
     /*
     |--------------------------------------------------------------------------
     | CUIT del Contribuyente
     |--------------------------------------------------------------------------
     |
-    | CUIT del contribuyente que realizará las operaciones con AFIP
+    | CUIT del contribuyente que realizará las operaciones con ARCA
     |
     */
 
-    'cuit' => env('AFIP_CUIT'),
+    'cuit' => env('ARCA_CUIT'),
 
     /*
     |--------------------------------------------------------------------------
     | URLs de los Web Services
     |--------------------------------------------------------------------------
     |
-    | URLs de los diferentes servicios web de AFIP según el entorno
+    | URLs de los diferentes servicios web de ARCA según el entorno
     |
     */
 
@@ -59,7 +59,7 @@ return [
 
     'certificates' => [
         'path' => (function () {
-            $path = env('AFIP_CERTIFICATES_PATH', storage_path('app/afip/certificates'));
+            $path = env('ARCA_CERTIFICATES_PATH', storage_path('app/arca/certificates'));
             // Si es una ruta relativa, convertirla a absoluta
             if ($path && !str_starts_with($path, '/') && !str_starts_with($path, DIRECTORY_SEPARATOR)) {
                 // Si empieza con "storage/", usar storage_path()
@@ -71,11 +71,11 @@ return [
                     $path = base_path($path);
                 }
             }
-            return $path ?: storage_path('app/afip/certificates');
+            return $path ?: storage_path('app/arca/certificates');
         })(),
-        'key' => env('AFIP_CERTIFICATE_KEY', 'private_key.key'),
-        'crt' => env('AFIP_CERTIFICATE_CRT', 'certificate.crt'),
-        'password' => env('AFIP_CERTIFICATE_PASSWORD'),
+        'key' => env('ARCA_CERTIFICATE_KEY', 'private_key.key'),
+        'crt' => env('ARCA_CERTIFICATE_CRT', 'certificate.crt'),
+        'password' => env('ARCA_CERTIFICATE_PASSWORD'),
     ],
 
     /*
@@ -84,14 +84,14 @@ return [
     |--------------------------------------------------------------------------
     |
     | Configuración para el cacheo de tokens de autenticación
-    | Los tokens de AFIP son válidos por 12 horas según especificación oficial
+    | Los tokens de ARCA son válidos por 12 horas según especificación oficial
     |
     */
 
     'cache' => [
-        'enabled' => env('AFIP_CACHE_ENABLED', true),
-        'prefix' => env('AFIP_CACHE_PREFIX', 'afip_token_'),
-        'ttl' => env('AFIP_CACHE_TTL', 43200), // 12 horas en segundos (según especificación AFIP)
+        'enabled' => env('ARCA_CACHE_ENABLED', true),
+        'prefix' => env('ARCA_CACHE_PREFIX', 'arca_token_'),
+        'ttl' => env('ARCA_CACHE_TTL', 43200), // 12 horas en segundos 
     ],
 
     /*
@@ -104,9 +104,9 @@ return [
     */
 
     'retry' => [
-        'enabled' => env('AFIP_RETRY_ENABLED', true),
-        'max_attempts' => env('AFIP_RETRY_MAX_ATTEMPTS', 3),
-        'delay' => env('AFIP_RETRY_DELAY', 1000), // milisegundos
+        'enabled' => env('ARCA_RETRY_ENABLED', true),
+        'max_attempts' => env('ARCA_RETRY_MAX_ATTEMPTS', 3),
+        'delay' => env('ARCA_RETRY_DELAY', 1000), // milisegundos
     ],
 
     /*
@@ -119,9 +119,9 @@ return [
     */
 
     'logging' => [
-        'enabled' => env('AFIP_LOGGING_ENABLED', true),
-        'channel' => env('AFIP_LOGGING_CHANNEL', 'daily'),
-        'level' => env('AFIP_LOGGING_LEVEL', 'info'),
+        'enabled' => env('ARCA_LOGGING_ENABLED', true),
+        'channel' => env('ARCA_LOGGING_CHANNEL', 'daily'),
+        'level' => env('ARCA_LOGGING_LEVEL', 'info'),
     ],
 
     /*
@@ -129,11 +129,11 @@ return [
     | Timeout de Conexión
     |--------------------------------------------------------------------------
     |
-    | Timeout en segundos para las conexiones con los servicios de AFIP
+    | Timeout en segundos para las conexiones con los servicios de ARCA
     |
     */
 
-    'timeout' => env('AFIP_TIMEOUT', 30),
+    'timeout' => env('ARCA_TIMEOUT', 30),
 
     /*
     |--------------------------------------------------------------------------
@@ -144,7 +144,7 @@ return [
     |
     */
 
-    'default_point_of_sale' => env('AFIP_DEFAULT_POINT_OF_SALE', 1),
+    'default_point_of_sale' => env('ARCA_DEFAULT_POINT_OF_SALE', 1),
 
     /*
     |--------------------------------------------------------------------------
@@ -158,7 +158,7 @@ return [
     */
 
     'certificates_base_path' => (function () {
-        $path = env('AFIP_CERTIFICATES_BASE_PATH', storage_path('certificates'));
+        $path = env('ARCA_CERTIFICATES_BASE_PATH', storage_path('certificates'));
         if ($path === '' || $path === null) {
             return storage_path('certificates');
         }
@@ -174,14 +174,13 @@ return [
     | Cache de Parámetros
     |--------------------------------------------------------------------------
     |
-    | Configuración para el cacheo de parámetros de AFIP (puntos de venta,
+    | Configuración para el cacheo de parámetros de ARCA (puntos de venta,
     | tipos de comprobantes, etc.)
     |
     */
 
     'param_cache' => [
-        'enabled' => env('AFIP_PARAM_CACHE_ENABLED', true),
-        'ttl' => env('AFIP_PARAM_CACHE_TTL', 21600), // 6 horas
+        'enabled' => env('ARCA_PARAM_CACHE_ENABLED', true),
+        'ttl' => env('ARCA_PARAM_CACHE_TTL', 21600), // 6 horas
     ],
 ];
-

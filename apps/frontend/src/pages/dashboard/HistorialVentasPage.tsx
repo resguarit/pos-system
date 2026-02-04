@@ -10,7 +10,7 @@ import { type Branch } from '@/types/branch';
 import { type SaleHeader } from '@/types/sale';
 import ViewSaleDialog from '@/components/view-sale-dialog';
 import SaleReceiptPreviewDialog from '@/components/SaleReceiptPreviewDialog';
-import { AfipStatusBadge } from '@/components/sales/AfipStatusBadge';
+import { ArcaStatusBadge } from '@/components/sales/ArcaStatusBadge';
 import { useState, useCallback } from 'react';
 import useApi from '@/hooks/useApi';
 import { format } from 'date-fns';
@@ -92,15 +92,30 @@ export default function SalesHistoryPage() {
     return (typeof sale.customer === 'object' && sale.customer?.person?.first_name) || 'Cliente no especificado';
   };
 
-  const getReceiptType = (sale: SaleHeader) => {
-    if (sale.receipt_type) {
+  const getReceiptType = (sale: SaleHeader): { displayName: string; filterKey: string; arcaCode: string } => {
+    // Match logic used in VentasPage to avoid runtime errors
+    if (sale.receipt_type && typeof sale.receipt_type === 'object') {
+      const upperDescription = (sale.receipt_type.description || "").toUpperCase();
+      const arcaCode = String(sale.receipt_type.afip_code || "N/A");
       return {
-        displayName: (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description) || 'N/A',
-        filterKey: (typeof sale.receipt_type === 'object' && sale.receipt_type?.id?.toString()) || 'N/A',
-        afipCode: (typeof sale.receipt_type === 'object' && sale.receipt_type?.afip_code) || 'N/A'
+        displayName: upperDescription,
+        filterKey: upperDescription,
+        arcaCode: arcaCode,
       };
     }
-    return { displayName: 'N/A', filterKey: 'N/A', afipCode: 'N/A' };
+    const actualReceiptType = (sale as any).receipt_type as any;
+    const actualArcaCode = (sale as any).receipt_type_code as any;
+
+    if (typeof actualReceiptType === 'string' && actualReceiptType.trim() !== '') {
+      const upperDescription = actualReceiptType.toUpperCase();
+      const arcaCode = (typeof actualArcaCode === 'string' && actualArcaCode.trim() !== '') ? actualArcaCode : "N/A";
+      return {
+        displayName: upperDescription,
+        filterKey: upperDescription,
+        arcaCode: String(arcaCode),
+      };
+    }
+    return { displayName: "N/A", filterKey: "N/A", arcaCode: "N/A" };
   };
 
   const formatDate = (dateString?: string | null) => {
@@ -117,9 +132,18 @@ export default function SalesHistoryPage() {
     return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(amount);
   };
 
-  const handleViewDetail = (sale: SaleHeader) => {
-    setSelectedSale(sale);
-    setIsDetailOpen(true);
+  const handleViewDetail = async (sale: SaleHeader) => {
+    try {
+      const response = await request({ method: 'GET', url: `/sales/${sale.id}` });
+      const fullSale = (response as any)?.data?.data ?? (response as any)?.data ?? response;
+      setSelectedSale(fullSale);
+      setIsDetailOpen(true);
+    } catch (error) {
+      console.error('Error al cargar el detalle de la venta:', error);
+      toast.error('No se pudo cargar el detalle de la venta');
+      setSelectedSale(sale);
+      setIsDetailOpen(true);
+    }
   };
 
   const handleDownloadPdf = async (sale: SaleHeader) => {
@@ -286,7 +310,7 @@ export default function SalesHistoryPage() {
                               <Badge variant="outline">
                                 {receiptTypeInfo.displayName}
                               </Badge>
-                              <AfipStatusBadge sale={sale} />
+                              <ArcaStatusBadge sale={sale} />
                             </div>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">

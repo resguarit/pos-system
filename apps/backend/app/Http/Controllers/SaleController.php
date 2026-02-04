@@ -377,6 +377,20 @@ class SaleController extends Controller
                 'message' => 'Venta autorizada con AFIP exitosamente'
             ]);
 
+        } catch (\Resguar\AfipSdk\Exceptions\AfipValidationException $e) {
+            // Combinación inválida tipo comprobante + condición IVA receptor (422)
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'validation_error' => true,
+            ], 422);
+        } catch (\Resguar\AfipSdk\Exceptions\AfipException $e) {
+            // Otros errores de AFIP (autenticación, autorización, etc.)
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'afip_code' => method_exists($e, 'getAfipCode') ? $e->getAfipCode() : null,
+            ], 500);
         } catch (\Exception $e) {
             // Extraer código AFIP si existe
             $afipCode = null;

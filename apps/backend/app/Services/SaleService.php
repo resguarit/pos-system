@@ -1898,7 +1898,7 @@ class SaleService implements SaleServiceInterface
         $customerCuit = '00000000000';
         $customerDocumentType = AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL;
         $customerDocumentNumber = '00000000000';
-        $receiverConditionIVA = 5; // Consumidor Final por defecto
+        $receiverConditionIVA = AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL;
 
         // Priorizar la identidad fiscal seleccionada (customerTaxIdentity) si existe
         if ($sale->customerTaxIdentity && !empty($sale->customerTaxIdentity->cuit)) {
@@ -1910,7 +1910,7 @@ class SaleService implements SaleServiceInterface
             }
             // Usar condición IVA de la identidad fiscal seleccionada si existe
             if ($sale->customerTaxIdentity->fiscalCondition) {
-                $receiverConditionIVA = (int) ($sale->customerTaxIdentity->fiscalCondition->afip_code ?? 5);
+                $receiverConditionIVA = (int) ($sale->customerTaxIdentity->fiscalCondition->afip_code ?? AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL);
             }
         } elseif ($sale->customer && $sale->customer->person) {
             // Fallback: usar CUIT del person del customer
@@ -1929,8 +1929,25 @@ class SaleService implements SaleServiceInterface
         }
 
         // Fallback: usar condición IVA de la venta si no se obtuvo de customerTaxIdentity
-        if ($receiverConditionIVA === 5 && $sale->saleFiscalCondition) {
-            $receiverConditionIVA = (int) ($sale->saleFiscalCondition->afip_code ?? 5);
+        if ($receiverConditionIVA === AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL && $sale->saleFiscalCondition) {
+            $receiverConditionIVA = (int) ($sale->saleFiscalCondition->afip_code ?? AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL);
+        }
+
+        // Validar y corregir tipo de comprobante según reglas de emisión (solo si la sucursal tiene iva_condition)
+        $emitterCondition = $this->resolveEmitterCondition($sale);
+        if ($emitterCondition !== null) {
+            $invoiceType = $this->determinarTipoComprobante($emitterCondition, $receiverConditionIVA, $invoiceType);
+            Log::debug('prepareInvoiceDataForAfip: Tipo de comprobante determinado por reglas de emisión', [
+                'sale_id' => $sale->id,
+                'emitter_condition' => $emitterCondition,
+                'receiver_condition_iva' => $receiverConditionIVA,
+                'invoice_type' => $invoiceType,
+            ]);
+        } else {
+            Log::debug('prepareInvoiceDataForAfip: Sucursal sin iva_condition, se respeta tipo de comprobante seleccionado', [
+                'sale_id' => $sale->id,
+                'invoice_type' => $invoiceType,
+            ]);
         }
 
         Log::debug('prepareInvoiceDataForAfip: Datos del receptor resueltos', [
@@ -1957,10 +1974,9 @@ class SaleService implements SaleServiceInterface
             $unitPrice = (float) $item->unit_price;
             $itemSubtotal = (float) $item->item_subtotal ?? ($unitPrice * $quantity);
 
-            // Para Factura B (6) y comprobantes 'B' (7, 8, 9, 10), el precio unitario debe incluir IVA (Precio Final).
-            // Para el resto (A, M, C, etc.), se usa el precio neto.
-            // Códigos 'B': 6 (Factura B), 7 (Nota Debito B), 8 (Nota Credito B), 9 (Recibo B), 10 (Nota Venta B)
-            if (in_array($invoiceType, [6, 7, 8, 9, 10], true)) {
+            // Para Factura B y comprobantes 'B', el precio unitario debe incluir IVA (Precio Final).
+            $facturaBCodes = [AfipConstants::COMPROBANTE_FACTURA_B, 7, 8, 9, 10];
+            if (in_array($invoiceType, $facturaBCodes, true)) {
                 // Calcular precio unitario final (con IVA)
                 // Se usa item_total (Neto + IVA) dividido por cantidad para obtener el unitario final efectivo
                 $totalWithIva = (float) $item->item_total;
@@ -2051,8 +2067,7 @@ class SaleService implements SaleServiceInterface
             throw new \Exception('El total de la venta debe ser mayor a cero');
         }
 
-        // ...
-        $isFacturaB = in_array($invoiceType, [6, 7, 8, 9, 10], true);
+        $isFacturaB = in_array($invoiceType, [AfipConstants::COMPROBANTE_FACTURA_B, 7, 8, 9, 10], true);
 
         // Total debe ser netAmount + ivaTotal para que AFIP no rechace por incoherencia en Factura A
         // En Factura B, usamos el total de la venta directamente (o suma de items con IVA)
@@ -2088,7 +2103,7 @@ class SaleService implements SaleServiceInterface
     private function mapReceiptTypeToAfipType(?ReceiptType $receiptType): int
     {
         if (!$receiptType) {
-            return 1; // Factura A por defecto
+            return AfipConstants::COMPROBANTE_FACTURA_A;
         }
 
         $numericCode = null;
@@ -2167,9 +2182,83 @@ class SaleService implements SaleServiceInterface
      */
     private function determineConcept(SaleHeader $sale): int
     {
-        // Por ahora, asumimos que todas son productos
-        // En el futuro, se puede determinar basándose en los items
-        return 1; // Productos
+        return AfipConstants::CONCEPTO_PRODUCTOS;
+    }
+
+    /**
+     * Resuelve la condición IVA del emisor (sucursal) para reglas de facturación.
+     * Devuelve null si la sucursal no tiene iva_condition configurado (no se aplican reglas automáticas).
+     */
+    private function resolveEmitterCondition(SaleHeader $sale): ?string
+    {
+        $branch = $sale->branch;
+        if (!$branch) {
+            return null;
+        }
+
+        $cond = $branch->iva_condition ?? null;
+        if ($cond === null || trim((string) $cond) === '') {
+            return null;
+        }
+
+        return trim((string) $cond);
+    }
+
+    /**
+     * Determina el tipo de comprobante según reglas de emisión AFIP/ARCA.
+     * Valida la combinación emisor + receptor y corrige si es inválida.
+     *
+     * Reglas:
+     * - Emisor RI: Factura A → RI o Monotributo; Factura B → CF o Exento
+     * - Emisor Monotrib/Exento: siempre Factura C
+     *
+     * @param string $condicionEmisor 'Responsable Inscripto' | 'Monotributista' | 'Exento'
+     * @param int $condicionReceptor Código AFIP (1=RI, 4=Exento, 5=CF, 6=Monotrib)
+     * @param int $invoiceTypeActual Tipo actual (del receipt type seleccionado)
+     * @return int Tipo de comprobante corregido
+     */
+    private function determinarTipoComprobante(string $condicionEmisor, int $condicionReceptor, int $invoiceTypeActual): int
+    {
+        $emisorUpper = strtoupper($condicionEmisor);
+        $isMonotribOrExento = str_contains($emisorUpper, 'MONOTRIB') || str_contains($emisorUpper, 'EXENTO');
+
+        // Si el emisor es Monotributista o Exento → siempre Factura C (o familia C)
+        if ($isMonotribOrExento) {
+            return $this->mapToFamilyC($invoiceTypeActual);
+        }
+
+        // Emisor es RI
+        $receptorFacturaA = in_array($condicionReceptor, [
+            AfipConstants::CONDICION_IVA_RESPONSABLE_INSCRIPTO,
+            AfipConstants::CONDICION_IVA_MONOTRIBUTO,
+        ], true);
+
+        if ($receptorFacturaA) {
+            return $this->mapToFamilyA($invoiceTypeActual);
+        }
+
+        return $this->mapToFamilyB($invoiceTypeActual);
+    }
+
+    /** Mapea al equivalente en familia A (1-5) */
+    private function mapToFamilyA(int $tipo): int
+    {
+        $map = [1 => 1, 2 => 2, 3 => 3, 4 => 4, 5 => 5, 6 => 1, 7 => 2, 8 => 3, 9 => 4, 10 => 5, 11 => 1, 12 => 2, 13 => 3, 15 => 4];
+        return $map[$tipo] ?? AfipConstants::COMPROBANTE_FACTURA_A;
+    }
+
+    /** Mapea al equivalente en familia B (6-10) */
+    private function mapToFamilyB(int $tipo): int
+    {
+        $map = [1 => 6, 2 => 7, 3 => 8, 4 => 9, 5 => 10, 6 => 6, 7 => 7, 8 => 8, 9 => 9, 10 => 10, 11 => 6, 12 => 7, 13 => 8, 15 => 9];
+        return $map[$tipo] ?? AfipConstants::COMPROBANTE_FACTURA_B;
+    }
+
+    /** Mapea al equivalente en familia C (11-15) */
+    private function mapToFamilyC(int $tipo): int
+    {
+        $map = [1 => 11, 2 => 12, 3 => 13, 4 => 15, 5 => 11, 6 => 11, 7 => 12, 8 => 13, 9 => 15, 10 => 11, 11 => 11, 12 => 12, 13 => 13, 15 => 15];
+        return $map[$tipo] ?? AfipConstants::COMPROBANTE_FACTURA_C;
     }
 
     /**
@@ -2202,12 +2291,12 @@ class SaleService implements SaleServiceInterface
 
         if ($branch && !empty($branch->cuit)) {
             $cleanCuit = preg_replace('/[^0-9]/', '', $branch->cuit);
-            $afipCertificate = \App\Models\AfipCertificate::findByCuit($cleanCuit);
+            $arcaCertificate = \App\Models\ArcaCertificate::findByCuit($cleanCuit);
 
-            if ($afipCertificate) {
-                $issuerIibb = $afipCertificate->iibb;
-                $issuerInicioActividad = $afipCertificate->fecha_inicio_actividades
-                    ? Carbon::parse($afipCertificate->fecha_inicio_actividades)->format('d/m/Y')
+            if ($arcaCertificate) {
+                $issuerIibb = $arcaCertificate->iibb;
+                $issuerInicioActividad = $arcaCertificate->fecha_inicio_actividades
+                    ? Carbon::parse($arcaCertificate->fecha_inicio_actividades)->format('d/m/Y')
                     : null;
             }
         }

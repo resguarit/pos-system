@@ -206,7 +206,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
   const getReceiptType = (sale: any) => {
     return {
       displayName: sale.receiptType?.name || sale.receipt_type?.name || 'Venta',
-      afipCode: sale.receiptType?.afip_code || sale.receipt_type?.afip_code || '0'
+      arcaCode: sale.receiptType?.afip_code || sale.receipt_type?.afip_code || '0'
     }
   }
 

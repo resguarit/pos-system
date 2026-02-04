@@ -14,7 +14,7 @@ import { type SaleHeader } from "@/types/sale";
 import SaleReceiptContent from "./SaleReceiptContent";
 import ThermalTicketContent from "./ThermalTicketContent";
 import useApi from "@/hooks/useApi";
-import { isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
+import { isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
 import { Loader2, Printer } from "lucide-react";
 
 /** Inyecta estilos para que la vista previa tenga fondo blanco y no herede el tema oscuro. */
@@ -81,11 +81,11 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewUseSdk, setPreviewUseSdk] = useState(false);
 
-  const afipCode =
+  const arcaCode =
     sale?.receipt_type && typeof sale.receipt_type === "object" && "afip_code" in sale.receipt_type
       ? (sale.receipt_type as { afip_code?: string }).afip_code
       : (sale as SaleHeader & { receipt_type_code?: string })?.receipt_type_code;
-  const isInternalOnly = isInternalOnlyReceiptType(afipCode);
+  const isInternalOnly = isInternalOnlyReceiptType(arcaCode);
   const useSdkPreview = !isInternalOnly && !!sale?.id;
 
   useEffect(() => {
@@ -276,11 +276,11 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
             style={
               isThermal
                 ? {
-                    width: 302,
-                    minWidth: 302,
-                    minHeight: 400,
-                    height: "100%",
-                  }
+                  width: 302,
+                  minWidth: 302,
+                  minHeight: 400,
+                  height: "100%",
+                }
                 : { width: 800, minWidth: 800, minHeight: 900 }
             }
             sandbox="allow-same-origin"

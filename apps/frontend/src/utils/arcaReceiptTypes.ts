@@ -1,36 +1,36 @@
 /**
- * Utilidades para tipos de comprobante AFIP en punto de venta.
- * Centraliza la lógica de filtrado y mapeo desde la respuesta de AFIP.
+ * Utilidades para tipos de comprobante ARCA en punto de venta.
+ * Centraliza la lógica de filtrado y mapeo desde la respuesta de ARCA.
  */
 
-import { AFIP_CODES } from '@/lib/constants/afipCodes'
+import { ARCA_CODES } from '@/lib/constants/arcaCodes'
 
-/** Longitud del CUIT (solo dígitos) según AFIP */
+/** Longitud del CUIT (solo dígitos) según ARCA */
 export const CUIT_LENGTH = 11
 
 /**
- * Comprobantes de solo uso interno: no se autorizan con AFIP (Presupuesto, Factura X).
+ * Comprobantes de solo uso interno: no se autorizan con ARCA (Presupuesto, Factura X).
  */
 export function isInternalOnlyReceiptType(afipCode: string | number | null | undefined): boolean {
   if (afipCode == null) return false
   const code = String(afipCode)
-  return code === AFIP_CODES.PRESUPUESTO || code === AFIP_CODES.FACTURA_X
+  return code === ARCA_CODES.PRESUPUESTO || code === ARCA_CODES.FACTURA_X
 }
 
 /**
- * Indica si el tipo de comprobante exige un cliente con CUIT válido para AFIP.
+ * Indica si el tipo de comprobante exige un cliente con CUIT válido para ARCA.
  * Solo Factura A (001) lo exige; B/C/M/FCE permiten consumidor final.
  */
 export function receiptTypeRequiresCustomerWithCuit(
   afipCode: string | number | null | undefined
 ): boolean {
-  return afipCode != null && String(afipCode) === AFIP_CODES.FACTURA_A
+  return afipCode != null && String(afipCode) === ARCA_CODES.FACTURA_A
 }
 
 /**
  * Valida que el valor sea un CUIT de 11 dígitos (solo números).
  */
-export function isValidCuitForAfip(value: string | number | null | undefined): boolean {
+export function isValidCuitForArca(value: string | number | null | undefined): boolean {
   if (value == null || value === '') return false
   const digits = String(value).replace(/\D/g, '')
   return digits.length === CUIT_LENGTH
@@ -38,12 +38,12 @@ export function isValidCuitForAfip(value: string | number | null | undefined): b
 
 /** Códigos de tipos internos (siempre disponibles en POS) */
 export const INTERNAL_RECEIPT_CODES: readonly string[] = [
-  AFIP_CODES.PRESUPUESTO,
-  AFIP_CODES.FACTURA_X,
+  ARCA_CODES.PRESUPUESTO,
+  ARCA_CODES.FACTURA_X,
 ] as const
 
-/** Ítem de la respuesta GET /afip/receipt-types */
-export interface AfipReceiptTypeItem {
+/** Ítem de la respuesta GET /arca/receipt-types */
+export interface ArcaReceiptTypeItem {
   id?: number
   description?: string
 }
@@ -56,35 +56,35 @@ const EXCLUDE_DESCRIPTION_KEYWORDS = [
 ] as const
 
 /**
- * Indica si un tipo de AFIP es una factura (excluye ND, NC, Recibo).
+ * Indica si un tipo de ARCA es una factura (excluye ND, NC, Recibo).
  */
-export function isFacturaType(item: AfipReceiptTypeItem): boolean {
+export function isFacturaType(item: ArcaReceiptTypeItem): boolean {
   const d = (item.description ?? '').toLowerCase()
   if (EXCLUDE_DESCRIPTION_KEYWORDS.some((kw) => d.includes(kw))) return false
   return d.includes('factura')
 }
 
 /**
- * Convierte el id numérico de AFIP al afip_code usado en la app.
- * AFIP usa 1, 6, 51 para Factura A, B, M; 201, 206 para FCE A, B.
+ * Convierte el id numérico de ARCA al afip_code usado en la app.
+ * ARCA usa 1, 6, 51 para Factura A, B, M; 201, 206 para FCE A, B.
  */
-export function afipIdToCode(id: number): string {
+export function arcaIdToCode(id: number): string {
   return id < 100 ? String(id).padStart(3, '0') : String(id)
 }
 
 /**
- * Dado el array de tipos devueltos por AFIP para un CUIT, devuelve
+ * Dado el array de tipos devueltos por ARCA para un CUIT, devuelve
  * el set de afip_codes que corresponden solo a facturas (para usar en POS).
  * Incluye siempre los códigos internos (Presupuesto, Factura X).
  */
-export function getAllowedAfipCodesForPos(afipTypes: AfipReceiptTypeItem[] | null): Set<string> {
+export function getAllowedArcaCodesForPos(arcaTypes: ArcaReceiptTypeItem[] | null): Set<string> {
   const allowed = new Set<string>(INTERNAL_RECEIPT_CODES)
-  if (!afipTypes?.length) return allowed
+  if (!arcaTypes?.length) return allowed
 
-  const facturaOnly = afipTypes.filter(isFacturaType)
+  const facturaOnly = arcaTypes.filter(isFacturaType)
   facturaOnly.forEach((t) => {
     const id = t.id ?? 0
-    allowed.add(afipIdToCode(id))
+    allowed.add(arcaIdToCode(id))
   })
   return allowed
 }
@@ -98,11 +98,11 @@ export interface ReceiptTypeBadgeStyle {
 
 /** Mapa de estilos por afip_code para badges (colores distintos por tipo) */
 const RECEIPT_TYPE_STYLES_BY_CODE: Record<string, ReceiptTypeBadgeStyle> = {
-  [AFIP_CODES.FACTURA_A]: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-300' },
-  [AFIP_CODES.FACTURA_B]: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-300' },
-  [AFIP_CODES.FACTURA_C]: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-300' },
-  [AFIP_CODES.PRESUPUESTO]: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  [AFIP_CODES.FACTURA_X]: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
+  [ARCA_CODES.FACTURA_A]: { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-300' },
+  [ARCA_CODES.FACTURA_B]: { bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-300' },
+  [ARCA_CODES.FACTURA_C]: { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-300' },
+  [ARCA_CODES.PRESUPUESTO]: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+  [ARCA_CODES.FACTURA_X]: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-300' },
   '051': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-300' },
   '201': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-300' },
   '206': { bg: 'bg-sky-50', text: 'text-sky-700', border: 'border-sky-300' },
@@ -125,3 +125,4 @@ export function getReceiptTypeBadgeStyle(afipCode: string | number | null | unde
   const key = s.length <= 2 ? s.padStart(3, '0') : s
   return RECEIPT_TYPE_STYLES_BY_CODE[key] ?? DEFAULT_RECEIPT_STYLE
 }
+

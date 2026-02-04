@@ -59,21 +59,21 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?:
 // Helper to get icon by ID or fallback to name-based inference
 const getCategoryIcon = (iconId: string | undefined | null, name: string, size: string = "h-4 w-4", color?: string) => {
     const props = { className: size, ...(color && { color }) };
-    
+
     // First try to use the stored icon ID
     if (iconId && ICON_MAP[iconId]) {
         const IconComponent = ICON_MAP[iconId];
         return <IconComponent {...props} />;
     }
-    
+
     // Fallback to name-based inference
     const normalized = name.toLowerCase();
-    
+
     if (normalized.includes('sueldo') || normalized.includes('salario')) return <Users {...props} />;
     if (normalized.includes('alquiler') || normalized.includes('local')) return <Building {...props} />;
     if (normalized.includes('internet') || normalized.includes('telecom')) return <Wifi {...props} />;
     if (normalized.includes('seguro')) return <Shield {...props} />;
-    if (normalized.includes('impuesto') || normalized.includes('tasa') || normalized.includes('afip')) return <Landmark {...props} />;
+    if (normalized.includes('impuesto') || normalized.includes('tasa') || normalized.includes('afip') || normalized.includes('arca')) return <Landmark {...props} />;
     if (normalized.includes('honorario') || normalized.includes('contador') || normalized.includes('abogado')) return <Briefcase {...props} />;
     if (normalized.includes('limpieza')) return <Sparkles {...props} />;
     if (normalized.includes('publicidad') || normalized.includes('marketing')) return <Megaphone {...props} />;
@@ -91,7 +91,7 @@ const getCategoryIcon = (iconId: string | undefined | null, name: string, size: 
     if (normalized.includes('insumo')) return <Box {...props} />;
     if (normalized.includes('comida') || normalized.includes('refrigerio')) return <Utensils {...props} />;
     if (normalized.includes('capacitacion') || normalized.includes('curso')) return <GraduationCap {...props} />;
-    
+
     // Default fallback
     return <Receipt {...props} />;
 };

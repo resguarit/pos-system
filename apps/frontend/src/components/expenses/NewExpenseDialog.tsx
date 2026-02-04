@@ -17,10 +17,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { 
-    Loader2, 
-    Plus, 
-    ArrowLeft, 
+import {
+    Loader2,
+    Plus,
+    ArrowLeft,
     Zap,
     Wallet,
     Building,
@@ -80,21 +80,21 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?:
 // Helper to get icon by ID or fallback to name-based inference
 const getCategoryIcon = (iconId: string | undefined | null, name: string, size: string = "h-4 w-4", color?: string) => {
     const props = { className: size, ...(color && { color }) };
-    
+
     // First try to use the stored icon ID
     if (iconId && ICON_MAP[iconId]) {
         const IconComponent = ICON_MAP[iconId];
         return <IconComponent {...props} />;
     }
-    
+
     // Fallback to name-based inference
     const normalized = name.toLowerCase();
-    
+
     if (normalized.includes('sueldo') || normalized.includes('salario')) return <Users {...props} />;
     if (normalized.includes('alquiler') || normalized.includes('local')) return <Building {...props} />;
     if (normalized.includes('internet') || normalized.includes('telecom')) return <Wifi {...props} />;
     if (normalized.includes('seguro')) return <Shield {...props} />;
-    if (normalized.includes('impuesto') || normalized.includes('tasa') || normalized.includes('afip')) return <Landmark {...props} />;
+    if (normalized.includes('impuesto') || normalized.includes('tasa') || normalized.includes('afip') || normalized.includes('arca')) return <Landmark {...props} />;
     if (normalized.includes('honorario') || normalized.includes('contador') || normalized.includes('abogado')) return <Briefcase {...props} />;
     if (normalized.includes('limpieza')) return <Sparkles {...props} />;
     if (normalized.includes('publicidad') || normalized.includes('marketing')) return <Megaphone {...props} />;
@@ -112,7 +112,7 @@ const getCategoryIcon = (iconId: string | undefined | null, name: string, size: 
     if (normalized.includes('insumo')) return <Box {...props} />;
     if (normalized.includes('comida') || normalized.includes('refrigerio')) return <Utensils {...props} />;
     if (normalized.includes('capacitacion') || normalized.includes('curso')) return <GraduationCap {...props} />;
-    
+
     // Default fallback
     return <Receipt {...props} />;
 };
@@ -199,11 +199,11 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
         const normalizeToArray = <T,>(payload: unknown): T[] => {
             // Si ya es un array, devolverlo
             if (Array.isArray(payload)) return payload as T[];
-            
+
             // Si tiene .data como array, usar eso
             const obj = payload as Record<string, unknown>;
             if (obj?.data && Array.isArray(obj.data)) return obj.data as T[];
-            
+
             // Si data es un objeto pero no un array, probablemente es un item único o vacío
             // No mostrar warning, solo devolver array vacío
             return [];
@@ -216,9 +216,9 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
                     const response = await request({ method: 'GET', url: '/payment-methods?active=true' });
                     if (response?.data) return response.data;
                     return [];
-                } catch (e) { 
+                } catch (e) {
                     console.error("Error fetching payment methods:", e);
-                    return []; 
+                    return [];
                 }
             };
 
@@ -436,9 +436,9 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
                                                 <p className="text-xs text-muted-foreground">Selecciona una subcategoría</p>
                                             </div>
                                         </div>
-                                        <Button 
-                                            variant="outline" 
-                                            size="sm" 
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
                                             onClick={() => setSelectedParentCategory(null)}
                                             className="uppercase text-xs font-bold"
                                         >
@@ -471,130 +471,130 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
                         </div>
                     ) : (
                         <div className="max-w-2xl mx-auto py-2">
-                        <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <form onSubmit={handleSubmit} className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
 
-                            <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border">
-                                <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center text-primary shadow-sm">
-                                    {getCategoryIcon(selectedSubCategory?.icon || selectedParentCategory?.icon, selectedSubCategory?.name || selectedParentCategory?.name || 'Gasto', "h-6 w-6", config?.primary_color)}
+                                <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border">
+                                    <div className="h-12 w-12 rounded-lg bg-background border flex items-center justify-center text-primary shadow-sm">
+                                        {getCategoryIcon(selectedSubCategory?.icon || selectedParentCategory?.icon, selectedSubCategory?.name || selectedParentCategory?.name || 'Gasto', "h-6 w-6", config?.primary_color)}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{selectedParentCategory?.name}</div>
+                                        <div className="font-bold text-lg text-foreground">{selectedSubCategory?.name}</div>
+                                    </div>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>
+                                        Cambiar
+                                    </Button>
                                 </div>
-                                <div className="flex-1">
-                                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider">{selectedParentCategory?.name}</div>
-                                    <div className="font-bold text-lg text-foreground">{selectedSubCategory?.name}</div>
-                                </div>
-                                <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>
-                                    Cambiar
-                                </Button>
-                            </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Monto</Label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-lg">$</span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase text-muted-foreground">Monto</Label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-lg">$</span>
+                                            <Input
+                                                type="number"
+                                                className={`pl-8 text-lg font-bold h-12 ${errors.amount ? 'border-red-500' : ''}`}
+                                                placeholder="0.00"
+                                                value={formData.amount}
+                                                onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                                                autoFocus
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase text-muted-foreground">Fecha</Label>
                                         <Input
-                                            type="number"
-                                            className={`pl-8 text-lg font-bold h-12 ${errors.amount ? 'border-red-500' : ''}`}
-                                            placeholder="0.00"
-                                            value={formData.amount}
-                                            onChange={e => setFormData(prev => ({ ...prev, amount: e.target.value }))}
-                                            autoFocus
+                                            type="date"
+                                            className={`h-12 text-sm ${errors.date ? 'border-red-500' : ''}`}
+                                            value={formData.date}
+                                            onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
                                         />
                                     </div>
                                 </div>
+
                                 <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Fecha</Label>
+                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Descripción</Label>
                                     <Input
-                                        type="date"
-                                        className={`h-12 text-sm ${errors.date ? 'border-red-500' : ''}`}
-                                        value={formData.date}
-                                        onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                                        className="h-12 text-sm"
+                                        placeholder="Nota opcional..."
+                                        value={formData.description}
+                                        onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
                                     />
                                 </div>
-                            </div>
 
-                            <div className="space-y-2">
-                                <Label className="text-xs font-bold uppercase text-muted-foreground">Descripción</Label>
-                                <Input
-                                    className="h-12 text-sm"
-                                    placeholder="Nota opcional..."
-                                    value={formData.description}
-                                    onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Sucursal</Label>
-                                    <Select
-                                        value={formData.branch_id}
-                                        onValueChange={v => setFormData(prev => ({ ...prev, branch_id: v }))}
-                                    >
-                                        <SelectTrigger className={`h-12 text-sm ${errors.branch_id ? 'border-red-500' : ''}`}>
-                                            <SelectValue placeholder="Elegir Sucursal" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {branches.filter(b => selectedBranchIds.includes(b.id.toString())).map(b => (
-                                                <SelectItem key={b.id} value={b.id.toString()}>{b.description}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase text-muted-foreground">Sucursal</Label>
+                                        <Select
+                                            value={formData.branch_id}
+                                            onValueChange={v => setFormData(prev => ({ ...prev, branch_id: v }))}
+                                        >
+                                            <SelectTrigger className={`h-12 text-sm ${errors.branch_id ? 'border-red-500' : ''}`}>
+                                                <SelectValue placeholder="Elegir Sucursal" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {branches.filter(b => selectedBranchIds.includes(b.id.toString())).map(b => (
+                                                    <SelectItem key={b.id} value={b.id.toString()}>{b.description}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold uppercase text-muted-foreground">Medio de Pago</Label>
+                                        <Select
+                                            value={formData.payment_method_id}
+                                            onValueChange={v => setFormData(prev => ({ ...prev, payment_method_id: v }))}
+                                        >
+                                            <SelectTrigger className={`h-12 text-sm ${errors.payment_method_id ? 'border-red-500' : ''}`}>
+                                                <SelectValue placeholder="Elegir Medio de Pago" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {paymentMethods.map(pm => (
+                                                    <SelectItem key={pm.id} value={pm.id.toString()}>{pm.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Medio de Pago</Label>
-                                    <Select
-                                        value={formData.payment_method_id}
-                                        onValueChange={v => setFormData(prev => ({ ...prev, payment_method_id: v }))}
-                                    >
-                                        <SelectTrigger className={`h-12 text-sm ${errors.payment_method_id ? 'border-red-500' : ''}`}>
-                                            <SelectValue placeholder="Elegir Medio de Pago" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {paymentMethods.map(pm => (
-                                                <SelectItem key={pm.id} value={pm.id.toString()}>{pm.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
 
-                            <div className="flex items-center justify-between rounded-xl border p-4 bg-muted/10">
-                                <div className="leading-tight">
-                                    <Label className="text-sm font-bold">Gasto Recurrente</Label>
-                                    <p className="text-xs text-muted-foreground mt-1">Repetir este gasto automáticamente</p>
+                                <div className="flex items-center justify-between rounded-xl border p-4 bg-muted/10">
+                                    <div className="leading-tight">
+                                        <Label className="text-sm font-bold">Gasto Recurrente</Label>
+                                        <p className="text-xs text-muted-foreground mt-1">Repetir este gasto automáticamente</p>
+                                    </div>
+                                    <Switch
+                                        checked={formData.is_recurring}
+                                        onCheckedChange={c => setFormData(prev => ({ ...prev, is_recurring: c }))}
+                                    />
                                 </div>
-                                <Switch
-                                    checked={formData.is_recurring}
-                                    onCheckedChange={c => setFormData(prev => ({ ...prev, is_recurring: c }))}
-                                />
-                            </div>
 
-                            {formData.is_recurring && (
-                                <div className="space-y-2 animate-in slide-in-from-top-2 p-4 rounded-xl border border-dashed border-primary/20 bg-primary/5">
-                                    <Label className="text-xs font-bold uppercase text-muted-foreground">Frecuencia</Label>
-                                    <Select
-                                        value={formData.recurrence_interval}
-                                        onValueChange={v => setFormData(prev => ({ ...prev, recurrence_interval: v }))}
-                                    >
-                                        <SelectTrigger className="h-10 text-sm bg-background">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="daily">Diario</SelectItem>
-                                            <SelectItem value="weekly">Semanal</SelectItem>
-                                            <SelectItem value="monthly">Mensual</SelectItem>
-                                            <SelectItem value="yearly">Anual</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
+                                {formData.is_recurring && (
+                                    <div className="space-y-2 animate-in slide-in-from-top-2 p-4 rounded-xl border border-dashed border-primary/20 bg-primary/5">
+                                        <Label className="text-xs font-bold uppercase text-muted-foreground">Frecuencia</Label>
+                                        <Select
+                                            value={formData.recurrence_interval}
+                                            onValueChange={v => setFormData(prev => ({ ...prev, recurrence_interval: v }))}
+                                        >
+                                            <SelectTrigger className="h-10 text-sm bg-background">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="daily">Diario</SelectItem>
+                                                <SelectItem value="weekly">Semanal</SelectItem>
+                                                <SelectItem value="monthly">Mensual</SelectItem>
+                                                <SelectItem value="yearly">Anual</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
 
-                            <DialogFooter className="mt-8 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur pb-2">
-                                <Button type="submit" size="lg" disabled={loading} className="w-full text-base font-bold shadow-lg hover:shadow-xl transition-all">
-                                    {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Plus className="mr-2 h-5 w-5" />}
-                                    Registrar Gasto
-                                </Button>
-                            </DialogFooter>
-                        </form>
+                                <DialogFooter className="mt-8 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur pb-2">
+                                    <Button type="submit" size="lg" disabled={loading} className="w-full text-base font-bold shadow-lg hover:shadow-xl transition-all">
+                                        {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Plus className="mr-2 h-5 w-5" />}
+                                        Registrar Gasto
+                                    </Button>
+                                </DialogFooter>
+                            </form>
                         </div>
                     )}
                 </div>

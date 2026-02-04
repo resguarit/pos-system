@@ -16,6 +16,7 @@ class FiscalCondition extends Model
     protected $fillable = [
         'name',
         'description',
+        'afip_code',
         'active',
     ];
 

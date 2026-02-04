@@ -9,25 +9,26 @@ use Resguar\AfipSdk\Exceptions\AfipException;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Controlador para operaciones con AFIP
+ * Controlador para operaciones con ARCA (anteriormente AFIP)
  * 
- * Proporciona endpoints para obtener parámetros de AFIP como
+ * Proporciona endpoints para obtener parámetros de ARCA como
  * tipos de comprobantes y puntos de venta habilitados por CUIT.
  */
-class AfipController extends Controller
+class ArcaController extends Controller
 {
     /**
      * Constructor
      */
     public function __construct(
         private readonly AfipService $afip
-    ) {}
+    ) {
+    }
 
     /**
      * Obtener tipos de comprobantes disponibles para un CUIT
      * 
      * Este endpoint permite obtener los tipos de comprobantes que
-     * un CUIT puede emitir según AFIP. Si no se proporciona CUIT,
+     * un CUIT puede emitir según ARCA. Si no se proporciona CUIT,
      * usa el configurado globalmente.
      * 
      * @param Request $request
@@ -38,11 +39,11 @@ class AfipController extends Controller
         try {
             // Obtener CUIT del request o usar el de configuración
             $cuit = $request->input('cuit');
-            
+
             // Si se proporciona CUIT, validarlo y limpiarlo
             if ($cuit) {
                 $cuit = preg_replace('/[^0-9]/', '', $cuit);
-                
+
                 if (strlen($cuit) !== 11) {
                     return response()->json([
                         'success' => false,
@@ -52,8 +53,8 @@ class AfipController extends Controller
                 }
             } else {
                 // Usar CUIT de configuración
-                $cuit = config('afip.cuit');
-                
+                $cuit = config('arca.cuit');
+
                 if (!$cuit) {
                     return response()->json([
                         'success' => false,
@@ -77,17 +78,17 @@ class AfipController extends Controller
             ]);
 
         } catch (AfipException $e) {
-            Log::error('Error de AFIP al obtener tipos de comprobantes', [
+            Log::error('Error de ARCA al obtener tipos de comprobantes', [
                 'error' => $e->getMessage(),
                 'afip_code' => method_exists($e, 'getAfipCode') ? $e->getAfipCode() : null,
                 'cuit' => $cuit ?? null,
             ]);
 
-            // Si AFIP no devuelve resultados, retornar array vacío en lugar de error
+            // Si ARCA no devuelve resultados, retornar array vacío en lugar de error
             if (str_contains($e->getMessage(), 'Sin Resultados') || str_contains($e->getMessage(), '602')) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'El CUIT no tiene tipos de comprobantes habilitados en AFIP',
+                    'message' => 'El CUIT no tiene tipos de comprobantes habilitados en ARCA',
                     'data' => [],
                     'count' => 0,
                     'cuit' => $cuit ?? null,
@@ -96,7 +97,7 @@ class AfipController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener tipos de comprobantes desde AFIP: ' . $e->getMessage(),
+                'message' => 'Error al obtener tipos de comprobantes desde ARCA: ' . $e->getMessage(),
                 'data' => [],
             ], 422);
 
@@ -119,7 +120,7 @@ class AfipController extends Controller
      * Obtener puntos de venta habilitados para un CUIT
      * 
      * Este endpoint permite obtener los puntos de venta (establecimientos)
-     * que un CUIT tiene habilitados en AFIP. Si no se proporciona CUIT,
+     * que un CUIT tiene habilitados en ARCA. Si no se proporciona CUIT,
      * usa el configurado globalmente.
      * 
      * @param Request $request
@@ -130,11 +131,11 @@ class AfipController extends Controller
         try {
             // Obtener CUIT del request o usar el de configuración
             $cuit = $request->input('cuit');
-            
+
             // Si se proporciona CUIT, validarlo y limpiarlo
             if ($cuit) {
                 $cuit = preg_replace('/[^0-9]/', '', $cuit);
-                
+
                 if (strlen($cuit) !== 11) {
                     return response()->json([
                         'success' => false,
@@ -144,8 +145,8 @@ class AfipController extends Controller
                 }
             } else {
                 // Usar CUIT de configuración
-                $cuit = config('afip.cuit');
-                
+                $cuit = config('arca.cuit');
+
                 if (!$cuit) {
                     return response()->json([
                         'success' => false,
@@ -155,7 +156,7 @@ class AfipController extends Controller
                 }
             }
 
-            // Obtener puntos de venta desde AFIP
+            // Obtener puntos de venta desde ARCA
             $pointsOfSale = $this->afip->getAvailablePointsOfSale($cuit);
 
             return response()->json([
@@ -167,17 +168,17 @@ class AfipController extends Controller
             ]);
 
         } catch (AfipException $e) {
-            Log::error('Error de AFIP al obtener puntos de venta', [
+            Log::error('Error de ARCA al obtener puntos de venta', [
                 'error' => $e->getMessage(),
                 'afip_code' => method_exists($e, 'getAfipCode') ? $e->getAfipCode() : null,
                 'cuit' => $cuit ?? null,
             ]);
 
-            // Si AFIP no devuelve resultados, retornar array vacío en lugar de error
+            // Si ARCA no devuelve resultados, retornar array vacío en lugar de error
             if (str_contains($e->getMessage(), 'Sin Resultados') || str_contains($e->getMessage(), '602')) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'El CUIT no tiene puntos de venta habilitados en AFIP',
+                    'message' => 'El CUIT no tiene puntos de venta habilitados en ARCA',
                     'data' => [],
                     'count' => 0,
                     'cuit' => $cuit ?? null,
@@ -186,7 +187,7 @@ class AfipController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al obtener puntos de venta desde AFIP: ' . $e->getMessage(),
+                'message' => 'Error al obtener puntos de venta desde ARCA: ' . $e->getMessage(),
                 'data' => [],
             ], 422);
 
@@ -209,22 +210,22 @@ class AfipController extends Controller
      * Verificar si la facturación electrónica está habilitada
      * 
      * Este endpoint permite verificar si el sistema tiene configurado
-     * AFIP y puede realizar operaciones de facturación electrónica.
+     * ARCA y puede realizar operaciones de facturación electrónica.
      * 
      * @return JsonResponse
      */
     public function checkAfipStatus(): JsonResponse
     {
         try {
-            $cuit = config('afip.cuit');
-            $environment = config('afip.environment', 'testing');
-            $certPath = config('afip.certificates.path');
-            $certKey = config('afip.certificates.key');
-            $certCrt = config('afip.certificates.crt');
-            
+            $cuit = config('arca.cuit');
+            $environment = config('arca.environment', 'testing');
+            $certPath = config('arca.certificates.path');
+            $certKey = config('arca.certificates.key');
+            $certCrt = config('arca.certificates.crt');
+
             $hasConfig = !empty($cuit);
             $hasCertificates = !empty($certPath) && !empty($certKey) && !empty($certCrt);
-            
+
             // Verificar si existen los archivos de certificado
             $certificatesExist = false;
             if ($hasCertificates && $certPath) {
@@ -232,7 +233,7 @@ class AfipController extends Controller
                 $crtPath = $certPath . '/' . $certCrt;
                 $certificatesExist = file_exists($keyPath) && file_exists($crtPath);
             }
-            
+
             $isEnabled = $hasConfig && $hasCertificates && $certificatesExist;
 
             return response()->json([
@@ -248,13 +249,13 @@ class AfipController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error al verificar estado de AFIP', [
+            Log::error('Error al verificar estado de ARCA', [
                 'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error al verificar estado de AFIP',
+                'message' => 'Error al verificar estado de ARCA',
                 'data' => [
                     'enabled' => false,
                 ],
@@ -262,3 +263,4 @@ class AfipController extends Controller
         }
     }
 }
+

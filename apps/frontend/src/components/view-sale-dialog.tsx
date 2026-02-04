@@ -19,14 +19,14 @@ import { Separator } from "@/components/ui/separator";
 import { Download, Printer, ShieldCheck, Loader2, Building2 } from "lucide-react";
 import { type Dispatch, type SetStateAction, useState, useEffect } from "react";
 import { type SaleHeader } from "@/types/sale";
-import { useAfipAuthorization } from "@/hooks/useAfipAuthorization";
+import { useArcaAuthorization } from "@/hooks/useArcaAuthorization";
 import useApi from "@/hooks/useApi";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
-import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge";
-import { isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
-import { useAfipContext } from "@/context/AfipContext";
+import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge";
+import { isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
+import { useArcaContext } from "@/context/ArcaContext";
 import { useBranch } from "@/context/BranchContext";
 
 
@@ -38,7 +38,7 @@ interface ViewSaleDialogProps {
     formatDate: (dateString: string | null | undefined) => string;
     getReceiptType: (
         sale: SaleHeader
-    ) => { displayName: string; afipCode: string };
+    ) => { displayName: string; arcaCode: string };
     onDownloadPdf: (sale: SaleHeader) => Promise<void>;
     onPrintPdf?: (sale: SaleHeader) => Promise<void>;
     onSaleUpdated?: (sale: SaleHeader) => void;
@@ -55,8 +55,8 @@ const ViewSaleDialog = ({
     onPrintPdf,
     onSaleUpdated,
 }: ViewSaleDialogProps) => {
-    const { authorizeSale, canAuthorize, isAuthorizing } = useAfipAuthorization();
-    const { hasCertificateForCuit } = useAfipContext();
+    const { authorizeSale, canAuthorize, isAuthorizing } = useArcaAuthorization();
+    const { hasCertificateForCuit } = useArcaContext();
     const { branches } = useBranch();
     const { request } = useApi();
     const [currentSale, setCurrentSale] = useState<SaleHeader | null>(sale);
@@ -92,7 +92,7 @@ const ViewSaleDialog = ({
         }
     };
 
-    const handleAuthorizeAfipClick = async () => {
+    const handleAuthorizeArcaClick = async () => {
         if (!currentSale) return;
 
         // If CUIT selection is needed, auto-select the default or first available
@@ -113,11 +113,11 @@ const ViewSaleDialog = ({
 
             setCurrentSale(updatedSale);
             onSaleUpdated?.(updatedSale);
-            await handleAuthorizeAfip(updatedSale);
+            await handleAuthorizeArca(updatedSale);
             return;
         }
 
-        handleAuthorizeAfip(currentSale);
+        handleAuthorizeArca(currentSale);
     };
 
     const handleConfirmCuitAndAuthorize = async () => {
@@ -132,10 +132,10 @@ const ViewSaleDialog = ({
         setCurrentSale(updatedSale);
         onSaleUpdated?.(updatedSale);
         setShowChooseCuitDialog(false);
-        await handleAuthorizeAfip(updatedSale);
+        await handleAuthorizeArca(updatedSale);
     };
 
-    const handleAuthorizeAfip = async (saleToUse: SaleHeader) => {
+    const handleAuthorizeArca = async (saleToUse: SaleHeader) => {
         if (!saleToUse) return;
 
         const result = await authorizeSale(saleToUse);
@@ -219,9 +219,9 @@ const ViewSaleDialog = ({
     // Usar el nombre directo del tipo de comprobante para mayor precisión.
     const receiptName = (typeof receiptType === 'string' ? receiptType : receiptType?.description) || getReceiptType(saleToDisplay).displayName;
 
-    // Presupuesto y Factura X son solo uso interno: no muestran estado AFIP ni botón "Autorizar con AFIP".
+    // Presupuesto y Factura X son solo uso interno: no muestran estado ARCA ni botón "Autorizar con ARCA".
     const receiptInfo = getReceiptType(saleToDisplay);
-    const isInternalOnly = isInternalOnlyReceiptType(receiptInfo.afipCode);
+    const isInternalOnly = isInternalOnlyReceiptType(receiptInfo.arcaCode ?? (receiptInfo as { afipCode?: string }).afipCode ?? '');
 
     // --- FIN DE LA MODIFICACIÓN ---
 
@@ -243,8 +243,8 @@ const ViewSaleDialog = ({
     // Estado AFIP
     const isAuthorized = !!saleToDisplay.cae;
     const canAuthorizeThis = canAuthorizeCheck(saleToDisplay);
-    // Solo mostrar UI de AFIP si la sucursal tiene certificado configurado
-    const showAfipUI = hasBranchCertificate(saleToDisplay);
+    // Solo mostrar UI de ARCA si la sucursal tiene certificado configurado
+    const showArcaUI = hasBranchCertificate(saleToDisplay);
 
     const getPaymentMethodName = (p: PaymentData) =>
         p?.payment_method?.name ||
@@ -295,7 +295,7 @@ const ViewSaleDialog = ({
                                     {dialogDescription}
                                 </DialogDescription>
                             </div>
-                            {/* Badge de estado AFIP - Solo mostrar si la sucursal tiene certificado */}
+                            {/* Badge de estado ARCA - Solo mostrar si la sucursal tiene certificado */}
                             {isBudget ? (
                                 <div className="flex items-center gap-2">
                                     <Badge variant="outline" className={`${saleToDisplay.status === 'approved' ? 'border-green-500 text-green-700 bg-green-50' :
@@ -310,9 +310,9 @@ const ViewSaleDialog = ({
                                     </Badge>
                                 </div>
                             ) : (
-                                !isBudget && showAfipUI && !isInternalOnly && (
+                                !isBudget && showArcaUI && !isInternalOnly && (
                                     <div className="flex flex-col gap-1">
-                                        <AfipStatusBadge sale={saleToDisplay} />
+                                        <ArcaStatusBadge sale={saleToDisplay} />
                                         {!canAuthorizeThis && !isAuthorized && (() => {
                                             const { reason } = canAuthorize(saleToDisplay);
                                             return reason ? (
@@ -345,7 +345,6 @@ const ViewSaleDialog = ({
                                 <strong>Fecha:</strong> {formatDate(saleToDisplay.date)}
                             </div>
                             <div>
-                                {/* Nombre del comprobante corregido */}
                                 <strong>Comprobante:</strong> {receiptName}
                             </div>
                             <div>
@@ -401,14 +400,11 @@ const ViewSaleDialog = ({
                             </TableHeader>
                             <TableBody>
                                 {saleToDisplay.items?.map((item) => {
-                                    // Usar el precio unitario GUARDADO en la venta, no el precio actual del producto
                                     type SaleItem = { id: number; unit_price?: number | string; product?: { sale_price?: number | string; description?: string }; quantity?: number | string; discount_amount?: number | string; description?: string };
                                     const saleItem = item as SaleItem;
                                     const unitPrice = Number(saleItem.unit_price || saleItem.product?.sale_price || 0);
                                     const quantity = Number(saleItem.quantity || 0);
                                     const discountAmount = Number(saleItem.discount_amount || 0);
-
-                                    // Calcular el total del item con el precio original de la venta
                                     const itemTotal = (unitPrice * quantity) - discountAmount;
 
                                     return (
@@ -452,10 +448,10 @@ const ViewSaleDialog = ({
                     </div>
                     <DialogFooter className="px-6 py-3 shrink-0">
                         <div className="flex items-center gap-2">
-                            {/* Botón de autorización AFIP - No mostrar para Presupuesto ni Factura X (solo uso interno) */}
-                            {!isBudget && showAfipUI && !isInternalOnly && canAuthorizeThis && !isAuthorized && (
+                            {/* Botón de autorización ARCA - No mostrar para Presupuesto ni Factura X (solo uso interno) */}
+                            {!isBudget && showArcaUI && !isInternalOnly && canAuthorizeThis && !isAuthorized && (
                                 <Button
-                                    onClick={handleAuthorizeAfipClick}
+                                    onClick={handleAuthorizeArcaClick}
                                     size="sm"
                                     variant="default"
                                     disabled={isAuthorizing}
@@ -469,7 +465,7 @@ const ViewSaleDialog = ({
                                     ) : (
                                         <>
                                             <ShieldCheck className="mr-2 h-4 w-4" />
-                                            Autorizar con AFIP
+                                            Autorizar con ARCA
                                         </>
                                     )}
                                 </Button>
@@ -501,11 +497,11 @@ const ViewSaleDialog = ({
                 </DialogContent>
             </Dialog>
 
-            {/* Diálogo: elegir CUIT del cliente antes de autorizar con AFIP */}
+            {/* Diálogo: elegir CUIT del cliente antes de autorizar con ARCA */}
             <Dialog open={showChooseCuitDialog} onOpenChange={setShowChooseCuitDialog}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Elegir CUIT para autorizar con AFIP</DialogTitle>
+                        <DialogTitle>Elegir CUIT para autorizar con ARCA</DialogTitle>
                         <DialogDescription>
                             Este cliente tiene varias identidades fiscales (CUIT). Elegí cuál usar para esta factura.
                         </DialogDescription>
@@ -557,7 +553,7 @@ const ViewSaleDialog = ({
                             ) : (
                                 <>
                                     <ShieldCheck className="mr-2 h-4 w-4" />
-                                    Confirmar y autorizar con AFIP
+                                    Confirmar y autorizar con ARCA
                                 </>
                             )}
                         </Button>

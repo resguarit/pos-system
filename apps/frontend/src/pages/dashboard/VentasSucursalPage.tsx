@@ -20,7 +20,7 @@ import { toast } from "sonner"
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart"
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
-import { AfipStatusBadge } from "@/components/sales/AfipStatusBadge"
+import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge"
 import { useAuth } from "@/context/AuthContext"
 import Pagination from "@/components/ui/pagination"
 
@@ -172,30 +172,30 @@ export default function BranchSalesPage() {
   };
   const getItemsCount = (sale: SaleHeader) => sale.items_count || 0
 
-  const getReceiptType = (sale: SaleHeader): { displayName: string; filterKey: string; afipCode: string } => {
+  const getReceiptType = (sale: SaleHeader): { displayName: string; filterKey: string; arcaCode: string } => {
     // Match logic used in VentasPage to avoid runtime errors
     if (sale.receipt_type && typeof sale.receipt_type === 'object') {
       const upperDescription = (sale.receipt_type.description || "").toUpperCase();
-      const afipCode = sale.receipt_type.afip_code || "N/A";
+      const arcaCode = sale.receipt_type.afip_code || "N/A";
       return {
         displayName: upperDescription,
         filterKey: upperDescription,
-        afipCode: afipCode,
+        arcaCode: arcaCode,
       };
     }
     const actualReceiptType = (sale as any).receipt_type as any;
-    const actualAfipCode = (sale as any).receipt_type_code as any;
+    const actualArcaCode = (sale as any).receipt_type_code as any;
 
     if (typeof actualReceiptType === 'string' && actualReceiptType.trim() !== '') {
       const upperDescription = actualReceiptType.toUpperCase();
-      const afipCode = (typeof actualAfipCode === 'string' && actualAfipCode.trim() !== '') ? actualAfipCode : "N/A";
+      const arcaCode = (typeof actualArcaCode === 'string' && actualArcaCode.trim() !== '') ? actualArcaCode : "N/A";
       return {
         displayName: upperDescription,
         filterKey: upperDescription,
-        afipCode: afipCode,
+        arcaCode: arcaCode,
       };
     }
-    return { displayName: "N/A", filterKey: "N/A", afipCode: "N/A" };
+    return { displayName: "N/A", filterKey: "N/A", arcaCode: "N/A" };
   };
 
   // Memoizar ventas filtradas para evitar recálculos innecesarios
@@ -527,7 +527,7 @@ export default function BranchSalesPage() {
                       <Badge className={badgeClassName}>
                         {receiptTypeInfo.displayName}
                       </Badge>
-                      <AfipStatusBadge sale={sale} />
+                      <ArcaStatusBadge sale={sale} />
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">{formatDate(sale.date)}</TableCell>

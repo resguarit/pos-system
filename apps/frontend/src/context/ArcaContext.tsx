@@ -1,44 +1,44 @@
 import { createContext, useContext, ReactNode, useCallback, useEffect } from 'react';
-import { useAfip, AfipCertificate, AfipStatus } from '@/hooks/useAfip';
+import { useArca, ArcaCertificate, ArcaStatus } from '@/hooks/useArca';
 
-interface AfipContextType {
-    afipStatus: AfipStatus | null;
-    validCertificates: AfipCertificate[];
+interface ArcaContextType {
+    arcaStatus: ArcaStatus | null;
+    validCertificates: ArcaCertificate[];
     isLoading: boolean;
     hasCertificateForCuit: (cuit: string | null | undefined) => boolean;
-    refreshAfipStatus: () => Promise<void>;
-    getCertificateForCuit: (cuit: string | null | undefined) => AfipCertificate | undefined;
+    refreshArcaStatus: () => Promise<void>;
+    getCertificateForCuit: (cuit: string | null | undefined) => ArcaCertificate | undefined;
 }
 
-const AfipContext = createContext<AfipContextType | undefined>(undefined);
+const ArcaContext = createContext<ArcaContextType | undefined>(undefined);
 
-export function AfipProvider({ children }: { children: ReactNode }) {
+export function ArcaProvider({ children }: { children: ReactNode }) {
     const {
-        afipStatus,
+        arcaStatus,
         validCertificates,
         loading,
-        checkAfipStatus,
+        checkArcaStatus,
         getValidCertificates
-    } = useAfip();
+    } = useArca();
 
     // Cargar estado inicial al montar
     useEffect(() => {
-        // Estas llamadas ya están controladas dentro de useAfip, 
+        // Estas llamadas ya están controladas dentro de useArca, 
         // pero nos aseguramos de que el contexto tenga datos frescos
         const load = async () => {
-            await Promise.all([checkAfipStatus(), getValidCertificates()]);
+            await Promise.all([checkArcaStatus(), getValidCertificates()]);
         };
         load();
-    }, [checkAfipStatus, getValidCertificates]);
+    }, [checkArcaStatus, getValidCertificates]);
 
-    const refreshAfipStatus = useCallback(async () => {
-        await Promise.all([checkAfipStatus(), getValidCertificates()]);
-    }, [checkAfipStatus, getValidCertificates]);
+    const refreshArcaStatus = useCallback(async () => {
+        await Promise.all([checkArcaStatus(), getValidCertificates()]);
+    }, [checkArcaStatus, getValidCertificates]);
 
-    const getCertificateForCuit = useCallback((cuit: string | null | undefined): AfipCertificate | undefined => {
+    const getCertificateForCuit = useCallback((cuit: string | null | undefined): ArcaCertificate | undefined => {
         if (!cuit) return undefined;
         const cleanCuit = cuit.replace(/[^0-9]/g, '');
-        // validCertificates ya contiene solo certificados válidos (filtrados en useAfip)
+        // validCertificates ya contiene solo certificados válidos (filtrados en useArca)
         // Solo necesitamos buscar por CUIT
         return validCertificates.find(cert => {
             const certCleanCuit = cert.cuit?.replace(/[^0-9]/g, '');
@@ -49,35 +49,36 @@ export function AfipProvider({ children }: { children: ReactNode }) {
     const hasCertificateForCuit = useCallback((cuit: string | null | undefined): boolean => {
         if (!cuit) return false;
         const cleanCuit = cuit.replace(/[^0-9]/g, '');
-        
-        // validCertificates ya contiene SOLO certificados válidos (el hook useAfip los filtra)
+
+        // validCertificates ya contiene SOLO certificados válidos (el hook useArca los filtra)
         // Por lo tanto, si existe un certificado con ese CUIT en el array, es válido
         const found = validCertificates.some(cert => {
             const certCleanCuit = cert.cuit?.replace(/[^0-9]/g, '');
             return certCleanCuit === cleanCuit;
         });
-        
+
         return found;
     }, [validCertificates]);
 
     return (
-        <AfipContext.Provider value={{
-            afipStatus,
+        <ArcaContext.Provider value={{
+            arcaStatus,
             validCertificates,
             isLoading: loading,
             hasCertificateForCuit,
-            refreshAfipStatus,
+            refreshArcaStatus,
             getCertificateForCuit
         }}>
             {children}
-        </AfipContext.Provider>
+        </ArcaContext.Provider>
     );
 }
 
-export function useAfipContext() {
-    const context = useContext(AfipContext);
+export function useArcaContext() {
+    const context = useContext(ArcaContext);
     if (context === undefined) {
-        throw new Error('useAfipContext must be used within an AfipProvider');
+        throw new Error('useArcaContext must be used within an ArcaProvider');
     }
     return context;
 }
+

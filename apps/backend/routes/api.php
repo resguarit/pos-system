@@ -37,8 +37,8 @@ use App\Http\Controllers\ComboController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\ProductCostHistoryController;
 use App\Http\Controllers\AuditController;
-use App\Http\Controllers\AfipController;
-use App\Http\Controllers\AfipCertificateController;
+use App\Http\Controllers\ArcaController;
+use App\Http\Controllers\ArcaCertificateController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseReminderController;
@@ -107,26 +107,25 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::middleware('has_permission:eliminar_sucursales')->delete('/{id}', [BranchController::class, 'destroy']);
     });
 
-    // AFIP Routes - Facturación electrónica
-    // AFIP Routes - Facturación electrónica (Requiere permisos de configuración o ventas)
-    Route::prefix('afip')->middleware('has_permission:ver_configuracion_sistema|crear_ventas')->group(function () {
-        Route::get('/receipt-types', [AfipController::class, 'getReceiptTypes']);
-        Route::get('/points-of-sale', [AfipController::class, 'getPointsOfSale']);
-        Route::get('/status', [AfipController::class, 'checkAfipStatus']);
+    // ARCA Routes - Facturación electrónica (reemplazo de AFIP)
+    Route::prefix('arca')->middleware('has_permission:ver_configuracion_sistema|crear_ventas')->group(function () {
+        Route::get('/receipt-types', [ArcaController::class, 'getReceiptTypes']);
+        Route::get('/points-of-sale', [ArcaController::class, 'getPointsOfSale']);
+        Route::get('/status', [ArcaController::class, 'checkAfipStatus']);
 
         // Certificate management routes (multi-CUIT support)
         Route::prefix('certificates')->middleware('has_permission:ver_configuracion_sistema')->group(function () {
-            Route::get('/', [AfipCertificateController::class, 'index']);
-            Route::get('/valid', [AfipCertificateController::class, 'getValid']);
-            Route::get('/check', [AfipCertificateController::class, 'checkCuit']);
+            Route::get('/', [ArcaCertificateController::class, 'index']);
+            Route::get('/valid', [ArcaCertificateController::class, 'getValid']);
+            Route::get('/check', [ArcaCertificateController::class, 'checkCuit']);
             Route::middleware('has_permission:editar_configuracion_sistema')->group(function () {
-                Route::post('/', [AfipCertificateController::class, 'store']);
-                Route::put('/{afipCertificate}', [AfipCertificateController::class, 'update']);
-                Route::delete('/{afipCertificate}', [AfipCertificateController::class, 'destroy']);
-                Route::post('/{afipCertificate}/certificate', [AfipCertificateController::class, 'uploadCertificate']);
-                Route::post('/{afipCertificate}/private-key', [AfipCertificateController::class, 'uploadPrivateKey']);
+                Route::post('/', [ArcaCertificateController::class, 'store']);
+                Route::put('/{arcaCertificate}', [ArcaCertificateController::class, 'update']);
+                Route::delete('/{arcaCertificate}', [ArcaCertificateController::class, 'destroy']);
+                Route::post('/{arcaCertificate}/certificate', [ArcaCertificateController::class, 'uploadCertificate']);
+                Route::post('/{arcaCertificate}/private-key', [ArcaCertificateController::class, 'uploadPrivateKey']);
             });
-            Route::get('/{afipCertificate}', [AfipCertificateController::class, 'show']);
+            Route::get('/{arcaCertificate}', [ArcaCertificateController::class, 'show']);
         });
     });
 

@@ -2,8 +2,12 @@ import { useState } from 'react';
 import useApi from './useApi';
 import { toast } from 'sonner';
 import type { SaleHeader } from '@/types/sale';
+import { useArcaContext } from "@/context/ArcaContext";
+import { useBranch } from "@/context/BranchContext";
+import { ARCA_CODES } from "@/lib/constants/arcaCodes";
+import { receiptTypeRequiresCustomerWithCuit, isValidCuitForArca, isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
 
-interface AfipAuthorizationResult {
+interface ArcaAuthorizationResult {
   cae: string | null;
   cae_expiration_date: string | null;
   invoice_number: number | null;
@@ -11,35 +15,28 @@ interface AfipAuthorizationResult {
   invoice_type: number | null;
 }
 
-interface UseAfipAuthorizationReturn {
-  authorizeSale: (sale: SaleHeader) => Promise<AfipAuthorizationResult | null>;
+interface UseArcaAuthorizationReturn {
+  authorizeSale: (sale: SaleHeader) => Promise<ArcaAuthorizationResult | null>;
   canAuthorize: (sale: SaleHeader) => { can: boolean; reason?: string };
   isAuthorizing: boolean;
   error: string | null;
 }
 
 /**
- * Hook para autorizar ventas con AFIP
+ * Hook para autorizar ventas con ARCA
  * 
- * @returns Funciones y estado para autorizar ventas con AFIP
+ * @returns Funciones y estado para autorizar ventas con ARCA
  */
-import { useAfipContext } from "@/context/AfipContext";
-import { useBranch } from "@/context/BranchContext";
-import { AFIP_CODES } from "@/lib/constants/afipCodes";
-import { receiptTypeRequiresCustomerWithCuit, isValidCuitForAfip, isInternalOnlyReceiptType } from "@/utils/afipReceiptTypes";
-
-// ... existing imports
-
-export function useAfipAuthorization(): UseAfipAuthorizationReturn {
+export function useArcaAuthorization(): UseArcaAuthorizationReturn {
   const { request } = useApi();
   const [isAuthorizing, setIsAuthorizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { hasCertificateForCuit } = useAfipContext();
+  const { hasCertificateForCuit } = useArcaContext();
   const { branches } = useBranch();
 
   /**
-   * Valida si una venta puede ser autorizada con AFIP
+   * Valida si una venta puede ser autorizada con ARCA
    */
   const canAuthorize = (sale: SaleHeader): { can: boolean; reason?: string } => {
     // Verificar certificado de la sucursal
@@ -60,7 +57,7 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
     }
 
     if (!branchCuit || !hasCertificateForCuit(branchCuit)) {
-      return { can: false, reason: 'La sucursal no posee un certificado AFIP válido configurado.' };
+      return { can: false, reason: 'La sucursal no posee un certificado ARCA válido configurado.' };
     }
 
     const receiptType = sale.receipt_type;
@@ -70,9 +67,9 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
       || (receiptType && typeof receiptType === 'object' && receiptType.name?.toLowerCase().includes('presupuesto'));
 
     if (internalOnly) {
-      const reason = afipCode != null && String(afipCode) === AFIP_CODES.FACTURA_X
-        ? 'La Factura X es solo de uso interno del sistema y no se autoriza con AFIP'
-        : 'Los presupuestos no requieren autorización AFIP';
+      const reason = afipCode != null && String(afipCode) === ARCA_CODES.FACTURA_X
+        ? 'La Factura X es solo de uso interno del sistema y no se autoriza con ARCA'
+        : 'Los presupuestos no requieren autorización ARCA';
       return { can: false, reason };
     }
 
@@ -82,7 +79,7 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
     }
     if (requiresCuit && sale.customer) {
       const cuit = (sale.customer as any).person?.cuit ?? (sale.customer as any).cuit ?? '';
-      if (!isValidCuitForAfip(cuit)) {
+      if (!isValidCuitForArca(cuit)) {
         return { can: false, reason: 'El cliente debe tener un CUIT de 11 dígitos para Factura A' };
       }
     }
@@ -105,53 +102,58 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
   };
 
   /**
-   * Autoriza una venta con AFIP
+   * Autoriza una venta con ARCA
    */
-  const authorizeSale = async (sale: SaleHeader): Promise<AfipAuthorizationResult | null> => {
+  const authorizeSale = async (sale: SaleHeader): Promise<ArcaAuthorizationResult | null> => {
     setIsAuthorizing(true);
     setError(null);
+
+    const toastId = toast.loading('Solicitando autorización a ARCA...');
 
     try {
       // Validar antes de autorizar
       const validation = canAuthorize(sale);
       if (!validation.can) {
         toast.error('No se puede autorizar', {
+          id: toastId,
           description: validation.reason,
         });
         setError(validation.reason || 'No se puede autorizar esta venta');
         return null;
       }
 
-      // Llamar al endpoint
       const response = await request({
         method: 'POST',
         url: `/sales/${sale.id}/authorize-afip`,
       });
 
       if (response.success && response.data) {
-        toast.success('Venta autorizada con AFIP', {
+        toast.success('Venta autorizada con ARCA', {
+          id: toastId,
           description: `CAE: ${response.data.cae || 'N/A'}`,
         });
 
-        return response.data as AfipAuthorizationResult;
+        return response.data as ArcaAuthorizationResult;
       } else {
-        const errorMessage = response.message || 'Error al autorizar con AFIP';
+        const errorMessage = response.message || 'Error al autorizar con ARCA';
         toast.error('Error al autorizar', {
+          id: toastId,
           description: errorMessage,
         });
         setError(errorMessage);
         return null;
       }
     } catch (err: any) {
-      const errorMessage = err?.response?.data?.message || err?.message || 'Error desconocido al autorizar con AFIP';
+      const errorMessage = err?.response?.data?.message || err?.message || 'Error desconocido al autorizar con ARCA';
       const afipCode = err?.response?.data?.afip_code;
 
       let description = errorMessage;
       if (afipCode) {
-        description += ` (Código AFIP: ${afipCode})`;
+        description += ` (Código ARCA: ${afipCode})`;
       }
 
-      toast.error('Error al autorizar con AFIP', {
+      toast.error('Error al autorizar con ARCA', {
+        id: toastId,
         description,
       });
 
@@ -169,6 +171,3 @@ export function useAfipAuthorization(): UseAfipAuthorizationReturn {
     error,
   };
 }
-
-
-

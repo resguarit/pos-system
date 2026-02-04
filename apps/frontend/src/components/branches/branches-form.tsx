@@ -17,7 +17,7 @@ import { Loader2, Save, ArrowLeft, RefreshCw, Check } from "lucide-react"
 // Hooks y Contexto
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
-import { useAfip, type AfipPointOfSale, type AfipReceiptType } from "@/hooks/useAfip"
+import { useArca, type ArcaPointOfSale, type ArcaReceiptType } from "@/hooks/useArca"
 
 // Interfaces
 interface User {
@@ -114,7 +114,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
   const [loadingUsers, setLoadingUsers] = useState(false)
   const { request } = useApi()
   const { dispatch } = useEntityContext()
-  const { getPointsOfSale, getReceiptTypes, checkCuitCertificate, validCertificates } = useAfip()
+  const { getPointsOfSale, getReceiptTypes, checkCuitCertificate, validCertificates } = useArca()
 
   // Estados para validación de duplicados
   const [nameError, setNameError] = useState<string>("")
@@ -123,12 +123,12 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
   // Estado para la pestaña activa
   const [activeTab, setActiveTab] = useState("general")
 
-  // Estados para puntos de venta AFIP
-  const [afipPointsOfSale, setAfipPointsOfSale] = useState<AfipPointOfSale[]>([])
-  const [loadingAfipPoints, setLoadingAfipPoints] = useState(false)
+  // Estados para puntos de venta ARCA
+  const [arcaPointsOfSale, setArcaPointsOfSale] = useState<ArcaPointOfSale[]>([])
+  const [loadingArcaPoints, setLoadingArcaPoints] = useState(false)
 
-  // Estados para tipos de comprobantes AFIP
-  const [afipReceiptTypes, setAfipReceiptTypes] = useState<AfipReceiptType[]>([])
+  // Estados para tipos de comprobantes ARCA
+  const [arcaReceiptTypes, setArcaReceiptTypes] = useState<ArcaReceiptType[]>([])
   const [loadingReceiptTypes, setLoadingReceiptTypes] = useState(false)
 
   const isEditing = !!branch?.id
@@ -221,71 +221,71 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     }
   };
 
-  // Cargar puntos de venta desde AFIP cuando se ingresa un CUIT
+  // Cargar puntos de venta desde ARCA cuando se ingresa un CUIT
   // Solo carga si el CUIT tiene certificado válido registrado (multi-CUIT)
-  const loadAfipPointsOfSale = async (cuit: string, silent = false) => {
+  const loadArcaPointsOfSale = async (cuit: string, silent = false) => {
     const cleanCuit = cuit.replace(/[^0-9]/g, '')
     if (cleanCuit.length !== 11) {
-      setAfipPointsOfSale([])
+      setArcaPointsOfSale([])
       return
     }
 
     // Verificar si el CUIT tiene certificado válido
     const certCheck = await checkCuitCertificate(cleanCuit)
     if (!certCheck.has_certificate || !certCheck.is_valid) {
-      setAfipPointsOfSale([])
+      setArcaPointsOfSale([])
       if (!silent) {
         toast.warning('Este CUIT no tiene certificado configurado', {
-          description: 'Registre el certificado AFIP para este CUIT en Configuración.'
+          description: 'Registre el certificado ARCA para este CUIT en Configuración.'
         })
       }
       return
     }
 
-    setLoadingAfipPoints(true)
+    setLoadingArcaPoints(true)
     try {
       const points = await getPointsOfSale(cleanCuit, { suppressError: silent })
 
       if (points === null) {
         // Error ocurred (handled by hook)
-        setAfipPointsOfSale([])
+        setArcaPointsOfSale([])
         return
       }
 
       if (points && points.length > 0) {
-        setAfipPointsOfSale(points)
+        setArcaPointsOfSale(points)
         if (!silent) {
-          toast.success(`Se encontraron ${points.length} punto(s) de venta habilitado(s) en AFIP`)
+          toast.success(`Se encontraron ${points.length} punto(s) de venta habilitado(s) en ARCA`)
         }
       } else {
-        setAfipPointsOfSale([])
+        setArcaPointsOfSale([])
         if (!silent) {
-          toast.info('No se encontraron puntos de venta habilitados para este CUIT en AFIP')
+          toast.info('No se encontraron puntos de venta habilitados para este CUIT en ARCA')
         }
       }
     } catch (error) {
-      setAfipPointsOfSale([])
+      setArcaPointsOfSale([])
     } finally {
-      setLoadingAfipPoints(false)
+      setLoadingArcaPoints(false)
     }
   }
 
-  // Cargar tipos de comprobantes desde AFIP
+  // Cargar tipos de comprobantes desde ARCA
   // Solo carga si el CUIT tiene certificado válido registrado
-  const loadAfipReceiptTypes = async (cuit: string, silent = false) => {
+  const loadArcaReceiptTypes = async (cuit: string, silent = false) => {
     const cleanCuit = cuit.replace(/[^0-9]/g, '')
     if (cleanCuit.length !== 11) {
-      setAfipReceiptTypes([])
+      setArcaReceiptTypes([])
       return
     }
 
     // Verificar si el CUIT tiene certificado válido
     const certCheck = await checkCuitCertificate(cleanCuit)
     if (!certCheck.has_certificate || !certCheck.is_valid) {
-      setAfipReceiptTypes([])
+      setArcaReceiptTypes([])
       if (!silent) {
         toast.warning('Este CUIT no tiene certificado configurado', {
-          description: 'Solo puede emitir comprobantes AFIP para CUITs con certificado válido registrado en el sistema.'
+          description: 'Solo puede emitir comprobantes ARCA para CUITs con certificado válido registrado en el sistema.'
         })
       }
       return
@@ -296,24 +296,24 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
       const types = await getReceiptTypes(cleanCuit)
 
       if (types === null) {
-        setAfipReceiptTypes([])
+        setArcaReceiptTypes([])
         return
       }
 
       if (types && types.length > 0) {
-        setAfipReceiptTypes(types)
+        setArcaReceiptTypes(types)
 
         if (!silent) {
           toast.success(`Se encontraron ${types.length} tipo(s) de comprobante disponible(s)`)
         }
       } else {
-        setAfipReceiptTypes([])
+        setArcaReceiptTypes([])
         if (!silent) {
           toast.info('No se encontraron tipos de comprobantes para este CUIT')
         }
       }
     } catch (error) {
-      setAfipReceiptTypes([])
+      setArcaReceiptTypes([])
     } finally {
       setLoadingReceiptTypes(false)
     }
@@ -325,12 +325,12 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
       const cleanCuit = formData.cuit.replace(/[^0-9]/g, "")
       if (cleanCuit.length === 11) {
         // Cargar puntos de venta si no hay cargados
-        if (afipPointsOfSale.length === 0) {
-          loadAfipPointsOfSale(cleanCuit, true)
+        if (arcaPointsOfSale.length === 0) {
+          loadArcaPointsOfSale(cleanCuit, true)
         }
         // Cargar tipos de comprobantes si no hay cargados
-        if (afipReceiptTypes.length === 0) {
-          loadAfipReceiptTypes(cleanCuit, true)
+        if (arcaReceiptTypes.length === 0) {
+          loadArcaReceiptTypes(cleanCuit, true)
         }
       }
     }
@@ -352,9 +352,9 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     if (name === 'cuit') {
       const cleanCuit = value.replace(/[^0-9]/g, '')
       if (cleanCuit.length === 11) {
-        setTimeout(() => loadAfipPointsOfSale(cleanCuit), 500)
+        setTimeout(() => loadArcaPointsOfSale(cleanCuit), 500)
       } else {
-        setAfipPointsOfSale([])
+        setArcaPointsOfSale([])
       }
     }
   }
@@ -581,7 +581,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
             <TabsContent value="fiscal" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Facturación Electrónica AFIP</CardTitle>
+                  <CardTitle>Facturación Electrónica ARCA</CardTitle>
                   <CardDescription>
                     Configure el CUIT y razón social para habilitar la facturación electrónica en esta sucursal.
                   </CardDescription>
@@ -603,10 +603,10 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                             razon_social: selectedCert?.razon_social || prev.razon_social
                           }));
 
-                          // Cargar datos AFIP para el CUIT seleccionado
+                          // Cargar datos ARCA para el CUIT seleccionado
                           if (value) {
-                            loadAfipPointsOfSale(value);
-                            loadAfipReceiptTypes(value);
+                            loadArcaPointsOfSale(value);
+                            loadArcaReceiptTypes(value);
                           }
                         }}
                         disabled={isReadOnly || loading}
@@ -619,7 +619,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                         <SelectContent>
                           {validCertificates.length === 0 ? (
                             <div className="p-2 text-sm text-muted-foreground text-center">
-                              No hay certificados AFIP configurados
+                              No hay certificados ARCA configurados
                             </div>
                           ) : (
                             validCertificates.map((cert) => (
@@ -631,7 +631,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Solo se muestran CUITs con certificado AFIP válido registrado.
+                        Solo se muestran CUITs con certificado ARCA válido registrado.
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -647,7 +647,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                         className="bg-muted"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Se obtiene automáticamente del certificado AFIP registrado.
+                        Se obtiene automáticamente del certificado ARCA registrado.
                       </p>
                     </div>
                   </div>
@@ -701,25 +701,25 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                   {formData.cuit && formData.cuit.replace(/[^0-9]/g, '').length === 11 && (
                     <div className="mt-6">
                       <div className="flex items-center justify-between mb-2">
-                        <Label>Puntos de Venta Disponibles en AFIP</Label>
+                        <Label>Puntos de Venta Disponibles en ARCA</Label>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => loadAfipPointsOfSale(formData.cuit || '')}
-                          disabled={loadingAfipPoints || isReadOnly}
+                          onClick={() => loadArcaPointsOfSale(formData.cuit || '')}
+                          disabled={loadingArcaPoints || isReadOnly}
                         >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${loadingAfipPoints ? 'animate-spin' : ''}`} />
+                          <RefreshCw className={`h-4 w-4 mr-2 ${loadingArcaPoints ? 'animate-spin' : ''}`} />
                           Actualizar
                         </Button>
                       </div>
 
-                      {loadingAfipPoints ? (
+                      {loadingArcaPoints ? (
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                          <span className="ml-2 text-sm text-muted-foreground">Consultando AFIP...</span>
+                          <span className="ml-2 text-sm text-muted-foreground">Consultando ARCA...</span>
                         </div>
-                      ) : afipPointsOfSale.length > 0 ? (
+                      ) : arcaPointsOfSale.length > 0 ? (
                         <div className="border rounded-md">
                           <table className="w-full">
                             <thead className="bg-muted">
@@ -731,7 +731,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                               </tr>
                             </thead>
                             <tbody>
-                              {afipPointsOfSale.map((pos) => {
+                              {arcaPointsOfSale.map((pos) => {
                                 const isSelected = String(pos.number) === String(formData.point_of_sale);
                                 return (
                                   <tr
@@ -762,7 +762,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           <p className="text-sm">No se encontraron puntos de venta para este CUIT</p>
-                          <p className="text-xs mt-1">Verifique que el CUIT esté habilitado en AFIP</p>
+                          <p className="text-xs mt-1">Verifique que el CUIT esté habilitado en ARCA</p>
                         </div>
                       )}
 
@@ -783,11 +783,11 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => loadAfipReceiptTypes(formData.cuit || '')}
+                            onClick={() => loadArcaReceiptTypes(formData.cuit || '')}
                             disabled={loadingReceiptTypes}
                           >
                             <RefreshCw className={`h-4 w-4 mr-2 ${loadingReceiptTypes ? 'animate-spin' : ''}`} />
-                            Consultar AFIP
+                            Consultar ARCA
                           </Button>
                         </div>
 
@@ -811,12 +811,12 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                               </div>
                             </div>
 
-                            {/* Tipos AFIP (según condición fiscal) */}
-                            {afipReceiptTypes.length > 0 && (
+                            {/* Tipos ARCA (según condición fiscal) */}
+                            {arcaReceiptTypes.length > 0 && (
                               <div>
-                                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Facturas AFIP habilitadas</p>
+                                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Facturas ARCA habilitadas</p>
                                 <div className="flex flex-wrap gap-2">
-                                  {afipReceiptTypes
+                                  {arcaReceiptTypes
                                     .filter((type) => type.description?.toLowerCase().includes('factura'))
                                     .map((type) => (
                                       <span
@@ -830,16 +830,16 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
                               </div>
                             )}
 
-                            {afipReceiptTypes.length === 0 && (
+                            {arcaReceiptTypes.length === 0 && (
                               <div className="text-center py-4 text-muted-foreground border rounded-lg bg-muted/20">
-                                <p className="text-sm">Haga clic en "Consultar AFIP" para ver los tipos disponibles</p>
+                                <p className="text-sm">Haga clic en "Consultar ARCA" para ver los tipos disponibles</p>
                               </div>
                             )}
                           </div>
                         )}
 
                         <p className="text-xs text-muted-foreground mt-3">
-                          Los tipos internos siempre están disponibles. Las facturas AFIP (A, B o C) dependen de la condición fiscal del CUIT.
+                          Los tipos internos siempre están disponibles. Las facturas ARCA (A, B o C) dependen de la condición fiscal del CUIT.
                         </p>
                       </div>
                     </div>

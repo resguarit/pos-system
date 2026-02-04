@@ -12,7 +12,7 @@ import { RefreshProvider } from "@/context/RefreshContext"
 import { ExchangeRateProvider } from "@/context/ExchangeRateContext"
 import { CashRegisterProvider } from "@/context/CashRegisterContext"
 import { SystemConfigProvider } from "@/context/SystemConfigContext"
-import { AfipProvider } from "@/context/AfipContext"
+import { ArcaProvider } from "@/context/ArcaContext"
 import EnterSubmitProvider from "@/components/enter-submit-provider"
 import { CartProvider } from "@/context/CartContext"
 import { NewPurchaseOrderProvider } from "@/contexts/new-purchase-order-context"
@@ -24,7 +24,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
         <AuthProvider>
           <BranchProvider>
-            <AfipProvider>
+            <ArcaProvider>
               <EntityProvider>
                 <RefreshProvider>
                   <ExchangeRateProvider>
@@ -44,7 +44,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   </ExchangeRateProvider>
                 </RefreshProvider>
               </EntityProvider>
-            </AfipProvider>
+            </ArcaProvider>
           </BranchProvider>
         </AuthProvider>
       </ThemeProvider>

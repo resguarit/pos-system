@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AfipCertificate;
+use App\Models\ArcaCertificate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -10,19 +10,19 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
 /**
- * Controller para gestión de certificados AFIP (multi-CUIT)
+ * Controller para gestión de certificados ARCA (multi-CUIT)
  * 
  * Maneja el CRUD de certificados y la subida de archivos .crt y .key
  * para permitir facturación electrónica con múltiples CUITs.
  */
-class AfipCertificateController extends Controller
+class ArcaCertificateController extends Controller
 {
     /**
      * List all certificates
      */
     public function index(Request $request): JsonResponse
     {
-        $query = AfipCertificate::query();
+        $query = ArcaCertificate::query();
 
         if ($request->has('active')) {
             $query->where('active', $request->boolean('active'));
@@ -45,7 +45,7 @@ class AfipCertificateController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $certificates->map(function ($cert) {
+            'data' => $certificates->map(function (ArcaCertificate $cert) {
                 return [
                     'id' => $cert->id,
                     'cuit' => $cert->cuit,
@@ -75,22 +75,23 @@ class AfipCertificateController extends Controller
      */
     public function getValid(Request $request): JsonResponse
     {
-        $environment = $request->input('environment', config('afip.environment', 'testing'));
+        $environment = $request->input('environment', config('arca.environment', 'testing'));
 
         // Sync status from disk so manually placed .crt/.key are detected
-        $allForEnv = AfipCertificate::forEnvironment($environment)->get();
+        $allForEnv = ArcaCertificate::forEnvironment($environment)->get();
         foreach ($allForEnv as $cert) {
+            /** @var ArcaCertificate $cert */
             $cert->syncCertificateStatus();
         }
 
-        $certificates = AfipCertificate::valid()
+        $certificates = ArcaCertificate::valid()
             ->forEnvironment($environment)
             ->orderBy('razon_social')
             ->get();
 
         return response()->json([
             'success' => true,
-            'data' => $certificates->map(function ($cert) {
+            'data' => $certificates->map(function (ArcaCertificate $cert) {
                 return [
                     'cuit' => $cert->cuit,
                     'formatted_cuit' => $cert->formatted_cuit,
@@ -132,7 +133,7 @@ class AfipCertificateController extends Controller
         $data = $validator->validated();
         $data['cuit'] = preg_replace('/[^0-9]/', '', $data['cuit']);
 
-        $certificate = AfipCertificate::create($data);
+        $certificate = ArcaCertificate::create($data);
         $certificate->ensureDirectoryExists();
         // Sync with existing files on disk (e.g. when .crt/.key were placed manually)
         $certificate->syncCertificateStatus();
@@ -147,31 +148,31 @@ class AfipCertificateController extends Controller
     /**
      * Show a specific certificate
      */
-    public function show(AfipCertificate $afipCertificate): JsonResponse
+    public function show(ArcaCertificate $arcaCertificate): JsonResponse
     {
-        $afipCertificate->syncCertificateStatus();
+        $arcaCertificate->syncCertificateStatus();
 
         return response()->json([
             'success' => true,
             'data' => [
-                'id' => $afipCertificate->id,
-                'cuit' => $afipCertificate->cuit,
-                'formatted_cuit' => $afipCertificate->formatted_cuit,
-                'razon_social' => $afipCertificate->razon_social,
-                'alias' => $afipCertificate->alias,
-                'display_name' => $afipCertificate->display_name,
-                'environment' => $afipCertificate->environment,
-                'valid_from' => $afipCertificate->valid_from?->format('Y-m-d'),
-                'valid_to' => $afipCertificate->valid_to?->format('Y-m-d'),
-                'active' => $afipCertificate->active,
-                'has_certificate' => $afipCertificate->has_certificate,
-                'has_private_key' => $afipCertificate->has_private_key,
-                'is_valid' => $afipCertificate->isValid(),
-                'is_expiring_soon' => $afipCertificate->isExpiringSoon(),
-                'certificate_path' => $afipCertificate->certificate_path,
-                'notes' => $afipCertificate->notes,
-                'iibb' => $afipCertificate->iibb,
-                'fecha_inicio_actividades' => $afipCertificate->fecha_inicio_actividades?->format('Y-m-d'),
+                'id' => $arcaCertificate->id,
+                'cuit' => $arcaCertificate->cuit,
+                'formatted_cuit' => $arcaCertificate->formatted_cuit,
+                'razon_social' => $arcaCertificate->razon_social,
+                'alias' => $arcaCertificate->alias,
+                'display_name' => $arcaCertificate->display_name,
+                'environment' => $arcaCertificate->environment,
+                'valid_from' => $arcaCertificate->valid_from?->format('Y-m-d'),
+                'valid_to' => $arcaCertificate->valid_to?->format('Y-m-d'),
+                'active' => $arcaCertificate->active,
+                'has_certificate' => $arcaCertificate->has_certificate,
+                'has_private_key' => $arcaCertificate->has_private_key,
+                'is_valid' => $arcaCertificate->isValid(),
+                'is_expiring_soon' => $arcaCertificate->isExpiringSoon(),
+                'certificate_path' => $arcaCertificate->certificate_path,
+                'notes' => $arcaCertificate->notes,
+                'iibb' => $arcaCertificate->iibb,
+                'fecha_inicio_actividades' => $arcaCertificate->fecha_inicio_actividades?->format('Y-m-d'),
             ],
         ]);
     }
@@ -179,7 +180,7 @@ class AfipCertificateController extends Controller
     /**
      * Update a certificate entry
      */
-    public function update(Request $request, AfipCertificate $afipCertificate): JsonResponse
+    public function update(Request $request, ArcaCertificate $arcaCertificate): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'razon_social' => 'sometimes|string|max:255',
@@ -199,19 +200,19 @@ class AfipCertificateController extends Controller
             ], 422);
         }
 
-        $afipCertificate->update($validator->validated());
+        $arcaCertificate->update($validator->validated());
 
         return response()->json([
             'success' => true,
             'message' => 'Certificado actualizado exitosamente',
-            'data' => $afipCertificate,
+            'data' => $arcaCertificate,
         ]);
     }
 
     /**
      * Upload certificate file
      */
-    public function uploadCertificate(Request $request, AfipCertificate $afipCertificate): JsonResponse
+    public function uploadCertificate(Request $request, ArcaCertificate $arcaCertificate): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'certificate' => 'required|file|max:10240', // 10MB max
@@ -237,21 +238,21 @@ class AfipCertificateController extends Controller
                 ], 422);
             }
 
-            $afipCertificate->storeCertificate($content);
+            $arcaCertificate->storeCertificate($content);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Certificado subido exitosamente',
                 'data' => [
-                    'valid_from' => $afipCertificate->valid_from?->format('Y-m-d'),
-                    'valid_to' => $afipCertificate->valid_to?->format('Y-m-d'),
+                    'valid_from' => $arcaCertificate->valid_from?->format('Y-m-d'),
+                    'valid_to' => $arcaCertificate->valid_to?->format('Y-m-d'),
                     'has_certificate' => true,
                 ],
             ]);
 
         } catch (\Exception $e) {
             Log::error('Error uploading certificate', [
-                'cuit' => $afipCertificate->cuit,
+                'cuit' => $arcaCertificate->cuit,
                 'error' => $e->getMessage(),
             ]);
 
@@ -265,7 +266,7 @@ class AfipCertificateController extends Controller
     /**
      * Upload private key file
      */
-    public function uploadPrivateKey(Request $request, AfipCertificate $afipCertificate): JsonResponse
+    public function uploadPrivateKey(Request $request, ArcaCertificate $arcaCertificate): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'private_key' => 'required|file|max:10240', // 10MB max
@@ -291,7 +292,7 @@ class AfipCertificateController extends Controller
                 ], 422);
             }
 
-            $afipCertificate->storePrivateKey($content);
+            $arcaCertificate->storePrivateKey($content);
 
             return response()->json([
                 'success' => true,
@@ -303,7 +304,7 @@ class AfipCertificateController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error uploading private key', [
-                'cuit' => $afipCertificate->cuit,
+                'cuit' => $arcaCertificate->cuit,
                 'error' => $e->getMessage(),
             ]);
 
@@ -317,10 +318,10 @@ class AfipCertificateController extends Controller
     /**
      * Delete a certificate
      */
-    public function destroy(AfipCertificate $afipCertificate): JsonResponse
+    public function destroy(ArcaCertificate $arcaCertificate): JsonResponse
     {
         // Soft delete - keep the record but mark as deleted
-        $afipCertificate->delete();
+        $arcaCertificate->delete();
 
         return response()->json([
             'success' => true,
@@ -343,7 +344,7 @@ class AfipCertificateController extends Controller
             ], 422);
         }
 
-        $certificate = AfipCertificate::findByCuit($cuit);
+        $certificate = ArcaCertificate::findByCuit($cuit);
 
         if (!$certificate) {
             return response()->json([
@@ -370,3 +371,4 @@ class AfipCertificateController extends Controller
         ]);
     }
 }
+

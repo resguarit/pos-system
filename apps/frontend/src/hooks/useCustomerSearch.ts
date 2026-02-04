@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import useApi from '@/hooks/useApi'
-import { toast } from 'sonner'
 
-/** Identidad fiscal (CUIT) del cliente para elegir en POS o al autorizar AFIP */
+
+/** Identidad fiscal (CUIT) del cliente para elegir en POS o al autorizar ARCA */
 export interface TaxIdentityOption {
   id: number
   cuit: string

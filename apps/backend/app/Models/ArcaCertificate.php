@@ -11,9 +11,33 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\LogsActivityWithContext;
 
-class AfipCertificate extends Model
+/**
+ * @property int $id
+ * @property string $cuit
+ * @property string $razon_social
+ * @property string $environment
+ * @property string|null $alias
+ * @property \Illuminate\Support\Carbon|null $valid_from
+ * @property \Illuminate\Support\Carbon|null $valid_to
+ * @property bool $active
+ * @property bool $has_certificate
+ * @property bool $has_private_key
+ * @property string|null $notes
+ * @property string|null $iibb
+ * @property \Illuminate\Support\Carbon|null $fecha_inicio_actividades
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read string $display_name
+ * @property-read string $formatted_cuit
+ * @property-read string $certificate_directory
+ * @property-read string $certificate_path
+ * @property-read string $private_key_path
+ */
+class ArcaCertificate extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity, LogsActivityWithContext;
+
+    protected $table = 'afip_certificates';
 
     protected $fillable = [
         'cuit',
@@ -34,7 +58,7 @@ class AfipCertificate extends Model
     {
         return LogOptions::defaults()
             ->logAll()
-            ->useLogName('afip_certificate')
+            ->useLogName('arca_certificate')
             ->logOnlyDirty();
     }
 
@@ -52,7 +76,7 @@ class AfipCertificate extends Model
      */
     public static function getBasePath(): string
     {
-        $path = config('afip.certificates_base_path', storage_path('certificates'));
+        $path = config('arca.certificates_base_path', storage_path('certificates'));
         // Resolve relative paths (e.g. "storage/certificates" in .env) from Laravel base
         if ($path !== '' && !str_starts_with($path, DIRECTORY_SEPARATOR) && !preg_match('#^[A-Za-z]:[/\\\\]#', $path)) {
             $path = base_path($path);
