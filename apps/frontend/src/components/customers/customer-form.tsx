@@ -343,7 +343,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         cuit: defaultTaxIdentity?.cuit || formData.cuit,
         fiscal_condition_id: defaultTaxIdentity?.fiscal_condition_id
           ? parseInt(defaultTaxIdentity.fiscal_condition_id, 10)
-          : (formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1),
+          : (formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 5),
         person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,
         credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
         // Siempre DNI (document_type_id = 1) cuando hay documento
@@ -770,7 +770,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                                         </SelectTrigger>
                                         <SelectContent>
                                           {fiscalConditions
-                                            .filter(fc => fc.name.toLowerCase() !== 'consumidor final')
+                                            .filter(fc => !fc.name.toLowerCase().includes('consumidor final'))
                                             .map((fc) => (
                                               <SelectItem key={fc.id} value={String(fc.id)}>
                                                 {fc.name}

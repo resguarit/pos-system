@@ -308,29 +308,91 @@ class SaleService implements SaleServiceInterface
                 }
             }
 
-            // 6.1) Identidad fiscal del cliente: si se envió customer_tax_identity_id, usarla para CUIT y condición fiscal
+            // 6.1) Resolver Identidad Fiscal y Tipo de Documento
+
+            // Lógica por defecto: tomar del cliente si existe
+            $customer = !empty($data['customer_id']) ? Customer::with('person', 'taxIdentities.fiscalCondition')->find($data['customer_id']) : null;
+
+            // Identidad fiscal elegida explícitamente (prioridad alta, salvo que sea Consumidor Final que requiere lógica especial)
+            $chosenIdentity = null;
             if (!empty($data['customer_tax_identity_id'])) {
                 $chosenIdentity = \App\Models\CustomerTaxIdentity::with('fiscalCondition')
                     ->where('id', $data['customer_tax_identity_id'])
                     ->where('customer_id', $data['customer_id'] ?? null)
                     ->first();
+            }
+
+            // Identidad por defecto si no se eligió una
+            if (!$chosenIdentity && $customer) {
+                $chosenIdentity = $customer->taxIdentities->where('is_default', true)->first()
+                    ?? $customer->taxIdentities->first();
+            }
+
+            // -- Lógica principal de resolución --
+
+            // 1. Determinar Condición Fiscal base
+            $fiscalConditionId = null;
+            $fiscalConditionName = '';
+
+            if ($chosenIdentity) {
+                $fiscalConditionId = $chosenIdentity->fiscal_condition_id;
+                $fiscalConditionName = $chosenIdentity->fiscalCondition->name ?? '';
+            } elseif ($customer && $customer->person) {
+                // Fallback a la condición fiscal de la persona si no hay tax identities
+                $fiscalConditionId = $customer->person->fiscal_condition_id;
+                // Necesitaríamos cargar la relación, pero por eficiencia asumimos ID
+                $fc = \App\Models\FiscalCondition::find($fiscalConditionId);
+                $fiscalConditionName = $fc ? $fc->name : '';
+            }
+
+            // Detectar si es Consumidor Final
+            $isConsumidorFinal = false;
+            if ($fiscalConditionName) {
+                $isConsumidorFinal = stripos($fiscalConditionName, 'consumidor final') !== false;
+            } else if ($fiscalConditionId) {
+                // Si solo tenemos ID, chequear (siendo 5 el cód habitual, pero mejor buscar por nombre o AFIP code si es posible)
+                // Como optimización, si el ID corresponde a la constante de AFIP Code 5... 
+                // pero los IDs de tabla pueden variar. Mejor confiar en los datos cargados.
+                $fc = \App\Models\FiscalCondition::find($fiscalConditionId);
+                if ($fc && (stripos($fc->name, 'consumidor final') !== false || $fc->afip_code == AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL)) {
+                    $isConsumidorFinal = true;
+                    $fiscalConditionId = $fc->id; // asegurar ID correcto
+                }
+            }
+
+            // 2. Aplicar reglas de Consumidor Final vs Otros
+            if ($isConsumidorFinal) {
+                $data['sale_fiscal_condition_id'] = $fiscalConditionId;
+
+                // Regla: Con DNI -> 96, Sin DNI -> 99
+                $dni = null;
+                if ($customer && $customer->person && !empty($customer->person->documento)) {
+                    $dni = preg_replace('/[^0-9]/', '', $customer->person->documento);
+                }
+
+                if (!empty($dni)) {
+                    // Caso con DNI
+                    $data['sale_document_type_id'] = AfipConstants::DOC_TIPO_DNI; // 96
+                    $data['sale_document_number'] = $dni;
+                } else {
+                    // Caso sin DNI
+                    $data['sale_document_type_id'] = AfipConstants::DOC_TIPO_SIN_IDENTIFICAR; // 99
+                    $data['sale_document_number'] = '0';
+                }
+
+            } else {
+                // Caso NO Consumidor Final (Responsable Inscripto, Monotributo, Exento, etc.)
+                // Se respeta la identidad fiscal (CUIT)
                 if ($chosenIdentity) {
                     $data['sale_fiscal_condition_id'] = (int) $chosenIdentity->fiscal_condition_id;
                     $data['sale_document_number'] = $chosenIdentity->cuit
                         ? preg_replace('/[^0-9]/', '', (string) $chosenIdentity->cuit)
                         : ($data['sale_document_number'] ?? null);
-                }
-            }
-            // Si hay cliente pero no identidad elegida ni condición fiscal, derivar de la identidad por defecto
-            if (!empty($data['customer_id']) && empty($data['sale_fiscal_condition_id'])) {
-                $customer = Customer::with('taxIdentities')->find($data['customer_id']);
-                $defaultIdentity = $customer?->taxIdentities->where('is_default', true)->first()
-                    ?? $customer?->taxIdentities->first();
-                if ($defaultIdentity && !empty($defaultIdentity->fiscal_condition_id)) {
-                    $data['sale_fiscal_condition_id'] = (int) $defaultIdentity->fiscal_condition_id;
-                    if (empty($data['sale_document_number']) && !empty($defaultIdentity->cuit)) {
-                        $data['sale_document_number'] = preg_replace('/[^0-9]/', '', (string) $defaultIdentity->cuit);
-                    }
+                    // Asumimos CUIT (80) para identidades fiscales formales
+                    $data['sale_document_type_id'] = AfipConstants::DOC_TIPO_CUIT;
+                } else {
+                    // Fallback si no hay identidad (raro para no-CF)
+                    // Mantener valores originales o defaults
                 }
             }
 
