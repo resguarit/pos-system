@@ -104,9 +104,9 @@ class CustomerService implements CustomerServiceInterface
                 'postal_code' => array_key_exists('postal_code', $data) ? $data['postal_code'] : $customer->person->postal_code,
                 'phone' => array_key_exists('phone', $data) ? $data['phone'] : $customer->person->phone,
                 'fiscal_condition_id' => $fiscalConditionId,
-                'person_type_id' => isset($data['person_type_id']) && $data['person_type_id'] ? (int) $data['person_type_id'] : $customer->person->person_type_id,
-                'document_type_id' => isset($data['document_type_id']) && $data['document_type_id'] ? (int) $data['document_type_id'] : $customer->person->document_type_id,
-                'documento' => isset($data['documento']) && $data['documento'] ? (int) $data['documento'] : $customer->person->documento,
+                'person_type_id' => array_key_exists('person_type_id', $data) ? ($data['person_type_id'] ? (int) $data['person_type_id'] : null) : $customer->person->person_type_id,
+                'document_type_id' => array_key_exists('document_type_id', $data) ? ($data['document_type_id'] ? (int) $data['document_type_id'] : null) : $customer->person->document_type_id,
+                'documento' => array_key_exists('documento', $data) ? ($data['documento'] ? (int) $data['documento'] : null) : $customer->person->documento,
                 'credit_limit' => array_key_exists('credit_limit', $data) ? $data['credit_limit'] : $customer->person->credit_limit,
             ];
 
@@ -201,7 +201,7 @@ class CustomerService implements CustomerServiceInterface
                     ->whereIn('id', $existingIds)
                     ->where('is_default', true)
                     ->first();
-                
+
                 if ($defaultIdentity) {
                     $customer->taxIdentities()
                         ->where('id', '!=', $defaultIdentity->id)
@@ -213,11 +213,11 @@ class CustomerService implements CustomerServiceInterface
             $customer->taxIdentities()
                 ->whereNotIn('id', $existingIds)
                 ->delete();
-        } 
+        }
         // Backward compatibility: if no tax_identities but cuit is provided, create/update default
         elseif (!empty($data['cuit'])) {
             $defaultIdentity = $customer->taxIdentities()->where('is_default', true)->first();
-            
+
             $identityData = [
                 'cuit' => $data['cuit'],
                 'business_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '')),
