@@ -389,8 +389,8 @@ class SaleService implements SaleServiceInterface
                         ? preg_replace('/[^0-9]/', '', (string) $chosenIdentity->cuit)
                         : ($data['sale_document_number'] ?? null);
 
-                     // Asumimos CUIT (80) para identidades fiscales formales
-                     $data['sale_document_type_id'] = $this->getOrCreateDocumentType('CUIT', 'CUIT');
+                    // Asumimos CUIT (80) para identidades fiscales formales
+                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType('CUIT', 'CUIT');
                 } else {
                     // Fallback si no hay identidad (raro para no-CF)
                     // Mantener valores originales o defaults
@@ -3399,7 +3399,9 @@ class SaleService implements SaleServiceInterface
                 'amount' => $payment->amount,
             ]);
         }
-        /**
+    }
+
+    /**
      * Helper to get or create a DocumentType by its string code.
      * Ensures FK integrity.
      */
