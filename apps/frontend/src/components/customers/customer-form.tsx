@@ -87,7 +87,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     state: "",
     postal_code: "",
     cuit: "",
-    fiscal_condition_id: "1",
+    fiscal_condition_id: "",
     person_type_id: "1",
     credit_limit: "",
     active: true,
@@ -126,6 +126,16 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, customerData, dispatch])
+
+  // Set default fiscal condition (Consumidor Final) for new customers
+  useEffect(() => {
+    if (!customerId && !customerData && fiscalConditions.length > 0 && !formData.fiscal_condition_id) {
+      const consumidorFinal = fiscalConditions.find(fc => fc.name.toLowerCase().includes('consumidor final'));
+      if (consumidorFinal) {
+        setFormData(prev => ({ ...prev, fiscal_condition_id: String(consumidorFinal.id) }));
+      }
+    }
+  }, [fiscalConditions, customerId, customerData, formData.fiscal_condition_id]);
 
   const loadCustomerData = async (id: string, signal?: AbortSignal) => {
     setIsLoading(true)
@@ -343,7 +353,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         cuit: defaultTaxIdentity?.cuit || formData.cuit,
         fiscal_condition_id: defaultTaxIdentity?.fiscal_condition_id
           ? parseInt(defaultTaxIdentity.fiscal_condition_id, 10)
-          : (formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 5),
+          : (formData.fiscal_condition_id
+            ? parseInt(formData.fiscal_condition_id, 10)
+            : (fiscalConditions.find(fc => fc.name.toLowerCase().includes('consumidor final'))?.id || 5)),
         person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,
         credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
         // Siempre DNI (document_type_id = 1) cuando hay documento
