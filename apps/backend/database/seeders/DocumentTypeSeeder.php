@@ -14,6 +14,7 @@ class DocumentTypeSeeder extends Seeder
             ['name' => 'CUIT', 'code' => 'CUIT'],
             ['name' => 'CUIL', 'code' => 'CUIL'],
             ['name' => 'Pasaporte', 'code' => 'PAS'],
+            ['name' => 'Sin Identificar', 'code' => '99'],
         ];
         foreach ($data as $item) {
             DocumentType::create($item);
