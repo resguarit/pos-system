@@ -12,7 +12,7 @@ return [
     |
     */
 
-    'environment' => env('ARCA_ENVIRONMENT', 'testing'),
+    'environment' => env('ARCA_ENVIRONMENT', env('AFIP_ENVIRONMENT', 'testing')),
 
     /*
     |--------------------------------------------------------------------------
@@ -23,7 +23,7 @@ return [
     |
     */
 
-    'cuit' => env('ARCA_CUIT'),
+    'cuit' => env('ARCA_CUIT', env('AFIP_CUIT')),
 
     /*
     |--------------------------------------------------------------------------
@@ -159,10 +159,16 @@ return [
 
     'certificates_base_path' => (function () {
         // Soportar tanto ARCA_* como AFIP_* para compatibilidad
-        $path = env('ARCA_CERTIFICATES_BASE_PATH', 
-                env('AFIP_CERTIFICATES_BASE_PATH',
-                env('AFIP_CERTIFICATES_PATH', // Fallback a la vieja configuración
-                storage_path('certificates'))));
+        $path = env(
+            'ARCA_CERTIFICATES_BASE_PATH',
+            env(
+                'AFIP_CERTIFICATES_BASE_PATH',
+                env(
+                    'AFIP_CERTIFICATES_PATH', // Fallback a la vieja configuración
+                    storage_path('certificates')
+                )
+            )
+        );
         if ($path === '' || $path === null) {
             return storage_path('certificates');
         }
