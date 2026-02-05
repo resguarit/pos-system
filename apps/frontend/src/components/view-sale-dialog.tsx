@@ -26,8 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
 import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge";
 import { isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
-import { useArcaContext } from "@/context/ArcaContext";
-import { useBranch } from "@/context/BranchContext";
+
 
 
 interface ViewSaleDialogProps {
@@ -56,8 +55,7 @@ const ViewSaleDialog = ({
     onSaleUpdated,
 }: ViewSaleDialogProps) => {
     const { authorizeSale, canAuthorize, isAuthorizing } = useArcaAuthorization();
-    const { hasCertificateForCuit } = useArcaContext();
-    const { branches } = useBranch();
+
     const { request } = useApi();
     const [currentSale, setCurrentSale] = useState<SaleHeader | null>(sale);
     const [showChooseCuitDialog, setShowChooseCuitDialog] = useState(false);
@@ -158,35 +156,7 @@ const ViewSaleDialog = ({
         return result.can;
     };
 
-    // Verificar si la sucursal de la venta tiene certificado AFIP
-    const hasBranchCertificate = (sale: SaleHeader | null): boolean => {
-        if (!sale) return false;
 
-        let branchCuit: string | undefined;
-
-        // Intentar obtener el CUIT del objeto branch de la venta
-        if (typeof sale.branch === 'object' && sale.branch !== null) {
-            if ('cuit' in sale.branch && sale.branch.cuit) {
-                branchCuit = sale.branch.cuit;
-            } else if ('id' in sale.branch && (sale.branch as any).id) {
-                // Si solo tenemos ID, buscar en las sucursales cargadas
-                const branch = branches.find(b => b.id === (sale.branch as any).id);
-                branchCuit = branch?.cuit;
-            }
-        } else if (typeof sale.branch === 'string') {
-            // Si es un string (nombre de la sucursal), buscar por descripción
-            const branch = branches.find(b => b.description === sale.branch);
-            branchCuit = branch?.cuit;
-        }
-
-        // Fallback: usar branch_id de la venta para buscar en el contexto
-        if (!branchCuit && (sale as any).branch_id) {
-            const branch = branches.find(b => b.id === (sale as any).branch_id);
-            branchCuit = branch?.cuit;
-        }
-
-        return !!branchCuit && hasCertificateForCuit(branchCuit);
-    };
 
     const saleToDisplay = currentSale || sale;
     const formatCurrencyARS = (amount: number | null | undefined) => {
@@ -251,8 +221,10 @@ const ViewSaleDialog = ({
     const canAuthorizeThis = canAuthorizeCheck(saleToDisplay);
     // Mostrar UI de ARCA si:
     // 1. La venta ya está autorizada (tiene CAE), O
-    // 2. La sucursal tiene certificado configurado
-    const showArcaUI = isAuthorized || hasBranchCertificate(saleToDisplay);
+    // 2. El tipo de comprobante soporta ARCA (no es interno ni presupuesto)
+    // Nota: Eliminamos la dependencia de hasBranchCertificate para la visibilidad,
+    // para que canAuthorize pueda mostrar el error si falta el certificado.
+    const showArcaUI = isAuthorized || (!isBudget && !isInternalOnly);
 
     const getPaymentMethodName = (p: PaymentData) =>
         p?.payment_method?.name ||

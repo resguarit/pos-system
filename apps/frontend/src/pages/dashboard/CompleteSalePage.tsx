@@ -32,6 +32,8 @@ import {
   getAllowedArcaCodesForPos,
   receiptTypeRequiresCustomerWithCuit,
   isValidCuitForArca,
+  resolveFiscalConditionCode,
+  validateEmisionRulesForRI,
 } from '@/utils/arcaReceiptTypes'
 
 const CART_STORAGE_KEY = 'pos_cart'
@@ -301,8 +303,9 @@ export default function CompleteSalePage() {
 
       // Seleccionar tipo de comprobante por defecto
       if (availableTypes.length > 0) {
-        // Prioridad: Factura B (006) > Factura X (017) > primero disponible
-        const defaultReceipt = availableTypes.find((t: ReceiptType) => t.afip_code === '006') || // Factura B
+        // Prioridad: Factura A (001) > Factura B (006) > Factura X (017) > primero disponible
+        const defaultReceipt = availableTypes.find((t: ReceiptType) => t.afip_code === '001') || // Factura A
+          availableTypes.find((t: ReceiptType) => t.afip_code === '006') || // Factura B
           availableTypes.find((t: ReceiptType) => t.afip_code === '017') || // Factura X
           availableTypes[0]
 
@@ -389,7 +392,7 @@ export default function CompleteSalePage() {
       })
       return
     }
-    
+
     // Para Factura A, verificar CUIT en identidad fiscal seleccionada o en el cliente
     if (requiresCuit && selectedCustomer) {
       const chosenIdentity = selectedTaxIdentityId && selectedCustomer?.tax_identities
@@ -400,6 +403,30 @@ export default function CompleteSalePage() {
         toast.error('Cliente sin CUIT válido', {
           description: 'El cliente debe tener un CUIT de 11 dígitos para Factura A.',
           duration: 5000,
+        })
+        return
+      }
+    }
+
+    // Validar reglas de emisión AFIP (RI → Monotributista/RI = Factura A; RI → CF/Exento = Factura B)
+    if (selectedReceiptType?.afip_code && selectedCustomer) {
+      const chosenIdentity = selectedTaxIdentityId && selectedCustomer?.tax_identities
+        ? selectedCustomer.tax_identities.find((t) => t.id === selectedTaxIdentityId)
+        : null
+
+      // Obtener la condición fiscal del receptor (priorizar identidad fiscal seleccionada)
+      // TaxIdentityOption tiene fiscal_condition con {id, name}, CustomerOption tiene fiscal_condition_name
+      const receiverFiscalCondition = chosenIdentity?.fiscal_condition
+        ?? { name: selectedCustomer?.fiscal_condition_name }
+        ?? null
+      const receiverConditionCode = resolveFiscalConditionCode(receiverFiscalCondition)
+
+      const emisionValidation = validateEmisionRulesForRI(selectedReceiptType.afip_code, receiverConditionCode)
+
+      if (!emisionValidation.isValid && emisionValidation.message) {
+        toast.error('Tipo de comprobante incorrecto', {
+          description: emisionValidation.message,
+          duration: 6000,
         })
         return
       }
@@ -943,29 +970,36 @@ export default function CompleteSalePage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-4 pt-4 border-t">
-                <Button variant="outline" onClick={() => navigate("/dashboard/pos")}>
-                  Cancelar
-                </Button>
-                <CashRegisterProtectedButton
-                  branchId={Number(activeBranch?.id) || 1}
-                  operationName="realizar ventas"
-                >
-                  <Button
-                    className="cursor-pointer"
-                    onClick={handleConfirmSale}
-                    disabled={!canConfirm || isProcessingSale}
-                  >
-                    {isProcessingSale ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Procesando...
-                      </>
-                    ) : (
-                      'Confirmar y Pagar'
-                    )}
+              <div className="flex flex-col items-end gap-3 pt-4 border-t">
+                {!canConfirm && confirmDisabledReason && (
+                  <p className="text-sm font-medium text-red-600 animate-in fade-in slide-in-from-bottom-1">
+                    {confirmDisabledReason}
+                  </p>
+                )}
+                <div className="flex justify-end gap-4 w-full">
+                  <Button variant="outline" onClick={() => navigate("/dashboard/pos")}>
+                    Cancelar
                   </Button>
-                </CashRegisterProtectedButton>
+                  <CashRegisterProtectedButton
+                    branchId={Number(activeBranch?.id) || 1}
+                    operationName="realizar ventas"
+                  >
+                    <Button
+                      className="cursor-pointer"
+                      onClick={handleConfirmSale}
+                      disabled={!canConfirm || isProcessingSale}
+                    >
+                      {isProcessingSale ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Procesando...
+                        </>
+                      ) : (
+                        'Confirmar y Pagar'
+                      )}
+                    </Button>
+                  </CashRegisterProtectedButton>
+                </div>
               </div>
             </CardContent>
           </Card>

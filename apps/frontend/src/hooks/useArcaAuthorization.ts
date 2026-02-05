@@ -5,7 +5,7 @@ import type { SaleHeader } from '@/types/sale';
 import { useArcaContext } from "@/context/ArcaContext";
 import { useBranch } from "@/context/BranchContext";
 import { ARCA_CODES } from "@/lib/constants/arcaCodes";
-import { receiptTypeRequiresCustomerWithCuit, isValidCuitForArca, isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
+import { receiptTypeRequiresCustomerWithCuit, isValidCuitForArca, isInternalOnlyReceiptType, validateEmisionRulesForRI } from "@/utils/arcaReceiptTypes";
 
 interface ArcaAuthorizationResult {
   cae: string | null;
@@ -77,6 +77,18 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
         ? 'La Factura X es solo de uso interno del sistema y no se autoriza con ARCA'
         : 'Los presupuestos no requieren autorización ARCA';
       return { can: false, reason };
+    }
+
+    // Validar reglas de emisión (RI -> Monotributista = Factura A, etc)
+    const receiverCondition = (sale.sale_fiscal_condition as any)?.afip_code ??
+      (sale.customer?.tax_identities?.[0]?.fiscal_condition as any)?.afip_code ??
+      ((sale.customer as any)?.fiscal_condition as any)?.afip_code;
+
+    if (afipCode && receiverCondition) {
+      const emisionValidation = validateEmisionRulesForRI(String(afipCode), Number(receiverCondition));
+      if (!emisionValidation.isValid && emisionValidation.message) {
+        return { can: false, reason: emisionValidation.message };
+      }
     }
 
     const requiresCuit = receiptTypeRequiresCustomerWithCuit(afipCode ?? undefined);

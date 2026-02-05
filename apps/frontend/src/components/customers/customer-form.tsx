@@ -327,7 +327,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
     try {
       // Get default tax identity's CUIT and fiscal_condition for backward compatibility
       const defaultTaxIdentity = taxIdentities.find(ti => ti.is_default) || taxIdentities[0]
-      
+
       const customerData = {
         email: formData.email,
         active: formData.active,
@@ -341,8 +341,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         phone: formData.phone,
         // Backward compatibility: use default tax identity's CUIT if available
         cuit: defaultTaxIdentity?.cuit || formData.cuit,
-        fiscal_condition_id: defaultTaxIdentity?.fiscal_condition_id 
-          ? parseInt(defaultTaxIdentity.fiscal_condition_id, 10) 
+        fiscal_condition_id: defaultTaxIdentity?.fiscal_condition_id
+          ? parseInt(defaultTaxIdentity.fiscal_condition_id, 10)
           : (formData.fiscal_condition_id ? parseInt(formData.fiscal_condition_id, 10) : 1),
         person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,
         credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
@@ -406,7 +406,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
       // Handle Laravel validation errors (422 status)
       if (error?.response?.data?.errors) {
-        const validationErrors = err.response.data.errors;
+        const validationErrors = error.response?.data?.errors;
         // Get first error message from each field
         const errorMessages = Object.values(validationErrors)
           .map((fieldErrors: unknown) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
@@ -692,15 +692,15 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                           <div>
                             <h3 className="text-lg font-medium">Identidades Fiscales (CUITs)</h3>
                             <p className="text-sm text-muted-foreground">
-                              {formData.person_type_id === "2" 
-                                ? "Una persona jurídica puede tener múltiples razones sociales/CUITs." 
+                              {formData.person_type_id === "2"
+                                ? "Una persona jurídica puede tener múltiples razones sociales/CUITs."
                                 : "Datos fiscales del cliente."}
                             </p>
                           </div>
                           {!viewOnly && (
-                            <Button 
-                              type="button" 
-                              variant="outline" 
+                            <Button
+                              type="button"
+                              variant="outline"
                               size="sm"
                               onClick={addTaxIdentity}
                               disabled={isLoading}
@@ -717,9 +717,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                               No hay identidades fiscales registradas.
                             </p>
                             {!viewOnly && (
-                              <Button 
-                                type="button" 
-                                variant="outline" 
+                              <Button
+                                type="button"
+                                variant="outline"
                                 size="sm"
                                 onClick={addTaxIdentity}
                                 disabled={isLoading}
@@ -769,11 +769,13 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                                           <SelectValue placeholder={fiscalConditionsLoading ? "Cargando…" : "Condición fiscal"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {fiscalConditions.map((fc) => (
-                                            <SelectItem key={fc.id} value={String(fc.id)}>
-                                              {fc.name}
-                                            </SelectItem>
-                                          ))}
+                                          {fiscalConditions
+                                            .filter(fc => fc.name.toLowerCase() !== 'consumidor final')
+                                            .map((fc) => (
+                                              <SelectItem key={fc.id} value={String(fc.id)}>
+                                                {fc.name}
+                                              </SelectItem>
+                                            ))}
                                         </SelectContent>
                                       </Select>
                                     </div>
@@ -802,7 +804,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                                       )}
                                     </div>
                                   </div>
-                                  
+
                                   {/* Expandable bank account section */}
                                   <CollapsibleContent>
                                     <div className="border-t px-4 py-4 bg-muted/30">

@@ -8,6 +8,141 @@ import { ARCA_CODES } from '@/lib/constants/arcaCodes'
 /** Longitud del CUIT (solo dígitos) según ARCA */
 export const CUIT_LENGTH = 11
 
+/** Códigos AFIP de condición IVA */
+export const CONDICION_IVA = {
+  RESPONSABLE_INSCRIPTO: 1,
+  EXENTO: 4,
+  CONSUMIDOR_FINAL: 5,
+  MONOTRIBUTO: 6,
+} as const
+
+/** Nombres de condiciones fiscales normalizados */
+const FISCAL_CONDITION_NAME_TO_CODE: Record<string, number> = {
+  'responsable inscripto': CONDICION_IVA.RESPONSABLE_INSCRIPTO,
+  'responsable inscrito': CONDICION_IVA.RESPONSABLE_INSCRIPTO,
+  'ri': CONDICION_IVA.RESPONSABLE_INSCRIPTO,
+  'monotributista': CONDICION_IVA.MONOTRIBUTO,
+  'monotributo': CONDICION_IVA.MONOTRIBUTO,
+  'consumidor final': CONDICION_IVA.CONSUMIDOR_FINAL,
+  'cf': CONDICION_IVA.CONSUMIDOR_FINAL,
+  'exento': CONDICION_IVA.EXENTO,
+  'iva exento': CONDICION_IVA.EXENTO,
+}
+
+/**
+ * Resuelve el código AFIP de condición IVA a partir de una condición fiscal.
+ * Prioriza afip_code si existe, sino intenta resolver por nombre.
+ */
+export function resolveFiscalConditionCode(
+  fiscalCondition: { afip_code?: string | number | null; name?: string | null } | null | undefined,
+  defaultCode: number = CONDICION_IVA.CONSUMIDOR_FINAL
+): number {
+  if (!fiscalCondition) return defaultCode
+
+  // Priorizar afip_code si existe
+  if (fiscalCondition.afip_code != null && fiscalCondition.afip_code !== '') {
+    return Number(fiscalCondition.afip_code)
+  }
+
+  // Fallback: resolver por nombre
+  const name = fiscalCondition.name?.toLowerCase().trim()
+  if (name && FISCAL_CONDITION_NAME_TO_CODE[name] !== undefined) {
+    return FISCAL_CONDITION_NAME_TO_CODE[name]
+  }
+
+  return defaultCode
+}
+
+/**
+ * Resultado de validación de reglas de emisión.
+ */
+export interface EmisionValidation {
+  isValid: boolean
+  suggestedReceiptType: 'A' | 'B' | 'C' | null
+  message: string | null
+}
+
+/**
+ * Valida si la combinación de tipo de comprobante y condición del receptor es válida
+ * según las reglas de emisión AFIP para un emisor Responsable Inscripto.
+ * 
+ * Reglas para RI:
+ * - RI → RI = Factura A
+ * - RI → Monotributista = Factura A
+ * - RI → CF/Exento = Factura B
+ * 
+ * @param selectedReceiptAfipCode Código AFIP del comprobante seleccionado (001=A, 006=B)
+ * @param receiverConditionCode Código AFIP de la condición IVA del receptor
+ * @returns Objeto con resultado de validación y tipo sugerido
+ */
+export function validateEmisionRulesForRI(
+  selectedReceiptAfipCode: string | null | undefined,
+  receiverConditionCode: number | null | undefined
+): EmisionValidation {
+  if (!selectedReceiptAfipCode || receiverConditionCode == null) {
+    return { isValid: true, suggestedReceiptType: null, message: null }
+  }
+
+  const code = String(selectedReceiptAfipCode)
+  const receiverCode = Number(receiverConditionCode)
+
+  // Solo validamos facturas A y B
+  const isFacturaA = code === ARCA_CODES.FACTURA_A // 001
+  const isFacturaB = code === ARCA_CODES.FACTURA_B // 006
+
+  if (!isFacturaA && !isFacturaB) {
+    return { isValid: true, suggestedReceiptType: null, message: null }
+  }
+
+  // Receptores que requieren Factura A
+  const requiresFacturaA = 
+    receiverCode === CONDICION_IVA.RESPONSABLE_INSCRIPTO ||
+    receiverCode === CONDICION_IVA.MONOTRIBUTO
+
+  // Receptores que requieren Factura B
+  const requiresFacturaB = 
+    receiverCode === CONDICION_IVA.CONSUMIDOR_FINAL ||
+    receiverCode === CONDICION_IVA.EXENTO
+
+  const receiverName = getCondicionIvaName(receiverCode)
+
+  if (isFacturaB && requiresFacturaA) {
+    return {
+      isValid: false,
+      suggestedReceiptType: 'A',
+      message: `No se puede emitir Factura B a un cliente ${receiverName}. Se debe emitir Factura A.`,
+    }
+  }
+
+  if (isFacturaA && requiresFacturaB) {
+    return {
+      isValid: false,
+      suggestedReceiptType: 'B',
+      message: `No se puede emitir Factura A a un cliente ${receiverName}. Se debe emitir Factura B.`,
+    }
+  }
+
+  return { isValid: true, suggestedReceiptType: null, message: null }
+}
+
+/**
+ * Devuelve el nombre legible de una condición IVA por código AFIP.
+ */
+export function getCondicionIvaName(code: number | null | undefined): string {
+  switch (code) {
+    case CONDICION_IVA.RESPONSABLE_INSCRIPTO:
+      return 'Responsable Inscripto'
+    case CONDICION_IVA.MONOTRIBUTO:
+      return 'Monotributista'
+    case CONDICION_IVA.CONSUMIDOR_FINAL:
+      return 'Consumidor Final'
+    case CONDICION_IVA.EXENTO:
+      return 'Exento'
+    default:
+      return 'desconocido'
+  }
+}
+
 /**
  * Comprobantes de solo uso interno: no se autorizan con ARCA (Presupuesto, Factura X).
  */

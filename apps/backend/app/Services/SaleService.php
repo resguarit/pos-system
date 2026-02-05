@@ -1807,7 +1807,7 @@ class SaleService implements SaleServiceInterface
 
             $receiptAfipCode = $sale->receiptType->afip_code ?? null;
             $requiresCuit = AfipConstants::receiptRequiresCuit($receiptAfipCode);
-            
+
             // Obtener el CUIT del receptor para Factura A
             // Prioridad: customerTaxIdentity > sale_document_number > customer.person.cuit
             $receiverCuit = null;
@@ -1821,7 +1821,7 @@ class SaleService implements SaleServiceInterface
             } elseif ($sale->customer && $sale->customer->person && !empty($sale->customer->person->cuit)) {
                 $receiverCuit = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit);
             }
-            
+
             if ($requiresCuit && !$sale->customer) {
                 throw new \Exception('La Factura A requiere un cliente asociado');
             }
@@ -2161,6 +2161,17 @@ class SaleService implements SaleServiceInterface
                 if (strlen($docNumber) > 0) {
                     $customerDocumentNumber = $docNumber;
                     $customerDocumentType = $this->mapDocumentTypeToAfipType($sale->saleDocumentType);
+
+                    // Si no se especificó un tipo de documento (default Consumidor Final) pero hay un número,
+                    // inferir DNI (96) o CUIT (80) según la longitud para evitar rechazo de AFIP.
+                    if ($customerDocumentType === AfipConstants::DOC_TIPO_CONSUMIDOR_FINAL) {
+                        $len = strlen($customerDocumentNumber);
+                        if ($len === AfipConstants::CUIT_LENGTH) {
+                            $customerDocumentType = AfipConstants::DOC_TIPO_CUIT;
+                        } elseif ($len >= 7 && $len <= 8) {
+                            $customerDocumentType = AfipConstants::DOC_TIPO_DNI;
+                        }
+                    }
                 }
             }
         }
