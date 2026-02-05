@@ -372,11 +372,11 @@ class SaleService implements SaleServiceInterface
 
                 if (!empty($dni)) {
                     // Caso con DNI (96)
-                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType('DNI', 'DNI');
+                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType((string) AfipConstants::DOC_TIPO_DNI, 'DNI');
                     $data['sale_document_number'] = $dni;
                 } else {
                     // Caso sin DNI (99)
-                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType('99', 'Sin Identificar');
+                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType((string) AfipConstants::DOC_TIPO_SIN_IDENTIFICAR, 'Sin Identificar');
                     $data['sale_document_number'] = '0';
                 }
 
@@ -390,7 +390,7 @@ class SaleService implements SaleServiceInterface
                         : ($data['sale_document_number'] ?? null);
 
                     // Asumimos CUIT (80) para identidades fiscales formales
-                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType('CUIT', 'CUIT');
+                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType((string) AfipConstants::DOC_TIPO_CUIT, 'CUIT');
                 } else {
                     // Fallback si no hay identidad (raro para no-CF)
                     // Mantener valores originales o defaults
