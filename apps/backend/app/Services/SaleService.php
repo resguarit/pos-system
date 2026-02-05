@@ -371,12 +371,12 @@ class SaleService implements SaleServiceInterface
                 }
 
                 if (!empty($dni)) {
-                    // Caso con DNI
-                    $data['sale_document_type_id'] = AfipConstants::DOC_TIPO_DNI; // 96
+                    // Caso con DNI (96)
+                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType('DNI', 'DNI');
                     $data['sale_document_number'] = $dni;
                 } else {
-                    // Caso sin DNI
-                    $data['sale_document_type_id'] = AfipConstants::DOC_TIPO_SIN_IDENTIFICAR; // 99
+                    // Caso sin DNI (99)
+                    $data['sale_document_type_id'] = $this->getOrCreateDocumentType('99', 'Sin Identificar');
                     $data['sale_document_number'] = '0';
                 }
 
@@ -388,8 +388,9 @@ class SaleService implements SaleServiceInterface
                     $data['sale_document_number'] = $chosenIdentity->cuit
                         ? preg_replace('/[^0-9]/', '', (string) $chosenIdentity->cuit)
                         : ($data['sale_document_number'] ?? null);
-                    // Asumimos CUIT (80) para identidades fiscales formales
-                    $data['sale_document_type_id'] = AfipConstants::DOC_TIPO_CUIT;
+
+                     // Asumimos CUIT (80) para identidades fiscales formales
+                     $data['sale_document_type_id'] = $this->getOrCreateDocumentType('CUIT', 'CUIT');
                 } else {
                     // Fallback si no hay identidad (raro para no-CF)
                     // Mantener valores originales o defaults
@@ -3398,5 +3399,17 @@ class SaleService implements SaleServiceInterface
                 'amount' => $payment->amount,
             ]);
         }
+        /**
+     * Helper to get or create a DocumentType by its string code.
+     * Ensures FK integrity.
+     */
+    private function getOrCreateDocumentType(string $code, string $defaultName): int
+    {
+        // Cache could be added here if needed
+        $doc = \App\Models\DocumentType::where('code', $code)->first();
+        if (!$doc) {
+            $doc = \App\Models\DocumentType::firstOrCreate(['code' => $code], ['name' => $defaultName]);
+        }
+        return $doc->id;
     }
 }

@@ -130,7 +130,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
   // Set default fiscal condition (Consumidor Final) for new customers
   useEffect(() => {
     if (!customerId && !customerData && fiscalConditions.length > 0 && !formData.fiscal_condition_id) {
-      const consumidorFinal = fiscalConditions.find(fc => fc.name.toLowerCase().includes('consumidor final'));
+      // Best practice: match by AFIP code "5" (Consumidor Final) or fallback to name matching
+      const consumidorFinal = fiscalConditions.find(fc => fc.afip_code === '5' || fc.name.toLowerCase().includes('consumidor final'));
       if (consumidorFinal) {
         setFormData(prev => ({ ...prev, fiscal_condition_id: String(consumidorFinal.id) }));
       }
@@ -355,7 +356,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           ? parseInt(defaultTaxIdentity.fiscal_condition_id, 10)
           : (formData.fiscal_condition_id
             ? parseInt(formData.fiscal_condition_id, 10)
-            : (fiscalConditions.find(fc => fc.name.toLowerCase().includes('consumidor final'))?.id || 5)),
+            : (fiscalConditions.find(fc => fc.afip_code === '5' || fc.name.toLowerCase().includes('consumidor final'))?.id || 5)),
         person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,
         credit_limit: formData.credit_limit ? parseFloat(formData.credit_limit) : null,
         // Siempre DNI (document_type_id = 1) cuando hay documento
@@ -782,7 +783,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                                         </SelectTrigger>
                                         <SelectContent>
                                           {fiscalConditions
-                                            .filter(fc => !fc.name.toLowerCase().includes('consumidor final'))
+                                            .filter(fc => fc.afip_code !== '5' && !fc.name.toLowerCase().includes('consumidor final'))
                                             .map((fc) => (
                                               <SelectItem key={fc.id} value={String(fc.id)}>
                                                 {fc.name}

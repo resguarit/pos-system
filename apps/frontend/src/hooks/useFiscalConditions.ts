@@ -6,6 +6,7 @@ export interface FiscalCondition {
   name: string
   description?: string | null
   active?: boolean
+  afip_code?: string
 }
 
 /**
