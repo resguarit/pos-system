@@ -24,15 +24,15 @@ class ServiceTypeController extends Controller
         // Search
         if ($request->has('search')) {
             $search = $request->input('search');
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
+                    ->orWhere('description', 'like', "%{$search}%");
             });
         }
 
         // Pagination
         $perPage = $request->input('per_page', 15);
-        
+
         if ($request->boolean('all', false)) {
             $serviceTypes = $query->orderBy('name')->get();
             return response()->json($serviceTypes);
@@ -92,7 +92,19 @@ class ServiceTypeController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $serviceType->update($validator->validated());
+        $validated = $validator->validated();
+
+        \Illuminate\Support\Facades\DB::transaction(function () use ($serviceType, $validated) {
+            $oldName = $serviceType->name;
+            $serviceType->update($validated);
+
+            // Propagate name change to linked client services IF they matched the old name
+            if (isset($validated['name']) && $oldName !== $validated['name']) {
+                \App\Models\ClientService::where('service_type_id', $serviceType->id)
+                    ->where('name', $oldName)
+                    ->update(['name' => $validated['name']]);
+            }
+        });
 
         return response()->json($serviceType);
     }

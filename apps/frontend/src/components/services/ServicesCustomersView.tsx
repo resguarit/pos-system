@@ -91,7 +91,7 @@ const getLastPage = (payload: unknown) => {
 }
 
 const getServiceIcon = (name: string) => {
-    const n = name.toLowerCase()
+    const n = (name || "").toLowerCase()
     if (n.includes("dominio")) return <Globe className="h-5 w-5" />
     if (n.includes("ssl")) return <Lock className="h-5 w-5" />
     if (n.includes("hosting")) return <Server className="h-5 w-5" />
@@ -242,17 +242,6 @@ export default function ServicesCustomersView() {
         }
     }
 
-    // Get service status for a given service type within a customer
-    const getServiceStatusForType = (customer: Customer, serviceName: string): "not_assigned" | "paid" | "unpaid" | "due_soon" => {
-        const service = customer.client_services.find(s => s.name === serviceName)
-        if (!service) return "not_assigned" // No está asociado
-
-        const paymentStatus = getServicePaymentStatus(service)
-        if (paymentStatus === "active") return "paid" // Verde
-        if (paymentStatus === "due_soon") return "due_soon" // Amarillo
-        if (paymentStatus === "expired") return "unpaid" // Rojo
-        return "not_assigned"
-    }
 
     const fetchCustomers = async () => {
         try {
@@ -707,8 +696,10 @@ export default function ServicesCustomersView() {
         }
     }
 
-    const getCustomerInitial = (firstName: string, lastName: string) => {
-        return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
+    const getCustomerInitial = (firstName?: string | null, lastName?: string | null) => {
+        const first = firstName?.trim().charAt(0) ?? ""
+        const last = lastName?.trim().charAt(0) ?? ""
+        return `${first}${last}`.toUpperCase()
     }
 
     const getInitialColor = (initial: string) => {
@@ -722,8 +713,10 @@ export default function ServicesCustomersView() {
             "bg-cyan-100 text-cyan-700",
             "bg-amber-100 text-amber-700",
         ]
-        const index = initial.charCodeAt(0) % colors.length
-        return colors[index]
+        if (!initial) return colors[0]
+        const code = initial.charCodeAt(0)
+        const index = isNaN(code) ? 0 : code % colors.length
+        return colors[index] || colors[0]
     }
 
     return (
@@ -840,8 +833,21 @@ export default function ServicesCustomersView() {
                                             <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado de Servicios</div>
                                             <div className="grid grid-cols-4 gap-2.5">
                                                 {allServiceTypes.map((serviceType) => {
-                                                    const status = getServiceStatusForType(customer, serviceType.name)
-                                                    const assignedService = customer.client_services.find(s => s.name === serviceType.name)
+                                                    // Buscamos por ID de tipo de servicio primero, luego por nombre (para retrocompatibilidad o servicios manuales)
+                                                    const assignedService = customer.client_services.find(s =>
+                                                        (s.service_type?.id === serviceType.id) ||
+                                                        (s.name === serviceType.name)
+                                                    )
+
+                                                    // Usamos el nombre del services asignado si existe (y si tiene tipo, preferimos el nombre del tipo)
+                                                    // const displayService = assignedService ? (assignedService.service_type?.name || assignedService.name) : serviceType.name
+                                                    // No, mejor usamos el serviceType.name del loop para el título del icono, ya que estamos iterando los tipos.
+
+                                                    const status = assignedService
+                                                        ? (getServicePaymentStatus(assignedService) === 'active' ? 'paid' :
+                                                            getServicePaymentStatus(assignedService) === 'due_soon' ? 'due_soon' : 'unpaid')
+                                                        : "not_assigned"
+
                                                     let statusClass = "bg-gray-100 text-gray-400" // Gris - No asignado
 
                                                     if (status === "paid") {
@@ -1039,7 +1045,7 @@ export default function ServicesCustomersView() {
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                                    <h5 className="font-semibold text-sm text-gray-900">{service.name}</h5>
+                                                                    <h5 className="font-semibold text-sm text-gray-900">{service.service_type?.name || service.name}</h5>
                                                                     <Badge className={statusBadge.className}>
                                                                         {statusBadge.label}
                                                                     </Badge>
@@ -1456,7 +1462,7 @@ export default function ServicesCustomersView() {
                                                     {getServiceIcon(selectedService.name)}
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-semibold text-lg text-gray-900">{selectedService.name}</h3>
+                                                    <h3 className="font-semibold text-lg text-gray-900">{selectedService.service_type?.name || selectedService.name}</h3>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <Badge className={getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).className}>
                                                             {getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).label}
