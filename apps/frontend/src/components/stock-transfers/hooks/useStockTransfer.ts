@@ -30,6 +30,7 @@ interface UseStockTransferReturn {
   items: TransferItem[];
   branches: Branch[];
   allBranches: Branch[];
+  userBranchIds: number[];
   products: Product[];
   loading: boolean;
   isSubmitting: boolean;
@@ -113,20 +114,18 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   const [allBranches, setAllBranches] = useState<Branch[]>([]);
 
   // Computed branches based on visibility filter
+  // This represents "My Context Branches" - the ones I see in the dashboard (or all my allowed ones if no filter)
   const branches = useMemo(() => {
     const { visibleBranchIds } = options;
     return allBranches.filter(branch => {
-      // If no filter provided or empty array, show all (or consistent with "No selection = All" behavior if that's preferred, 
-      // but usually "Create" needs strict selection. However, if page says "All" when empty, we should probably follow suit.
-      // But safe bet: if visibleBranchIds is undefined, show all. If array, check includes.
-      // NOTE: Empty array `[]` generally implies "Show None" in filters, but if global filter is "None Selected", maybe we want to allow user to pick any? 
-      // User complaint was "I have 2 selected and nothing appears".
-      // Let's ensure we handle the updates.
+      // Must be a user branch
+      if (!userBranchIds.includes(Number(branch.id))) return false;
 
+      // Must match visibility filter if present
       if (!visibleBranchIds || visibleBranchIds.length === 0) return true;
       return visibleBranchIds.includes(branch.id.toString());
     });
-  }, [allBranches, options]);
+  }, [allBranches, options, userBranchIds]);
   const [products, setProducts] = useState<Product[]>([]);
 
   // Loading state
@@ -162,13 +161,9 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
         getProducts(),
       ]);
 
-      // Filter only active branches that belong to the user
+      // Filter only active branches
       const activeBranches = (branchesData as Branch[]).filter(
-        branch => {
-          const isActive = branch.status === true;
-          const userHasAccess = userBranchIds.includes(Number(branch.id));
-          return isActive && userHasAccess;
-        }
+        branch => branch.status === true
       );
 
       setAllBranches(activeBranches);
@@ -180,7 +175,36 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     } finally {
       setLoading(false);
     }
-  }, [userBranchIds]);
+  }, []); // Remove userBranchIds dependency as we want ALL active branches
+
+  // Auto-select destination branch if user has only one available branch
+  useEffect(() => {
+    if (!dataLoaded || isEditMode) return;
+
+    // We only auto-select if:
+    // 1. Destination is empty
+    // 2. User has related branches available
+    if (!form.destination_branch_id && userBranchIds.length > 0) {
+      // Find branches that belong to the user
+      const myBranches = allBranches.filter(b => userBranchIds.includes(Number(b.id)));
+
+      // If user has exactly one branch, select it
+      if (myBranches.length === 1) {
+        setForm(prev => ({
+          ...prev,
+          destination_branch_id: myBranches[0].id.toString()
+        }));
+      }
+      // If user has multiple branches, but filtered by context (visibleBranchIds) results in 1, select it
+      // This helps when user says "I selected one branch in dash, use it"
+      else if (options.visibleBranchIds && options.visibleBranchIds.length === 1) {
+        setForm(prev => ({
+          ...prev,
+          destination_branch_id: options.visibleBranchIds![0] // Non-null assertion safe due to length check
+        }));
+      }
+    }
+  }, [dataLoaded, isEditMode, form.destination_branch_id, userBranchIds, allBranches, options.visibleBranchIds]);
 
   const loadTransferData = useCallback(async (id: number, productsList: Product[]) => {
     try {
@@ -566,5 +590,6 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     getDestinationBranchName,
     validateForm,
     allBranches,
+    userBranchIds, // Export so UI can filter destination options
   };
 }

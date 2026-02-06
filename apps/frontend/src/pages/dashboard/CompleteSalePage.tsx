@@ -79,7 +79,12 @@ export default function CompleteSalePage() {
   const { validateCashRegisterForOperation } = useCashRegisterStatus(Number(activeBranch?.id) || 1)
   const { checkCuitCertificate, getReceiptTypes: getArcaReceiptTypes } = useArca()
 
-  const [cart, setCart] = useState<CartItem[]>(initialCart)
+  const [cart, setCart] = useState<CartItem[]>(() =>
+    initialCart.map(item => ({
+      ...item,
+      discount_type: item.discount_type || 'percent'
+    }))
+  )
 
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [receiptTypes, setReceiptTypes] = useState<ReceiptType[]>([])
@@ -91,7 +96,7 @@ export default function CompleteSalePage() {
   const [isProcessingSale, setIsProcessingSale] = useState(false)
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [completedSale, setCompletedSale] = useState<SaleHeader | null>(null)
-  const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('')
+  const [globalDiscountType, setGlobalDiscountType] = useState<'percent' | 'amount' | ''>('percent')
   const [globalDiscountValue, setGlobalDiscountValue] = useState<string>('')
   const [customerBalance, setCustomerBalance] = useState<number | null>(null)
   const [loadingBalance, setLoadingBalance] = useState(false)

@@ -61,6 +61,7 @@ export function StockTransferDialog({
     updateItemQuantity,
     getProductStock,
     submit,
+    userBranchIds,
   } = useStockTransfer({
     transferId,
     preselectedSourceBranchId,
@@ -90,17 +91,12 @@ export function StockTransferDialog({
     : 'Transfiera productos entre sucursales';
   const submitButtonText = isEditMode ? 'Guardar Cambios' : 'Crear Transferencia';
 
-  // User requested: Source can be ANY branch. Destination must be one of the SELECTED branches (or the current one if editing).
-  // HOWEVER, if the user selects one of their selected branches as Source (Sending stock), 
-  // restricting Destination to selected branches would result in 0 options.
-  // So: If the restriction results in empty options, we unblock and show All Branches (Switch to "Sending" mode).
+  // Source can be ANY branch (Global)
   const sourceBranchOptions = allBranches;
 
-  const filteredSelectedBranches = branches.filter(b => b.id.toString() !== form.source_branch_id);
-  // If we have selected branches, but filtering removes them all, it means we selected the ONLY allowed branch as source.
-  const isDestinationBlocked = filteredSelectedBranches.length === 0 && branches.length > 0;
-
-  const destinationBaseOptions = (isEditMode || isDestinationBlocked) ? allBranches : branches;
+  // Destination must be one of MY branches (User's assigned branches), respecting current context
+  // If editing, we allow all branches to ensure we display correctly what was saved
+  const destinationBaseOptions = isEditMode ? allBranches : branches;
   const destinationBranchOptions = destinationBaseOptions.filter(b => b.id.toString() !== form.source_branch_id);
 
   return (
