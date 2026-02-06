@@ -341,7 +341,7 @@ class ClientServiceController extends Controller
     public function storePayment(Request $request, ClientService $clientService)
     {
         $validator = Validator::make($request->all(), [
-            'amount' => 'required|numeric|min:0.01',
+            'amount' => 'required|numeric|min:0', // Allows 0 for 100% discounted services
             'payment_date' => 'required|date',
             'notes' => 'nullable|string|max:500',
             'renew_service' => 'boolean',
