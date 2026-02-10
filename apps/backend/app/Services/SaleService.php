@@ -398,7 +398,17 @@ class SaleService implements SaleServiceInterface
             }
 
             // 7) Crear cabecera
-            $saleHeader = SaleHeader::create($data);
+            // Safeguard: Ensure numbering_scope is set
+            if (!isset($data['numbering_scope'])) {
+                Log::warning('SaleService: numbering_scope was missing in data passed to createSale. Forcing default.', ['data_keys' => array_keys($data)]);
+                $data['numbering_scope'] = SaleNumberingScope::SALE;
+            }
+
+            // Using explicit assignment to ensure numbering_scope is set, bypassing potential fillable/mass-assignment issues
+            $saleHeader = new SaleHeader();
+            $saleHeader->fill($data);
+            $saleHeader->numbering_scope = $data['numbering_scope'];
+            $saleHeader->save();
 
             // 8) Crear ítems
             foreach ($preparedItems as $item) {
