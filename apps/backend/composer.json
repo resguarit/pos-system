@@ -10,7 +10,7 @@
     "repositories": [
         {
             "type": "vcs",
-            "url": "git@github.com-afip-sdk:resguarit/afip-sdk-resguar.git"
+            "url": "git@github.com-afip-sdk:resguarit/Afip-sdk.git"
         }
     ],
     "require": {
