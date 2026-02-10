@@ -71,10 +71,13 @@ deploy_one_client() {
     fi
 
     # Migraciones
+    echo "🗄️  Checking migrations..."
+    php artisan migrate:status || true
     if ! php artisan migrate --force; then
-      echo "❌ Migrations failed"
+      echo "❌ Migrations failed for ${client_name}"
       return 1
     fi
+    echo "✅ Migrations completed"
 
     # Permisos y caches (mejor esfuerzo)
     php artisan admin:grant-all-permissions --force 2>/dev/null || true
