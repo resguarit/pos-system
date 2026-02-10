@@ -21,6 +21,14 @@ readonly SCRIPT_NAME="${0##*/}"
 # -----------------------------------------------------------------------------
 discover_backend_path() {
   local api_dir="$1"
+
+  # Special handling for dipag structure (code in public_html)
+  if [[ "$api_dir" == *"dipag"* ]]; then
+     if [[ -d "${api_dir}/public_html" && -f "${api_dir}/public_html/artisan" ]]; then
+       echo "${api_dir}/public_html"
+       return
+     fi
+  fi
   if [[ -d "${api_dir}/public_html/apps/backend" && -f "${api_dir}/public_html/apps/backend/artisan" ]]; then
     echo "${api_dir}/public_html/apps/backend"
   elif [[ -d "${api_dir}/public_html" && -f "${api_dir}/public_html/artisan" ]]; then
@@ -89,7 +97,7 @@ main() {
   cd "${HOME_DIR}" || { echo "❌ Cannot cd to ${HOME_DIR}"; exit 1; }
 
   local api_dirs
-  api_dirs=$(ls -d api.* dipag-api.* 2>/dev/null | sort -u || true)
+  api_dirs=$(ls -d api.* dipag* 2>/dev/null | sort -u || true)
   if [[ -z "${api_dirs}" ]]; then
     echo "❌ No api.* ni dipag-api.* directories found in ${HOME_DIR}"
     exit 1
