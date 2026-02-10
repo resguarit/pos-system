@@ -97,7 +97,7 @@ main() {
   cd "${HOME_DIR}" || { echo "❌ Cannot cd to ${HOME_DIR}"; exit 1; }
 
   local api_dirs
-  api_dirs=$(ls -d api.* dipag* 2>/dev/null | sort -u || true)
+  api_dirs=$(ls -d api.* dipag-api.* 2>/dev/null | sort -u || true)
   if [[ -z "${api_dirs}" ]]; then
     echo "❌ No api.* ni dipag-api.* directories found in ${HOME_DIR}"
     exit 1
