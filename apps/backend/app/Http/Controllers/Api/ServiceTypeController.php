@@ -52,7 +52,7 @@ class ServiceTypeController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'required|numeric|min:0',
-            'billing_cycle' => 'required|in:monthly,quarterly,annual,one_time',
+            'billing_cycle' => 'required|in:monthly,quarterly,annual,biennial,one_time',
             'icon' => 'nullable|string|max:255',
             'is_active' => 'boolean',
         ]);
@@ -83,7 +83,7 @@ class ServiceTypeController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'price' => 'sometimes|required|numeric|min:0',
-            'billing_cycle' => 'sometimes|required|in:monthly,quarterly,annual,one_time',
+            'billing_cycle' => 'sometimes|required|in:monthly,quarterly,annual,biennial,one_time',
             'icon' => 'nullable|string|max:255',
             'is_active' => 'boolean',
         ]);

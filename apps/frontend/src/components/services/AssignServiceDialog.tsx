@@ -28,6 +28,7 @@ import { useCustomerSearch, CustomerOption } from "@/hooks/useCustomerSearch"
 import CustomerForm from "@/components/customers/customer-form"
 import { Badge } from "@/components/ui/badge"
 import { NumberFormatter } from "@/lib/formatters/numberFormatter"
+import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 
 interface ServiceType {
     id: number
@@ -396,16 +397,6 @@ export default function AssignServiceDialog({
     // const selectedCustomer = customers.find(c => c.id.toString() === formData.customer_id) // Removed old selector
 
 
-    const getBillingCycleLabel = (cycle: string) => {
-        const labels: Record<string, string> = {
-            monthly: "Mensual",
-            quarterly: "Trimestral",
-            annual: "Anual",
-            biennial: "Bienal",
-            one_time: "Único"
-        }
-        return labels[cycle] || cycle
-    }
 
     // Format currency helper
     const formatCurrency = (value: string | number): string => {

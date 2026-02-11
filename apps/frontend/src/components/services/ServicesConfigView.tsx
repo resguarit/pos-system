@@ -22,12 +22,12 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { 
-    Plus, 
-    Pencil, 
-    Trash2, 
-    Search, 
-    RefreshCw, 
+import {
+    Plus,
+    Pencil,
+    Trash2,
+    Search,
+    RefreshCw,
     DollarSign,
     Globe,
     Lock,
@@ -165,7 +165,7 @@ export default function ServicesConfigView() {
 
     useEffect(() => {
         fetchServiceTypes()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, searchTerm])
 
     const handleCreate = () => {
@@ -501,6 +501,7 @@ export default function ServicesConfigView() {
                                         <SelectItem value="monthly">Mensual</SelectItem>
                                         <SelectItem value="quarterly">Trimestral</SelectItem>
                                         <SelectItem value="annual">Anual</SelectItem>
+                                        <SelectItem value="biennial">Bienal</SelectItem>
                                         <SelectItem value="one_time">Único</SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -518,11 +519,10 @@ export default function ServicesConfigView() {
                                                 <button
                                                     type="button"
                                                     onClick={() => setFormData({ ...formData, icon: id })}
-                                                    className={`flex items-center justify-center p-2 rounded transition-all border-2 ${
-                                                        formData.icon === id 
-                                                            ? 'border-blue-500 bg-blue-50' 
-                                                            : 'border-gray-200 hover:border-gray-300'
-                                                    }`}
+                                                    className={`flex items-center justify-center p-2 rounded transition-all border-2 ${formData.icon === id
+                                                        ? 'border-blue-500 bg-blue-50'
+                                                        : 'border-gray-200 hover:border-gray-300'
+                                                        }`}
                                                 >
                                                     <Icon className={`h-5 w-5 ${formData.icon === id ? 'text-blue-600' : color}`} />
                                                 </button>

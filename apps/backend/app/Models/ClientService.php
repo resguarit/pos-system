@@ -61,4 +61,14 @@ class ClientService extends Model
     {
         return $this->hasMany(ClientServicePayment::class);
     }
+
+    /**
+     * Get the most recent payment for this service.
+     * Useful for displaying payment status in client views.
+     */
+    public function lastPayment()
+    {
+        return $this->hasOne(ClientServicePayment::class)
+            ->latestOfMany('payment_date');
+    }
 }

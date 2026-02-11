@@ -23,7 +23,7 @@ class ClientServiceController extends Controller
      */
     public function index(Request $request)
     {
-        $query = ClientService::with(['customer.person', 'serviceType']);
+        $query = ClientService::with(['customer.person', 'serviceType', 'lastPayment']);
 
         // Filter by customer
         if ($request->has('customer_id')) {
@@ -62,9 +62,12 @@ class ClientServiceController extends Controller
         $query = Customer::with([
             'person',
             'clientServices' => function ($q) {
+                // Cargar TODOS los servicios del cliente para dar contexto completo
+                // El filtro solo determina QUÉ CLIENTES mostrar, no qué servicios cargar
                 $q->orderBy('status')->orderBy('next_due_date');
             },
-            'clientServices.serviceType'
+            'clientServices.serviceType',
+            'clientServices.lastPayment'
         ])->whereHas('clientServices')->orderBy('created_at', 'desc');
 
         // Search
@@ -93,18 +96,35 @@ class ClientServiceController extends Controller
         // Filter by payment status (expired/due soon/active)
         if ($request->has('payment_status')) {
             $paymentStatus = $request->input('payment_status');
-            $query->whereHas('clientServices', function ($q) use ($paymentStatus) {
-                if ($paymentStatus === 'expired') {
+            
+            if ($paymentStatus === 'expired') {
+                // Solo clientes con servicios vencidos
+                $query->whereHas('clientServices', function ($q) {
                     $q->where('next_due_date', '<', now())
                         ->where('status', 'active');
-                } elseif ($paymentStatus === 'due_soon') {
-                    $q->whereBetween('next_due_date', [now(), now()->addDays(30)])
+                });
+            } elseif ($paymentStatus === 'due_soon') {
+                // Solo clientes con servicios por vencer (próximos 15 días)
+                // Y que NO tengan servicios vencidos
+                $query->whereHas('clientServices', function ($q) {
+                    $q->whereBetween('next_due_date', [now(), now()->addDays(15)])
                         ->where('status', 'active');
-                } elseif ($paymentStatus === 'active') {
-                    $q->where('next_due_date', '>', now()->addDays(30))
+                })->whereDoesntHave('clientServices', function ($q) {
+                    // Excluir si tiene servicios vencidos
+                    $q->where('next_due_date', '<', now())
                         ->where('status', 'active');
-                }
-            });
+                });
+            } elseif ($paymentStatus === 'active') {
+                // Solo clientes al día (sin vencidos ni por vencer)
+                $query->whereHas('clientServices', function ($q) {
+                    $q->where('next_due_date', '>', now()->addDays(15))
+                        ->where('status', 'active');
+                })->whereDoesntHave('clientServices', function ($q) {
+                    // Excluir si tiene servicios vencidos o por vencer
+                    $q->where('next_due_date', '<=', now()->addDays(15))
+                        ->where('status', 'active');
+                });
+            }
         }
 
         // Pagination
@@ -128,7 +148,7 @@ class ClientServiceController extends Controller
                 ->where('next_due_date', '<', now())
                 ->count(),
             'due_soon_services' => ClientService::where('status', 'active')
-                ->whereBetween('next_due_date', [now(), now()->addDays(30)])
+                ->whereBetween('next_due_date', [now(), now()->addDays(15)])
                 ->count(),
             'monthly_revenue' => ClientService::where('status', 'active')
                 ->where('billing_cycle', 'monthly')
@@ -143,6 +163,8 @@ class ClientServiceController extends Controller
                             return $service->amount * 4;
                         case 'annual':
                             return $service->amount;
+                        case 'biennial':
+                            return $service->amount / 2;
                         default:
                             return 0;
                     }
@@ -166,7 +188,7 @@ class ClientServiceController extends Controller
             'base_price' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_notes' => 'nullable|string|max:500',
-            'billing_cycle' => 'required|in:monthly,quarterly,annual,one_time',
+            'billing_cycle' => 'required|in:monthly,quarterly,annual,biennial,one_time',
             'start_date' => 'required|date',
             'next_due_date' => 'nullable|date|after_or_equal:start_date',
             'status' => 'required|in:active,suspended,cancelled',
@@ -193,7 +215,7 @@ class ClientServiceController extends Controller
      */
     public function show(ClientService $clientService)
     {
-        return response()->json($clientService->load(['customer.person', 'serviceType', 'payments']));
+        return response()->json($clientService->load(['customer.person', 'serviceType', 'payments', 'lastPayment']));
     }
 
     /**
@@ -210,7 +232,7 @@ class ClientServiceController extends Controller
             'base_price' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_notes' => 'nullable|string|max:500',
-            'billing_cycle' => 'sometimes|required|in:monthly,quarterly,annual,one_time',
+            'billing_cycle' => 'sometimes|required|in:monthly,quarterly,annual,biennial,one_time',
             'start_date' => 'sometimes|required|date',
             'next_due_date' => 'nullable|date',
             'status' => 'sometimes|required|in:active,suspended,cancelled',
@@ -224,34 +246,14 @@ class ClientServiceController extends Controller
 
         $data = $validator->validated();
 
-        // Check if we should defer billing cycle or amount changes
-        // If the service is active and the next due date is in the future,
-        // we defer frequency and amount changes to the next renewal.
-
-        Log::info('ClientService Update detected', [
-            'id' => $clientService->id,
-            'status' => $clientService->status,
-            'next_due_date' => $clientService->next_due_date,
-            'now' => now()->toDateTimeString(),
-            'is_future' => $clientService->next_due_date ? $clientService->next_due_date->greaterThan(now()) : 'N/A',
-            'request_data' => $request->all()
-        ]);
-
-        if ($clientService->status === 'active' && $clientService->next_due_date && $clientService->next_due_date->isAfter(now())) {
-            if (isset($data['billing_cycle']) && $data['billing_cycle'] !== $clientService->billing_cycle) {
-                Log::info('Deferring billing_cycle change', ['from' => $clientService->billing_cycle, 'to' => $data['billing_cycle']]);
-                $data['next_billing_cycle'] = $data['billing_cycle'];
-                unset($data['billing_cycle']);
-            }
-            if (isset($data['amount']) && $data['amount'] != $clientService->amount) {
-                $data['next_amount'] = $data['amount'];
-                unset($data['amount']);
-            }
-        }
+        // Apply all changes immediately
+        // Clear any deferred changes when updating directly
+        $data['next_billing_cycle'] = null;
+        $data['next_amount'] = null;
 
         $clientService->update($data);
 
-        return response()->json($clientService->load(['customer.person', 'serviceType']));
+        return response()->json($clientService->load(['customer.person', 'serviceType', 'lastPayment']));
     }
 
     /**

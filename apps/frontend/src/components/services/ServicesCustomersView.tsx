@@ -598,7 +598,7 @@ export default function ServicesCustomersView() {
     }
 
     // Payment dialog handlers
-    const handleOpenPaymentDialog = async (customer: Customer) => {
+    const handleOpenPaymentDialog = async (customer: Customer, preselectedServiceId?: number) => {
         setPaymentCustomer(customer)
 
         // Fetch data in parallel
@@ -606,18 +606,27 @@ export default function ServicesCustomersView() {
         const methodsPromise = fetchPaymentMethods()
         const [branches, methods] = await Promise.all([branchesPromise, methodsPromise])
 
-        const firstServiceWithDebt = customer.client_services.find(s => {
-            const status = getServicePaymentStatus(s)
-            return status === "expired" || status === "due_soon"
-        })
+        // Determine which service to preselect
+        let selectedService: Service | undefined
+        
+        if (preselectedServiceId) {
+            // Use the explicitly preselected service
+            selectedService = customer.client_services.find(s => s.id === preselectedServiceId)
+        } else {
+            // Find first service with debt, otherwise use first service
+            selectedService = customer.client_services.find(s => {
+                const status = getServicePaymentStatus(s)
+                return status === "expired" || status === "due_soon"
+            }) || customer.client_services[0]
+        }
 
         // Find cash method default
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const defaultMethod = methods?.find((m: any) => m.name.toLowerCase().includes('efectivo')) || methods?.[0]
 
         setPaymentForm({
-            service_id: firstServiceWithDebt?.id.toString() || customer.client_services[0]?.id.toString() || "",
-            amount: firstServiceWithDebt?.amount || customer.client_services[0]?.amount || "",
+            service_id: selectedService?.id.toString() || "",
+            amount: selectedService?.amount || "",
             payment_date: new Date().toISOString().split("T")[0],
             notes: "",
             renew_service: true,
@@ -873,12 +882,6 @@ export default function ServicesCustomersView() {
                                                                 <p className="text-[10px] text-gray-500">
                                                                     {getBillingCycleLabel(assignedService?.billing_cycle || serviceType.billing_cycle)}
                                                                 </p>
-                                                                {/* Badge Logic Refined: Removed 'Desactualizado' for simple cycle mismatch as per user request */}
-                                                                {assignedService?.next_billing_cycle ? (
-                                                                    <Badge className="mt-1 h-4 px-1 text-[8px] bg-blue-50 text-blue-600 border-blue-100 uppercase">
-                                                                        Cambio Pend.
-                                                                    </Badge>
-                                                                ) : null}
                                                             </div>
                                                         </div>
                                                     )
@@ -960,6 +963,9 @@ export default function ServicesCustomersView() {
                             <User className="h-5 w-5 text-blue-600" />
                             Detalle del Cliente
                         </DialogTitle>
+                        <DialogDescription>
+                            Información completa del cliente y sus servicios contratados
+                        </DialogDescription>
                     </DialogHeader>
 
                     {selectedCustomer && (
@@ -1049,16 +1055,17 @@ export default function ServicesCustomersView() {
                                                                     <Badge className={statusBadge.className}>
                                                                         {statusBadge.label}
                                                                     </Badge>
-                                                                    {service.next_billing_cycle ? (
-                                                                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                                                            Cambio programado
-                                                                        </Badge>
-                                                                    ) : service.service_type && service.billing_cycle !== service.service_type.billing_cycle ? (
+                                                                    {service.service_type && service.billing_cycle !== service.service_type.billing_cycle && (
                                                                         <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200" title={`El ciclo original es ${getBillingCycleLabel(service.service_type.billing_cycle)}`}>
                                                                             Ciclo Personalizado
                                                                         </Badge>
-                                                                    ) : null}
+                                                                    )}
                                                                 </div>
+                                                                {service.description && (
+                                                                    <p className="text-xs text-gray-600 mt-1.5 italic">
+                                                                        {service.description}
+                                                                    </p>
+                                                                )}
                                                                 <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-500">
                                                                     <span className="flex items-center gap-1">
                                                                         <RefreshCw className="h-3 w-3" />
@@ -1264,6 +1271,9 @@ export default function ServicesCustomersView() {
                                 </Button>
                             )}
                         </DialogTitle>
+                        <DialogDescription>
+                            {serviceEditMode ? 'Modifica los datos del servicio' : 'Detalles y gestión del servicio'}
+                        </DialogDescription>
                     </DialogHeader>
 
                     {selectedCustomer && selectedService && (
@@ -1291,16 +1301,6 @@ export default function ServicesCustomersView() {
                                                 Editando: {selectedService.name}
                                             </h4>
                                         </div>
-
-                                        {selectedService.status === 'active' && selectedService.next_due_date && new Date(selectedService.next_due_date) > new Date() && (
-                                            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3 text-amber-800">
-                                                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                                                <div className="text-xs">
-                                                    <p className="font-semibold">Cambio diferido</p>
-                                                    <p>Los cambios en el ciclo o monto se aplicarán en la próxima renovación ({format(new Date(selectedService.next_due_date), "dd/MM/yyyy", { locale: es })}).</p>
-                                                </div>
-                                            </div>
-                                        )}
 
                                         <div className="grid grid-cols-2 gap-4">
                                             {/* Base Price */}
@@ -1463,6 +1463,11 @@ export default function ServicesCustomersView() {
                                                 </div>
                                                 <div>
                                                     <h3 className="font-semibold text-lg text-gray-900">{selectedService.service_type?.name || selectedService.name}</h3>
+                                                    {selectedService.description && (
+                                                        <p className="text-sm text-gray-600 mt-1 italic">
+                                                            {selectedService.description}
+                                                        </p>
+                                                    )}
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <Badge className={getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).className}>
                                                             {getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).label}
@@ -1474,15 +1479,6 @@ export default function ServicesCustomersView() {
                                                                         selectedService.billing_cycle === 'biennial' ? 'Bienal' : 'Único'}
                                                         </span>
                                                     </div>
-                                                    {selectedService.next_billing_cycle && (
-                                                        <div className="flex items-center gap-2 mt-1.5 p-1.5 bg-blue-100/50 rounded border border-blue-200">
-                                                            <RefreshCw className="h-3 w-3 text-blue-600 animate-spin-slow" />
-                                                            <span className="text-[10px] text-blue-700 font-medium">
-                                                                Próximo ciclo: {getBillingCycleLabel(selectedService.next_billing_cycle)}
-                                                                {selectedService.next_amount && ` ($${parseFloat(selectedService.next_amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })})`}
-                                                            </span>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             </div>
                                             <div className="text-right">
@@ -1595,12 +1591,7 @@ export default function ServicesCustomersView() {
                                             className="bg-violet-600 hover:bg-violet-700 text-white"
                                             onClick={() => {
                                                 setServiceDetailOpen(false)
-                                                handleOpenPaymentDialog(selectedCustomer)
-                                                setPaymentForm(prev => ({
-                                                    ...prev,
-                                                    service_id: selectedService.id.toString(),
-                                                    amount: selectedService.amount
-                                                }))
+                                                handleOpenPaymentDialog(selectedCustomer, selectedService.id)
                                             }}
                                         >
                                             <DollarSign className="h-4 w-4 mr-2" />
@@ -1662,7 +1653,7 @@ export default function ServicesCustomersView() {
                                         setPaymentForm(prev => ({
                                             ...prev,
                                             service_id: value,
-                                            amount: service ? service.amount : ""
+                                            amount: service?.amount || ""
                                         }))
                                     }}
                                 >
