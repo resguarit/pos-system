@@ -280,17 +280,11 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   const updateAllItemStocks = useCallback(async () => {
     if (!form.source_branch_id) return;
 
-    // Use functional setState to get current items without making items a dependency
     setItems(currentItems => {
-      // We need to update asynchronously, but we can't use async inside the updater
-      // So we trigger the async update and return currentItems unchanged initially
       return currentItems;
     });
 
-    // Get fresh items via ref pattern - we need to access items for the async operation
-    // But to avoid the dependency loop, we'll fetch them inside a separate async function
     const fetchAndUpdateStocks = async () => {
-      // We need to get current items state - use a workaround
       let currentItemsSnapshot: TransferItem[] = [];
       setItems(curr => {
         currentItemsSnapshot = curr;
@@ -311,7 +305,6 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     fetchAndUpdateStocks();
   }, [form.source_branch_id, getProductStock]);
 
-  // Load branches and products on mount or when user branch IDs change
   useEffect(() => {
     if (!dataLoaded && userBranchIds.length > 0) {
       loadInitialData();
@@ -363,8 +356,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     if (existingIndex !== -1) {
       const currentQty = items[existingIndex].quantity;
       if (currentQty + quantity > availableStock) {
-        toast.error(`Stock insuficiente. Disponible: ${availableStock}, Ya agregado: ${currentQty}`);
-        return false;
+        toast.warning(`Advertencia: Stock insuficiente. Disponible: ${availableStock}, Ya agregado: ${currentQty}`);
       }
 
       const updatedItems = [...items];
@@ -375,8 +367,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       setItems(updatedItems);
     } else {
       if (quantity > availableStock) {
-        toast.error(`Stock insuficiente. Disponible: ${availableStock}`);
-        return false;
+        toast.warning(`Advertencia: Stock insuficiente. Disponible: ${availableStock}`);
       }
 
       setItems(prev => [...prev, {

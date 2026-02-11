@@ -142,31 +142,40 @@ class StockService implements StockServiceInterface
             return $stock;
         }
 
-        try {
-            Stock::create([
-                'product_id' => $productId,
-                'branch_id' => $branchId,
-                'current_stock' => 0,
-            ]);
-        } catch (QueryException $e) {
-            if ($e->getCode() !== '23000' && strpos($e->getMessage(), 'Duplicate') === false) {
-                throw $e;
+        // Retry a few times to handle race conditions without surfacing raw DB errors.
+        for ($attempt = 0; $attempt < 3; $attempt++) {
+            try {
+                Stock::create([
+                    'product_id' => $productId,
+                    'branch_id' => $branchId,
+                    'current_stock' => 0,
+                ]);
+
+                return Stock::where('product_id', $productId)
+                    ->where('branch_id', $branchId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+            } catch (QueryException $e) {
+                if ($e->getCode() !== '23000' && strpos($e->getMessage(), 'Duplicate') === false) {
+                    throw $e;
+                }
+
+                // Otro proceso creó la fila; intentar leerla con lock
+                $stock = Stock::where('product_id', $productId)
+                    ->where('branch_id', $branchId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($stock) {
+                    return $stock;
+                }
+
+                // Esperar un poco y reintentar
+                usleep(50000 * ($attempt + 1));
             }
-            // Otro proceso creó la fila; obtenerla con lock
-            $stock = Stock::where('product_id', $productId)
-                ->where('branch_id', $branchId)
-                ->lockForUpdate()
-                ->first();
-            if (!$stock) {
-                throw $e;
-            }
-            return $stock;
         }
 
-        return Stock::where('product_id', $productId)
-            ->where('branch_id', $branchId)
-            ->lockForUpdate()
-            ->firstOrFail();
+        throw new \RuntimeException('No se pudo crear u obtener el stock. Intente nuevamente.');
     }
 
     public function updateStockQuantity($id, $quantity, $type = 'adjustment', $reference = null, $notes = null)

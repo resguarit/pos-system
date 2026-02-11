@@ -69,7 +69,10 @@ return new class extends Migration {
         }
 
         // 2. Crear el índice único si no existe
-        $indexExists = collect(DB::select("SHOW INDEX FROM stocks WHERE Key_name = 'stocks_product_branch_unique'"))->isNotEmpty();
+        $indexExists = false;
+        if (DB::getDriverName() === 'mysql') {
+            $indexExists = collect(DB::select("SHOW INDEX FROM stocks WHERE Key_name = 'stocks_product_branch_unique'"))->isNotEmpty();
+        }
         if (!$indexExists) {
             Schema::table('stocks', function (Blueprint $table) {
                 // Aseguramos que la restricción se cree

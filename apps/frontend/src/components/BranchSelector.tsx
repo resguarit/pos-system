@@ -98,8 +98,8 @@ export function BranchSelector() {
           <div className="flex items-center justify-between px-2 py-1 mb-1">
             <span className="text-xs text-gray-500">Mis sucursales ({branches.length})</span>
             {branches.length > 1 && (
-              <button 
-                className="text-xs text-blue-600 hover:underline" 
+              <button
+                className="text-xs text-blue-600 hover:underline"
                 onClick={toggleAll}
               >
                 {selectedBranchIds.length === branches.length ? 'Deseleccionar todas' : 'Seleccionar todas'}
@@ -131,7 +131,7 @@ export function BranchSelector() {
                       checked ? "text-blue-700" : "text-gray-700"
                     )}>
                       {branch.color && (
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full border"
                           style={{ backgroundColor: branch.color }}
                         />

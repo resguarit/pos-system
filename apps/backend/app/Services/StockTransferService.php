@@ -126,7 +126,9 @@ class StockTransferService implements StockTransferServiceInterface
             ]);
 
             foreach ($data['items'] as $itemData) {
+                // [TEMPORARY] Validation disabled to allow negative stock transfers
                 // Verificar que haya stock suficiente en la sucursal de origen
+                /* 
                 $stock = $this->stockService->getStockByProductAndBranch(
                     $itemData['product_id'],
                     $data['source_branch_id']
@@ -140,7 +142,8 @@ class StockTransferService implements StockTransferServiceInterface
                         "Stock insuficiente para '{$productName}'. " .
                         "Disponible: {$availableStock}, Solicitado: {$itemData['quantity']}"
                     );
-                }
+                } 
+                */
 
                 StockTransferItem::create([
                     'stock_transfer_id' => $stockTransfer->id,
@@ -206,7 +209,9 @@ class StockTransferService implements StockTransferServiceInterface
                     $qty = (int) $itemData['quantity'];
                     $incomingProductIds[] = $productId;
 
+                    // [TEMPORARY] Validation disabled to allow negative stock transfers
                     // Verificar stock suficiente en la sucursal de origen
+                    /*
                     $stock = $this->stockService->getStockByProductAndBranch(
                         $productId,
                         $sourceBranchId
@@ -221,6 +226,7 @@ class StockTransferService implements StockTransferServiceInterface
                             "Disponible: {$availableStock}, Solicitado: {$qty}"
                         );
                     }
+                    */
 
                     // Upsert por product_id
                     if ($existingItems->has($productId)) {
@@ -295,7 +301,7 @@ class StockTransferService implements StockTransferServiceInterface
                     'transfer',
                     $stockTransfer,
                     $notesOut,
-                    false
+                    true // [TEMPORARY] Allow negative stock (changed from false)
                 );
 
                 $this->stockService->increaseStockByProductAndBranch(

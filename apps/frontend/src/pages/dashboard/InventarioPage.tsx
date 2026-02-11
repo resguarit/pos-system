@@ -32,7 +32,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
-  const { selectedBranchIds } = useBranch();
+  const { selectedBranchIds, setSelectedBranchIds } = useBranch();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -50,7 +50,6 @@ export default function InventarioPage() {
   const [branches, setBranches] = useState<Branch[]>([])
   const [categories, setCategories] = useState<ProductCategoryType[]>([])
   const [parentCategories, setParentCategories] = useState<ProductCategoryType[]>([])
-  const [selectedBranches, setSelectedBranches] = useState<string[]>([])
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>([])
@@ -109,8 +108,9 @@ export default function InventarioPage() {
 
       if (searchQuery) params.set('search', searchQuery)
 
-      if (selectedBranches.length > 0 && selectedBranches[0] !== 'all') {
-        selectedBranches.forEach(id => params.append('branch_ids[]', id))
+      // Usar selectedBranchIds del contexto global para filtrar en el backend
+      if (selectedBranchIds.length > 0) {
+        selectedBranchIds.forEach(id => params.append('branch_ids[]', id))
       }
 
       if (selectedCategories.length > 0) {
@@ -213,7 +213,7 @@ export default function InventarioPage() {
       console.error("Error al cargar productos:", err)
       setProducts([])
     }
-  }, [request, page, perPage, searchQuery, selectedBranches, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus]);
+  }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus]);
 
   const refreshData = useCallback(() => {
     // If we are on page > 1 and refresh, we might want to stay on page or go to 1. 
@@ -357,12 +357,7 @@ export default function InventarioPage() {
       const pageParam = parseInt(searchParams.get('page') || '1', 10)
       const perPageParam = parseInt(searchParams.get('per_page') || '10', 10)
 
-      if (branchParams && branchParams.length > 0) {
-        setSelectedBranches(branchParams)
-      } else if (branchesData && branchesData.length > 0) {
-        // Use the returned branchesData instead of the state variable
-        setSelectedBranches([String(branchesData[0].id)])
-      }
+      // Las sucursales ahora se manejan desde el contexto global, no desde URL params locales
 
       if (stockParam === 'alerts') {
         setSelectedStockStatuses(['low-stock', 'out-of-stock'])
@@ -415,14 +410,7 @@ export default function InventarioPage() {
     if (!initialDataLoaded) return
     setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only run when filters change, not on initialDataLoaded
-  }, [selectedBranches, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
-
-  // Sync with global branch context
-  useEffect(() => {
-    if (selectedBranchIds.length > 0) {
-      setSelectedBranches(selectedBranchIds);
-    }
-  }, [selectedBranchIds]);
+  }, [selectedBranchIds, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
 
   // Remove client-side applyFilters logic
 
@@ -456,7 +444,8 @@ export default function InventarioPage() {
       return { current: 0, min: 0, max: 0 }
     }
 
-    if (!selectedBranches.length || selectedBranches[0] === "all") {
+    // Usar selectedBranchIds del contexto global en lugar de selectedBranches local
+    if (!selectedBranchIds.length) {
       return product.stocks.reduce(
         (acc, stock) => ({
           current: acc.current + (Number(stock.current_stock) || 0),
@@ -466,7 +455,7 @@ export default function InventarioPage() {
         { current: 0, min: 0, max: 0 },
       )
     } else {
-      const selectedSet = new Set(selectedBranches.map(String))
+      const selectedSet = new Set(selectedBranchIds.map(String))
       const filtered = product.stocks.filter((s) => selectedSet.has(String(s.branch_id)))
 
       if (filtered.length === 0) {
@@ -490,7 +479,8 @@ export default function InventarioPage() {
     }
 
     type StockWithBranch = Stock & { branch?: { description?: string; name?: string } };
-    if (!selectedBranches.length || selectedBranches[0] === "all") {
+    // Usar selectedBranchIds del contexto global
+    if (!selectedBranchIds.length) {
       if (product.stocks.length === 1) {
         const st = product.stocks[0] as StockWithBranch
         return resolveBranchName(Number(st.branch_id), st.branch ?? null)
@@ -501,7 +491,7 @@ export default function InventarioPage() {
       }
       return "Sin sucursal asignada"
     } else {
-      const selectedSet = new Set(selectedBranches.map(String))
+      const selectedSet = new Set(selectedBranchIds.map(String))
       const matching = product.stocks.filter((s) => selectedSet.has(String(s.branch_id)))
 
       if (matching.length > 0) {
@@ -530,9 +520,9 @@ export default function InventarioPage() {
 
     let stocksToShow = product.stocks
 
-    // If specific branches are selected, filter to show only those
-    if (selectedBranches.length > 0 && selectedBranches[0] !== "all") {
-      const selectedSet = new Set(selectedBranches.map(String))
+    // Usar selectedBranchIds del contexto global para filtrar sucursales mostradas
+    if (selectedBranchIds.length > 0) {
+      const selectedSet = new Set(selectedBranchIds.map(String))
       stocksToShow = product.stocks.filter((s) => selectedSet.has(String(s.branch_id)))
     }
 
@@ -662,7 +652,7 @@ export default function InventarioPage() {
   }
 
   const catSummary = summarizeSelection(categoryOptions, selectedCategories, 'Todas')
-  const branchSummary = summarizeSelection(branchOptions, selectedBranches, 'Todas')
+  const branchSummary = summarizeSelection(branchOptions, selectedBranchIds, 'Todas')
   const statusSummary = summarizeSelection(statusOptions, selectedStockStatuses, 'Todos')
   const supplierSummary = summarizeSelection(supplierOptions, selectedSuppliers, 'Todos')
   const productStatusLabel = productStatusOptions.find(o => o.value === selectedProductStatus)?.label || 'Todos'
@@ -695,7 +685,8 @@ export default function InventarioPage() {
     for (const p of products) {
       if (!p.stocks || !Array.isArray(p.stocks)) continue
       for (const st of p.stocks) {
-        if (selectedBranches.length > 0 && !selectedBranches.includes(String(st.branch_id))) {
+        // Usar selectedBranchIds del contexto global para filtrar filas por sucursal
+        if (selectedBranchIds.length > 0 && !selectedBranchIds.includes(String(st.branch_id))) {
           continue
         }
         const stWithBranch = st as Stock & { branch?: { description?: string; name?: string } };
@@ -875,7 +866,7 @@ export default function InventarioPage() {
                       </PopoverTrigger>
                       <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
                         <div className="mb-2 text-xs text-muted-foreground">Selecciona sucursales</div>
-                        <MultiSelectCheckbox options={branchOptions} selected={selectedBranches} onChange={setSelectedBranches} />
+                        <MultiSelectCheckbox options={branchOptions} selected={selectedBranchIds} onChange={setSelectedBranchIds} />
                       </PopoverContent>
                     </Popover>
                   )}

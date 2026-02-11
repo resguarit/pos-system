@@ -10,7 +10,7 @@ import { useBranch } from "@/context/BranchContext"
 import { useAuth } from "@/hooks/useAuth"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { History, TrendingUp, TrendingDown, Minus, Loader2, AlertCircle } from "lucide-react"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import useApi from "@/hooks/useApi"
 import { toast } from "sonner"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -33,6 +33,37 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
   const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
   const [costHistory, setCostHistory] = useState<ProductCostHistory[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [fullProduct, setFullProduct] = useState<Product | null>(null);
+  const [loadingProduct, setLoadingProduct] = useState(false);
+
+  // Load full product data when dialog opens to ensure we have all stocks
+  useEffect(() => {
+    if (open && product?.id) {
+      setLoadingProduct(true);
+      request({
+        method: 'GET',
+        url: `/products/${product.id}`,
+      })
+        .then((response) => {
+          if (response?.id) {
+            setFullProduct(response);
+          }
+        })
+        .catch((error) => {
+          console.error('Error loading product details:', error);
+          // Fallback to passed product if fetch fails
+          setFullProduct(product);
+        })
+        .finally(() => {
+          setLoadingProduct(false);
+        });
+    } else {
+      setFullProduct(null);
+    }
+  }, [open, product?.id, request]);
+
+  // Use fullProduct if available, otherwise fallback to prop product
+  const displayProduct = fullProduct || product;
 
   // Función para formatear el markup
   const formatMarkup = (markup: number | string): string => {
@@ -50,19 +81,28 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
   };
 
   const resolveBranchName = (branchId: number, embedded?: { description?: string; name?: string }) => {
-    if (embedded?.description || embedded?.name) return embedded.description || embedded.name || `Sucursal ${branchId}`;
+    // Primero intentar con datos embebidos
+    if (embedded?.description) return embedded.description;
+    if (embedded?.name) return embedded.name;
+    
+    // Luego buscar en el array de branches del contexto
     const b = branches.find((bb) => String(bb.id) === String(branchId));
-    return b?.description || (b as any)?.name || `Sucursal ${branchId}`;
+    if (b?.description) return b.description;
+    if ((b as any)?.name) return (b as any).name;
+    
+    // Fallback solo si no se encuentra nada
+    return `Sucursal ${branchId}`;
   };
 
   const fetchCostHistory = useCallback(async () => {
-    if (!product) return;
+    const targetProduct = displayProduct || product;
+    if (!targetProduct) return;
 
     setHistoryError(null);
     try {
       const response = await request({
         method: 'GET',
-        url: `/product-cost-history/product/${product.id}`,
+        url: `/product-cost-history/product/${targetProduct.id}`,
       });
 
       if (response?.success && response?.data) {
@@ -77,13 +117,13 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
         description: errorMessage
       });
     }
-  }, [product, request]);
+  }, [displayProduct, product, request]);
 
   useEffect(() => {
-    if (open && product && activeTab === 'history') {
+    if (open && (displayProduct || product) && activeTab === 'history') {
       fetchCostHistory();
     }
-  }, [open, product, activeTab, fetchCostHistory]);
+  }, [open, displayProduct, product, activeTab, fetchCostHistory]);
 
   const formatCurrency = (amount: number, currency: 'USD' | 'ARS'): string => {
     return new Intl.NumberFormat('es-AR', {
@@ -194,7 +234,7 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
 
     // Agregar el costo actual como último punto si difiere del último registro
     const lastHistory = sortedHistory[sortedHistory.length - 1];
-    const currentCost = Number.parseFloat(product.unit_price);
+    const currentCost = Number.parseFloat(displayProduct.unit_price);
     const lastHistoryCost = lastHistory ? Number.parseFloat(lastHistory.new_cost.toString()) : null;
 
     if (lastHistoryCost === null || Math.abs(currentCost - lastHistoryCost) > 0.01) {
@@ -209,7 +249,7 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
     }
 
     return dataPoints;
-  }, [costHistory, product.unit_price, getSourceTypeLabel]);
+  }, [costHistory, displayProduct.unit_price, getSourceTypeLabel]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -221,8 +261,12 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
             </DialogClose>
           </DialogTitle>
         </DialogHeader>
-        {product && (
-          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        {loadingProduct ? (
+          <div className="flex items-center justify-center flex-1 h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : displayProduct && (
+          <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'details' | 'history')} className="w-full h-full flex flex-col">
               <div className="flex-shrink-0 px-6 pt-4">
                 <TabsList className="grid w-full grid-cols-2">
@@ -240,43 +284,43 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                 <div className="grid gap-2">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Código:</span>
-                    <span className="col-span-3">{product.code}</span>
+                    <span className="col-span-3">{displayProduct.code}</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Descripción:</span>
-                    <span className="col-span-3">{product.description}</span>
+                    <span className="col-span-3">{displayProduct.description}</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Categoría:</span>
-                    <span className="col-span-3">{product.category?.name || product.category_id}</span>
+                    <span className="col-span-3">{displayProduct.category?.name || displayProduct.category_id}</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Unidad de Medida:</span>
-                    <span className="col-span-3">{product.measure?.name || product.measure_id}</span>
+                    <span className="col-span-3">{displayProduct.measure?.name || displayProduct.measure_id}</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Proveedor:</span>
-                    <span className="col-span-3">{product.supplier?.name || product.supplier_id}</span>
+                    <span className="col-span-3">{displayProduct.supplier?.name || displayProduct.supplier_id}</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">IVA:</span>
-                    <span className="col-span-3">{product.iva?.rate ? `${product.iva.rate}%` : '0%'}</span>
+                    <span className="col-span-3">{displayProduct.iva?.rate ? `${displayProduct.iva.rate}%` : '0%'}</span>
                   </div>
                   {canSeePrices && (
                     <>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <span className="font-medium text-right">Precio Unitario:</span>
-                        <span className="col-span-3">${Number.parseFloat(product.unit_price).toFixed(2)} {product.currency}</span>
+                        <span className="col-span-3">${Number.parseFloat(displayProduct.unit_price).toFixed(2)} {displayProduct.currency}</span>
                       </div>
                       <div className="grid grid-cols-4 items-center gap-4">
                         <span className="font-medium text-right">Markup (%):</span>
-                        <span className="col-span-3">{formatMarkup(product.markup)}%</span>
+                        <span className="col-span-3">{formatMarkup(displayProduct.markup)}%</span>
                       </div>
                     </>
                   )}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Precio Venta:</span>
-                    <span className="col-span-3">${Number.parseFloat(product.sale_price.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS</span>
+                    <span className="col-span-3">${Number.parseFloat(displayProduct.sale_price.toString()).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Estado:</span>
@@ -284,29 +328,29 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                       <Badge
                         variant="outline"
                         className={
-                          product.status
+                          displayProduct.status
                             ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
                             : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
                         }
                       >
-                        {product.status ? "Activo" : "Inactivo"}
+                        {displayProduct.status ? "Activo" : "Inactivo"}
                       </Badge>
                     </span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Visible en Web:</span>
-                    <span className="col-span-3">{product.web ? "Sí" : "No"}</span>
+                    <span className="col-span-3">{displayProduct.web ? "Sí" : "No"}</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Observaciones:</span>
-                    <span className="col-span-3">{product.observaciones || '-'}</span>
+                    <span className="col-span-3">{displayProduct.observaciones || '-'}</span>
                   </div>
                   {hasPermission('ver_stock') && (
                     <div className="mt-4">
                       <h3 className="font-semibold mb-2">Stock por Sucursal</h3>
-                      <div className="border rounded-md overflow-x-auto">
+                      <div className="border rounded-md overflow-x-auto max-h-60 overflow-y-auto">
                         <Table>
-                          <TableHeader>
+                          <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                             <TableRow>
                               <TableHead>Sucursal</TableHead>
                               <TableHead>Stock Actual</TableHead>
@@ -315,15 +359,32 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {product.stocks && product.stocks.length > 0 ? (
-                              product.stocks.map((stock) => (
-                                <TableRow key={stock.id}>
-                                  <TableCell>{resolveBranchName(stock.branch_id, stock.branch)}</TableCell>
-                                  <TableCell>{stock.current_stock}</TableCell>
-                                  <TableCell>{stock.min_stock}</TableCell>
-                                  <TableCell>{stock.max_stock}</TableCell>
-                                </TableRow>
-                              ))
+                            {displayProduct.stocks && displayProduct.stocks.length > 0 ? (
+                              (() => {
+                                // Filtrar solo los stocks que correspondan a sucursales válidas del usuario
+                                const validStocks = displayProduct.stocks.filter(stock =>
+                                  branches.some(b => String(b.id) === String(stock.branch_id))
+                                );
+                                
+                                if (validStocks.length === 0) {
+                                  return (
+                                    <TableRow>
+                                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                        No hay información de stock en las sucursales asignadas
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                }
+                                
+                                return validStocks.map((stock) => (
+                                  <TableRow key={stock.id}>
+                                    <TableCell>{resolveBranchName(stock.branch_id, stock.branch)}</TableCell>
+                                    <TableCell>{stock.current_stock}</TableCell>
+                                    <TableCell>{stock.min_stock}</TableCell>
+                                    <TableCell>{stock.max_stock}</TableCell>
+                                  </TableRow>
+                                ));
+                              })()
                             ) : (
                               <TableRow>
                                 <TableCell colSpan={4} className="text-center">
@@ -358,7 +419,7 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                             <div>
                               <span className="text-sm font-medium text-muted-foreground">Costo Actual:</span>
                               <p className="font-semibold text-lg">
-                                {formatCurrency(Number.parseFloat(product.unit_price), product.currency || 'ARS')}
+                                {formatCurrency(Number.parseFloat(displayProduct.unit_price), displayProduct.currency || 'ARS')}
                               </p>
                             </div>
                             <div>
@@ -397,7 +458,7 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                                       fontSize={12}
                                       tickLine={false}
                                       tickFormatter={(value) => {
-                                        const currency = product.currency || 'ARS';
+                                        const currency = displayProduct.currency || 'ARS';
                                         return new Intl.NumberFormat('es-AR', {
                                           style: 'currency',
                                           currency: currency,
@@ -408,7 +469,7 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                                     />
                                     <Tooltip
                                       formatter={(value: number) => [
-                                        formatCurrency(value, product.currency || 'ARS'),
+                                        formatCurrency(value, displayProduct.currency || 'ARS'),
                                         'Costo'
                                       ]}
                                       labelStyle={{ color: "#374151", fontWeight: 600 }}
@@ -553,9 +614,10 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                                     columnId="notas"
                                     getColumnCellProps={getColumnCellProps}
                                     className="truncate"
-                                    title={item.notes || ''}
                                   >
-                                    {item.notes || '-'}
+                                    <div title={item.notes || ''} className="truncate w-full">
+                                      {item.notes || '-'}
+                                    </div>
                                   </ResizableTableCell>
                                 </TableRow>
                               ))}
