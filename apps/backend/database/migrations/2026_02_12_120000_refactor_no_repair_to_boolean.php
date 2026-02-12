@@ -15,7 +15,11 @@ return new class extends Migration
         Schema::table('repairs', function (Blueprint $table) {
             // Add no_repair fields if they don't exist
             if (!Schema::hasColumn('repairs', 'no_repair_reason')) {
-                $table->text('no_repair_reason')->nullable()->after('diagnosis');
+                if (Schema::hasColumn('repairs', 'diagnosis')) {
+                    $table->text('no_repair_reason')->nullable()->after('diagnosis');
+                } else {
+                    $table->text('no_repair_reason')->nullable();
+                }
             }
             if (!Schema::hasColumn('repairs', 'no_repair_at')) {
                 $table->timestamp('no_repair_at')->nullable()->after('delivered_at');
