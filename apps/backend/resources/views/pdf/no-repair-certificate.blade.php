@@ -185,13 +185,17 @@
         del <strong>{{ $year }}</strong> se deja constancia que el equipo detallado a continuacion no tiene reparacion.
     </div>
 
-    <div class="section-title">DATOS DEL CLIENTE</div>
+    @php
+        $insuredCustomer = $repair->insuredCustomer ?? $repair->customer;
+        $insuredPerson = $insuredCustomer?->person;
+    @endphp
+    <div class="section-title">{{ $repair->is_siniestro ? 'DATOS DEL ASEGURADO' : 'DATOS DEL CLIENTE' }}</div>
     <table>
         <tr>
             <td class="label">Nombre y Apellido</td>
             <td class="value">
-                @if($repair->customer && $repair->customer->person)
-                    {{ trim(($repair->customer->person->first_name ?? '') . ' ' . ($repair->customer->person->last_name ?? '')) ?: '-' }}
+                @if($insuredCustomer && $insuredPerson)
+                    {{ trim(($insuredPerson->first_name ?? '') . ' ' . ($insuredPerson->last_name ?? '')) ?: '-' }}
                 @else
                     -
                 @endif
@@ -199,11 +203,15 @@
         </tr>
         <tr>
             <td class="label">Telefono</td>
-            <td class="value">{{ $repair->customer->phone ?? '-' }}</td>
+            <td class="value">{{ $insuredPerson?->phone ?? $insuredCustomer?->phone ?? '-' }}</td>
         </tr>
         <tr>
             <td class="label">Email</td>
-            <td class="value">{{ $repair->customer->email ?? '-' }}</td>
+            <td class="value">{{ $insuredCustomer?->email ?? '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Domicilio</td>
+            <td class="value">{{ $insuredPerson?->address ?? '-' }}</td>
         </tr>
     </table>
 
@@ -253,31 +261,6 @@
         </tr>
     </table>
 
-    <div class="section-title">CLIENTE ASEGURADO</div>
-    <table>
-        <tr>
-            <td class="label">Nombre y Apellido</td>
-            <td class="value">
-                @if($repair->insuredCustomer && $repair->insuredCustomer->person)
-                    {{ trim(($repair->insuredCustomer->person->first_name ?? '') . ' ' . ($repair->insuredCustomer->person->last_name ?? '')) ?: '-' }}
-                @else
-                    -
-                @endif
-            </td>
-        </tr>
-        <tr>
-            <td class="label">Telefono</td>
-            <td class="value">{{ $repair->insuredCustomer->phone ?? '-' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Email</td>
-            <td class="value">{{ $repair->insuredCustomer->email ?? '-' }}</td>
-        </tr>
-        <tr>
-            <td class="label">Domicilio</td>
-            <td class="value">{{ $repair->insuredCustomer->person->address ?? '-' }}</td>
-        </tr>
-    </table>
     @endif
 
     <div class="footer-container">

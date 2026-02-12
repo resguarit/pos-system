@@ -314,7 +314,7 @@ export default function RepairDetailDialogV2({
             await onSave(payload as Partial<Repair>, stagedNotes);
             setStagedNotes([]);
             setNewNote("");
-            setEditMode(false);
+            onCancelEdit?.();
             // Auto-close modal after successful save
             setTimeout(() => {
                 onOpenChange(false);
@@ -371,9 +371,9 @@ export default function RepairDetailDialogV2({
             {/* @ts-expect-error - Radix DialogContent props */}
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" hideCloseButton>
                 <DialogHeader>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3">
                         {/* @ts-expect-error - Radix DialogTitle children */}
-                        <DialogTitle className="flex items-center gap-3">
+                        <DialogTitle className="flex flex-wrap items-center gap-2">
                             <span className="font-mono text-xl">{repair?.code || "..."}</span>
                             {repair && (
                                 <>
@@ -397,26 +397,43 @@ export default function RepairDetailDialogV2({
                                 </>
                             )}
                         </DialogTitle>
-                        <div className="flex items-center gap-1.5 ml-auto">
-                            {onDownloadPdf && (
-                                <Button variant="outline" size="sm" onClick={onDownloadPdf} className="text-amber-700 border-amber-200">
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    Comprobante
-                                </Button>
-                            )}
-                            {onDownloadNoRepairCertificate && repair?.is_no_repair && (
-                                <Button variant="outline" size="sm" onClick={onDownloadNoRepairCertificate} className="text-rose-700 border-rose-200">
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    Acta sin reparación
-                                </Button>
-                            )}
-                            {onDownloadReceptionCertificate && repair?.is_siniestro && (
-                                <Button variant="outline" size="sm" onClick={onDownloadReceptionCertificate} className="text-blue-700 border-blue-200">
-                                    <ClipboardCheck className="h-4 w-4 mr-2" />
-                                    Acta Recepción
-                                </Button>
-                            )}
-                        </div>
+                        {(onDownloadPdf || (onDownloadNoRepairCertificate && repair?.is_no_repair) || (onDownloadReceptionCertificate && repair?.is_siniestro)) && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                {onDownloadPdf && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={onDownloadPdf}
+                                        className="text-amber-700 border-amber-200 px-2 sm:px-3"
+                                    >
+                                        <FileText className="h-4 w-4 sm:mr-2" />
+                                        <span className="hidden sm:inline">Comprobante</span>
+                                    </Button>
+                                )}
+                                {onDownloadNoRepairCertificate && repair?.is_no_repair && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={onDownloadNoRepairCertificate}
+                                        className="text-rose-700 border-rose-200 px-2 sm:px-3"
+                                    >
+                                        <FileText className="h-4 w-4 sm:mr-2" />
+                                        <span className="hidden sm:inline">Acta sin reparación</span>
+                                    </Button>
+                                )}
+                                {onDownloadReceptionCertificate && repair?.is_siniestro && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={onDownloadReceptionCertificate}
+                                        className="text-blue-700 border-blue-200 px-2 sm:px-3"
+                                    >
+                                        <ClipboardCheck className="h-4 w-4 sm:mr-2" />
+                                        <span className="hidden sm:inline">Acta Recepción</span>
+                                    </Button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </DialogHeader>
 
