@@ -16,6 +16,9 @@ export type Repair = {
   serial_number?: string | null;
   issue_description: string;
   diagnosis?: string | null;
+  is_no_repair?: boolean;
+  no_repair_reason?: string | null;
+  no_repair_at?: string | null;
   status: RepairStatus;
   priority: RepairPriority;
   intake_date?: string | null;
@@ -27,6 +30,9 @@ export type Repair = {
   sale_id?: number | null;
   sale?: { id: number; receipt_number?: string | null };
   notes?: RepairNote[];
+  notes_count?: number;
+  latest_note_at?: string | null;
+  has_new_notes?: boolean;
   // Siniestro (Insurance Claim) fields
   is_siniestro?: boolean;
   siniestro_number?: string | null;
@@ -41,6 +47,12 @@ export type Repair = {
   insured_customer_id?: number | null;
   policy_number?: string | null;
   device_age?: number | null;
+  // Payment fields
+  is_paid?: boolean;
+  amount_paid?: number | null;
+  paid_at?: string | null;
+  payment_method?: { id: number; name: string } | null;
+  cash_movement_id?: number | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -62,6 +74,7 @@ export type RepairNote = {
 };
 
 export const RepairStatus = {
+  "Pendiente de recepción": "Pendiente de recepción",
   Recibido: "Recibido",
   "En diagnóstico": "En diagnóstico",
   "Reparación Interna": "Reparación Interna",
@@ -69,6 +82,7 @@ export const RepairStatus = {
   "Esperando repuestos": "Esperando repuestos",
   Terminado: "Terminado",
   Entregado: "Entregado",
+  Cancelado: "Cancelado",
 } as const;
 export type RepairStatus = typeof RepairStatus[keyof typeof RepairStatus];
 

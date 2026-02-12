@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Acta de Recepción - Siniestro #{{ $repair->siniestro_number }}</title>
+    <title>Acta Sin Reparación #{{ $repair->code }}</title>
     <style>
         @page {
             size: A4;
@@ -47,22 +47,6 @@
         .order-info {
             text-align: right;
             font-size: 14px;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .font-bold {
-            font-weight: bold;
-        }
-
-        .uppercase {
-            text-transform: uppercase;
         }
 
         .title {
@@ -123,15 +107,6 @@
             width: 100%;
         }
 
-        .conditions {
-            margin-top: 0;
-            font-size: 13px;
-            text-align: justify;
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-
-
         .signature-table {
             width: 100%;
             border-collapse: collapse;
@@ -152,13 +127,6 @@
             font-weight: bold;
         }
 
-        .important-note {
-            margin-top: 15px;
-            font-size: 12px;
-            text-align: justify;
-            line-height: 1.5;
-        }
-
         .footer {
             margin-top: 15px;
             text-align: center;
@@ -169,7 +137,6 @@
 </head>
 
 <body>
-    {{-- HEADER --}}
     <table class="header-table">
         <tr>
             <td class="logo-cell">
@@ -206,100 +173,131 @@
             </td>
             <td class="order-info">
                 <div>Fecha y hora: {{ $date->format('d/m/Y H:i') }}</div>
-                <div style="margin-top: 5px;">Siniestro Nº: {{ $repair->siniestro_number ?? '-' }}</div>
                 <div style="margin-top: 5px;">Orden Nº: {{ $repair->code }}</div>
             </td>
         </tr>
     </table>
 
-    <div class="title">ACTA DE RECEPCIÓN DE PRODUCTO - SERVICIO TÉCNICO</div>
+    <div class="title">ACTA SIN REPARACION</div>
 
     <div class="content">
-        En la ciudad de La Plata, a los <strong>{{ $day }}</strong> días del mes de <strong>{{ $monthName }}</strong>
-        del <strong>{{ $year }}</strong> a las <strong>{{ $date->format('H:i') }}</strong> horas
-        se deja constancia de la recepción del siguiente producto para diagnóstico y/o
-        reparación para la aseguradora <strong>{{ $insurerName }}</strong> por parte de la
-        empresa <strong>RESGUAR IT CONSULTORÍA EN INFORMÁTICA Y TECNOLOGÍA
-            S.R.L.</strong>
+        En la ciudad de La Plata, a los <strong>{{ $day }}</strong> dias del mes de <strong>{{ $monthName }}</strong>
+        del <strong>{{ $year }}</strong> se deja constancia que el equipo detallado a continuacion no tiene reparacion.
     </div>
 
-    <div class="section-title">DATOS DEL ASEGURADO</div>
+    <div class="section-title">DATOS DEL CLIENTE</div>
     <table>
         <tr>
             <td class="label">Nombre y Apellido</td>
-            <td class="value">{{ $name }}</td>
-        </tr>
-        <tr>
-            <td class="label">Teléfono</td>
-            <td class="value">{{ $phone }}</td>
-        </tr>
-        <tr>
-            <td class="label">Email</td>
-            <td class="value">{{ $email }}</td>
-        </tr>
-        <tr>
-            <td class="label">Dirección</td>
-            <td class="value">{{ $address }}</td>
-        </tr>
-        <tr>
-            <td class="label">Póliza N°</td>
-            <td class="value">{{ $repair->policy_number ?? '' }}</td>
-        </tr>
-    </table>
-
-    <div class="section-title">DETALLE DEL PRODUCTO</div>
-    <table>
-        <tr>
-            <td class="label">Artículo y Modelo</td>
-            <td class="value">{{ $repair->device }}</td>
-        </tr>
-        <tr>
-            <td class="label">Nro de Serie y Antigüedad del Bien</td>
-            <td class="value">{{ $repair->serial_number ?? '-' }} /
-                {{ $repair->device_age ? $repair->device_age . ' años' : '-' }}
+            <td class="value">
+                @if($repair->customer && $repair->customer->person)
+                    {{ trim(($repair->customer->person->first_name ?? '') . ' ' . ($repair->customer->person->last_name ?? '')) ?: '-' }}
+                @else
+                    -
+                @endif
             </td>
         </tr>
         <tr>
-            <td class="label">Nro de Siniestro</td>
-            <td class="value">{{ $repair->siniestro_number ?? '-' }}</td>
+            <td class="label">Telefono</td>
+            <td class="value">{{ $repair->customer->phone ?? '-' }}</td>
         </tr>
         <tr>
-            <td class="label">Descripción del siniestro</td>
-            <td class="value">{{ $repair->issue_description }}</td>
+            <td class="label">Email</td>
+            <td class="value">{{ $repair->customer->email ?? '-' }}</td>
         </tr>
     </table>
 
+    <div class="section-title">DETALLE DEL EQUIPO</div>
+    <table>
+        <tr>
+            <td class="label">Articulo y Modelo</td>
+            <td class="value">{{ $repair->device }}</td>
+        </tr>
+        <tr>
+            <td class="label">Nro de Serie</td>
+            <td class="value">{{ $repair->serial_number ?? '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Fecha de ingreso</td>
+            <td class="value">{{ \Carbon\Carbon::parse($repair->intake_date)->format('d/m/Y') }}</td>
+        </tr>
+    </table>
+
+    <div class="section-title">DIAGNÓSTICO TÉCNICO</div>
+    <table>
+        <tr>
+            <td class="value" style="border: 1px solid #000; padding: 12px;">
+                {{ $repair->diagnosis ?: 'Sin diagnóstico registrado' }}
+            </td>
+        </tr>
+    </table>
+
+    @if($repair->is_siniestro)
+    <div class="section-title">DATOS DEL SINIESTRO</div>
+    <table>
+        <tr>
+            <td class="label">Número de Siniestro</td>
+            <td class="value">{{ $repair->siniestro_number ?? '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Número de Póliza</td>
+            <td class="value">{{ $repair->policy_number ?? '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Aseguradora</td>
+            <td class="value">{{ $repair->insurer->name ?? '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Antigüedad del Equipo</td>
+            <td class="value">{{ $repair->device_age ?? '-' }}</td>
+        </tr>
+    </table>
+
+    <div class="section-title">CLIENTE ASEGURADO</div>
+    <table>
+        <tr>
+            <td class="label">Nombre y Apellido</td>
+            <td class="value">
+                @if($repair->insuredCustomer && $repair->insuredCustomer->person)
+                    {{ trim(($repair->insuredCustomer->person->first_name ?? '') . ' ' . ($repair->insuredCustomer->person->last_name ?? '')) ?: '-' }}
+                @else
+                    -
+                @endif
+            </td>
+        </tr>
+        <tr>
+            <td class="label">Telefono</td>
+            <td class="value">{{ $repair->insuredCustomer->phone ?? '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Email</td>
+            <td class="value">{{ $repair->insuredCustomer->email ?? '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label">Domicilio</td>
+            <td class="value">{{ $repair->insuredCustomer->person->address ?? '-' }}</td>
+        </tr>
+    </table>
+    @endif
+
     <div class="footer-container">
-        <div class="conditions">
-            <strong>CONDICIONES DE RECEPCIÓN:</strong> El cliente entrega el producto mencionado para
-            diagnóstico y/o reparación. <strong>RESGUAR IT</strong> no se responsabiliza por pérdidas de
-            información, accesorios no declarados, ni por daños adicionales que pudieran
-            surgir durante el diagnóstico.  Si no es retirado después de los 90 días, se
-            considerará abandonado conforme a los artículos 2525 y 2526 del Código Civil. La empresa no se responsabiliza por la pérdida
-            total o parcial de los datos almacenados en el equipo.
-        </div>
-
-        <div class="signature-section">
-            <table class="signature-table">
-                <tr>
-                    <td>
-                        <div class="signature-line">Firma</div>
-                    </td>
-                    <td>
-                        <div class="signature-line">Aclaración</div>
-                    </td>
-                    <td>
-                        <div class="signature-line">DNI</div>
-                    </td>
-                </tr>
-            </table>
-        </div>
-
+        <table class="signature-table">
+            <tr>
+                <td>
+                    <div class="signature-line">Firma del cliente</div>
+                </td>
+                <td>
+                    <div class="signature-line">Firma del tecnico</div>
+                </td>
+                <td>
+                    <div class="signature-line">Sello de la empresa</div>
+                </td>
+            </tr>
+        </table>
         <div class="footer">
-            Generado el: {{ now()->format('d/m/Y H:i') }}
+            Este acta es valida sin enmiendas ni tachaduras.
         </div>
     </div>
-
 </body>
 
 </html>

@@ -37,7 +37,35 @@ interface Category {
   updated_at: string
 }
 
-export default function CategoriesPage() {
+type CategoriesPageProps = {
+  apiBasePath?: string
+  basePath?: string
+  title?: string
+  newLabel?: string
+  itemName?: string
+  searchPlaceholder?: string
+  permissions?: {
+    view: string
+    create: string
+    edit: string
+    delete: string
+  }
+}
+
+export default function CategoriesPage({
+  apiBasePath = "/categories",
+  basePath = "/dashboard/categorias",
+  title = "Categorías",
+  newLabel = "Nueva Categoría",
+  itemName = "categorías",
+  searchPlaceholder = "Buscar categorías...",
+  permissions = {
+    view: "ver_categorias",
+    create: "crear_categorias",
+    edit: "editar_categorias",
+    delete: "eliminar_categorias",
+  },
+}: CategoriesPageProps) {
   const { request, loading } = useApi()
   const { hasPermission } = useAuth()
 
@@ -81,7 +109,7 @@ export default function CategoriesPage() {
 
       const response = await request({
         method: "GET",
-        url: "/categories",
+        url: apiBasePath,
         params,
         signal
       })
@@ -154,7 +182,7 @@ export default function CategoriesPage() {
     try {
       await request({
         method: "DELETE",
-        url: `/categories/${categoryToDelete}`,
+        url: `${apiBasePath}/${categoryToDelete}`,
       })
 
       // Recargar todas las categorías desde el backend para mantener consistencia
@@ -204,16 +232,16 @@ export default function CategoriesPage() {
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Categorías</h2>
+        <h2 className="text-3xl font-bold tracking-tight">{title}</h2>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={() => fetchCategories(currentPage)} disabled={loading} title="Refrescar">
             <RotateCw className={loading ? "animate-spin h-4 w-4" : "h-4 w-4"} />
           </Button>
-          {hasPermission('crear_categorias') && (
+          {hasPermission(permissions.create) && (
             <Button asChild>
-              <Link to="/dashboard/categorias/nuevo">
+              <Link to={`${basePath}/nuevo`}>
                 <Plus className="mr-2 h-4 w-4" />
-                Nueva Categoría
+                {newLabel}
               </Link>
             </Button>
           )}
@@ -226,7 +254,7 @@ export default function CategoriesPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               type="search" 
-              placeholder="Buscar categorías..." 
+              placeholder={searchPlaceholder} 
               className="w-full pl-8" 
               value={searchText} 
               onChange={e => setSearchText(e.target.value)} 
@@ -305,14 +333,14 @@ export default function CategoriesPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        {hasPermission('ver_categorias') && (
+                        {hasPermission(permissions.view) && (
                           <Button variant="ghost" size="icon" title="Ver" className="hover:bg-blue-100 group" asChild>
-                            <Link to={`/dashboard/categorias/${category.id}/ver`}>
+                            <Link to={`${basePath}/${category.id}/ver`}>
                               <Eye className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
                             </Link>
                           </Button>
                         )}
-                        {hasPermission('editar_categorias') && (
+                        {hasPermission(permissions.edit) && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -320,12 +348,12 @@ export default function CategoriesPage() {
                             className="text-orange-500 hover:text-orange-700 hover:bg-orange-50"
                             asChild
                           >
-                            <Link to={`/dashboard/categorias/${category.id}`}>
+                            <Link to={`${basePath}/${category.id}`}>
                               <Pencil className="h-4 w-4" />
                             </Link>
                           </Button>
                         )}
-                        {hasPermission('eliminar_categorias') && (
+                        {hasPermission(permissions.delete) && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -374,7 +402,7 @@ export default function CategoriesPage() {
             currentPage={currentPage}
             lastPage={totalPages}
             total={totalItems}
-            itemName="categorías"
+            itemName={itemName}
             onPageChange={(page) => goToPage(page)}
             disabled={loading}
           />

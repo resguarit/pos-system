@@ -12,10 +12,10 @@ import {
     RotateCw,
     LayoutGrid,
     List,
-    Trash2,
     CheckCircle2,
     FileText,
     ClipboardCheck,
+    MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,16 +33,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker";
 import { useResizableColumns } from "@/hooks/useResizableColumns";
 import { ResizableTableHeader, ResizableTableCell } from "@/components/ui/resizable-table-header";
@@ -58,6 +48,7 @@ import { format } from "date-fns";
 
 // Badge color configs
 const STATUS_BADGE_COLORS: Record<RepairStatus, string> = {
+    "Pendiente de recepción": "bg-slate-50 text-slate-700 hover:bg-slate-50",
     Recibido: "bg-blue-50 text-blue-700 hover:bg-blue-50",
     "En diagnóstico": "bg-yellow-50 text-yellow-700 hover:bg-yellow-50",
     "Reparación Interna": "bg-orange-50 text-orange-700 hover:bg-orange-50",
@@ -65,6 +56,7 @@ const STATUS_BADGE_COLORS: Record<RepairStatus, string> = {
     "Esperando repuestos": "bg-purple-50 text-purple-700 hover:bg-purple-50",
     Terminado: "bg-green-50 text-green-700 hover:bg-green-50",
     Entregado: "bg-gray-50 text-gray-700 hover:bg-gray-50",
+    Cancelado: "bg-red-50 text-red-700 hover:bg-red-50",
 };
 
 const PRIORITY_BADGE_COLORS: Record<RepairPriority, string> = {
@@ -92,12 +84,12 @@ export default function ReparacionesPage() {
         fetchKanban,
         createRepair,
         updateRepair,
-        deleteRepair,
         updateStatus,
         addNote,
         getRepair,
         downloadPdf,
         downloadReceptionCertificate,
+        downloadNoRepairCertificate,
         refresh,
     } = useRepairs();
 
@@ -110,7 +102,9 @@ export default function ReparacionesPage() {
         { id: "priority", minWidth: 80, maxWidth: 120, defaultWidth: 100 },
         { id: "cost", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: "sale_price", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
-        { id: "actions", minWidth: 180, maxWidth: 250, defaultWidth: 200 },
+        { id: "payment", minWidth: 110, maxWidth: 160, defaultWidth: 130 },
+        { id: "actions", minWidth: 180, maxWidth: 300, defaultWidth: 220 },
+        { id: "notes", minWidth: 100, maxWidth: 140, defaultWidth: 110 },
     ];
 
     const {
@@ -133,10 +127,7 @@ export default function ReparacionesPage() {
     const [selectedRepair, setSelectedRepair] = useState<Repair | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [editMode, setEditMode] = useState(false);
-
-    // Delete confirmation
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [repairToDelete, setRepairToDelete] = useState<Repair | null>(null);
+    const [detailInitialTab, setDetailInitialTab] = useState<"details" | "financials" | "notes">("details");
 
     // Apply date range to filters
     useEffect(() => {
@@ -162,11 +153,11 @@ export default function ReparacionesPage() {
         }
     }, [viewMode, fetchKanban]);
 
-    // View repair detail
-    const handleView = async (repair: Repair) => {
+    const openDetail = async (repair: Repair, tab: "details" | "financials" | "notes", editable: boolean) => {
         setDetailLoading(true);
         setDetailDialogOpen(true);
-        setEditMode(false);
+        setEditMode(editable);
+        setDetailInitialTab(tab);
         try {
             const fullRepair = await getRepair(repair.id);
             setSelectedRepair(fullRepair);
@@ -175,17 +166,18 @@ export default function ReparacionesPage() {
         }
     };
 
+    // View repair detail
+    const handleView = async (repair: Repair) => {
+        await openDetail(repair, "details", false);
+    };
+
     // Edit repair
     const handleEdit = async (repair: Repair) => {
-        setDetailLoading(true);
-        setDetailDialogOpen(true);
-        setEditMode(true);
-        try {
-            const fullRepair = await getRepair(repair.id);
-            setSelectedRepair(fullRepair);
-        } finally {
-            setDetailLoading(false);
-        }
+        await openDetail(repair, "details", true);
+    };
+
+    const handleNotesQuickAccess = async (repair: Repair) => {
+        await openDetail(repair, "notes", false);
     };
 
     // Save repair changes (including staged notes)
@@ -193,23 +185,37 @@ export default function ReparacionesPage() {
         if (!selectedRepair) return;
         // updateRepair will throw on error
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updated = await updateRepair(selectedRepair.id, data as any);
+        await updateRepair(selectedRepair.id, data as any);
 
-        if (updated) {
-            // Save any staged notes
+        // ALWAYS refresh from server to ensure data consistency (especially for is_no_repair, no_repair_reason, etc)
+        const refreshed = await getRepair(selectedRepair.id);
+        if (refreshed) {
+            setSelectedRepair(refreshed);
+            
+            // Save any staged notes after main update
             if (notes && notes.length > 0) {
                 for (const note of notes) {
                     await addNote(selectedRepair.id, note);
                 }
-                // Refresh to get the new notes
-                const refreshed = await getRepair(selectedRepair.id);
-                setSelectedRepair(refreshed);
-            } else {
-                setSelectedRepair(updated);
+                // Refresh again to get the new notes
+                const finalRefresh = await getRepair(selectedRepair.id);
+                if (finalRefresh) setSelectedRepair(finalRefresh);
             }
+            
             setEditMode(false);
+            refresh(); // Refresh the list too
+        }
+    };
+
+    const handleQuickAddNote = async (note: string): Promise<boolean> => {
+        if (!selectedRepair) return false;
+        const saved = await addNote(selectedRepair.id, note);
+        if (saved) {
+            const refreshed = await getRepair(selectedRepair.id);
+            setSelectedRepair(refreshed);
             refresh();
         }
+        return saved;
     };
 
     // Create repair
@@ -220,17 +226,6 @@ export default function ReparacionesPage() {
             return true;
         }
         return false;
-    };
-
-    // Delete repair
-    const handleDeleteConfirm = async () => {
-        if (!repairToDelete) return;
-        const success = await deleteRepair(repairToDelete.id);
-        if (success) {
-            refresh();
-            setDeleteDialogOpen(false);
-            setRepairToDelete(null);
-        }
     };
 
     // Status change (from Kanban)
@@ -252,6 +247,10 @@ export default function ReparacionesPage() {
     // Download Reception Certificate (for insurance)
     const handleDownloadReceptionCertificate = async (repair: Repair) => {
         await downloadReceptionCertificate(repair.id);
+    };
+
+    const handleDownloadNoRepairCertificate = async (repair: Repair) => {
+        await downloadNoRepairCertificate(repair.id);
     };
 
     // Format currency
@@ -474,12 +473,26 @@ export default function ReparacionesPage() {
                                                     Precio Venta
                                                 </ResizableTableHeader>
                                                 <ResizableTableHeader
+                                                    columnId="payment"
+                                                    getResizeHandleProps={getResizeHandleProps}
+                                                    getColumnHeaderProps={getColumnHeaderProps}
+                                                >
+                                                    Pago
+                                                </ResizableTableHeader>
+                                                <ResizableTableHeader
                                                     columnId="actions"
                                                     getResizeHandleProps={getResizeHandleProps}
                                                     getColumnHeaderProps={getColumnHeaderProps}
                                                     className="text-center"
                                                 >
                                                     Acciones
+                                                </ResizableTableHeader>
+                                                <ResizableTableHeader
+                                                    columnId="notes"
+                                                    getResizeHandleProps={getResizeHandleProps}
+                                                    getColumnHeaderProps={getColumnHeaderProps}
+                                                >
+                                                    Notas
                                                 </ResizableTableHeader>
                                             </TableRow>
                                         </TableHeader>
@@ -541,6 +554,22 @@ export default function ReparacionesPage() {
                                                         {formatCurrency(rep.sale_price)}
                                                     </ResizableTableCell>
                                                     <ResizableTableCell
+                                                        columnId="payment"
+                                                        getColumnCellProps={getColumnCellProps}
+                                                    >
+                                                        {rep.is_paid ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="h-2 w-2 rounded-full bg-green-500" />
+                                                                <span className="text-xs font-medium text-green-700">Cobrado</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="h-2 w-2 rounded-full bg-orange-400" />
+                                                                <span className="text-xs font-medium text-orange-700">Pendiente</span>
+                                                            </div>
+                                                        )}
+                                                    </ResizableTableCell>
+                                                    <ResizableTableCell
                                                         columnId="actions"
                                                         getColumnCellProps={getColumnCellProps}
                                                         className="text-right"
@@ -589,22 +618,41 @@ export default function ReparacionesPage() {
                                                                         <ClipboardCheck className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
                                                                     </Button>
                                                                 )}
+                                                                {rep.is_no_repair && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="hover:bg-rose-100 group h-8 w-8"
+                                                                        onClick={() => handleDownloadNoRepairCertificate(rep)}
+                                                                        title="Descargar Acta Sin Reparación"
+                                                                    >
+                                                                        <FileText className="h-4 w-4 text-rose-600 group-hover:text-rose-700" />
+                                                                    </Button>
+                                                                )}
                                                             </div>
-                                                            {hasPermission("eliminar_reparaciones") && (
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="hover:bg-red-100 group"
-                                                                    onClick={() => {
-                                                                        setRepairToDelete(rep);
-                                                                        setDeleteDialogOpen(true);
-                                                                    }}
-                                                                    title="Eliminar"
-                                                                >
-                                                                    <Trash2 className="h-4 w-4 text-red-600 group-hover:text-red-700" />
-                                                                </Button>
-                                                            )}
                                                         </div>
+                                                    </ResizableTableCell>
+                                                    <ResizableTableCell
+                                                        columnId="notes"
+                                                        getColumnCellProps={getColumnCellProps}
+                                                    >
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 px-2"
+                                                            onClick={() => handleNotesQuickAccess(rep)}
+                                                            title="Ver y agregar notas"
+                                                        >
+                                                            <span className="relative">
+                                                                <MessageSquare className="h-4 w-4 text-slate-600" />
+                                                                {rep.has_new_notes && (
+                                                                    <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" />
+                                                                )}
+                                                            </span>
+                                                            <span className="ml-1 text-xs font-medium text-slate-700">
+                                                                {rep.notes_count ?? rep.notes?.length ?? 0}
+                                                            </span>
+                                                        </Button>
                                                     </ResizableTableCell>
                                                 </TableRow>
                                             ))}
@@ -625,6 +673,7 @@ export default function ReparacionesPage() {
                         onStatusChange={handleStatusChange}
                         onDownloadPdf={handleDownloadPdf}
                         onDownloadReceptionCertificate={handleDownloadReceptionCertificate}
+                        onDownloadNoRepairCertificate={handleDownloadNoRepairCertificate}
                         loading={loading}
                     />
                 )}
@@ -652,36 +701,21 @@ export default function ReparacionesPage() {
                     editMode={editMode}
                     onSave={handleSaveRepair}
                     onCancelEdit={() => setEditMode(false)}
+                    onPaymentSuccess={() => refresh()}
+                    onQuickAddNote={handleQuickAddNote}
+                    defaultTab={detailInitialTab}
                     onDownloadPdf={
                         selectedRepair ? () => handleDownloadPdf(selectedRepair) : undefined
                     }
                     onDownloadReceptionCertificate={
                         selectedRepair ? () => handleDownloadReceptionCertificate(selectedRepair) : undefined
                     }
+                    onDownloadNoRepairCertificate={
+                        selectedRepair ? () => handleDownloadNoRepairCertificate(selectedRepair) : undefined
+                    }
                     options={options}
                 />
 
-                {/* Delete Confirmation */}
-                <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>¿Eliminar reparación?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Se eliminará la reparación{" "}
-                                <strong>{repairToDelete?.code}</strong> del sistema.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={handleDeleteConfirm}
-                                className="bg-red-600 hover:bg-red-700"
-                            >
-                                Eliminar
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
             </div>
         </BranchRequiredWrapper>
     );

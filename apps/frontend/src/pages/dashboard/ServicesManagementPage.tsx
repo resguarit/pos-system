@@ -3,10 +3,11 @@
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { Users, Settings, RefreshCw, Plus } from "lucide-react"
+import { Users, Settings, RefreshCw, Plus, Layers } from "lucide-react"
 import ServicesCustomersView from "@/components/services/ServicesCustomersView"
 import ServicesConfigView from "@/components/services/ServicesConfigView"
 import AssignServiceDialog from "@/components/services/AssignServiceDialog"
+import ServicesGroupedView from "@/components/services/ServicesGroupedView"
 
 export default function ServicesManagementPage() {
     const [activeTab, setActiveTab] = useState("customers")
@@ -45,10 +46,14 @@ export default function ServicesManagementPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                <TabsList className="grid w-full max-w-md grid-cols-2 h-11">
+                <TabsList className="grid w-full max-w-2xl grid-cols-3 h-11">
                     <TabsTrigger value="customers" className="flex items-center gap-2 text-sm">
                         <Users className="h-4 w-4" />
                         Estado de Clientes
+                    </TabsTrigger>
+                    <TabsTrigger value="services" className="flex items-center gap-2 text-sm">
+                        <Layers className="h-4 w-4" />
+                        Por Servicio
                     </TabsTrigger>
                     <TabsTrigger value="config" className="flex items-center gap-2 text-sm">
                         <Settings className="h-4 w-4" />
@@ -61,7 +66,12 @@ export default function ServicesManagementPage() {
                     <ServicesCustomersView />
                 </TabsContent>
 
-                {/* Tab 2: Configuración de Servicios (CRUD) */}
+                {/* Tab 2: Vista agrupada por servicio */}
+                <TabsContent value="services" className="mt-4" key={`services-${refreshKey}`}>
+                    <ServicesGroupedView />
+                </TabsContent>
+
+                {/* Tab 3: Configuración de Servicios (CRUD) */}
                 <TabsContent value="config" className="mt-4" key={`config-${refreshKey}`}>
                     <ServicesConfigView />
                 </TabsContent>

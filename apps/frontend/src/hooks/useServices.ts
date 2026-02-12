@@ -58,7 +58,8 @@ export type CreateServiceData = {
     description?: string;
     amount: number;
     billing_cycle: "monthly" | "annual" | "one_time";
-    start_date: string;
+    start_date?: string;
+    next_due_date?: string | null;
     status?: "active" | "suspended" | "cancelled";
 };
 

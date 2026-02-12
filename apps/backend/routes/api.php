@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\EquipmentCategoryController;
 use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
@@ -195,6 +196,21 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::middleware('has_permission:crear_categorias')->post('/', [CategoryController::class, 'store']);
         Route::middleware('has_permission:editar_categorias')->put('/{id}', [CategoryController::class, 'update']);
         Route::middleware('has_permission:eliminar_categorias')->delete('/{id}', [CategoryController::class, 'destroy']);
+    });
+
+    Route::prefix('equipment-categories')->group(function () {
+        Route::middleware('has_permission:ver_categorias_equipos')->group(function () {
+            Route::get('/', [EquipmentCategoryController::class, 'index']);
+            Route::get('/check-name/{name}', [EquipmentCategoryController::class, 'checkName']);
+            Route::get('/parents', [EquipmentCategoryController::class, 'parents']);
+            Route::get('/subcategories/{parentId?}', [EquipmentCategoryController::class, 'subcategories']);
+            Route::get('/for-selector', [EquipmentCategoryController::class, 'forSelector']);
+            Route::get('/{id}', [EquipmentCategoryController::class, 'show']);
+        });
+
+        Route::middleware('has_permission:crear_categorias_equipos')->post('/', [EquipmentCategoryController::class, 'store']);
+        Route::middleware('has_permission:editar_categorias_equipos')->put('/{id}', [EquipmentCategoryController::class, 'update']);
+        Route::middleware('has_permission:eliminar_categorias_equipos')->delete('/{id}', [EquipmentCategoryController::class, 'destroy']);
     });
 
     // **SOLUCIÓN BUG #2**: Rutas para gestión de tasa de cambio
@@ -629,6 +645,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             Route::get('/{id}', [RepairController::class, 'show'])->whereNumber('id');
             Route::get('/{id}/pdf', [RepairController::class, 'generatePdf'])->whereNumber('id');
             Route::get('/{id}/reception-certificate', [RepairController::class, 'receptionCertificate'])->whereNumber('id');
+            Route::get('/{id}/no-repair-certificate', [RepairController::class, 'noRepairCertificate'])->whereNumber('id');
         });
 
         Route::middleware('has_permission:crear_reparaciones')->post('/', [RepairController::class, 'store']);
@@ -638,9 +655,9 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             Route::patch('/{id}/status', [RepairController::class, 'updateStatus'])->whereNumber('id');
             Route::patch('/{id}/assign', [RepairController::class, 'assign'])->whereNumber('id');
             Route::post('/{id}/notes', [RepairController::class, 'addNote'])->whereNumber('id');
+            Route::post('/{id}/mark-as-paid', [RepairController::class, 'markAsPaid'])->whereNumber('id');
+            Route::post('/{id}/no-repair', [RepairController::class, 'markNoRepair'])->whereNumber('id');
         });
-
-        Route::middleware('has_permission:eliminar_reparaciones')->delete('/{id}', [RepairController::class, 'destroy'])->whereNumber('id');
     });
 
     // Insurers (Aseguradoras) Routes

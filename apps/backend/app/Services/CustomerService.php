@@ -48,7 +48,7 @@ class CustomerService implements CustomerServiceInterface
                 'fiscal_condition_id' => isset($data['fiscal_condition_id']) && $data['fiscal_condition_id'] ? $data['fiscal_condition_id'] : 1, // Default a 1 si es nulo o 0
                 'person_type_id' => isset($data['person_type_id']) && $data['person_type_id'] ? $data['person_type_id'] : 1, // Default a 1 si es nulo o 0
                 'document_type_id' => isset($data['document_type_id']) && $data['document_type_id'] ? $data['document_type_id'] : 1,
-                'documento' => isset($data['documento']) && $data['documento'] ? $data['documento'] : 0,
+                'documento' => isset($data['documento']) && $data['documento'] ? (int) $data['documento'] : null,
                 'credit_limit' => $data['credit_limit'] ?? null, // NULL = límite infinito
             ];
 

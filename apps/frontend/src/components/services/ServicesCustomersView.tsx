@@ -30,6 +30,7 @@ import { es } from "date-fns/locale"
 import { toast } from "sonner"
 import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 import { calculateMonthlyCost } from "@/utils/serviceUtils"
+import { getServicePaymentStatus } from "@/utils/servicePaymentStatus"
 
 interface Service {
     id: number
@@ -100,29 +101,6 @@ const getServiceIcon = (name: string) => {
     return <Server className="h-5 w-5" />
 }
 
-// Clasifica el estado de un servicio según fecha de vencimiento
-const getServicePaymentStatus = (service: Service): "active" | "due_soon" | "expired" | "inactive" => {
-    if (service.status !== "active") return "inactive"
-
-    // Para servicios de pago único sin fecha de vencimiento = pagado
-    if (!service.next_due_date) {
-        // Si es único y no tiene fecha, está pagado
-        if (service.billing_cycle === 'one_time') return "active"
-        // Para otros tipos sin fecha, también consideramos al día
-        return "active"
-    }
-
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const dueDate = new Date(service.next_due_date)
-    dueDate.setHours(0, 0, 0, 0)
-    const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (diffDays < 0) return "expired"
-    if (diffDays <= 15) return "due_soon"
-    return "active"
-}
-
 // Obtiene el badge de estado del servicio con colores
 const getServiceStatusBadge = (status: string, service?: Service) => {
     switch (status) {
@@ -133,7 +111,7 @@ const getServiceStatusBadge = (status: string, service?: Service) => {
         case "active":
             return { label: "Al día", className: "bg-green-100 text-green-700 border-green-200" }
         case "inactive":
-            return { label: service?.status === "suspended" ? "Suspendido" : "Cancelado", className: "bg-gray-100 text-gray-700 border-gray-200" }
+            return { label: "Inactivo", className: "bg-gray-100 text-gray-700 border-gray-200" }
         default:
             return { label: "Desconocido", className: "bg-gray-100 text-gray-700 border-gray-200" }
     }
@@ -343,7 +321,7 @@ export default function ServicesCustomersView() {
             discount_percentage: selectedService.discount_percentage || "0",
             discount_notes: selectedService.discount_notes || "",
             billing_cycle: selectedService.billing_cycle,
-            status: selectedService.status,
+            status: selectedService.status === "suspended" ? "cancelled" : selectedService.status,
             next_due_date: selectedService.next_due_date || "",
         })
         setServiceEditMode(true)
@@ -755,7 +733,6 @@ export default function ServicesCustomersView() {
                             <SelectItem value="expired">Vencidos</SelectItem>
                             <SelectItem value="due_soon">Por vencer</SelectItem>
                             <SelectItem value="active">Al día</SelectItem>
-                            <SelectItem value="suspended">Suspendidos</SelectItem>
                         </SelectContent>
                     </Select>
 
@@ -1394,7 +1371,6 @@ export default function ServicesCustomersView() {
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="active">Activo</SelectItem>
-                                                        <SelectItem value="suspended">Suspendido</SelectItem>
                                                         <SelectItem value="cancelled">Cancelado</SelectItem>
                                                     </SelectContent>
                                                 </Select>
@@ -1514,8 +1490,7 @@ export default function ServicesCustomersView() {
                                             <div className="p-3 bg-gray-50 rounded-lg">
                                                 <p className="text-xs text-gray-500 mb-1">Estado del Servicio</p>
                                                 <p className="font-medium text-sm capitalize">
-                                                    {selectedService.status === 'active' ? 'Activo' :
-                                                        selectedService.status === 'suspended' ? 'Suspendido' : 'Cancelado'}
+                                                    {selectedService.status === 'active' ? 'Activo' : 'Inactivo'}
                                                 </p>
                                             </div>
                                         </div>

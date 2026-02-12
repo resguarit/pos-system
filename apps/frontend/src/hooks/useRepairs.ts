@@ -12,6 +12,7 @@ import type {
 } from "@/types/repairs";
 
 const REPAIR_STATUSES: RepairStatus[] = [
+    "Pendiente de recepción",
     "Recibido",
     "En diagnóstico",
     "Reparación Interna",
@@ -19,6 +20,7 @@ const REPAIR_STATUSES: RepairStatus[] = [
     "Esperando repuestos",
     "Terminado",
     "Entregado",
+    "Cancelado",
 ];
 
 const REPAIR_PRIORITIES: RepairPriority[] = ["Alta", "Media", "Baja"];
@@ -55,6 +57,9 @@ type UseRepairsReturn = {
     getRepair: (id: number) => Promise<Repair | null>;
     downloadPdf: (id: number) => Promise<void>;
     downloadReceptionCertificate: (id: number) => Promise<void>;
+    downloadNoRepairCertificate: (id: number) => Promise<void>;
+    markAsPaid: (id: number, paymentData: MarkAsPaidData) => Promise<Repair | null>;
+    markAsNoRepair: (id: number, data?: MarkAsNoRepairData) => Promise<Repair | null>;
     refresh: () => void;
 };
 
@@ -76,6 +81,16 @@ type CreateRepairData = {
 
 type UpdateRepairData = Partial<CreateRepairData> & {
     sale_id?: number;
+};
+
+type MarkAsPaidData = {
+    payment_method_id: number;
+    amount_paid?: number;
+    branch_id: number;
+};
+
+type MarkAsNoRepairData = {
+    reason?: string | null;
 };
 
 export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
@@ -129,8 +144,11 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         }
 
         // Branch from context
-        if (selectedBranchIds?.[0] && selectedBranchIds[0] !== "all") {
-            params.branch_id = selectedBranchIds[0];
+        if (selectedBranchIds && selectedBranchIds.length > 0 && selectedBranchIds[0] !== "all") {
+            params.branch_id = selectedBranchIds.length === 1 ? selectedBranchIds[0] : undefined;
+            if (selectedBranchIds.length > 1) {
+                params.branch_ids = selectedBranchIds;
+            }
         }
 
         return params;
@@ -230,7 +248,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                 const data = Array.isArray(resp?.data) ? resp.data : (Array.isArray(resp) ? resp : []);
                 setInsurers(data as { id: number; name: string }[]);
             } catch (err) {
-                console.error("Error fetching insurers", err);
+                const error = err as { name?: string; message?: string; code?: string };
+                if (error?.name !== "AbortError" && error?.message !== "canceled" && error?.code !== "ERR_CANCELED") {
+                    console.error("Error fetching insurers", err);
+                }
             }
         },
         [request]
@@ -289,6 +310,47 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                 return repair;
             } catch {
                 toast.error("No se pudo actualizar el estado");
+                return null;
+            }
+        },
+        [request]
+    );
+
+    // Mark as paid
+    const markAsPaid = useCallback(
+        async (id: number, paymentData: MarkAsPaidData): Promise<Repair | null> => {
+            try {
+                const resp = await request({
+                    method: "POST",
+                    url: `/repairs/${id}/mark-as-paid`,
+                    data: paymentData,
+                });
+                const repair = (resp as { data?: Repair })?.data || (resp as Repair);
+                toast.success("Pago registrado en caja");
+                return repair;
+            } catch (err) {
+                const error = err as { response?: { data?: { error?: string } } };
+                const errorMsg = error?.response?.data?.error || "No se pudo registrar el pago";
+                toast.error(errorMsg);
+                return null;
+            }
+        },
+        [request]
+    );
+
+    const markAsNoRepair = useCallback(
+        async (id: number, payload: MarkAsNoRepairData = {}): Promise<Repair | null> => {
+            try {
+                const resp = await request({
+                    method: "POST",
+                    url: `/repairs/${id}/no-repair`,
+                    data: payload,
+                });
+                const repair = (resp as { data?: Repair })?.data || (resp as Repair);
+                toast.success("Reparación marcada como sin reparación");
+                return repair;
+            } catch {
+                toast.error("No se pudo marcar como sin reparación");
                 return null;
             }
         },
@@ -388,6 +450,35 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         [request]
     );
 
+    const downloadNoRepairCertificate = useCallback(
+        async (id: number): Promise<void> => {
+            try {
+                const resp = await request({
+                    method: "GET",
+                    url: `/repairs/${id}/no-repair-certificate`,
+                    responseType: "blob",
+                });
+
+                if (!resp || !(resp instanceof Blob)) {
+                    throw new Error("Respuesta invalida");
+                }
+
+                const blob = new Blob([resp], { type: "application/pdf" });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `acta_sin_reparacion_${id}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch {
+                toast.error("No se pudo descargar el acta sin reparación");
+            }
+        },
+        [request]
+    );
+
     // Refresh all data
     const refresh = useCallback(() => {
         fetchRepairs();
@@ -463,6 +554,9 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         getRepair,
         downloadPdf,
         downloadReceptionCertificate,
+        downloadNoRepairCertificate,
+        markAsPaid,
+        markAsNoRepair,
         refresh,
     };
 }

@@ -7,43 +7,65 @@ use App\Interfaces\CategoryServiceInterface;
 
 class CategoryService implements CategoryServiceInterface
 {
-    public function getAllCategories($search = null, $perPage = null)
+    private function normalizeType(?string $type): string
     {
-        $query = Category::with(['parent', 'children']);
-        
+        return $type ?: Category::TYPE_PRODUCT;
+    }
+
+    public function getAllCategories($search = null, $perPage = null, $type = null)
+    {
+        $categoryType = $this->normalizeType($type);
+
+        $query = Category::with(['parent', 'children'])
+            ->ofType($categoryType);
+
         if ($search) {
-            $query->where('name', 'like', "%{$search}%")
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
                   ->orWhere('description', 'like', "%{$search}%");
+            });
         }
-        
+
         if ($perPage) {
             return $query->paginate($perPage);
         }
-        
+
         return $query->get();
     }
 
-    public function getParentCategories()
+    public function getParentCategories($type = null)
     {
-        return Category::parents()->with('children')->get();
+        $categoryType = $this->normalizeType($type);
+
+        return Category::parents()
+            ->ofType($categoryType)
+            ->with('children')
+            ->get();
     }
 
-    public function getSubcategories($parentId = null)
+    public function getSubcategories($parentId = null, $type = null)
     {
-        $query = Category::subcategories()->with('parent');
-        
+        $categoryType = $this->normalizeType($type);
+
+        $query = Category::subcategories()
+            ->ofType($categoryType)
+            ->with('parent');
+
         if ($parentId) {
             $query->where('parent_id', $parentId);
         }
-        
+
         return $query->get();
     }
 
     public function createCategory(array $data)
     {
+        $categoryType = $this->normalizeType($data['category_type'] ?? null);
+        $data['category_type'] = $categoryType;
+
         // Validar que si se especifica parent_id, el padre exista y no sea una subcategoría
         if (isset($data['parent_id']) && !is_null($data['parent_id'])) {
-            $parent = Category::find($data['parent_id']);
+            $parent = Category::ofType($categoryType)->find($data['parent_id']);
             if (!$parent) {
                 throw new \Exception('La categoría padre especificada no existe.');
             }
@@ -51,64 +73,76 @@ class CategoryService implements CategoryServiceInterface
                 throw new \Exception('No se puede crear una subcategoría de otra subcategoría. Solo se permiten 2 niveles.');
             }
         }
-        
+
         return Category::create($data);
     }
 
-    public function getCategoryById($id)
+    public function getCategoryById($id, $type = null)
     {
-        return Category::with(['parent', 'children'])->findOrFail($id);
+        $categoryType = $this->normalizeType($type);
+
+        return Category::with(['parent', 'children'])
+            ->ofType($categoryType)
+            ->findOrFail($id);
     }
 
-    public function updateCategory($id, array $data)
+    public function updateCategory($id, array $data, $type = null)
     {
-        $category = Category::findOrFail($id);
-        
+        $categoryType = $this->normalizeType($type ?? ($data['category_type'] ?? null));
+
+        $category = Category::ofType($categoryType)->findOrFail($id);
+
         // Validar que si se especifica parent_id, el padre exista y no sea una subcategoría
         if (isset($data['parent_id']) && !is_null($data['parent_id'])) {
             // No puede ser padre de sí mismo
             if ($data['parent_id'] == $id) {
                 throw new \Exception('Una categoría no puede ser padre de sí misma.');
             }
-            
-            $parent = Category::find($data['parent_id']);
+
+            $parent = Category::ofType($categoryType)->find($data['parent_id']);
             if (!$parent) {
                 throw new \Exception('La categoría padre especificada no existe.');
             }
             if ($parent->isSubcategory()) {
                 throw new \Exception('No se puede crear una subcategoría de otra subcategoría. Solo se permiten 2 niveles.');
             }
-            
+
             // Si la categoría actual tiene hijos, no puede convertirse en subcategoría
             if ($category->children()->count() > 0) {
                 throw new \Exception('Una categoría con subcategorías no puede convertirse en subcategoría.');
             }
         }
-        
+
         $category->update($data);
         return $category;
     }
 
-    public function deleteCategory($id)
+    public function deleteCategory($id, $type = null)
     {
-        $category = Category::findOrFail($id);
-        
+        $categoryType = $this->normalizeType($type);
+
+        $category = Category::ofType($categoryType)->findOrFail($id);
+
         // Si es una categoría padre con hijos, no se puede eliminar
         if ($category->children()->count() > 0) {
             throw new \Exception('No se puede eliminar una categoría que tiene subcategorías. Elimine primero las subcategorías.');
         }
-        
+
         $category->delete();
         return $category;
     }
 
-    public function getCategoriesForSelector()
+    public function getCategoriesForSelector($type = null)
     {
+        $categoryType = $this->normalizeType($type);
+
         // Obtener todas las categorías con estructura jerárquica para selectores
-        $categories = Category::with(['parent', 'children'])->get();
-        
+        $categories = Category::with(['parent', 'children'])
+            ->ofType($categoryType)
+            ->get();
+
         $formatted = [];
-        
+
         // Primero agregar categorías padre
         $parentCategories = $categories->where('parent_id', null);
         foreach ($parentCategories as $parent) {
@@ -121,7 +155,7 @@ class CategoryService implements CategoryServiceInterface
                 'display_name' => "📁 {$parent->name}",
                 'level' => 0
             ];
-            
+
             // Agregar subcategorías
             $subcategories = $categories->where('parent_id', $parent->id);
             foreach ($subcategories as $subcategory) {
@@ -136,12 +170,14 @@ class CategoryService implements CategoryServiceInterface
                 ];
             }
         }
-        
+
         return $formatted;
     }
 
-    public function checkNameExists($name): bool
+    public function checkNameExists($name, $type = null): bool
     {
-        return Category::where('name', $name)->exists();
+        $categoryType = $this->normalizeType($type);
+
+        return Category::ofType($categoryType)->where('name', $name)->exists();
     }
 }

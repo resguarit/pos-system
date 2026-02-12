@@ -23,10 +23,12 @@ import {
     Wrench,
     Clock,
     AlertTriangle,
+    AlertCircle,
     CheckCircle,
     Package,
     Truck,
     ClipboardCheck,
+    X,
 } from "lucide-react";
 import type { Repair, RepairStatus, RepairPriority, KanbanColumn } from "@/types/repairs";
 import { cn } from "@/lib/utils";
@@ -37,6 +39,12 @@ const STATUS_CONFIG: Record<RepairStatus, {
     borderColor: string;
     icon: React.ReactNode;
 }> = {
+    "Pendiente de recepción": {
+        color: "text-slate-700",
+        bgColor: "bg-slate-50",
+        borderColor: "border-slate-200",
+        icon: <ClipboardCheck className="h-4 w-4" />,
+    },
     "Recibido": {
         color: "text-blue-700",
         bgColor: "bg-blue-50",
@@ -67,6 +75,12 @@ const STATUS_CONFIG: Record<RepairStatus, {
         borderColor: "border-purple-200",
         icon: <Clock className="h-4 w-4" />,
     },
+    "Cancelado": {
+        color: "text-red-700",
+        bgColor: "bg-red-50",
+        borderColor: "border-red-200",
+        icon: <X className="h-4 w-4" />,
+    },
     "Terminado": {
         color: "text-green-700",
         bgColor: "bg-green-50",
@@ -94,6 +108,7 @@ type RepairKanbanViewProps = {
     onStatusChange: (repairId: number, newStatus: RepairStatus) => void;
     onDownloadPdf: (repair: Repair) => void;
     onDownloadReceptionCertificate: (repair: Repair) => void;
+    onDownloadNoRepairCertificate: (repair: Repair) => void;
     loading?: boolean;
 };
 
@@ -104,6 +119,7 @@ function RepairCard({
     onStatusChange,
     onDownloadPdf,
     onDownloadReceptionCertificate,
+    onDownloadNoRepairCertificate,
 }: {
     repair: Repair;
     onView: () => void;
@@ -111,6 +127,7 @@ function RepairCard({
     onStatusChange: (status: RepairStatus) => void;
     onDownloadPdf: () => void;
     onDownloadReceptionCertificate: () => void;
+    onDownloadNoRepairCertificate: () => void;
 }) {
     const priorityConfig = PRIORITY_CONFIG[repair.priority];
 
@@ -157,6 +174,12 @@ function RepairCard({
                                 <DropdownMenuItem onClick={onDownloadReceptionCertificate}>
                                     <ClipboardCheck className="h-4 w-4 mr-2" />
                                     Acta de Recepción
+                                </DropdownMenuItem>
+                            )}
+                            {repair.is_no_repair && (
+                                <DropdownMenuItem onClick={onDownloadNoRepairCertificate}>
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Acta sin reparación
                                 </DropdownMenuItem>
                             )}
                         </DropdownMenuContent>
@@ -248,6 +271,7 @@ function KanbanColumnComponent({
     onStatusChange,
     onDownloadPdf,
     onDownloadReceptionCertificate,
+    onDownloadNoRepairCertificate,
 }: {
     column: KanbanColumn;
     onView: (repair: Repair) => void;
@@ -255,6 +279,7 @@ function KanbanColumnComponent({
     onStatusChange: (repairId: number, newStatus: RepairStatus) => void;
     onDownloadPdf: (repair: Repair) => void;
     onDownloadReceptionCertificate: (repair: Repair) => void;
+    onDownloadNoRepairCertificate: (repair: Repair) => void;
 }) {
     const config = STATUS_CONFIG[column.id];
 
@@ -295,6 +320,7 @@ function KanbanColumnComponent({
                                 onStatusChange={(status) => onStatusChange(repair.id, status)}
                                 onDownloadPdf={() => onDownloadPdf(repair)}
                                 onDownloadReceptionCertificate={() => onDownloadReceptionCertificate(repair)}
+                                onDownloadNoRepairCertificate={() => onDownloadNoRepairCertificate(repair)}
                             />
                         ))}
                     </>
@@ -311,6 +337,7 @@ export default function RepairKanbanView({
     onStatusChange,
     onDownloadPdf,
     onDownloadReceptionCertificate,
+    onDownloadNoRepairCertificate,
     loading,
 }: RepairKanbanViewProps) {
     if (loading) {
@@ -337,6 +364,7 @@ export default function RepairKanbanView({
                     onStatusChange={onStatusChange}
                     onDownloadPdf={onDownloadPdf}
                     onDownloadReceptionCertificate={onDownloadReceptionCertificate}
+                    onDownloadNoRepairCertificate={onDownloadNoRepairCertificate}
                 />
             ))}
         </div>

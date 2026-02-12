@@ -63,6 +63,10 @@ import StockTransfersPage from '@/pages/dashboard/StockTransfersPage'
 import ExpensesListPage from '@/pages/dashboard/expenses/ExpensesListPage'
 import EmployeesPage from '@/pages/dashboard/expenses/EmployeesPage'
 import ExpenseCategoriesPage from '@/pages/dashboard/expenses/ExpenseCategoriesPage'
+ import EquipmentCategoriesPage from '@/pages/dashboard/equipment-categories/EquipmentCategoriesPage'
+ import NewEquipmentCategoryPage from '@/pages/dashboard/equipment-categories/NewEquipmentCategoryPage'
+ import EditEquipmentCategoryPage from '@/pages/dashboard/equipment-categories/EditEquipmentCategoryPage'
+ import ViewEquipmentCategoryPage from '@/pages/dashboard/equipment-categories/ViewEquipmentCategoryPage'
 import ServicesManagementPage from '@/pages/dashboard/ServicesManagementPage'
 import features from '@/config/features'
 
@@ -87,6 +91,10 @@ function App() {
           {features.categorias && <Route path="categorias/:id" element={<ProtectedRoute permissions={['editar_categorias']}><EditCategoryPage /></ProtectedRoute>} />}
           {features.categorias && <Route path="categorias/:id/ver" element={<ProtectedRoute permissions={['ver_categorias']}><ViewCategoryPage /></ProtectedRoute>} />}
           {features.categorias && <Route path="categorias/nuevo" element={<ProtectedRoute permissions={['crear_categorias']}><NewCategoryPage /></ProtectedRoute>} />}
+          {features.repairs && <Route path="equipos/categorias" element={<ProtectedRoute permissions={['ver_categorias_equipos']}><EquipmentCategoriesPage /></ProtectedRoute>} />}
+          {features.repairs && <Route path="equipos/categorias/:id" element={<ProtectedRoute permissions={['editar_categorias_equipos']}><EditEquipmentCategoryPage /></ProtectedRoute>} />}
+          {features.repairs && <Route path="equipos/categorias/:id/ver" element={<ProtectedRoute permissions={['ver_categorias_equipos']}><ViewEquipmentCategoryPage /></ProtectedRoute>} />}
+          {features.repairs && <Route path="equipos/categorias/nuevo" element={<ProtectedRoute permissions={['crear_categorias_equipos']}><NewEquipmentCategoryPage /></ProtectedRoute>} />}
           {features.combos && <Route path="combos" element={<ProtectedRoute permissions={['gestionar_combos']}><CombosPage /></ProtectedRoute>} />}
           {features.clientes && <Route path="clientes" element={<ProtectedRoute permissions={['ver_clientes']}><ClientesPage /></ProtectedRoute>} />}
           {features.clientes && <Route path="clientes/:id/compras" element={<ProtectedRoute permissions={['ver_clientes', 'ver_ventas']} requireAny={false}><ComprasClientePage /></ProtectedRoute>} />}

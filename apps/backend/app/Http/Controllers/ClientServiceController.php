@@ -53,9 +53,28 @@ class ClientServiceController extends Controller
             'description' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
             'billing_cycle' => 'required|in:monthly,annual,one_time',
-            'start_date' => 'required|date',
+            'start_date' => 'required_without:next_due_date|date',
+            'next_due_date' => 'nullable|date',
             'status' => 'in:active,suspended,cancelled',
         ]);
+
+        if (!isset($validated['start_date']) && isset($validated['next_due_date'])) {
+            $validated['start_date'] = $this->calculateStartDateFromNextDueDate(
+                Carbon::parse($validated['next_due_date']),
+                $validated['billing_cycle']
+            );
+        }
+
+        if (isset($validated['start_date']) && isset($validated['next_due_date'])) {
+            $startDate = Carbon::parse($validated['start_date']);
+            $nextDueDate = Carbon::parse($validated['next_due_date']);
+
+            if ($nextDueDate->lt($startDate)) {
+                return response()->json([
+                    'errors' => ['next_due_date' => ['La fecha de vencimiento debe ser igual o posterior a la fecha de inicio.']]
+                ], 422);
+            }
+        }
 
         // Calculate initial next_due_date if not provided
         if (!isset($request->next_due_date)) {
@@ -180,5 +199,19 @@ class ClientServiceController extends Controller
             'monthly_revenue' => $monthlyRevenue,
             'annual_revenue' => $annualRevenue,
         ]);
+    }
+
+    private function calculateStartDateFromNextDueDate(Carbon $nextDueDate, string $billingCycle): Carbon
+    {
+        switch ($billingCycle) {
+            case 'monthly':
+                return $nextDueDate->copy()->subMonth();
+            case 'annual':
+                return $nextDueDate->copy()->subYear();
+            case 'one_time':
+                return $nextDueDate->copy();
+            default:
+                return $nextDueDate->copy();
+        }
     }
 }

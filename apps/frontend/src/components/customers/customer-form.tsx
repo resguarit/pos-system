@@ -18,6 +18,7 @@ import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { normalizePhone } from "@/lib/formatters/phoneFormatter"
 
 interface TaxIdentity {
   id?: number
@@ -105,6 +106,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
   // Estados para validación de duplicados
   const [nameError, setNameError] = useState<string>("")
   const [isCheckingName, setIsCheckingName] = useState<boolean>(false)
+  const [emailError, setEmailError] = useState<string>("")
+  const [documentoError, setDocumentoError] = useState<string>("")
+  const [phoneError, setPhoneError] = useState<string>("")
 
   useEffect(() => {
     const controller = new AbortController();
@@ -175,7 +179,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       first_name: customer.person.first_name ?? "",
       last_name: customer.person.last_name ?? "",
       email: customer.email ?? "",
-      phone: customer.person.phone ?? "",
+      phone: normalizePhone(customer.person.phone ?? ""),
       address: customer.person.address ?? "",
       city: customer.person.city ?? "",
       state: customer.person.state ?? "",
@@ -254,7 +258,18 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    const nextValue = name === "phone" ? normalizePhone(value) : value
+    setFormData((prev) => ({ ...prev, [name]: nextValue }))
+
+    if (name === 'email') {
+      setEmailError("")
+    }
+    if (name === 'documento') {
+      setDocumentoError("")
+    }
+    if (name === 'phone') {
+      setPhoneError("")
+    }
 
     // Validación de duplicados con debounce para nombre y apellido
     if (name === 'first_name' || name === 'last_name') {
@@ -322,6 +337,19 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
     if (!formData.first_name?.trim()) {
       errors.push("El nombre es obligatorio")
+    }
+
+    if (nameError) {
+      errors.push(nameError)
+    }
+    if (emailError) {
+      errors.push(emailError)
+    }
+    if (documentoError) {
+      errors.push(documentoError)
+    }
+    if (phoneError) {
+      errors.push(phoneError)
     }
 
 
@@ -420,6 +448,24 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
       // Handle Laravel validation errors (422 status)
       if (error?.response?.data?.errors) {
         const validationErrors = error.response?.data?.errors;
+        const firstNameMessage = Array.isArray(validationErrors.first_name) ? validationErrors.first_name[0] : validationErrors.first_name;
+        const emailMessage = Array.isArray(validationErrors.email) ? validationErrors.email[0] : validationErrors.email;
+        const documentoMessage = Array.isArray(validationErrors.documento) ? validationErrors.documento[0] : validationErrors.documento;
+        const phoneMessage = Array.isArray(validationErrors.phone) ? validationErrors.phone[0] : validationErrors.phone;
+
+        if (typeof firstNameMessage === 'string') {
+          setNameError(firstNameMessage)
+        }
+        if (typeof emailMessage === 'string') {
+          setEmailError(emailMessage)
+        }
+        if (typeof documentoMessage === 'string') {
+          setDocumentoError(documentoMessage)
+        }
+        if (typeof phoneMessage === 'string') {
+          setPhoneError(phoneMessage)
+        }
+
         // Get first error message from each field
         const errorMessages = Object.values(validationErrors)
           .map((fieldErrors: unknown) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
@@ -553,7 +599,12 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             onChange={handleInputChange}
                             disabled={viewOnly || isLoading}
                             placeholder="Número de documento"
+                            className={documentoError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
+                            style={{ borderColor: documentoError ? '#ef4444' : undefined }}
                           />
+                          {documentoError && (
+                            <p className="text-xs text-red-500">{documentoError}</p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="email">Correo Electrónico</Label>
@@ -564,17 +615,30 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             value={formData.email}
                             onChange={handleInputChange}
                             disabled={viewOnly || isLoading}
+                            className={emailError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
+                            style={{ borderColor: emailError ? '#ef4444' : undefined }}
                           />
+                          {emailError && (
+                            <p className="text-xs text-red-500">{emailError}</p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="phone">Teléfono</Label>
                           <Input
                             id="phone"
                             name="phone"
+                            type="tel"
+                            inputMode="numeric"
                             value={formData.phone}
                             onChange={handleInputChange}
                             disabled={viewOnly || isLoading}
+                            placeholder="2216720232"
+                            className={phoneError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
+                            style={{ borderColor: phoneError ? '#ef4444' : undefined }}
                           />
+                          {phoneError && (
+                            <p className="text-xs text-red-500">{phoneError}</p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="address">Dirección</Label>

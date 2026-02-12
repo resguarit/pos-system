@@ -18,10 +18,21 @@ import useApi from "@/hooks/useApi"
 // Iconos
 import { ArrowLeft, Save, Loader2 } from "lucide-react"
 
-export default function CategoryForm() {
+type CategoryFormProps = {
+  apiBasePath?: string
+  listPath?: string
+  entityLabel?: string
+}
+
+export default function CategoryForm({
+  apiBasePath = "/categories",
+  listPath = "/dashboard/categorias",
+  entityLabel = "Categoría",
+}: CategoryFormProps) {
   const navigate = useNavigate()
   const { request } = useApi()
   const { id: categoryId } = useParams()
+  const entityLabelLower = entityLabel.toLowerCase()
 
   const [formData, setFormData] = useState({
     name: "",
@@ -50,7 +61,7 @@ export default function CategoryForm() {
       try {
         const response = await request({ 
           method: "GET", 
-          url: `/categories/${categoryId}`, 
+          url: `${apiBasePath}/${categoryId}`, 
           signal 
         })
 
@@ -66,9 +77,9 @@ export default function CategoryForm() {
         if (!axios.isCancel(error)) {
           console.error("Error fetching category data:", error)
           toast.error("Error al cargar datos", { 
-            description: "No se pudieron obtener los datos de la categoría." 
+            description: `No se pudieron obtener los datos de la ${entityLabelLower}.` 
           })
-          navigate("/dashboard/categorias")
+          navigate(listPath)
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -79,7 +90,7 @@ export default function CategoryForm() {
 
     loadData()
     return () => controller.abort()
-  }, [categoryId, request, navigate])
+  }, [categoryId, request, navigate, apiBasePath, listPath])
 
   // --- Efecto para Cargar Categorías Padre ---
   useEffect(() => {
@@ -91,7 +102,7 @@ export default function CategoryForm() {
         // Obtener categorías padre disponibles
         const response = await request({
           method: "GET",
-          url: "/categories/parents",
+          url: `${apiBasePath}/parents`,
           signal
         })
                 
@@ -117,7 +128,7 @@ export default function CategoryForm() {
 
     loadParentCategories()
     return () => controller.abort()
-  }, [])
+  }, [apiBasePath, request])
 
   // Limpiar timeout al desmontar el componente
   useEffect(() => {
@@ -139,13 +150,13 @@ export default function CategoryForm() {
     try {
       const response = await request({
         method: 'GET',
-        url: `/categories/check-name/${encodeURIComponent(name)}`
+        url: `${apiBasePath}/check-name/${encodeURIComponent(name)}`
       });
       
       if (response.exists && name !== (categoryId ? formData.name : '')) {
         setNameError("Este nombre ya está en uso");
         toast.error("Este nombre ya está en uso", {
-          description: "Por favor, elige un nombre diferente para la categoría."
+          description: `Por favor, elige un nombre diferente para la ${entityLabelLower}.`
         });
       } else {
         setNameError("");
@@ -192,7 +203,7 @@ export default function CategoryForm() {
     const errors: string[] = []
     
     if (!formData.name?.trim()) {
-      errors.push("El nombre de la categoría es obligatorio")
+      errors.push(`El nombre de la ${entityLabelLower} es obligatorio`)
     }
 
     if (errors.length > 0) {
@@ -213,27 +224,27 @@ export default function CategoryForm() {
       if (categoryId) {
         await request({ 
           method: 'PUT', 
-          url: `/categories/${categoryId}`, 
+          url: `${apiBasePath}/${categoryId}`, 
           data: payload 
         })
-        toast.success("Categoría actualizada con éxito.")
+        toast.success(`${entityLabel} actualizada con éxito.`)
       } else {
         await request({ 
           method: 'POST', 
-          url: '/categories', 
+          url: apiBasePath, 
           data: payload 
         })
-        toast.success("Categoría creada con éxito.")
+        toast.success(`${entityLabel} creada con éxito.`)
       }
       
-      navigate('/dashboard/categorias')
+      navigate(listPath)
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || error.response?.data?.details?.name?.[0] || "Ocurrió un error inesperado."
       toast.error("Error al guardar", { description: errorMsg })
     } finally {
       setIsSubmitting(false)
     }
-  }, [formData, categoryId, request, navigate])
+  }, [formData, categoryId, request, navigate, apiBasePath, listPath, entityLabel, entityLabelLower])
 
   // --- Renderizado ---
   if (isDataLoading) {
@@ -249,12 +260,12 @@ export default function CategoryForm() {
       <div className="flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
-            <Link to="/dashboard/categorias">
+            <Link to={listPath}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
           <h2 className="text-3xl font-bold tracking-tight">
-            {categoryId ? "Editar Categoría" : "Nueva Categoría"}
+            {categoryId ? `Editar ${entityLabel}` : `Nueva ${entityLabel}`}
           </h2>
         </div>
         <Button onClick={handleSubmit} disabled={isSubmitting}>

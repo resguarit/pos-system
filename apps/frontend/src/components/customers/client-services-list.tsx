@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 interface ClientService {
     id: number
@@ -62,6 +63,8 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
         amount: "",
         billing_cycle: "monthly",
         start_date: new Date().toISOString().split('T')[0],
+        next_due_date: "",
+        date_mode: "start_date" as "start_date" | "next_due_date",
         status: "active"
     })
 
@@ -120,6 +123,8 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
             amount: "",
             billing_cycle: "monthly",
             start_date: new Date().toISOString().split('T')[0],
+            next_due_date: "",
+            date_mode: "start_date",
             status: "active"
         })
         setDialogOpen(true)
@@ -133,6 +138,8 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
             amount: service.amount,
             billing_cycle: service.billing_cycle,
             start_date: service.start_date.split('T')[0],
+            next_due_date: service.next_due_date ? service.next_due_date.split('T')[0] : "",
+            date_mode: "start_date",
             status: service.status
         })
         setDialogOpen(true)
@@ -175,9 +182,28 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         try {
+            if (formData.date_mode === "start_date" && !formData.start_date) {
+                toast.error("Ingresa la fecha de inicio")
+                return
+            }
+
+            if (formData.date_mode === "next_due_date" && !formData.next_due_date) {
+                toast.error("Ingresa la fecha de vencimiento")
+                return
+            }
+
+            const datePayload = formData.date_mode === "next_due_date"
+                ? { next_due_date: formData.next_due_date }
+                : { start_date: formData.start_date }
+
             const payload = {
-                ...formData,
-                customer_id: customerId
+                name: formData.name,
+                description: formData.description,
+                amount: formData.amount,
+                billing_cycle: formData.billing_cycle,
+                status: formData.status,
+                customer_id: customerId,
+                ...datePayload,
             }
 
             if (editingService) {
@@ -360,32 +386,62 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                                 </Select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="start_date">Fecha Inicio</Label>
-                                <Input
-                                    id="start_date"
-                                    type="date"
-                                    value={formData.start_date}
-                                    onChange={e => setFormData({ ...formData, start_date: e.target.value })}
-                                    required
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="status">Estado</Label>
-                                <Select
-                                    value={formData.status}
-                                    onValueChange={v => setFormData({ ...formData, status: v })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="active">Activo</SelectItem>
-                                        <SelectItem value="suspended">Suspendido</SelectItem>
-                                        <SelectItem value="cancelled">Cancelado</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                        <div className="grid gap-3">
+                            <Label className="text-sm font-medium">Fecha</Label>
+                            <RadioGroup
+                                value={formData.date_mode}
+                                onValueChange={(value) => setFormData({ ...formData, date_mode: value as "start_date" | "next_due_date" })}
+                                className="grid gap-2 sm:grid-cols-2"
+                            >
+                                <div className="flex items-center space-x-2 rounded-md border p-3">
+                                    <RadioGroupItem value="start_date" id="customer-service-start" />
+                                    <Label htmlFor="customer-service-start" className="cursor-pointer">
+                                        Fecha de inicio
+                                    </Label>
+                                </div>
+                                <div className="flex items-center space-x-2 rounded-md border p-3">
+                                    <RadioGroupItem value="next_due_date" id="customer-service-due" />
+                                    <Label htmlFor="customer-service-due" className="cursor-pointer">
+                                        Proximo vencimiento
+                                    </Label>
+                                </div>
+                            </RadioGroup>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor={formData.date_mode === "start_date" ? "start_date" : "next_due_date"}>
+                                        {formData.date_mode === "start_date" ? "Fecha Inicio" : "Proximo Vencimiento"}
+                                    </Label>
+                                    <Input
+                                        id={formData.date_mode === "start_date" ? "start_date" : "next_due_date"}
+                                        type="date"
+                                        value={formData.date_mode === "start_date" ? formData.start_date : formData.next_due_date}
+                                        onChange={e =>
+                                            setFormData({
+                                                ...formData,
+                                                ...(formData.date_mode === "start_date"
+                                                    ? { start_date: e.target.value }
+                                                    : { next_due_date: e.target.value })
+                                            })
+                                        }
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="status">Estado</Label>
+                                    <Select
+                                        value={formData.status}
+                                        onValueChange={v => setFormData({ ...formData, status: v })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="active">Activo</SelectItem>
+                                            <SelectItem value="suspended">Suspendido</SelectItem>
+                                            <SelectItem value="cancelled">Cancelado</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                         </div>
                         <DialogFooter>

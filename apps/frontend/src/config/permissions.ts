@@ -211,7 +211,6 @@ export const PERMISSIONS_CONFIG = {
       'ver_reparaciones',
       'crear_reparaciones',
       'editar_reparaciones',
-      'eliminar_reparaciones',
       'vincular_venta_reparaciones'
     ]
   },

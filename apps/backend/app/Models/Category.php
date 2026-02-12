@@ -13,7 +13,10 @@ class Category extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity, LogsActivityWithContext;
 
-    protected $fillable = ['name', 'description', 'parent_id'];
+    public const TYPE_PRODUCT = 'product';
+    public const TYPE_EQUIPMENT = 'equipment';
+
+    protected $fillable = ['name', 'description', 'parent_id', 'category_type'];
 
     protected $dates = ['deleted_at'];
 
@@ -71,6 +74,14 @@ class Category extends Model
     public function scopeSubcategories($query)
     {
         return $query->whereNotNull('parent_id');
+    }
+
+    /**
+     * Filter categories by type.
+     */
+    public function scopeOfType($query, string $type)
+    {
+        return $query->where('category_type', $type);
     }
 
     /**

@@ -397,7 +397,9 @@ class ProductService implements ProductServiceInterface
     public function getAllCategories()
     {
         // Para productos, es mejor obtener las categorías con estructura jerárquica
-        return Category::with(['parent', 'children'])->get();
+        return Category::ofType(Category::TYPE_PRODUCT)
+            ->with(['parent', 'children'])
+            ->get();
     }
 
     public function getAllIvas()

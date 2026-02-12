@@ -75,29 +75,30 @@ class ConfigController extends Controller
     // Categories CRUD
     public function getCategories()
     {
-        return response()->json($this->categoryService->getAllCategories());
+        return response()->json($this->categoryService->getAllCategories(null, null, \App\Models\Category::TYPE_PRODUCT));
     }
 
     public function createCategory(Request $request)
     {
         $validatedData = $request->validate(['name' => 'required|string']);
+        $validatedData['category_type'] = \App\Models\Category::TYPE_PRODUCT;
         return response()->json($this->categoryService->createCategory($validatedData));
     }
 
     public function updateCategory(Request $request, $id)
     {
         $validatedData = $request->validate(['name' => 'sometimes|required|string']);
-        return response()->json($this->categoryService->updateCategory($id, $validatedData));
+        return response()->json($this->categoryService->updateCategory($id, $validatedData, \App\Models\Category::TYPE_PRODUCT));
     }
 
     public function deleteCategory($id)
     {
-        return response()->json($this->categoryService->deleteCategory($id));
+        return response()->json($this->categoryService->deleteCategory($id, \App\Models\Category::TYPE_PRODUCT));
     }
 
     public function getCategoryById($id)
     {
-        return response()->json($this->categoryService->getCategoryById($id));
+        return response()->json($this->categoryService->getCategoryById($id, \App\Models\Category::TYPE_PRODUCT));
     }
 
     // Ivas CRUD

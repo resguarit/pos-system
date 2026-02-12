@@ -4,6 +4,7 @@ namespace App\Http\Requests\Repairs;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use App\Models\Category;
 
 class UpdateRepairRequest extends FormRequest
 {
@@ -11,6 +12,7 @@ class UpdateRepairRequest extends FormRequest
      * Valid repair statuses - centralized for consistency
      */
     public const VALID_STATUSES = [
+        'Pendiente de recepción',
         'Recibido',
         'En diagnóstico',
         'Reparación Interna',
@@ -18,6 +20,7 @@ class UpdateRepairRequest extends FormRequest
         'Esperando repuestos',
         'Terminado',
         'Entregado',
+        'Cancelado',
     ];
 
     /**
@@ -35,7 +38,11 @@ class UpdateRepairRequest extends FormRequest
         return [
             'customer_id' => ['sometimes', 'integer', 'exists:customers,id'],
             'branch_id' => ['sometimes', 'integer', 'exists:branches,id'],
-            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('categories', 'id')->where('category_type', Category::TYPE_EQUIPMENT),
+            ],
             'device' => ['sometimes', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255'],
             'issue_description' => ['sometimes', 'string', 'max:2000'],
@@ -55,6 +62,9 @@ class UpdateRepairRequest extends FormRequest
             'insured_customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'policy_number' => ['nullable', 'string', 'max:100'],
             'device_age' => ['nullable', 'integer', 'min:0'],
+            // No repair fields
+            'is_no_repair' => ['nullable', 'boolean'],
+            'no_repair_reason' => ['nullable', 'string', 'max:2000'],
         ];
     }
 

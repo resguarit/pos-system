@@ -38,6 +38,9 @@ import {
     Package,
     Stethoscope,
     Shield,
+    Banknote,
+    CheckCircle2,
+    ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Repair, RepairNote, RepairPriority, RepairStatus, Insurer } from "@/types/repairs";
@@ -45,12 +48,15 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import useApi from "@/hooks/useApi";
 import { toast } from "sonner";
+import { useBranches } from "@/hooks/useBranches";
+import { useRepairs } from "@/hooks/useRepairs";
 
 type CustomerOption = { id: number; name: string };
 type UserOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
 
 const STATUS_COLORS: Record<RepairStatus, string> = {
+    "Pendiente de recepción": "bg-slate-100 text-slate-800 border-slate-200",
     Recibido: "bg-blue-100 text-blue-800 border-blue-200",
     "En diagnóstico": "bg-yellow-100 text-yellow-800 border-yellow-200",
     "Reparación Interna": "bg-orange-100 text-orange-800 border-orange-200",
@@ -58,6 +64,7 @@ const STATUS_COLORS: Record<RepairStatus, string> = {
     "Esperando repuestos": "bg-purple-100 text-purple-800 border-purple-200",
     Terminado: "bg-green-100 text-green-800 border-green-200",
     Entregado: "bg-gray-100 text-gray-800 border-gray-200",
+    Cancelado: "bg-red-100 text-red-800 border-red-200",
 };
 
 const PRIORITY_COLORS: Record<RepairPriority, string> = {
@@ -76,6 +83,9 @@ type RepairDetailDialogV2Props = {
     onCancelEdit?: () => void;
     onDownloadPdf?: () => void;
     onDownloadReceptionCertificate?: () => void;
+    onQuickAddNote?: (note: string) => Promise<boolean>;
+    defaultTab?: "details" | "financials" | "notes";
+    onDownloadNoRepairCertificate?: () => void;
     options?: { statuses: RepairStatus[]; priorities: RepairPriority[]; insurers?: Insurer[] };
 };
 
@@ -115,8 +125,13 @@ export default function RepairDetailDialogV2({
     onCancelEdit,
     onDownloadPdf,
     onDownloadReceptionCertificate,
+    onQuickAddNote,
+    defaultTab = "details",
+    onDownloadNoRepairCertificate,
+    onPaymentSuccess,
     options = {
         statuses: [
+            "Pendiente de recepción",
             "Recibido",
             "En diagnóstico",
             "Reparación Interna",
@@ -124,6 +139,7 @@ export default function RepairDetailDialogV2({
             "Esperando repuestos",
             "Terminado",
             "Entregado",
+            "Cancelado",
         ],
         priorities: ["Alta", "Media", "Baja"],
     },
@@ -131,9 +147,49 @@ export default function RepairDetailDialogV2({
     const { request } = useApi();
     const [editData, setEditData] = useState<Omit<Partial<Repair>, "device_age"> & { customer_id?: number; technician_id?: number; category_id?: number; intake_date?: string | null; policy_number?: string; device_age?: string | number | null }>({});
     const [saving, setSaving] = useState(false);
+    const [addingNote, setAddingNote] = useState(false);
     const [newNote, setNewNote] = useState("");
     const [stagedNotes, setStagedNotes] = useState<string[]>([]);
     const [errors, setErrors] = useState<Record<string, string[]>>({});
+    const [activeTab, setActiveTab] = useState<"details" | "financials" | "notes">(defaultTab);
+    const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+    const { branches } = useBranches();
+    const { markAsPaid } = useRepairs();
+
+    // Payment form states
+    const [showPaymentForm, setShowPaymentForm] = useState(false);
+    const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+    const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>("");
+    const [paymentAmount, setPaymentAmount] = useState<string>("");
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [paymentError, setPaymentError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (open) {
+            setActiveTab(defaultTab);
+            // Reset payment form when modal opens
+            setShowPaymentForm(false);
+            setSelectedBranchId("");
+            setSelectedPaymentMethodId("");
+            setPaymentAmount("");
+            setPaymentError(null);
+            // Fetch payment methods on modal open
+            const fetchPaymentMethods = async () => {
+                try {
+                    const resp = await request({
+                        method: "GET",
+                        url: "/payment-methods",
+                        params: { limit: 100 }
+                    });
+                    const data = Array.isArray(resp?.data) ? resp.data : [];
+                    setPaymentMethods(data);
+                } catch (error) {
+                    console.error("Error fetching payment methods:", error);
+                }
+            };
+            fetchPaymentMethods();
+        }
+    }, [open, defaultTab]);
 
     // Customer search
     const [customerSearch, setCustomerSearch] = useState("");
@@ -192,7 +248,7 @@ export default function RepairDetailDialogV2({
         try {
             const resp = await request({
                 method: "GET",
-                url: "/categories/for-selector",
+                url: "/equipment-categories/for-selector",
             });
             if (resp && resp.success && Array.isArray(resp.data)) {
                 setCategories(resp.data);
@@ -232,6 +288,8 @@ export default function RepairDetailDialogV2({
                 insured_customer_id: repair.insured_customer?.id ?? repair.insured_customer_id ?? undefined,
                 policy_number: repair.policy_number ?? "",
                 device_age: repair.device_age ?? "",
+                is_no_repair: repair.is_no_repair ?? false,
+                no_repair_reason: repair.no_repair_reason ?? "",
             });
             setCustomerSearch(repair.customer?.name || "");
             setTechnicianSearch(repair.technician?.name || "");
@@ -249,9 +307,19 @@ export default function RepairDetailDialogV2({
             if (typeof payload.device_age === 'string') {
                 payload.device_age = payload.device_age ? parseInt(payload.device_age) : null;
             }
+            // When marking as "Sin reparación", auto-fill reason with diagnosis if not already set
+            if (payload.is_no_repair && !payload.no_repair_reason) {
+                payload.no_repair_reason = editData.diagnosis || repair.diagnosis || null;
+            }
             await onSave(payload as Partial<Repair>, stagedNotes);
             setStagedNotes([]);
             setNewNote("");
+            setEditMode(false);
+            // Auto-close modal after successful save
+            setTimeout(() => {
+                onOpenChange(false);
+            }, 300);
+            toast.success("Los cambios se guardaron correctamente");
         } catch (error: unknown) {
             console.error("Error saving repair:", error);
             // @ts-expect-error - request hook throws object with response
@@ -275,13 +343,30 @@ export default function RepairDetailDialogV2({
 
     const handleAddNote = () => {
         if (!newNote.trim()) return;
-        setStagedNotes((prev) => [...prev, newNote.trim()]);
-        setNewNote("");
+        const nextNote = newNote.trim();
+
+        if (editMode) {
+            setStagedNotes((prev) => [...prev, nextNote]);
+            setNewNote("");
+            return;
+        }
+
+        if (!onQuickAddNote) return;
+
+        setAddingNote(true);
+        Promise.resolve(onQuickAddNote(nextNote))
+            .then((ok) => {
+                if (ok) {
+                    setNewNote("");
+                }
+            })
+            .finally(() => setAddingNote(false));
     };
 
     if (!repair && !loading) return null;
 
     return (
+        <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* @ts-expect-error - Radix DialogContent props */}
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" hideCloseButton>
@@ -298,6 +383,12 @@ export default function RepairDetailDialogV2({
                                     <Badge variant="outline" className={cn("text-xs", PRIORITY_COLORS[repair.priority])}>
                                         {repair.priority}
                                     </Badge>
+                                    {repair.is_no_repair && (
+                                        <Badge className="text-xs bg-rose-100 text-rose-800 border border-rose-300 hover:bg-rose-100">
+                                            <AlertCircle className="h-3 w-3 mr-1" />
+                                            Sin Reparación
+                                        </Badge>
+                                    )}
                                     {repair.category && (
                                         <Badge variant="secondary" className="text-xs">
                                             {repair.category.name}
@@ -311,6 +402,12 @@ export default function RepairDetailDialogV2({
                                 <Button variant="outline" size="sm" onClick={onDownloadPdf} className="text-amber-700 border-amber-200">
                                     <FileText className="h-4 w-4 mr-2" />
                                     Comprobante
+                                </Button>
+                            )}
+                            {onDownloadNoRepairCertificate && repair?.is_no_repair && (
+                                <Button variant="outline" size="sm" onClick={onDownloadNoRepairCertificate} className="text-rose-700 border-rose-200">
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Acta sin reparación
                                 </Button>
                             )}
                             {onDownloadReceptionCertificate && repair?.is_siniestro && (
@@ -329,7 +426,7 @@ export default function RepairDetailDialogV2({
                     </div>
                 ) : repair ? (
                     /* @ts-expect-error - Radix Tabs children */
-                    <Tabs defaultValue="details" className="flex-1 overflow-hidden flex flex-col">
+                    <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "details" | "financials" | "notes")} className="flex-1 overflow-hidden flex flex-col">
                         {/* @ts-expect-error - Radix TabsList children */}
                         <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="details">Detalles</TabsTrigger>
@@ -474,6 +571,29 @@ export default function RepairDetailDialogV2({
                                             </div>
 
                                             <div className="space-y-4 pt-4 border-t">
+                                                <div className="space-y-3 p-4 bg-rose-50/50 rounded-lg border border-rose-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            id="is_no_repair_edit" 
+                                                            checked={!!editData.is_no_repair} 
+                                                            onChange={(e) => setEditData((d) => ({ ...d, is_no_repair: e.target.checked }))} 
+                                                        />
+                                                        <Label htmlFor="is_no_repair_edit" className="font-semibold">Sin reparación (Acta de no reparación)</Label>
+                                                    </div>
+                                                    {editData.is_no_repair && (
+                                                        <div className="ml-6 p-3 bg-white rounded border border-rose-200">
+                                                            <p className="text-sm text-rose-800">
+                                                                ✓ Se generará un acta de no reparación con el <strong>Diagnóstico Técnico</strong> que completes arriba.
+                                                            </p>
+                                                            {!editData.diagnosis && !repair.diagnosis && (
+                                                                <p className="text-xs text-amber-700 mt-2 bg-amber-50 p-2 rounded">
+                                                                    💡 Completa el campo "Diagnóstico Técnico" para generar el acta
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 <div className="flex items-center gap-2">
                                                     <input type="checkbox" id="is_siniestro_edit" checked={!!editData.is_siniestro} onChange={(e) => setEditData((d) => ({ ...d, is_siniestro: e.target.checked }))} />
                                                     <Label htmlFor="is_siniestro_edit">¿Es un siniestro?</Label>
@@ -649,6 +769,22 @@ export default function RepairDetailDialogV2({
                                                     </CardContent>
                                                 </Card>
                                             )}
+                                            {repair.is_no_repair && (
+                                                <Card className="border-l-4 border-l-rose-500 bg-rose-50/30">
+                                                    <CardContent className="py-4">
+                                                        <div className="flex items-center gap-2 mb-3">
+                                                            <AlertCircle className="h-4 w-4 text-rose-600" />
+                                                            <span className="font-semibold text-sm text-rose-800">Acta sin reparación</span>
+                                                        </div>
+                                                        <div className="space-y-2 pl-6">
+                                                            <div>
+                                                                <Label className="text-xs text-muted-foreground">Fecha</Label>
+                                                                <p className="text-sm font-medium">{formatDateTime(repair.no_repair_at)}</p>
+                                                            </div>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -657,6 +793,7 @@ export default function RepairDetailDialogV2({
                             {/* @ts-expect-error - Radix TabsContent className */}
                             <TabsContent value="financials" className="m-0">
                                 <div className="space-y-4">
+                                    {/* Financial Info */}
                                     <Card>
                                         <CardContent className="py-4">
                                             <div className="grid grid-cols-2 gap-6">
@@ -671,16 +808,230 @@ export default function RepairDetailDialogV2({
                                             </div>
                                         </CardContent>
                                     </Card>
+
+                                    {/* Payment Status Section */}
+                                    <div className="space-y-3">
+                                        <h3 className="text-sm font-semibold flex items-center gap-2">
+                                            <Banknote className="h-4 w-4" />
+                                            <span>Estado de Pago</span>
+                                        </h3>
+                                        
+                                        {/* Cancelled repair - cannot charge */}
+                                        {repair.status === "Cancelado" ? (
+                                            <Card className="border-gray-200 bg-gray-50/50">
+                                                <CardContent className="py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-gray-100">
+                                                            <Banknote className="h-5 w-5 text-gray-400" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-semibold text-gray-500">No disponible</p>
+                                                            <p className="text-sm text-gray-400">Esta reparación está cancelada</p>
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ) : repair.is_paid ? (
+                                            /* Already paid state */
+                                            <Card className="border-green-200 bg-green-50/50 shadow-sm">
+                                                <CardContent className="py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100">
+                                                            <CheckCircle2 className="h-5 w-5 text-green-600" />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="font-semibold text-green-800">Cobrado</p>
+                                                            <div className="text-xs space-y-0.5">
+                                                                <p className="text-green-700">
+                                                                    <span className="font-medium">Monto:</span> {formatCurrency(repair.amount_paid)}
+                                                                </p>
+                                                                <p className="text-green-700">
+                                                                    <span className="font-medium">Método:</span> {repair.payment_method?.name || "—"}
+                                                                </p>
+                                                                {repair.paid_at && (
+                                                                    <p className="text-green-600">
+                                                                        <span className="font-medium">Fecha:</span> {formatDateTime(repair.paid_at)}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ) : showPaymentForm ? (
+                                            /* Inline Payment Form */
+                                            <Card className="border-emerald-200 shadow-sm">
+                                                <CardContent className="py-4 space-y-4">
+                                                    {/* Form Header */}
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setShowPaymentForm(false);
+                                                                    setPaymentError(null);
+                                                                }}
+                                                                className="h-8 w-8 p-0"
+                                                            >
+                                                                <ArrowLeft className="h-4 w-4" />
+                                                            </Button>
+                                                            <h4 className="font-semibold text-sm">Registrar Cobro</h4>
+                                                        </div>
+                                                        <Badge variant="outline" className="text-emerald-700 border-emerald-200">
+                                                            Impacta en caja
+                                                        </Badge>
+                                                    </div>
+
+                                                    {/* Error Message */}
+                                                    {paymentError && (
+                                                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                                                            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                                            <span>{paymentError}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Branch Select */}
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs font-medium">Sucursal *</Label>
+                                                        <Select value={selectedBranchId} onValueChange={setSelectedBranchId}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Seleccionar sucursal" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {branches.map((branch) => (
+                                                                    <SelectItem key={branch.id} value={String(branch.id)}>
+                                                                        {branch.description}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    {/* Payment Method Select */}
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs font-medium">Método de Pago *</Label>
+                                                        <Select value={selectedPaymentMethodId} onValueChange={setSelectedPaymentMethodId}>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Seleccionar método" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {paymentMethods.map((method) => (
+                                                                    <SelectItem key={method.id} value={String(method.id)}>
+                                                                        {method.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    {/* Amount Input */}
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs font-medium">Monto a Cobrar *</Label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                                                            <Input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0"
+                                                                placeholder="0.00"
+                                                                value={paymentAmount}
+                                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                                className="pl-7"
+                                                            />
+                                                        </div>
+                                                        {/* Difference indicator */}
+                                                        {paymentAmount && repair.sale_price && (() => {
+                                                            const diff = parseFloat(paymentAmount) - (repair.sale_price || 0);
+                                                            if (Math.abs(diff) > 0.01) {
+                                                                return (
+                                                                    <p className={`text-xs ${diff > 0 ? "text-green-600" : "text-orange-600"}`}>
+                                                                        {diff > 0 ? `+${formatCurrency(diff)} (sobrepago)` : `${formatCurrency(diff)} (parcial)`}
+                                                                    </p>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
+
+                                                    {/* Submit Button */}
+                                                    <Button
+                                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                        disabled={!selectedBranchId || !selectedPaymentMethodId || !paymentAmount || isProcessingPayment}
+                                                        onClick={async () => {
+                                                            setIsProcessingPayment(true);
+                                                            setPaymentError(null);
+                                                            try {
+                                                                const result = await markAsPaid(repair.id, {
+                                                                    branch_id: parseInt(selectedBranchId),
+                                                                    payment_method_id: parseInt(selectedPaymentMethodId),
+                                                                    amount_paid: parseFloat(paymentAmount),
+                                                                });
+                                                                if (result) {
+                                                                    toast.success("Pago registrado exitosamente. Se actualizó la caja.");
+                                                                    setShowPaymentForm(false);
+                                                                    onPaymentSuccess?.();
+                                                                    onOpenChange(false);
+                                                                } else {
+                                                                    setPaymentError("No se pudo registrar el pago. Verifique que la caja esté abierta.");
+                                                                }
+                                                            } catch (error: any) {
+                                                                setPaymentError(error?.message || "Error al registrar el pago");
+                                                            } finally {
+                                                                setIsProcessingPayment(false);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {isProcessingPayment ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                Procesando...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                                Confirmar Cobro
+                                                            </>
+                                                        )}
+                                                    </Button>
+
+                                                    {/* Info Note */}
+                                                    <p className="text-xs text-muted-foreground text-center">
+                                                        Este cobro se registrará como movimiento en la caja de la sucursal seleccionada
+                                                    </p>
+                                                </CardContent>
+                                            </Card>
+                                        ) : (
+                                            /* Show Payment Button - Opens inline form */
+                                            <Button
+                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm h-12"
+                                                onClick={() => {
+                                                    setShowPaymentForm(true);
+                                                    setPaymentAmount(String(repair.sale_price || ""));
+                                                    // Pre-select branch if repair has one
+                                                    if (repair.branch?.id) {
+                                                        setSelectedBranchId(String(repair.branch.id));
+                                                    }
+                                                }}
+                                            >
+                                                <Banknote className="mr-2 h-5 w-5" />
+                                                Registrar Cobro
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </TabsContent>
 
                             {/* @ts-expect-error - Radix TabsContent className */}
                             <TabsContent value="notes" className="m-0">
                                 <div className="space-y-4">
-                                    {editMode && (
+                                    {(editMode || !!onQuickAddNote) && (
                                         <div className="flex gap-2">
                                             <Textarea placeholder="Nota..." value={newNote} onChange={(e) => setNewNote(e.target.value)} rows={2} className="flex-1" />
-                                            <Button onClick={handleAddNote} disabled={!newNote.trim()}>Agregar</Button>
+                                            <Button onClick={handleAddNote} disabled={!newNote.trim() || addingNote}>
+                                                {addingNote ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                                Agregar
+                                            </Button>
                                         </div>
                                     )}
                                     <div className="space-y-3">
@@ -716,10 +1067,13 @@ export default function RepairDetailDialogV2({
                             </Button>
                         </>
                     ) : (
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
+                        <>
+                            <Button variant="outline" onClick={() => onOpenChange(false)}>Cerrar</Button>
+                        </>
                     )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+        </>
     );
 }

@@ -5,7 +5,7 @@ const defaultFeatures = {
 
   categorias: true,
   combos: true,
-  repairs: false,
+  repairs: true,
 
   analisisventas: true,
   caja: true,

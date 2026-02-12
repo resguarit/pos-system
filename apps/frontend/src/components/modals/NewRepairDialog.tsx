@@ -166,7 +166,7 @@ export default function NewRepairDialog({
         try {
             const resp = await request({
                 method: "GET",
-                url: "/categories/for-selector",
+                url: "/equipment-categories/for-selector",
             });
             if (resp && resp.success && Array.isArray(resp.data)) {
                 setCategories(resp.data);

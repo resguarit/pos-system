@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
     AlertTriangle,
     CheckCircle,
@@ -120,8 +121,10 @@ export default function ServicesPage() {
         amount: 0,
         billing_cycle: "monthly",
         start_date: format(new Date(), 'yyyy-MM-dd'),
+        next_due_date: "",
         status: "active",
     })
+    const [dateMode, setDateMode] = useState<"start_date" | "next_due_date">("start_date")
 
     // Detail dialog
     const [detailOpen, setDetailOpen] = useState(false)
@@ -158,8 +161,10 @@ export default function ServicesPage() {
             amount: 0,
             billing_cycle: "monthly",
             start_date: format(new Date(), 'yyyy-MM-dd'),
+            next_due_date: "",
             status: "active",
         })
+        setDateMode("start_date")
         setDialogOpen(true)
     }
 
@@ -173,8 +178,10 @@ export default function ServicesPage() {
             amount: parseFloat(service.amount),
             billing_cycle: service.billing_cycle,
             start_date: service.start_date,
+            next_due_date: service.next_due_date,
             status: service.status,
         })
+        setDateMode("start_date")
         setDialogOpen(true)
     }
 
@@ -184,14 +191,36 @@ export default function ServicesPage() {
             return
         }
 
+        if (dateMode === "start_date" && !formData.start_date) {
+            return
+        }
+
+        if (dateMode === "next_due_date" && !formData.next_due_date) {
+            return
+        }
+
+        const datePayload = dateMode === "next_due_date"
+            ? { next_due_date: formData.next_due_date }
+            : { start_date: formData.start_date }
+
+        const payload = {
+            customer_id: formData.customer_id,
+            name: formData.name,
+            description: formData.description,
+            amount: formData.amount,
+            billing_cycle: formData.billing_cycle,
+            status: formData.status,
+            ...datePayload,
+        } as CreateServiceData
+
         if (editingService) {
-            const updated = await updateService(editingService.id, formData)
+            const updated = await updateService(editingService.id, payload)
             if (updated) {
                 setDialogOpen(false)
                 refresh()
             }
         } else {
-            const created = await createService(formData as CreateServiceData)
+            const created = await createService(payload)
             if (created) {
                 setDialogOpen(false)
                 refresh()
@@ -647,30 +676,59 @@ export default function ServicesPage() {
                                 </Select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Fecha Inicio</Label>
-                                <Input
-                                    type="date"
-                                    value={formData.start_date || ""}
-                                    onChange={(e) => setFormData((f) => ({ ...f, start_date: e.target.value }))}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Estado</Label>
-                                <Select
-                                    value={formData.status}
-                                    onValueChange={(v: "active" | "suspended" | "cancelled") => setFormData((f) => ({ ...f, status: v }))}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="active">Activo</SelectItem>
-                                        <SelectItem value="suspended">Suspendido</SelectItem>
-                                        <SelectItem value="cancelled">Cancelado</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                        <div className="space-y-3">
+                            <Label className="text-sm font-medium">Fecha</Label>
+                            <RadioGroup
+                                value={dateMode}
+                                onValueChange={(value) => setDateMode(value as "start_date" | "next_due_date")}
+                                className="grid gap-2 sm:grid-cols-2"
+                            >
+                                <div className="flex items-center space-x-2 rounded-md border p-3">
+                                    <RadioGroupItem value="start_date" id="service-start-date" />
+                                    <Label htmlFor="service-start-date" className="cursor-pointer">
+                                        Fecha de inicio
+                                    </Label>
+                                </div>
+                                <div className="flex items-center space-x-2 rounded-md border p-3">
+                                    <RadioGroupItem value="next_due_date" id="service-next-due" />
+                                    <Label htmlFor="service-next-due" className="cursor-pointer">
+                                        Proximo vencimiento
+                                    </Label>
+                                </div>
+                            </RadioGroup>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>{dateMode === "start_date" ? "Fecha Inicio" : "Proximo Vencimiento"}</Label>
+                                    <Input
+                                        type="date"
+                                        value={dateMode === "start_date" ? (formData.start_date || "") : (formData.next_due_date || "")}
+                                        onChange={(e) =>
+                                            setFormData((f) => ({
+                                                ...f,
+                                                ...(dateMode === "start_date"
+                                                    ? { start_date: e.target.value }
+                                                    : { next_due_date: e.target.value }),
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Estado</Label>
+                                    <Select
+                                        value={formData.status}
+                                        onValueChange={(v: "active" | "suspended" | "cancelled") => setFormData((f) => ({ ...f, status: v }))}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="active">Activo</SelectItem>
+                                            <SelectItem value="suspended">Suspendido</SelectItem>
+                                            <SelectItem value="cancelled">Cancelado</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                         </div>
                         <div className="space-y-2">

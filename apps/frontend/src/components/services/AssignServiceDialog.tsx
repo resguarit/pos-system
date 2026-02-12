@@ -19,7 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { ChevronDown, Check, Loader2, Package, Plus, X, AlertCircle, Info, DollarSign, Percent, Calendar } from "lucide-react"
+import { ChevronDown, Check, Loader2, Package, Plus, X, AlertCircle, Info, DollarSign, Percent, Calendar, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import api from "@/lib/api"
 import { toast } from "sonner"
@@ -29,6 +29,7 @@ import CustomerForm from "@/components/customers/customer-form"
 import { Badge } from "@/components/ui/badge"
 import { NumberFormatter } from "@/lib/formatters/numberFormatter"
 import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 interface ServiceType {
     id: number
@@ -54,6 +55,8 @@ interface AssignServiceDialogProps {
     onOpenChange: (open: boolean) => void
     onSuccess: () => void
 }
+
+type DateMode = "start_date" | "next_due_date"
 
 const normalizeArrayResponse = <T,>(payload: unknown): T[] => {
     const data = payload as { data?: unknown }
@@ -90,11 +93,14 @@ export default function AssignServiceDialog({
     const [serviceTypeOpen, setServiceTypeOpen] = useState(false)
 
     // Form data
+    const today = format(new Date(), 'yyyy-MM-dd')
     const [formData, setFormData] = useState({
         customer_id: "",
         service_type_ids: [] as string[],
         services: [] as ServiceFormItem[], // Store details for each selected service
-        start_date: format(new Date(), 'yyyy-MM-dd'),
+        start_date: today,
+        next_due_date: "",
+        date_mode: "start_date" as DateMode,
     })
 
     const fetchServiceTypes = useCallback(async () => {
@@ -329,7 +335,9 @@ export default function AssignServiceDialog({
             customer_id: "",
             service_type_ids: [],
             services: [],
-            start_date: format(new Date(), 'yyyy-MM-dd'),
+            start_date: today,
+            next_due_date: "",
+            date_mode: "start_date",
         })
         setCustomerSearch("")
         setSelectedCustomer(null)
@@ -350,6 +358,16 @@ export default function AssignServiceDialog({
         }
         if (formData.services.length === 0) {
             toast.error("Selecciona al menos un servicio")
+            return
+        }
+
+        if (formData.date_mode === "start_date" && !formData.start_date) {
+            toast.error("Ingresa la fecha de inicio")
+            return
+        }
+
+        if (formData.date_mode === "next_due_date" && !formData.next_due_date) {
+            toast.error("Ingresa la fecha de vencimiento")
             return
         }
 
@@ -376,7 +394,9 @@ export default function AssignServiceDialog({
                     discount_percentage: service.discount_percentage ? parseFloat(service.discount_percentage) : 0,
                     discount_notes: service.discount_notes || null,
                     billing_cycle: service.billing_cycle,
-                    start_date: formData.start_date,
+                    ...(formData.date_mode === "next_due_date"
+                        ? { next_due_date: formData.next_due_date }
+                        : { start_date: formData.start_date }),
                     status: "active",
                 })
             )
@@ -838,25 +858,70 @@ export default function AssignServiceDialog({
                                     })
                                 )}
 
-                                {/* Start Date - Global */}
+                                {/* Global Date Mode */}
                                 {formData.services.length > 0 && (
-                                    <div className="grid gap-2 border-t pt-4 mt-2">
+                                    <div className="grid gap-3 border-t pt-4 mt-2">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="h-4 w-4 text-gray-600" />
-                                            <Label htmlFor="start_date" className="text-sm font-semibold">
-                                                Fecha de Inicio (aplica a todos los servicios)
-                                            </Label>
+                                            <Label className="text-sm font-semibold">Fecha de facturacion</Label>
                                         </div>
-                                        <Input
-                                            id="start_date"
-                                            type="date"
-                                            value={formData.start_date}
-                                            onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                                            className="h-9 max-w-xs"
-                                            aria-label="Fecha de inicio para todos los servicios"
-                                        />
+                                        <RadioGroup
+                                            value={formData.date_mode}
+                                            onValueChange={(value) =>
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    date_mode: value as DateMode,
+                                                    next_due_date: value === "next_due_date" && !prev.next_due_date ? today : prev.next_due_date,
+                                                }))
+                                            }
+                                            className="grid gap-2 sm:grid-cols-2"
+                                        >
+                                            <div className="flex items-center space-x-2 rounded-md border p-3">
+                                                <RadioGroupItem value="start_date" id="date-mode-start" />
+                                                <Label htmlFor="date-mode-start" className="flex items-center gap-2 cursor-pointer">
+                                                    <Calendar className="h-4 w-4 text-blue-600" />
+                                                    <div>
+                                                        <p className="text-sm font-medium">Fecha de inicio</p>
+                                                        <p className="text-xs text-gray-500">El vencimiento se calcula automaticamente</p>
+                                                    </div>
+                                                </Label>
+                                            </div>
+                                            <div className="flex items-center space-x-2 rounded-md border p-3">
+                                                <RadioGroupItem value="next_due_date" id="date-mode-due" />
+                                                <Label htmlFor="date-mode-due" className="flex items-center gap-2 cursor-pointer">
+                                                    <Clock className="h-4 w-4 text-amber-600" />
+                                                    <div>
+                                                        <p className="text-sm font-medium">Proximo vencimiento</p>
+                                                        <p className="text-xs text-gray-500">Ideal si ya conoces la fecha limite</p>
+                                                    </div>
+                                                </Label>
+                                            </div>
+                                        </RadioGroup>
+
+                                        {formData.date_mode === "start_date" ? (
+                                            <Input
+                                                id="start_date"
+                                                type="date"
+                                                value={formData.start_date}
+                                                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                                                className="h-9 max-w-xs"
+                                                aria-label="Fecha de inicio para todos los servicios"
+                                            />
+                                        ) : (
+                                            <Input
+                                                id="next_due_date"
+                                                type="date"
+                                                value={formData.next_due_date}
+                                                onChange={(e) => setFormData({ ...formData, next_due_date: e.target.value })}
+                                                className="h-9 max-w-xs"
+                                                aria-label="Fecha de vencimiento para todos los servicios"
+                                            />
+                                        )}
+
                                         <p className="text-xs text-gray-500">
-                                            Todos los servicios seleccionados comenzarán en esta fecha
+                                            {formData.date_mode === "start_date"
+                                                ? "Todos los servicios seleccionados comenzaran en esta fecha"
+                                                : "Usaremos esta fecha como vencimiento inicial para todos los servicios"}
                                         </p>
                                     </div>
                                 )}

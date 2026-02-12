@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 class RepairResource extends JsonResource
 {
@@ -14,6 +15,16 @@ class RepairResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $latestNoteAt = $this->latest_note_at ? Carbon::parse($this->latest_note_at) : null;
+        $updatedAt = $this->updated_at ? Carbon::parse($this->updated_at) : null;
+        $currentUserId = $request->user()?->id;
+        $latestNoteUserId = $this->latest_note_user_id;
+        
+        // Only show as "new" if latest note was created by another user after last update
+        $hasNewNotes = $latestNoteAt && $updatedAt && $latestNoteUserId
+            ? ($latestNoteAt->greaterThan($updatedAt) && $latestNoteUserId !== $currentUserId)
+            : false;
+
         return [
             'id' => $this->id,
             'code' => $this->code,
@@ -41,6 +52,9 @@ class RepairResource extends JsonResource
             'serial_number' => $this->serial_number,
             'issue_description' => $this->issue_description,
             'diagnosis' => $this->diagnosis,
+            'is_no_repair' => $this->is_no_repair ?? false,
+            'no_repair_reason' => $this->no_repair_reason,
+            'no_repair_at' => $this->no_repair_at?->toDateTimeString(),
             'priority' => $this->priority,
             'status' => $this->status,
             'intake_date' => optional($this->intake_date)->format('Y-m-d'),
@@ -51,6 +65,9 @@ class RepairResource extends JsonResource
             'delivered_at' => optional($this->delivered_at)?->toDateTimeString(),
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
+            'notes_count' => $this->notes_count ?? ($this->notes ? $this->notes->count() : 0),
+            'latest_note_at' => $latestNoteAt?->toDateTimeString(),
+            'has_new_notes' => $hasNewNotes,
             'sale_id' => $this->sale_id,
             'sale' => $this->whenLoaded('sale', function () {
                 return [
@@ -79,6 +96,17 @@ class RepairResource extends JsonResource
                     'address' => $this->insuredCustomer?->person?->address,
                 ];
             }),
+            // Payment fields
+            'is_paid' => $this->is_paid,
+            'amount_paid' => $this->amount_paid,
+            'paid_at' => $this->paid_at?->toDateTimeString(),
+            'payment_method' => $this->whenLoaded('paymentMethod', function () {
+                return [
+                    'id' => $this->paymentMethod?->id,
+                    'name' => $this->paymentMethod?->name,
+                ];
+            }),
+            'cash_movement_id' => $this->cash_movement_id,
         ];
     }
 }

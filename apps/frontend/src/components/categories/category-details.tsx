@@ -30,11 +30,30 @@ interface Category {
   updated_at: string
 }
 
-export default function CategoryDetails() {
+type CategoryDetailsProps = {
+  apiBasePath?: string
+  basePath?: string
+  entityLabel?: string
+  permissions?: {
+    view: string
+    edit: string
+  }
+}
+
+export default function CategoryDetails({
+  apiBasePath = "/categories",
+  basePath = "/dashboard/categorias",
+  entityLabel = "Categoría",
+  permissions = {
+    view: "ver_categorias",
+    edit: "editar_categorias",
+  },
+}: CategoryDetailsProps) {
   const navigate = useNavigate()
   const { request } = useApi()
   const { hasPermission } = useAuth()
   const { id: categoryId } = useParams()
+  const entityLabelLower = entityLabel.toLowerCase()
 
   const [category, setCategory] = useState<Category | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -48,10 +67,10 @@ export default function CategoryDetails() {
     const loadCategoryDetails = async () => {
       setIsLoading(true)
       try {
-        const response = await request({ 
-          method: "GET", 
-          url: `/categories/${categoryId}`, 
-          signal 
+        const response = await request({
+          method: "GET",
+          url: `${apiBasePath}/${categoryId}`,
+          signal
         })
 
         if (signal.aborted) return
@@ -62,9 +81,9 @@ export default function CategoryDetails() {
         if (!axios.isCancel(error)) {
           console.error("Error fetching category details:", error)
           toast.error("Error al cargar datos", { 
-            description: "No se pudieron obtener los datos de la categoría." 
+            description: `No se pudieron obtener los datos de la ${entityLabelLower}.`
           })
-          navigate("/dashboard/categorias")
+          navigate(basePath)
         }
       } finally {
         if (!signal.aborted) {
@@ -75,14 +94,14 @@ export default function CategoryDetails() {
 
     loadCategoryDetails()
     return () => controller.abort()
-  }, [categoryId, request, navigate])
+  }, [categoryId, request, navigate, apiBasePath, basePath, entityLabelLower])
 
   const handleViewSubcategory = (subcategoryId: string) => {
-    navigate(`/dashboard/categorias/${subcategoryId}/ver`)
+    navigate(`${basePath}/${subcategoryId}/ver`)
   }
 
   const handleEditSubcategory = (subcategoryId: string) => {
-    navigate(`/dashboard/categorias/${subcategoryId}`)
+    navigate(`${basePath}/${subcategoryId}`)
   }
 
   if (isLoading) {
@@ -106,17 +125,17 @@ export default function CategoryDetails() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="icon" asChild>
-            <Link to="/dashboard/categorias">
+            <Link to={basePath}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <h2 className="text-3xl font-bold tracking-tight">Detalles de Categoría</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Detalles de {entityLabel}</h2>
         </div>
-        {hasPermission('editar_categorias') && (
+        {hasPermission(permissions.edit) && (
           <Button asChild>
-            <Link to={`/dashboard/categorias/${category.id}`}>
+            <Link to={`${basePath}/${category.id}`}>
               <Pencil className="mr-2 h-4 w-4" />
-              Editar Categoría
+              Editar {entityLabel}
             </Link>
           </Button>
         )}
@@ -207,7 +226,7 @@ export default function CategoryDetails() {
                 </Badge>
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Lista de subcategorías asociadas a esta categoría
+                Lista de subcategorías asociadas a esta {entityLabelLower}
               </p>
             </CardHeader>
             <CardContent>
@@ -238,7 +257,7 @@ export default function CategoryDetails() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            {hasPermission('ver_categorias') && (
+                            {hasPermission(permissions.view) && (
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
@@ -249,7 +268,7 @@ export default function CategoryDetails() {
                                 <Eye className="h-4 w-4 text-blue-600 group-hover:text-blue-700" />
                               </Button>
                             )}
-                            {hasPermission('editar_categorias') && (
+                            {hasPermission(permissions.edit) && (
                               <Button
                                 variant="ghost"
                                 size="icon"

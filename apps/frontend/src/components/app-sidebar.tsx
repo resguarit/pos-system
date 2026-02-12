@@ -249,13 +249,19 @@ export function AppSidebar({ className }: { className?: string }) {
       title: "Servicio Técnico",
       url: "#",
       icon: Wrench,
-      isActive: pathname.startsWith("/dashboard/reparaciones"),
+      isActive: pathname.startsWith("/dashboard/reparaciones") || pathname.startsWith("/dashboard/equipos/categorias"),
       items: [
         {
           title: "Reparaciones",
           url: "/dashboard/reparaciones",
           icon: ClipboardList,
           visible: features.repairs && hasPermission('ver_reparaciones'),
+        },
+        {
+          title: "Categorías de Equipos",
+          url: "/dashboard/equipos/categorias",
+          icon: FolderOpen,
+          visible: features.repairs && hasPermission('ver_categorias_equipos'),
         },
       ],
     },

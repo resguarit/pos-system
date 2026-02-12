@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Customers;
 
+use App\Models\Person;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreCustomerRequest extends FormRequest
 {
@@ -17,6 +19,12 @@ class StoreCustomerRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->merge([
+            'last_name' => $this->filled('last_name') && trim((string) $this->input('last_name')) !== ''
+                ? trim((string) $this->input('last_name'))
+                : null,
+            'phone' => $this->filled('phone') && trim((string) $this->input('phone')) !== ''
+                ? trim((string) $this->input('phone'))
+                : null,
             'email' => $this->filled('email') && trim($this->input('email')) !== ''
                 ? trim($this->input('email'))
                 : null,
@@ -32,20 +40,79 @@ class StoreCustomerRequest extends FormRequest
 
     public function rules(): array
     {
+        $lastName = $this->input('last_name');
+        $firstNameUniqueRule = Rule::unique('people', 'first_name')
+            ->where(function ($query) use ($lastName) {
+                $query->whereNull('deleted_at');
+                if ($lastName === null || trim((string) $lastName) === '') {
+                    $query->whereNull('last_name');
+                } else {
+                    $query->where('last_name', $lastName);
+                }
+            });
+
         return [
-            'first_name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255', $firstNameUniqueRule],
             'last_name' => ['nullable', 'string', 'max:255'],
-            'documento' => ['nullable', 'regex:/^[0-9]+$/', 'between:6,12'],
+            'documento' => [
+                'nullable',
+                'regex:/^[0-9]+$/',
+                'between:6,12',
+                function ($attribute, $value, $fail) {
+                    if ($value === null || trim((string) $value) === '') {
+                        return;
+                    }
+                    $exists = Person::whereNull('deleted_at')
+                        ->where(function ($query) use ($value) {
+                            $query->where('documento', $value)
+                                ->orWhere('cuit', $value);
+                        })
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('Ya existe un cliente con este DNI/CUIT.');
+                    }
+                },
+            ],
             'document_type_id' => ['nullable', 'integer', 'exists:document_types,id'],
-            'cuit' => ['nullable', 'regex:/^[0-9]+$/', 'size:11'],
+            'cuit' => [
+                'nullable',
+                'regex:/^[0-9]+$/',
+                'size:11',
+                function ($attribute, $value, $fail) {
+                    if ($value === null || trim((string) $value) === '') {
+                        return;
+                    }
+                    $exists = Person::whereNull('deleted_at')
+                        ->where(function ($query) use ($value) {
+                            $query->where('cuit', $value)
+                                ->orWhere('documento', $value);
+                        })
+                        ->exists();
+
+                    if ($exists) {
+                        $fail('Este CUIT ya esta registrado.');
+                    }
+                },
+            ],
             'address' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
             'state' => ['nullable', 'string', 'max:255'],
             'postal_code' => ['nullable', 'regex:/^[0-9a-zA-Z]+$/', 'max:10'],
-            'phone' => ['nullable', 'regex:/^[0-9]+$/', 'between:6,20'],
+            'phone' => [
+                'nullable',
+                'regex:/^[0-9]+$/',
+                'between:6,20',
+                Rule::unique('people', 'phone')->whereNull('deleted_at'),
+            ],
             'fiscal_condition_id' => ['nullable', 'integer', 'exists:fiscal_conditions,id'],
             'person_type_id' => ['nullable', 'integer', 'exists:person_types,id'],
-            'email' => ['nullable', 'email:rfc,dns', 'max:255'],
+            'email' => [
+                'nullable',
+                'email:rfc,dns',
+                'max:255',
+                Rule::unique('customers', 'email')->whereNull('deleted_at'),
+            ],
             'active' => ['nullable', 'boolean'],
             'credit_limit' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -70,6 +137,7 @@ class StoreCustomerRequest extends FormRequest
             'first_name.required' => 'Debe ingresar el nombre del cliente.',
             'first_name.string' => 'El nombre debe ser texto.',
             'first_name.max' => 'El nombre es demasiado largo. Máximo permitido: 255 caracteres.',
+            'first_name.unique' => 'Ya existe un cliente con este nombre y apellido.',
 
             // Last Name
             'last_name.string' => 'El apellido debe ser texto.',
@@ -78,6 +146,7 @@ class StoreCustomerRequest extends FormRequest
             // Document Number
             'documento.regex' => 'El número de documento debe contener solo números (sin puntos, guiones ni letras).',
             'documento.between' => 'El número de documento debe tener entre 6 y 12 dígitos.',
+            'documento.unique' => 'Ya existe un cliente con este DNI.',
 
             // Document Type
             'document_type_id.integer' => 'El tipo de documento seleccionado no es válido.',
@@ -106,6 +175,7 @@ class StoreCustomerRequest extends FormRequest
             // Phone
             'phone.regex' => 'El teléfono debe contener solo números (sin espacios, guiones ni paréntesis). Ejemplo: 1123456789',
             'phone.between' => 'El teléfono debe tener entre 6 y 20 dígitos.',
+            'phone.unique' => 'Este teléfono ya está registrado.',
 
             // Fiscal Condition
             'fiscal_condition_id.integer' => 'La condición fiscal seleccionada no es válida.',
@@ -118,6 +188,7 @@ class StoreCustomerRequest extends FormRequest
             // Email
             'email.email' => 'El correo electrónico no tiene un formato válido. Ejemplo: nombre@ejemplo.com',
             'email.max' => 'El correo electrónico es demasiado largo. Máximo permitido: 255 caracteres.',
+            'email.unique' => 'Este correo electrónico ya está registrado.',
 
             // Active
             'active.boolean' => 'El estado activo debe ser verdadero o falso.',

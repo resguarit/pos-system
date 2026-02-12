@@ -35,7 +35,19 @@ class RepairService implements RepairServiceInterface
      */
     private function buildQuery(array $filters = [])
     {
-        $query = Repair::query()->with(['customer.person', 'branch', 'category', 'technician.person', 'sale', 'insurer', 'insuredCustomer.person']);
+        $query = Repair::query()
+            ->with(['customer.person', 'branch', 'category', 'technician.person', 'sale', 'insurer', 'insuredCustomer.person'])
+            ->withCount('notes')
+            ->addSelect([
+                'latest_note_at' => RepairNote::select('created_at')
+                    ->whereColumn('repair_id', 'repairs.id')
+                    ->latest()
+                    ->limit(1),
+                'latest_note_user_id' => RepairNote::select('user_id')
+                    ->whereColumn('repair_id', 'repairs.id')
+                    ->latest()
+                    ->limit(1),
+            ]);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -63,8 +75,16 @@ class RepairService implements RepairServiceInterface
             $query->where('technician_id', $filters['technician_id']);
         }
 
-        if (!empty($filters['branch_id'])) {
-            $query->where('branch_id', $filters['branch_id']);
+        if (!empty($filters['branch_id']) || !empty($filters['branch_ids'])) {
+            $branchIds = $filters['branch_ids'] ?? $filters['branch_id'];
+            if (is_string($branchIds)) {
+                $branchIds = array_filter(array_map('trim', explode(',', $branchIds)));
+            }
+            if (is_array($branchIds)) {
+                $query->whereIn('branch_id', $branchIds);
+            } else {
+                $query->where('branch_id', $branchIds);
+            }
         }
 
         if (!empty($filters['insurer_id'])) {
@@ -93,7 +113,7 @@ class RepairService implements RepairServiceInterface
      */
     public function find(int $id): ?Repair
     {
-        return Repair::with(['customer.person', 'branch', 'category', 'technician.person', 'notes.user.person', 'sale', 'insurer', 'insuredCustomer.person'])->find($id);
+        return Repair::with(['customer.person', 'branch', 'category', 'technician.person', 'notes.user.person', 'sale', 'insurer', 'insuredCustomer.person', 'paymentMethod', 'cashMovement'])->find($id);
     }
 
 
@@ -101,7 +121,7 @@ class RepairService implements RepairServiceInterface
     {
         return DB::transaction(function () use ($data) {
             $data['code'] = $data['code'] ?? $this->generateCode();
-            $data['status'] = $data['status'] ?? 'Recibido';
+            $data['status'] = $data['status'] ?? 'Pendiente de recepción';
             $data['intake_date'] = $data['intake_date'] ?? now()->toDateString();
 
             $repair = Repair::create($data);
@@ -125,16 +145,22 @@ class RepairService implements RepairServiceInterface
         return $repair;
     }
 
-    public function delete(int $id): void
-    {
-        $repair = Repair::findOrFail($id);
-        $repair->delete();
-    }
-
     public function updateStatus(int $id, string $status): Repair
     {
         $repair = Repair::findOrFail($id);
         $repair->update(['status' => $status]);
+        return $repair;
+    }
+
+    public function markNoRepair(int $id, ?string $reason): Repair
+    {
+        $repair = Repair::findOrFail($id);
+        $repair->update([
+            'is_no_repair' => true,
+            'no_repair_reason' => $reason,
+            'no_repair_at' => now(),
+        ]);
+
         return $repair;
     }
 
@@ -157,8 +183,17 @@ class RepairService implements RepairServiceInterface
     public function stats(array $filters = []): array
     {
         $base = Repair::query();
-        if (!empty($filters['branch_id']))
-            $base->where('branch_id', $filters['branch_id']);
+        if (!empty($filters['branch_id']) || !empty($filters['branch_ids'])) {
+            $branchIds = $filters['branch_ids'] ?? $filters['branch_id'];
+            if (is_string($branchIds)) {
+                $branchIds = array_filter(array_map('trim', explode(',', $branchIds)));
+            }
+            if (is_array($branchIds)) {
+                $base->whereIn('branch_id', $branchIds);
+            } else {
+                $base->where('branch_id', $branchIds);
+            }
+        }
 
         // Apply date range to stats using intake_date only
         if (!empty($filters['from_date'])) {
@@ -174,6 +209,87 @@ class RepairService implements RepairServiceInterface
         $entregadas = (clone $base)->where('status', 'Entregado')->count();
 
         return compact('total', 'enProceso', 'terminadas', 'entregadas');
+    }
+
+    /**
+     * Mark a repair as paid and register cash movement
+     * 
+     * @param int $id Repair ID
+     * @param array $data Payment data containing payment_method_id, amount_paid, branch_id
+     * @return Repair Updated repair with payment info
+     * @throws \Exception When no open cash register or validation fails
+     */
+    public function markAsPaid(int $id, array $data): Repair
+    {
+        return DB::transaction(function () use ($id, $data) {
+            $repair = Repair::findOrFail($id);
+
+            // Validate repair is not already paid
+            if ($repair->is_paid) {
+                throw new \Exception('Esta reparación ya fue marcada como cobrada');
+            }
+
+            // Validate required fields
+            if (empty($data['payment_method_id']) || empty($data['branch_id'])) {
+                throw new \Exception('Se requieren el método de pago y la sucursal');
+            }
+
+            $amount = (float)($data['amount_paid'] ?? $repair->sale_price ?? 0);
+            if ($amount <= 0) {
+                throw new \Exception('El monto a cobrar debe ser mayor a 0');
+            }
+
+            // Find open cash register for the branch
+            $cashRegister = \App\Models\CashRegister::where('branch_id', $data['branch_id'])
+                ->where('status', 'open')
+                ->latest()
+                ->first();
+
+            if (!$cashRegister) {
+                throw new \Exception('No se encontró una caja abierta en la sucursal seleccionada');
+            }
+
+            // Find or create movement type for repair payment
+            $movementType = \App\Models\MovementType::firstOrCreate(
+                ['name' => 'Pago de reparación'],
+                [
+                    'description' => 'Ingreso por pago de servicio de reparación',
+                    'operation_type' => 'entrada',
+                    'is_cash_movement' => true,
+                    'is_current_account_movement' => false,
+                    'active' => true,
+                ]
+            );
+
+            // Create cash movement
+            $customerName = $repair->customer->person->full_name ?? 'Cliente';
+            $cashMovement = \App\Models\CashMovement::create([
+                'cash_register_id' => $cashRegister->id,
+                'movement_type_id' => $movementType->id,
+                'payment_method_id' => $data['payment_method_id'],
+                'amount' => $amount,
+                'description' => "Pago reparación #{$repair->code} - {$customerName}",
+                'user_id' => auth()->id(),
+                'reference_type' => 'repair',
+                'reference_id' => $repair->id,
+            ]);
+
+            // Update repair with payment info
+            $repair->update([
+                'is_paid' => true,
+                'amount_paid' => $amount,
+                'sale_price' => $amount,
+                'payment_method_id' => $data['payment_method_id'],
+                'paid_at' => now(),
+                'cash_movement_id' => $cashMovement->id,
+            ]);
+
+            // Update cash register calculated fields
+            $cashRegister->updateCalculatedFields();
+
+            // Load relationships for response
+            return $repair->load(['paymentMethod', 'cashMovement']);
+        });
     }
 
     private function generateCode(): string

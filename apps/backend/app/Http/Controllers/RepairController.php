@@ -69,26 +69,12 @@ class RepairController extends Controller
     }
 
     /**
-     * Delete a repair (soft delete)
-     */
-    public function destroy(int $id): JsonResponse
-    {
-        $repair = $this->repairs->find($id);
-        if (!$repair) {
-            return response()->json(['message' => 'Reparación no encontrada'], 404);
-        }
-
-        $this->repairs->delete($id);
-        return response()->json(['message' => 'Reparación eliminada']);
-    }
-
-    /**
      * Update only the status of a repair
      */
     public function updateStatus(Request $request, int $id): RepairResource|JsonResponse
     {
         $validated = $request->validate([
-            'status' => 'required|in:Recibido,En diagnóstico,Reparación Interna,Reparación Externa,Esperando repuestos,Terminado,Entregado',
+            'status' => 'required|in:Pendiente de recepción,Recibido,En diagnóstico,Reparación Interna,Reparación Externa,Esperando repuestos,Terminado,Entregado,Cancelado',
         ]);
 
         $repair = $this->repairs->find($id);
@@ -156,7 +142,7 @@ class RepairController extends Controller
             ->get(['id', 'name']);
 
         return response()->json([
-            'statuses' => ['Recibido', 'En diagnóstico', 'Reparación Interna', 'Reparación Externa', 'Esperando repuestos', 'Terminado', 'Entregado'],
+            'statuses' => ['Pendiente de recepción', 'Recibido', 'En diagnóstico', 'Reparación Interna', 'Reparación Externa', 'Esperando repuestos', 'Terminado', 'Entregado', 'Cancelado'],
             'priorities' => ['Alta', 'Media', 'Baja'],
             'insurers' => $insurers,
         ]);
@@ -222,6 +208,50 @@ class RepairController extends Controller
     }
 
     /**
+     * Mark a repair as no repair and store optional reason
+     */
+    public function markNoRepair(Request $request, int $id): RepairResource|JsonResponse
+    {
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:2000',
+        ]);
+
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
+        $repair = $this->repairs->markNoRepair($id, $validated['reason'] ?? null);
+        return new RepairResource($repair);
+    }
+
+    /**
+     * Generate no-repair certificate PDF
+     */
+    public function noRepairCertificate(int $id): \Illuminate\Http\Response|JsonResponse
+    {
+        $repair = $this->repairs->find($id);
+        if (!$repair) {
+            return response()->json(['message' => 'Reparación no encontrada'], 404);
+        }
+
+        $date = now();
+        $date->setLocale('es');
+        $pdf = Pdf::loadView('pdf.no-repair-certificate', [
+            'repair' => $repair,
+            'date' => $date,
+            'day' => $date->format('d'),
+            'monthName' => $date->translatedFormat('F'),
+            'year' => $date->format('Y'),
+            'reason' => $repair->no_repair_reason,
+        ]);
+
+        $filename = "acta_sin_reparacion_{$repair->code}.pdf";
+
+        return $pdf->download($filename);
+    }
+
+    /**
      * Get all repairs grouped by status (for Kanban view)
      */
     public function kanban(Request $request): JsonResponse
@@ -229,6 +259,7 @@ class RepairController extends Controller
         $repairs = $this->repairs->listAll($request->all());
 
         $grouped = [
+            'Pendiente de recepción' => [],
             'Recibido' => [],
             'En diagnóstico' => [],
             'Reparación Interna' => [],
@@ -236,6 +267,7 @@ class RepairController extends Controller
             'Esperando repuestos' => [],
             'Terminado' => [],
             'Entregado' => [],
+            'Cancelado' => [],
         ];
 
         foreach ($repairs as $repair) {
@@ -246,6 +278,25 @@ class RepairController extends Controller
         }
 
         return response()->json($grouped);
+    }
+
+    /**
+     * Mark a repair as paid and register cash movement
+     */
+    public function markAsPaid(Request $request, int $id): RepairResource|JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'payment_method_id' => 'required|integer|exists:payment_methods,id',
+                'amount_paid' => 'nullable|numeric|min:0.01|max:999999999.99',
+                'branch_id' => 'required|integer|exists:branches,id',
+            ]);
+
+            $repair = $this->repairs->markAsPaid($id, $validated);
+            return new RepairResource($repair);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
     }
 }
 

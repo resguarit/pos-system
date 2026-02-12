@@ -189,8 +189,8 @@ class ClientServiceController extends Controller
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_notes' => 'nullable|string|max:500',
             'billing_cycle' => 'required|in:monthly,quarterly,annual,biennial,one_time',
-            'start_date' => 'required|date',
-            'next_due_date' => 'nullable|date|after_or_equal:start_date',
+            'start_date' => 'required_without:next_due_date|date',
+            'next_due_date' => 'nullable|date',
             'status' => 'required|in:active,suspended,cancelled',
         ]);
 
@@ -199,6 +199,24 @@ class ClientServiceController extends Controller
         }
 
         $data = $validator->validated();
+
+        if (!isset($data['start_date']) && isset($data['next_due_date'])) {
+            $data['start_date'] = $this->calculateStartDateFromNextDueDate(
+                Carbon::parse($data['next_due_date']),
+                $data['billing_cycle']
+            );
+        }
+
+        if (isset($data['start_date']) && isset($data['next_due_date'])) {
+            $startDate = Carbon::parse($data['start_date']);
+            $nextDueDate = Carbon::parse($data['next_due_date']);
+
+            if ($nextDueDate->lt($startDate)) {
+                return response()->json([
+                    'errors' => ['next_due_date' => ['La fecha de vencimiento debe ser igual o posterior a la fecha de inicio.']]
+                ], 422);
+            }
+        }
 
         if (!isset($data['next_due_date']) && $data['status'] === 'active') {
             $startDate = Carbon::parse($data['start_date']);
@@ -333,6 +351,27 @@ class ClientServiceController extends Controller
                 return null;
             default:
                 return $fromDate->copy();
+        }
+    }
+
+    /**
+     * Calculate start date based on next due date and billing cycle.
+     */
+    private function calculateStartDateFromNextDueDate(Carbon $nextDueDate, string $billingCycle): Carbon
+    {
+        switch ($billingCycle) {
+            case 'monthly':
+                return $nextDueDate->copy()->subMonth();
+            case 'quarterly':
+                return $nextDueDate->copy()->subMonths(3);
+            case 'annual':
+                return $nextDueDate->copy()->subYear();
+            case 'biennial':
+                return $nextDueDate->copy()->subYears(2);
+            case 'one_time':
+                return $nextDueDate->copy();
+            default:
+                return $nextDueDate->copy();
         }
     }
 
