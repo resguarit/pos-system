@@ -92,7 +92,7 @@ class ShipmentService implements ShipmentServiceInterface
             'sales.customer.person',
             'sales.receiptType'
         ])
-            ->where('branch_id', $user->branches()->first()?->id)
+            ->whereIn('branch_id', $user->branches()->pluck('branches.id'))
             ->withCount('sales');
 
         // Apply filters
@@ -135,7 +135,7 @@ class ShipmentService implements ShipmentServiceInterface
             'sales.items.product',
             'events'
         ])
-            ->where('branch_id', $user->branches()->first()?->id)
+            ->whereIn('branch_id', $user->branches()->pluck('branches.id'))
             ->find($id);
 
         if (!$shipment) {
@@ -154,7 +154,7 @@ class ShipmentService implements ShipmentServiceInterface
     public function moveShipment(int $id, int $stageId, User $user, array $metadata = []): Shipment
     {
         return DB::transaction(function () use ($id, $stageId, $user, $metadata) {
-            $shipment = Shipment::where('tenant_id', $user->branches()->first()?->id)->findOrFail($id);
+            $shipment = Shipment::whereIn('branch_id', $user->branches()->pluck('branches.id'))->findOrFail($id);
             $newStage = ShipmentStage::findOrFail($stageId);
 
             // Check permissions
@@ -177,7 +177,7 @@ class ShipmentService implements ShipmentServiceInterface
     public function updateShipment(int $id, array $data, User $user): Shipment
     {
         return DB::transaction(function () use ($id, $data, $user) {
-            $shipment = Shipment::where('branch_id', $user->branches()->first()?->id)->findOrFail($id);
+            $shipment = Shipment::whereIn('branch_id', $user->branches()->pluck('branches.id'))->findOrFail($id);
 
             // Check permissions
             if (!$this->canUserUpdateShipment($shipment, $user)) {
@@ -254,7 +254,7 @@ class ShipmentService implements ShipmentServiceInterface
     public function deleteShipment(int $id, User $user): bool
     {
         return DB::transaction(function () use ($id, $user) {
-            $shipment = Shipment::where('branch_id', $user->branches()->first()?->id)->findOrFail($id);
+            $shipment = Shipment::whereIn('branch_id', $user->branches()->pluck('branches.id'))->findOrFail($id);
 
             // Check permissions - simplificado para permitir con cancelar_envio o editar_envios
             $allowed = $user->hasPermission('cancelar_envio') || $user->hasPermission('editar_envios');
@@ -393,7 +393,7 @@ class ShipmentService implements ShipmentServiceInterface
 
     public function getShipmentEvents(int $shipmentId, User $user): Collection
     {
-        $shipment = Shipment::where('tenant_id', $user->branches()->first()?->id)->findOrFail($shipmentId);
+        $shipment = Shipment::whereIn('branch_id', $user->branches()->pluck('branches.id'))->findOrFail($shipmentId);
 
         if (!$this->canUserViewShipment($shipment, $user)) {
             throw new PermissionDeniedException('You do not have permission to view this shipment');
@@ -404,7 +404,7 @@ class ShipmentService implements ShipmentServiceInterface
 
     public function processWebhook(int $shipmentId, array $payload, User $user): array
     {
-        $shipment = Shipment::where('tenant_id', $user->branches()->first()?->id)->findOrFail($shipmentId);
+        $shipment = Shipment::whereIn('branch_id', $user->branches()->pluck('branches.id'))->findOrFail($shipmentId);
 
         // Process webhook payload
         $result = [
