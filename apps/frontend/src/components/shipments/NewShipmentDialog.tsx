@@ -68,39 +68,56 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   const [foundSales, setFoundSales] = useState<SaleHeader[]>([]);
   const [selectedSales, setSelectedSales] = useState<SaleHeader[]>([]);
   const [showSalesOptions, setShowSalesOptions] = useState(false);
-  const [users, setUsers] = useState<User[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Estados para búsqueda de transportista
   const [transporterSearch, setTransporterSearch] = useState('');
   const [showTransporterOptions, setShowTransporterOptions] = useState(false);
+  const [searchedUsers, setSearchedUsers] = useState<User[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
 
   // Estados para búsqueda de cliente  
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
+  const [searchedCustomers, setSearchedCustomers] = useState<Customer[]>([]);
+  const [searchingCustomers, setSearchingCustomers] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
+  // Debounced server-side search for transportista
+  const searchUsersDebounced = useCallback(async (term: string) => {
+    setSearchingUsers(true);
     try {
-      const response = await request({ method: 'GET', url: '/users?include=person' });
+      const params = new URLSearchParams();
+      if (term.trim()) params.append('search', term.trim());
+      params.append('limit', '20');
+      const response = await request({ method: 'GET', url: `/users?${params.toString()}` });
       if (response?.data) {
         const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setUsers(usersData);
+        setSearchedUsers(usersData);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error searching users:', error);
+      setSearchedUsers([]);
+    } finally {
+      setSearchingUsers(false);
     }
   }, [request]);
 
-  const fetchCustomers = useCallback(async () => {
+  // Debounced server-side search for customer
+  const searchCustomersDebounced = useCallback(async (term: string) => {
+    setSearchingCustomers(true);
     try {
-      const response = await request({ method: 'GET', url: '/customers' });
+      const params = new URLSearchParams();
+      if (term.trim()) params.append('search', term.trim());
+      const response = await request({ method: 'GET', url: `/customers?${params.toString()}` });
       if (response?.data) {
         const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setCustomers(customersData);
+        setSearchedCustomers(customersData);
       }
     } catch (error) {
-      console.error('Error fetching customers:', error);
+      console.error('Error searching customers:', error);
+      setSearchedCustomers([]);
+    } finally {
+      setSearchingCustomers(false);
     }
   }, [request]);
 
@@ -131,12 +148,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
     }
   }, [request, searchSaleTerm, selectedBranchIds]);
 
-  // Cargar usuarios y clientes cuando se abre el dialog
+  // Inicializar cuando se abre el dialog
   useEffect(() => {
     if (open) {
-      fetchUsers();
-      fetchCustomers();
-
       const initialStage = stages.find(s => s.order === 1);
       if (initialStage) {
         setNewShipmentForm(prev => ({ ...prev, stage_id: initialStage.id }));
@@ -149,8 +163,10 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       setShowCustomerOptions(false);
       setSelectedSales([]);
       setFoundSales([]);
+      setSearchedUsers([]);
+      setSearchedCustomers([]);
     }
-  }, [open, fetchUsers, fetchCustomers, stages]);
+  }, [open, stages]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -164,39 +180,23 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
     return () => clearTimeout(timer);
   }, [searchSaleTerm, fetchSales]);
 
+  // Debounced transportista search
   useEffect(() => {
-    if (!transporterSearch.trim()) {
-      return;
-    }
+    if (!showTransporterOptions) return;
+    const timer = setTimeout(() => {
+      searchUsersDebounced(transporterSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [transporterSearch, showTransporterOptions, searchUsersDebounced]);
 
-    const searchLower = transporterSearch.toLowerCase();
-    const filtered = users.filter(user => {
-      const firstName = user.person?.first_name || '';
-      const lastName = user.person?.last_name || '';
-      const email = user.email || '';
-      const fullName = `${firstName} ${lastName}`.toLowerCase();
-      return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-    });
-
-    setShowTransporterOptions(filtered.length > 0);
-  }, [transporterSearch, users]);
-
+  // Debounced customer search
   useEffect(() => {
-    if (!customerSearch.trim()) {
-      return;
-    }
-
-    const searchLower = customerSearch.toLowerCase();
-    const filtered = customers.filter(customer => {
-      const firstName = customer.person?.first_name || '';
-      const lastName = customer.person?.last_name || '';
-      const email = customer.email || '';
-      const fullName = `${firstName} ${lastName}`.toLowerCase();
-      return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-    });
-
-    setShowCustomerOptions(filtered.length > 0);
-  }, [customerSearch, customers]);
+    if (!showCustomerOptions) return;
+    const timer = setTimeout(() => {
+      searchCustomersDebounced(customerSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [customerSearch, showCustomerOptions, searchCustomersDebounced]);
 
   const handleCreateShipment = async () => {
     if (selectedSales.length === 0) {
@@ -334,33 +334,28 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                   onChange={(e) => {
                     const v = e.target.value;
                     setCustomerSearch(v);
-                    setShowCustomerOptions(!!v && v.length >= 1);
+                    setShowCustomerOptions(true);
                     if (!v) {
                       setNewShipmentForm(prev => ({ ...prev, cliente_id: undefined }));
                     }
                   }}
-                  onFocus={() => setShowCustomerOptions(customerSearch.length >= 1)}
+                  onFocus={() => {
+                    setShowCustomerOptions(true);
+                    if (searchedCustomers.length === 0) searchCustomersDebounced('');
+                  }}
                   onBlur={() => setTimeout(() => setShowCustomerOptions(false), 200)}
                   placeholder="Buscar cliente..."
                   className="pl-10 h-11 bg-white border-slate-200 rounded-xl focus:ring-primary/20 transition-all"
                 />
-                {showCustomerOptions && customers.filter(customer => {
-                  const searchLower = customerSearch.toLowerCase();
-                  const firstName = customer.person?.first_name || '';
-                  const lastName = customer.person?.last_name || '';
-                  const email = customer.email || '';
-                  const fullName = `${firstName} ${lastName}`.toLowerCase();
-                  return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                }).length > 0 && (
-                    <div className="absolute left-0 right-0 border rounded-xl bg-white mt-1 max-h-48 overflow-auto z-50 shadow-xl animate-in fade-in zoom-in-95 duration-200">
-                      {customers.filter(customer => {
-                        const searchLower = customerSearch.toLowerCase();
-                        const firstName = customer.person?.first_name || '';
-                        const lastName = customer.person?.last_name || '';
-                        const email = customer.email || '';
-                        const fullName = `${firstName} ${lastName}`.toLowerCase();
-                        return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                      }).map((customer) => {
+                {showCustomerOptions && (
+                  <div className="absolute left-0 right-0 border rounded-xl bg-white mt-1 max-h-48 overflow-auto z-50 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                    {searchingCustomers ? (
+                      <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Buscando...
+                      </div>
+                    ) : searchedCustomers.length > 0 ? (
+                      searchedCustomers.map((customer) => {
                         const firstName = customer.person?.first_name || '';
                         const lastName = customer.person?.last_name || '';
                         const email = customer.email || '';
@@ -396,9 +391,14 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                             {email && <div className="text-xs text-muted-foreground">{email}</div>}
                           </div>
                         );
-                      })}
-                    </div>
-                  )}
+                      })
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                        {customerSearch.trim() ? 'No se encontraron clientes' : 'Escriba para buscar'}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -416,33 +416,28 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                   onChange={(e) => {
                     const v = e.target.value;
                     setTransporterSearch(v);
-                    setShowTransporterOptions(!!v && v.length >= 1);
+                    setShowTransporterOptions(true);
                     if (!v) {
                       setNewShipmentForm(prev => ({ ...prev, transportista_id: undefined }));
                     }
                   }}
-                  onFocus={() => setShowTransporterOptions(transporterSearch.length >= 1)}
+                  onFocus={() => {
+                    setShowTransporterOptions(true);
+                    if (searchedUsers.length === 0) searchUsersDebounced('');
+                  }}
                   onBlur={() => setTimeout(() => setShowTransporterOptions(false), 200)}
                   placeholder="Buscar transportista..."
                   className="pl-10 h-11 bg-white border-slate-200 rounded-xl focus:ring-primary/20 transition-all"
                 />
-                {showTransporterOptions && users.filter(user => {
-                  const searchLower = transporterSearch.toLowerCase();
-                  const firstName = user.person?.first_name || '';
-                  const lastName = user.person?.last_name || '';
-                  const email = user.email || '';
-                  const fullName = `${firstName} ${lastName}`.toLowerCase();
-                  return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                }).length > 0 && (
-                    <div className="absolute left-0 right-0 border rounded-xl bg-white mt-1 max-h-48 overflow-auto z-50 shadow-xl animate-in fade-in zoom-in-95 duration-200">
-                      {users.filter(user => {
-                        const searchLower = transporterSearch.toLowerCase();
-                        const firstName = user.person?.first_name || '';
-                        const lastName = user.person?.last_name || '';
-                        const email = user.email || '';
-                        const fullName = `${firstName} ${lastName}`.toLowerCase();
-                        return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                      }).map((user) => {
+                {showTransporterOptions && (
+                  <div className="absolute left-0 right-0 border rounded-xl bg-white mt-1 max-h-48 overflow-auto z-50 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                    {searchingUsers ? (
+                      <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Buscando...
+                      </div>
+                    ) : searchedUsers.length > 0 ? (
+                      searchedUsers.map((user) => {
                         const firstName = user.person?.first_name || '';
                         const lastName = user.person?.last_name || '';
                         const email = user.email || '';
@@ -464,9 +459,14 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                             <div className="text-xs text-muted-foreground">{email}</div>
                           </div>
                         );
-                      })}
-                    </div>
-                  )}
+                      })
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                        {transporterSearch.trim() ? 'No se encontraron usuarios' : 'Escriba para buscar'}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

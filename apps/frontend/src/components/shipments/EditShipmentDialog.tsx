@@ -52,6 +52,8 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
   const [users, setUsers] = useState<User[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [searchingCustomers, setSearchingCustomers] = useState(false);
 
   // Estados para búsqueda de transportista
   const [transporterSearch, setTransporterSearch] = useState('');
@@ -83,27 +85,42 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     stage_id: undefined,
   });
 
-  const fetchUsers = useCallback(async () => {
+  // Debounced server-side search for transportista
+  const searchUsersDebounced = useCallback(async (term: string) => {
+    setSearchingUsers(true);
     try {
-      const response = await request({ method: 'GET', url: '/users?include=person' });
+      const params = new URLSearchParams();
+      if (term.trim()) params.append('search', term.trim());
+      params.append('limit', '20');
+      const response = await request({ method: 'GET', url: `/users?${params.toString()}` });
       if (response?.data) {
         const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
         setUsers(usersData);
       }
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error searching users:', error);
+      setUsers([]);
+    } finally {
+      setSearchingUsers(false);
     }
   }, [request]);
 
-  const fetchCustomers = useCallback(async () => {
+  // Debounced server-side search for customer
+  const searchCustomersDebounced = useCallback(async (term: string) => {
+    setSearchingCustomers(true);
     try {
-      const response = await request({ method: 'GET', url: '/customers' });
+      const params = new URLSearchParams();
+      if (term.trim()) params.append('search', term.trim());
+      const response = await request({ method: 'GET', url: `/customers?${params.toString()}` });
       if (response?.data) {
         const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
         setCustomers(customersData);
       }
     } catch (error) {
-      console.error('Error fetching customers:', error);
+      console.error('Error searching customers:', error);
+      setCustomers([]);
+    } finally {
+      setSearchingCustomers(false);
     }
   }, [request]);
 
@@ -171,35 +188,59 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     }
   }, [shipmentId]);
 
-  useEffect(() => {
-    if (shipment && users.length > 0) {
-      const transporterId = shipment.metadata?.transportista_id;
-      if (transporterId) {
-        const transporterUser = users.find(u => u.id === transporterId);
-        if (transporterUser && transporterUser.person) {
-          const name = `${transporterUser.person.first_name} ${transporterUser.person.last_name}`;
-          const email = transporterUser.email || '';
+  // Fetch transporter name when editing a shipment with transportista_id
+  const populateTransporterName = useCallback(async (transporterId: number) => {
+    try {
+      const response = await request({ method: 'GET', url: `/users/${transporterId}` });
+      if (response?.data) {
+        const user = response.data.data || response.data;
+        if (user?.person) {
+          const name = `${user.person.first_name} ${user.person.last_name}`;
+          const email = user.email || '';
           setTransporterSearch(`${name} (${email})`);
         }
       }
+    } catch (error) {
+      console.error('Error fetching transporter:', error);
     }
-  }, [shipment, users]);
+  }, [request]);
 
-  useEffect(() => {
-    if (shipment && customers.length > 0) {
-      const customerId = shipment.sales && shipment.sales.length > 0 ? shipment.sales[0].customer_id : undefined;
-      if (customerId) {
-        const selectedCustomer = customers.find(c => c.id === customerId);
-        if (selectedCustomer && selectedCustomer.person) {
-          const firstName = selectedCustomer.person.first_name?.trim() || '';
-          const lastName = selectedCustomer.person.last_name?.trim() || '';
+  // Fetch customer name when editing a shipment with customer_id
+  const populateCustomerName = useCallback(async (customerId: number) => {
+    try {
+      const response = await request({ method: 'GET', url: `/customers/${customerId}` });
+      if (response?.data) {
+        const customer = response.data.data || response.data;
+        if (customer?.person) {
+          const firstName = customer.person.first_name?.trim() || '';
+          const lastName = customer.person.last_name?.trim() || '';
           const fullName = [firstName, lastName].filter(Boolean).join(' ');
-          const email = selectedCustomer.email || '';
+          const email = customer.email || '';
           setCustomerSearch(`${fullName}${email ? ` (${email})` : ''}`);
         }
       }
+    } catch (error) {
+      console.error('Error fetching customer:', error);
     }
-  }, [shipment, customers]);
+  }, [request]);
+
+  useEffect(() => {
+    if (shipment) {
+      const transporterId = shipment.metadata?.transportista_id;
+      if (transporterId) {
+        populateTransporterName(transporterId);
+      }
+    }
+  }, [shipment, populateTransporterName]);
+
+  useEffect(() => {
+    if (shipment) {
+      const customerId = shipment.sales && shipment.sales.length > 0 ? shipment.sales[0].customer_id : undefined;
+      if (customerId) {
+        populateCustomerName(customerId);
+      }
+    }
+  }, [shipment, populateCustomerName]);
 
   const fetchSales = useCallback(async (search: string) => {
     if (!search || search.length < 2) {
@@ -251,10 +292,26 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     return () => clearTimeout(timer);
   }, [salesSearch, fetchSales]);
 
+  // Debounced transportista search
+  useEffect(() => {
+    if (!showTransporterOptions) return;
+    const timer = setTimeout(() => {
+      searchUsersDebounced(transporterSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [transporterSearch, showTransporterOptions, searchUsersDebounced]);
+
+  // Debounced customer search
+  useEffect(() => {
+    if (!showCustomerOptions) return;
+    const timer = setTimeout(() => {
+      searchCustomersDebounced(customerSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [customerSearch, showCustomerOptions, searchCustomersDebounced]);
+
   useEffect(() => {
     if (open) {
-      fetchUsers();
-      fetchCustomers();
       fetchShipmentData();
     } else {
       setTransporterSearch('');
@@ -263,8 +320,10 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       setShowCustomerOptions(false);
       setShowCancelConfirm(false);
       setShipment(null);
+      setUsers([]);
+      setCustomers([]);
     }
-  }, [open, fetchUsers, fetchCustomers, fetchShipmentData]);
+  }, [open, fetchShipmentData]);
 
   const handleUpdateShipment = async () => {
     if (!shipmentId) return;
@@ -428,32 +487,27 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 onChange={(e) => {
                   const v = e.target.value;
                   setTransporterSearch(v);
-                  setShowTransporterOptions(!!v && v.length >= 1);
+                  setShowTransporterOptions(true);
                   if (!v) {
                     setEditForm(prev => ({ ...prev, transportista_id: undefined }));
                   }
                 }}
-                onFocus={() => setShowTransporterOptions(transporterSearch.length >= 1)}
+                onFocus={() => {
+                  setShowTransporterOptions(true);
+                  if (users.length === 0) searchUsersDebounced('');
+                }}
                 onBlur={() => setTimeout(() => setShowTransporterOptions(false), 200)}
                 placeholder="Buscar transportista..."
               />
-              {showTransporterOptions && users.filter(user => {
-                const searchLower = transporterSearch.toLowerCase();
-                const firstName = user.person?.first_name || '';
-                const lastName = user.person?.last_name || '';
-                const email = user.email || '';
-                const fullName = `${firstName} ${lastName}`.toLowerCase();
-                return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-              }).length > 0 && (
-                  <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                    {users.filter(user => {
-                      const searchLower = transporterSearch.toLowerCase();
-                      const firstName = user.person?.first_name || '';
-                      const lastName = user.person?.last_name || '';
-                      const email = user.email || '';
-                      const fullName = `${firstName} ${lastName}`.toLowerCase();
-                      return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                    }).map((user) => {
+              {showTransporterOptions && (
+                <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
+                  {searchingUsers ? (
+                    <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Buscando...
+                    </div>
+                  ) : users.length > 0 ? (
+                    users.map((user) => {
                       const firstName = user.person?.first_name || '';
                       const lastName = user.person?.last_name || '';
                       const email = user.email || '';
@@ -476,9 +530,14 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                           {name} ({email})
                         </div>
                       );
-                    })}
-                  </div>
-                )}
+                    })
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                      {transporterSearch.trim() ? 'No se encontraron usuarios' : 'Escriba para buscar'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -493,33 +552,28 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 onChange={(e) => {
                   const v = e.target.value;
                   setCustomerSearch(v);
-                  setShowCustomerOptions(!!v && v.length >= 1);
+                  setShowCustomerOptions(true);
                   if (!v) {
                     setEditForm(prev => ({ ...prev, cliente_id: undefined }));
                   }
                 }}
-                onFocus={() => setShowCustomerOptions(customerSearch.length >= 1)}
+                onFocus={() => {
+                  setShowCustomerOptions(true);
+                  if (customers.length === 0) searchCustomersDebounced('');
+                }}
                 onBlur={() => setTimeout(() => setShowCustomerOptions(false), 200)}
                 placeholder="Buscar cliente para el envío..."
                 className="bg-white/50 focus:bg-white transition-colors"
               />
-              {showCustomerOptions && customers.filter(customer => {
-                const searchLower = customerSearch.toLowerCase();
-                const firstName = customer.person?.first_name?.trim() || '';
-                const lastName = customer.person?.last_name?.trim() || '';
-                const email = customer.email || '';
-                const fullName = [firstName, lastName].filter(Boolean).join(' ').toLowerCase();
-                return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-              }).length > 0 && (
-                  <div className="absolute left-0 right-0 border rounded-lg bg-white mt-1 max-h-40 overflow-auto z-50 shadow-xl border-slate-200">
-                    {customers.filter(customer => {
-                      const searchLower = customerSearch.toLowerCase();
-                      const firstName = customer.person?.first_name?.trim() || '';
-                      const lastName = customer.person?.last_name?.trim() || '';
-                      const email = customer.email || '';
-                      const fullName = [firstName, lastName].filter(Boolean).join(' ').toLowerCase();
-                      return fullName.includes(searchLower) || email.toLowerCase().includes(searchLower);
-                    }).map((customer) => {
+              {showCustomerOptions && (
+                <div className="absolute left-0 right-0 border rounded-lg bg-white mt-1 max-h-40 overflow-auto z-50 shadow-xl border-slate-200">
+                  {searchingCustomers ? (
+                    <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Buscando...
+                    </div>
+                  ) : customers.length > 0 ? (
+                    customers.map((customer) => {
                       const firstName = customer.person?.first_name?.trim() || '';
                       const lastName = customer.person?.last_name?.trim() || '';
                       const email = customer.email || '';
@@ -556,9 +610,14 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                           {email && <div className="text-xs text-muted-foreground">{email}</div>}
                         </div>
                       );
-                    })}
-                  </div>
-                )}
+                    })
+                  ) : (
+                    <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                      {customerSearch.trim() ? 'No se encontraron clientes' : 'Escriba para buscar'}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

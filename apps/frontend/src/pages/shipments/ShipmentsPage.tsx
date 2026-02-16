@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { Shipment, ShipmentStage } from '@/types/shipment';
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft } from 'lucide-react';
+import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import SelectBranchPlaceholder from '@/components/ui/select-branch-placeholder';
 import Pagination from '@/components/ui/pagination';
@@ -64,6 +64,10 @@ export default function ShipmentsPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
+  const [searchingCustomers, setSearchingCustomers] = useState(false);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const customerSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transporterSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [filters, setFilters] = useState({
     stage_id: '',
@@ -151,10 +155,7 @@ export default function ShipmentsPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      if (hasPermission('ver_envios')) {
-        fetchCustomers();
-        fetchUsers();
-      } else {
+      if (!hasPermission('ver_envios')) {
         setLoading(false);
       }
     }
@@ -168,29 +169,50 @@ export default function ShipmentsPage() {
     }
   }, [authLoading, fetchData]);
 
-  const fetchCustomers = async () => {
-    try {
-      const response = await request({ method: 'GET', url: '/customers' });
-      if (response?.data) {
-        const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setCustomers(customersData);
+  // Debounced server-side search for customers
+  const searchCustomersDebounced = useCallback((term: string) => {
+    if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current);
+    setSearchingCustomers(true);
+    customerSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams();
+        if (term.trim()) params.append('search', term.trim());
+        const response = await request({ method: 'GET', url: `/customers?${params.toString()}` });
+        if (response?.data) {
+          const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
+          setCustomers(customersData);
+        }
+      } catch (error) {
+        console.error('Error searching customers:', error);
+        setCustomers([]);
+      } finally {
+        setSearchingCustomers(false);
       }
-    } catch (error) {
-      console.error('Error fetching customers:', error);
-    }
-  };
+    }, 300);
+  }, [request]);
 
-  const fetchUsers = async () => {
-    try {
-      const response = await request({ method: 'GET', url: '/users?include=person' });
-      if (response?.data) {
-        const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setUsers(usersData);
+  // Debounced server-side search for transportistas
+  const searchUsersDebounced = useCallback((term: string) => {
+    if (transporterSearchTimerRef.current) clearTimeout(transporterSearchTimerRef.current);
+    setSearchingUsers(true);
+    transporterSearchTimerRef.current = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams();
+        if (term.trim()) params.append('search', term.trim());
+        params.append('limit', '20');
+        const response = await request({ method: 'GET', url: `/users?${params.toString()}` });
+        if (response?.data) {
+          const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
+          setUsers(usersData);
+        }
+      } catch (error) {
+        console.error('Error searching users:', error);
+        setUsers([]);
+      } finally {
+        setSearchingUsers(false);
       }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
+    }, 300);
+  }, [request]);
 
   // Función para ver detalles de una sucursal específica
   // Función para volver a la vista de múltiples sucursales
@@ -739,23 +761,34 @@ export default function ShipmentsPage() {
                 <Input
                   placeholder="Buscar cliente..."
                   value={customerSearch}
-                  onFocus={() => setShowCustomerDropdown(true)}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  onFocus={() => {
+                    setShowCustomerDropdown(true);
+                    if (customers.length === 0) searchCustomersDebounced('');
+                  }}
+                  onChange={(e) => {
+                    setCustomerSearch(e.target.value);
+                    setShowCustomerDropdown(true);
+                    searchCustomersDebounced(e.target.value);
+                    if (!e.target.value) {
+                      handleFilterChange('customer', '');
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
                 />
-                {showCustomerDropdown && customerSearch && (
+                {showCustomerDropdown && (
                   <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {customers
-                      .filter(c =>
-                        customerSearch.trim() === '' ||
-                        `${c.person?.first_name || ''} ${c.person?.last_name || ''}`.toLowerCase().includes(customerSearch.toLowerCase()) ||
-                        c.email?.toLowerCase().includes(customerSearch.toLowerCase())
-                      )
-                      .slice(0, 10)
-                      .map(customer => (
+                    {searchingCustomers ? (
+                      <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Buscando...
+                      </div>
+                    ) : customers.length > 0 ? (
+                      customers.map(customer => (
                         <div
                           key={customer.id}
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
+                          onMouseDown={(e) => {
+                            e.preventDefault();
                             const name = customer.person
                               ? [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' ').trim()
                               : (customer as { business_name?: string })?.business_name?.trim() || customer.email || `ID: ${customer.id}`;
@@ -774,7 +807,12 @@ export default function ShipmentsPage() {
                           </div>
                           {customer.email && <div className="text-xs text-gray-500">{customer.email}</div>}
                         </div>
-                      ))}
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                        {customerSearch.trim() ? 'No se encontraron clientes' : 'Escriba para buscar'}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -784,24 +822,34 @@ export default function ShipmentsPage() {
                 <Input
                   placeholder="Buscar transportista..."
                   value={transporterSearch}
-                  onFocus={() => setShowTransporterDropdown(true)}
-                  onChange={(e) => setTransporterSearch(e.target.value)}
+                  onFocus={() => {
+                    setShowTransporterDropdown(true);
+                    if (users.length === 0) searchUsersDebounced('');
+                  }}
+                  onChange={(e) => {
+                    setTransporterSearch(e.target.value);
+                    setShowTransporterDropdown(true);
+                    searchUsersDebounced(e.target.value);
+                    if (!e.target.value) {
+                      handleFilterChange('transporter', '');
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setShowTransporterDropdown(false), 200)}
                 />
-                {showTransporterDropdown && transporterSearch && (
+                {showTransporterDropdown && (
                   <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {users
-                      .filter(u =>
-                        transporterSearch.trim() === '' ||
-                        `${u.person?.first_name || ''} ${u.person?.last_name || ''}`.toLowerCase().includes(transporterSearch.toLowerCase()) ||
-                        u.email?.toLowerCase().includes(transporterSearch.toLowerCase()) ||
-                        u.username?.toLowerCase().includes(transporterSearch.toLowerCase())
-                      )
-                      .slice(0, 10)
-                      .map(user => (
+                    {searchingUsers ? (
+                      <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Buscando...
+                      </div>
+                    ) : users.length > 0 ? (
+                      users.map(user => (
                         <div
                           key={user.id}
                           className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={() => {
+                          onMouseDown={(e) => {
+                            e.preventDefault();
                             const name = user.person
                               ? `${user.person.first_name} ${user.person.last_name}`.trim()
                               : user.username || user.email || `ID: ${user.id}`;
@@ -817,7 +865,12 @@ export default function ShipmentsPage() {
                           </div>
                           {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
                         </div>
-                      ))}
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                        {transporterSearch.trim() ? 'No se encontraron transportistas' : 'Escriba para buscar'}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
