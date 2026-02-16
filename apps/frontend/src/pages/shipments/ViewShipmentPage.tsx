@@ -337,7 +337,7 @@ const ViewShipmentPage: React.FC = () => {
                                 <div key={item.id} className="p-3">
                                   <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                      <p className="font-medium">{item.product?.name || 'Producto sin nombre'}</p>
+                                      <p className="font-medium">{item.product?.description || 'Producto sin nombre'}</p>
                                       {item.product?.code && (
                                         <p className="text-xs text-muted-foreground">Código: {item.product.code}</p>
                                       )}
