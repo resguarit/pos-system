@@ -24,20 +24,12 @@ class RoleController extends Controller
     public function index(): JsonResponse
     {
         $roles = \App\Models\Role::withCount('permissions')->get();
-        $roles = $roles->map(function ($role) {
-            return [
-                'id' => $role->id,
-                'name' => $role->name,
-                'description' => $role->description,
-                'permissions_count' => $role->permissions_count,
-                'is_system' => $role->is_system ?? false,
-            ];
-        });
+
         return response()->json([
             'status' => 200,
             'success' => true,
             'message' => 'Roles obtenidos correctamente',
-            'data' => $roles
+            'data' => \App\Http\Resources\RoleResource::collection($roles)
         ], 200);
     }
 
@@ -49,18 +41,7 @@ class RoleController extends Controller
                 'status' => 200,
                 'success' => true,
                 'message' => 'Rol obtenido correctamente',
-                'data' => [
-                    'id' => $role->id,
-                    'name' => $role->name,
-                    'description' => $role->description,
-                    'permissions_count' => $role->permissions_count,
-                    'is_system' => $role->is_system ?? false,
-                    'active' => $role->active ?? true,
-                    'access_schedule' => $role->access_schedule,
-                    'created_at' => $role->created_at,
-                    'updated_at' => $role->updated_at,
-                    'deleted_at' => $role->deleted_at,
-                ]
+                'data' => new \App\Http\Resources\RoleResource($role)
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -103,23 +84,12 @@ class RoleController extends Controller
             $role = $this->roleService->createRole($validatedData);
             // Volver a consultar el rol con withCount y mapear
             $role = \App\Models\Role::withCount('permissions')->findOrFail($role->id);
-            $mapped = [
-                'id' => $role->id,
-                'name' => $role->name,
-                'description' => $role->description,
-                'permissions_count' => $role->permissions_count,
-                'is_system' => $role->is_system ?? false,
-                'active' => $role->active ?? true,
-                'access_schedule' => $role->access_schedule,
-                'created_at' => $role->created_at,
-                'updated_at' => $role->updated_at,
-                'deleted_at' => $role->deleted_at,
-            ];
+
             return response()->json([
                 'status' => 201,
                 'success' => true,
                 'message' => 'Rol creado correctamente',
-                'data' => $mapped
+                'data' => new \App\Http\Resources\RoleResource($role)
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -172,23 +142,12 @@ class RoleController extends Controller
         try {
             $this->roleService->updateRole($id, $validatedData);
             $role = \App\Models\Role::withCount('permissions')->findOrFail($id);
-            $mapped = [
-                'id' => $role->id,
-                'name' => $role->name,
-                'description' => $role->description,
-                'permissions_count' => $role->permissions_count,
-                'is_system' => $role->is_system ?? false,
-                'active' => $role->active ?? true,
-                'access_schedule' => $role->access_schedule,
-                'created_at' => $role->created_at,
-                'updated_at' => $role->updated_at,
-                'deleted_at' => $role->deleted_at,
-            ];
+
             return response()->json([
                 'status' => 200,
                 'success' => true,
                 'message' => 'Rol actualizado correctamente',
-                'data' => $mapped
+                'data' => new \App\Http\Resources\RoleResource($role)
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -245,21 +204,16 @@ class RoleController extends Controller
         $perPage = $request->get('limit', 10);
         $roles = $query->paginate($perPage);
 
-        $rolesData = $roles->map(function ($role) {
-            return [
-                'id' => $role->id,
-                'name' => $role->name,
-                'description' => $role->description,
-                'permissions_count' => $role->permissions_count,
-                'is_system' => $role->is_system ?? false,
-            ];
-        });
+        // Usar resource collection para la paginación, preservando la estructura de paginación
+        // pero transformando los items usando el Resource
+        // Usamos resolve() para obtener el array limpio, ya que estamos metiéndolo dentro de 'data' manualmente
+        $rolesResource = \App\Http\Resources\RoleResource::collection($roles)->resolve();
 
         return response()->json([
             'status' => 200,
             'success' => true,
             'message' => 'Conteo de permisos por rol obtenido correctamente',
-            'data' => $rolesData,
+            'data' => $rolesResource,
             'total' => $roles->total(),
             'current_page' => $roles->currentPage(),
             'last_page' => $roles->lastPage(),
