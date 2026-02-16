@@ -50,7 +50,6 @@ export function StockTransferDialog({
     items,
     branches,
     allBranches,
-    products,
     loading,
     isSubmitting,
     isEditMode,
@@ -224,7 +223,6 @@ export function StockTransferDialog({
 
                 <TabsContent value="manual" className="space-y-4">
                   <ProductSearch
-                    products={products}
                     sourceBranchId={form.source_branch_id}
                     onAddItem={addItem}
                     getProductStock={getProductStock}

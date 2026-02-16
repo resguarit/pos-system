@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { stockTransferService } from '@/lib/api/stockTransferService';
 import { getBranches } from '@/lib/api/branchService';
-import { getProducts } from '@/lib/api/productService';
+import { getProductById } from '@/lib/api/productService';
 import { getStockByProductAndBranch } from '@/lib/api/stockService';
 import type { Branch, Product, TransferItem, TransferFormData, CreateTransferPayload } from '../types';
 import { createTransferSchema, getValidationErrors } from '../schemas';
@@ -31,7 +31,7 @@ interface UseStockTransferReturn {
   branches: Branch[];
   allBranches: Branch[];
   userBranchIds: number[];
-  products: Product[];
+
   loading: boolean;
   isSubmitting: boolean;
   isEditMode: boolean;
@@ -126,7 +126,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       return visibleBranchIds.includes(branch.id.toString());
     });
   }, [allBranches, options, userBranchIds]);
-  const [products, setProducts] = useState<Product[]>([]);
+
 
   // Loading state
   const [loading, setLoading] = useState(false);
@@ -156,10 +156,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
-      const [branchesData, productsData] = await Promise.all([
-        getBranches(),
-        getProducts(),
-      ]);
+      const branchesData = await getBranches();
 
       // Filter only active branches
       const activeBranches = (branchesData as Branch[]).filter(
@@ -167,7 +164,6 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       );
 
       setAllBranches(activeBranches);
-      setProducts(productsData as Product[]);
       setDataLoaded(true);
     } catch (error) {
       console.error('Error loading initial data:', error);
@@ -206,7 +202,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     }
   }, [dataLoaded, isEditMode, form.destination_branch_id, userBranchIds, allBranches, options.visibleBranchIds]);
 
-  const loadTransferData = useCallback(async (id: number, productsList: Product[]) => {
+  const loadTransferData = useCallback(async (id: number) => {
     try {
       setLoading(true);
       const transfer = await stockTransferService.getById(id);
@@ -225,9 +221,16 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       if (transfer.items && Array.isArray(transfer.items)) {
         const transferItems: TransferItem[] = await Promise.all(
           transfer.items.map(async (item: { product_id: number; quantity: number; product?: { id: number; description: string; code?: string; barcode?: string } }) => {
-            const product = productsList.find(p =>
-              p.id.toString() === item.product_id?.toString()
-            );
+            // Try to fetch product info from API
+            let product: Product | null = null;
+            try {
+              const fetched = await getProductById(item.product_id.toString());
+              if (fetched) {
+                product = fetched as unknown as Product;
+              }
+            } catch {
+              // Use inline data from the transfer item itself
+            }
 
             // Fetch available stock for this item
             let availableStock = 0;
@@ -315,9 +318,9 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   useEffect(() => {
     if (isEditMode && transferId && dataLoaded && lastLoadedTransferId.current !== transferId) {
       lastLoadedTransferId.current = transferId;
-      loadTransferData(transferId, products);
+      loadTransferData(transferId);
     }
-  }, [transferId, dataLoaded, products, isEditMode, loadTransferData]);
+  }, [transferId, dataLoaded, isEditMode, loadTransferData]);
 
   // Update item stocks when source branch changes (but not when items change)
   // Using a ref to track the previous source branch ID
@@ -342,9 +345,17 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       return false;
     }
 
-    const product = products.find(p =>
-      (typeof p.id === 'string' ? parseInt(p.id) : p.id) === productId
-    );
+    // Fetch product info from API on demand
+    let product: Product | null = null;
+    try {
+      const fetched = await getProductById(productId.toString());
+      if (fetched) {
+        product = fetched as unknown as Product;
+      }
+    } catch {
+      toast.error('Producto no encontrado');
+      return false;
+    }
     if (!product) {
       toast.error('Producto no encontrado');
       return false;
@@ -385,7 +396,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
     return true;
     return true;
-  }, [form.source_branch_id, products, items, getProductStock]);
+  }, [form.source_branch_id, items, getProductStock]);
 
   const addItems = useCallback(async (newItems: { productId: number; quantity: number; productCode?: string; productName?: string; availableStock?: number }[]): Promise<boolean> => {
     if (!form.source_branch_id) {
@@ -399,15 +410,10 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
     // Clone current items to avoid mutation during loop
     const currentItemsMap = new Map(items.map(i => [i.product_id, i]));
-    const productsMap = new Map(products.map(p => [typeof p.id === 'string' ? parseInt(p.id) : p.id, p]));
 
     for (const newItem of newItems) {
-      // Si tenemos datos del producto pasados directamente, usarlos
-      // Si no, buscar en productsMap como fallback
-      const productFromMap = productsMap.get(newItem.productId);
-
-      const productName = newItem.productName || productFromMap?.description || `Producto #${newItem.productId}`;
-      const productCode = newItem.productCode || productFromMap?.code || null;
+      const productName = newItem.productName || `Producto #${newItem.productId}`;
+      const productCode = newItem.productCode || null;
 
       // Obtener stock disponible: usar el pasado, o buscar en la API, o 0 por defecto
       let availableStock = newItem.availableStock;
@@ -435,7 +441,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
           id: newItem.productId,
           description: productName,
           code: productCode,
-          barcode: productFromMap?.barcode ?? null,
+          barcode: null,
         }
       };
       currentItemsMap.set(newItem.productId, item);
@@ -449,7 +455,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
     setItems(Array.from(currentItemsMap.values()));
     return true;
-  }, [form.source_branch_id, products, items, getProductStock]);
+  }, [form.source_branch_id, items, getProductStock]);
 
   const removeItem = useCallback((index: number) => {
     setItems(prev => prev.filter((_, i) => i !== index));
@@ -561,7 +567,6 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     form,
     items,
     branches,
-    products,
     loading,
     isSubmitting,
     isEditMode,
