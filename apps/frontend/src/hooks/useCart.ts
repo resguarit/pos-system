@@ -12,6 +12,7 @@ export interface CartItem {
   image: string;
   currency: string;
   iva?: { id: number; rate: number; };
+  allow_discount?: boolean;
   discount_type?: 'percent' | 'amount';
   discount_value?: number;
   is_combo?: boolean;

@@ -20,7 +20,7 @@ import type { CartItem } from "@/types/combo"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { useSaleTotals } from "@/hooks/useSaleTotals"
 import { useCustomerSearch, type CustomerOption } from "@/hooks/useCustomerSearch"
-import { formatCurrency, roundToTwoDecimals, extractProductId } from '@/utils/sale-calculations'
+import { formatCurrency, roundToTwoDecimals, extractProductId, normalizePaymentsForFinalTotal, calculatePaymentDiscount } from '@/utils/sale-calculations'
 import { CustomerSearchSection } from "@/components/sale/CustomerSearchSection"
 import { PaymentSection } from "@/components/sale/PaymentSection"
 import { SaleSummarySection } from "@/components/sale/SaleSummarySection"
@@ -98,9 +98,12 @@ export default function CompleteSalePage() {
   const [showDebtDialog, setShowDebtDialog] = useState(false)
   const [showChangeConfirmDialog, setShowChangeConfirmDialog] = useState(false)
   const [pendingChangeAmount, setPendingChangeAmount] = useState(0)
-  const [lockedPaymentDiscount, setLockedPaymentDiscount] = useState<number | null>(null)
   /** Identidad fiscal elegida cuando el cliente tiene varios CUITs */
   const [selectedTaxIdentityId, setSelectedTaxIdentityId] = useState<number | null>(null)
+
+  const isItemDiscountAllowed = useCallback((item: CartItem) => {
+    return item.allow_discount !== false
+  }, [])
 
   // Hook personalizado para búsqueda de clientes
   const {
@@ -119,60 +122,22 @@ export default function CompleteSalePage() {
     value: globalDiscountValue,
   }), [globalDiscountType, globalDiscountValue])
 
-  const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = useSaleTotals(cart, globalDiscount)
+  const {
+    totalItemDiscount,
+    globalDiscountAmount,
+    subtotalNet,
+    totalIva,
+    total,
+    discountableSubtotalWithIva,
+  } = useSaleTotals(cart, globalDiscount)
 
-  // Función para calcular el descuento real basado en montos ingresados
-  const calculateRealDiscount = useCallback(() => {
-    let totalDiscount = 0
-    payments.forEach(p => {
-      if (!p.payment_method_id) return
-      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      const rate = (method?.discount_percentage || 0) / 100
-      if (rate <= 0) return
-      const amount = parseFloat(p.amount || '0') || 0
-      totalDiscount += amount * rate
-    })
-    return roundToTwoDecimals(totalDiscount)
-  }, [payments, paymentMethods])
+  const discountableTotalForPayments = useMemo(() => {
+    return Math.max(0, roundToTwoDecimals(discountableSubtotalWithIva - globalDiscountAmount))
+  }, [discountableSubtotalWithIva, globalDiscountAmount])
 
-  // Calcular descuento anticipado (cuando hay métodos con descuento sin monto)
-  const calculateAnticipatedDiscount = useCallback((paymentsOverride?: Array<{ payment_method_id: string; amount: string }>) => {
-    const list = paymentsOverride ?? payments
-    const discountedPayments = list.filter(p => {
-      if (!p.payment_method_id) return false
-      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      return (method?.discount_percentage || 0) > 0
-    })
-
-    if (discountedPayments.length === 0) return 0
-
-    // Calcular cuánto ya se pagó en métodos SIN descuento
-    const paidWithoutDiscount = list.reduce((sum, p) => {
-      if (!p.payment_method_id) return sum
-      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      if ((method?.discount_percentage || 0) > 0) return sum
-      return sum + (parseFloat(p.amount || '0') || 0)
-    }, 0)
-
-    const remainingToPay = Math.max(total - paidWithoutDiscount, 0)
-
-    // Aplicar el descuento más alto de los métodos seleccionados
-    const maxRate = Math.max(...discountedPayments.map(p => {
-      const method = paymentMethods.find(pm => pm.id.toString() === p.payment_method_id)
-      return (method?.discount_percentage || 0) / 100
-    }))
-
-    return roundToTwoDecimals(remainingToPay * maxRate)
-  }, [payments, paymentMethods, total])
-
-  // El descuento efectivo es el bloqueado si existe, sino el anticipado inicial
   const totalPaymentDiscount = useMemo(() => {
-    if (lockedPaymentDiscount !== null) {
-      return lockedPaymentDiscount
-    }
-    // Sin descuento bloqueado, calcular anticipado
-    return calculateAnticipatedDiscount()
-  }, [lockedPaymentDiscount, calculateAnticipatedDiscount])
+    return calculatePaymentDiscount(discountableTotalForPayments, payments, paymentMethods)
+  }, [discountableTotalForPayments, payments, paymentMethods])
 
   // Total final después de aplicar descuentos de métodos de pago  
   const finalTotal = useMemo(() => {
@@ -186,6 +151,19 @@ export default function CompleteSalePage() {
       navigate("/dashboard/pos")
     }
   }, [initialCart.length, navigate])
+
+  useEffect(() => {
+    setCart((prev) => prev.map((item) => {
+      if (item.allow_discount === false && (item.discount_type || (item.discount_value ?? 0) > 0)) {
+        return {
+          ...item,
+          discount_type: undefined,
+          discount_value: undefined,
+        }
+      }
+      return item
+    }))
+  }, [])
 
   // Cargar el cliente del presupuesto cuando se está convirtiendo
   // Se ejecuta solo una vez al montar si hay datos del cliente
@@ -303,9 +281,8 @@ export default function CompleteSalePage() {
 
       // Seleccionar tipo de comprobante por defecto
       if (availableTypes.length > 0) {
-        // Prioridad: Factura A (001) > Factura B (006) > Factura X (017) > primero disponible
-        const defaultReceipt = availableTypes.find((t: ReceiptType) => t.afip_code === '001') || // Factura A
-          availableTypes.find((t: ReceiptType) => t.afip_code === '006') || // Factura B
+        // Prioridad: Factura B (006) > Factura X (017) > primero disponible
+        const defaultReceipt = availableTypes.find((t: ReceiptType) => t.afip_code === '006') || // Factura B
           availableTypes.find((t: ReceiptType) => t.afip_code === '017') || // Factura X
           availableTypes[0]
 
@@ -325,34 +302,16 @@ export default function CompleteSalePage() {
   }, [request, effectiveBranch, checkCuitCertificate, getArcaReceiptTypes, convertedFromBudgetId, hasPermission])
 
   const addPayment = useCallback(() => {
-    // Recalcular y bloquear el descuento basado en los montos actuales
-    const newDiscount = calculateRealDiscount()
-    setLockedPaymentDiscount(newDiscount)
     setPayments(prev => [...prev, { payment_method_id: '', amount: '' }])
-  }, [calculateRealDiscount])
+  }, [])
 
   const removePayment = useCallback((idx: number) => {
-    setPayments(prev => {
-      const newPayments = prev.filter((_, i) => i !== idx)
-      // Calcular usando la nueva lista filtrada
-      const newDiscount = calculateAnticipatedDiscount(newPayments)
-      setLockedPaymentDiscount(newDiscount)
-      return newPayments
-    })
-  }, [calculateAnticipatedDiscount])
+    setPayments(prev => prev.filter((_, i) => i !== idx))
+  }, [])
 
   const updatePayment = useCallback((idx: number, field: string, value: string) => {
-    setPayments(prev => {
-      const updated = prev.map((p, i) => i === idx ? { ...p, [field]: value } : p)
-      // Si cambia el método de pago, calcular usando la lista 'updated' INMEDIATAMENTE
-      if (field === 'payment_method_id') {
-        const newDiscount = calculateAnticipatedDiscount(updated)
-        setLockedPaymentDiscount(newDiscount)
-      }
-      return updated
-    })
-    // Si cambia el monto, NO recalculamos (el comportamiento original se mantiene)
-  }, [calculateAnticipatedDiscount])
+    setPayments(prev => prev.map((p, i) => i === idx ? { ...p, [field]: value } : p))
+  }, [])
 
 
   const formatDate = useCallback((dateString: string | null | undefined): string => {
@@ -417,11 +376,12 @@ export default function CompleteSalePage() {
       // Obtener la condición fiscal del receptor (priorizar identidad fiscal seleccionada)
       // TaxIdentityOption tiene fiscal_condition con {id, name}, CustomerOption tiene fiscal_condition_name
       const receiverFiscalCondition = chosenIdentity?.fiscal_condition
-        ?? { name: selectedCustomer?.fiscal_condition_name }
-        ?? null
+        ?? (selectedCustomer?.fiscal_condition_name
+          ? { name: selectedCustomer.fiscal_condition_name }
+          : null)
       const receiverConditionCode = resolveFiscalConditionCode(receiverFiscalCondition)
 
-      const emisionValidation = validateEmisionRulesForRI(selectedReceiptType.afip_code, receiverConditionCode)
+      const emisionValidation = validateEmisionRulesForRI(String(selectedReceiptType.afip_code), receiverConditionCode)
 
       if (!emisionValidation.isValid && emisionValidation.message) {
         toast.error('Tipo de comprobante incorrecto', {
@@ -458,6 +418,8 @@ export default function CompleteSalePage() {
       const pad = (n: number) => n.toString().padStart(2, '0')
       const argDateString = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
+      const { payments: normalizedPayments } = normalizePaymentsForFinalTotal(finalTotal, payments, paymentMethods)
+
       const chosenIdentity = selectedTaxIdentityId && selectedCustomer?.tax_identities
         ? selectedCustomer.tax_identities.find((t) => t.id === selectedTaxIdentityId)
         : null
@@ -488,29 +450,24 @@ export default function CompleteSalePage() {
             quantity: item.quantity,
             unit_price: Number(item.price || 0),
             ...(item.discount_type && (item.discount_value ?? 0) > 0
+            && isItemDiscountAllowed(item)
               ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
               : {}),
           }
         }),
-        payments: payments.map((p, idx) => {
-          // Si hay cambio (diff < 0), ajustar el ÚLTIMO método de pago (que debería ser efectivo)
-          const isLastPayment = idx === payments.length - 1
-          if (isLastPayment && diff < 0) {
-            // El monto que realmente necesitamos es: monto pagado + diff (que es negativo)
-            const adjustedAmount = parseFloat(p.amount || '0') + diff
-            return {
-              payment_method_id: parseInt(p.payment_method_id),
-              amount: roundToTwoDecimals(Math.max(0, adjustedAmount)), // Nunca enviar negativo
-            }
-          }
-          return {
-            payment_method_id: parseInt(p.payment_method_id),
-            amount: parseFloat(p.amount || '0') || 0,
-          }
-        }),
+        payments: normalizedPayments,
       }
 
       const saleResponse = await request({ url: '/pos/sales', method: 'POST', data: saleData })
+      const authorization = (saleResponse as any)?.authorization
+
+      if (authorization && authorization.success === false) {
+        const arcaError = authorization.error || 'No se pudo autorizar el comprobante con ARCA.'
+        toast.error('Error al autorizar con ARCA', {
+          description: arcaError,
+          duration: 10000,
+        })
+      }
 
       // Check if the sale is pending approval
       const saleStatus = (saleResponse as any)?.status || (saleResponse as any)?.data?.status
@@ -574,13 +531,17 @@ export default function CompleteSalePage() {
     user,
     subtotalNet,
     totalIva,
-    total,
+    finalTotal,
     totalItemDiscount,
     globalDiscountAmount,
+    totalPaymentDiscount,
     globalDiscountType,
     globalDiscountValue,
     cart,
     payments,
+    paymentMethods,
+    selectedTaxIdentityId,
+    convertedFromBudgetId,
     request,
     navigate,
   ])
@@ -656,10 +617,6 @@ export default function CompleteSalePage() {
   }, [payments, paymentMethods])
 
   const currentAccountPaymentValid = !hasCurrentAccountPayment || selectedCustomer !== null
-
-  const paid = useMemo(() => {
-    return payments.reduce((sum, p) => sum + (parseFloat(p.amount || '0') || 0), 0)
-  }, [payments])
 
   const selectedReceiptType = useMemo(
     () => receiptTypes.find((rt) => rt.id === receiptTypeId),
@@ -885,7 +842,7 @@ export default function CompleteSalePage() {
               <div className="mt-6">
                 <h3 className="font-semibold mb-2">Productos en la venta</h3>
                 <p className="text-xs text-muted-foreground mb-2">
-                  El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos por ítem se aplican antes del IVA, el descuento global se aplica sobre el total con IVA. Cálculo con hasta 2 decimales.
+                  El precio unitario ingresado o editado se interpreta sin IVA. Los descuentos por ítem se aplican antes del IVA y el descuento global se calcula solo sobre productos que permiten descuento. Cálculo con hasta 2 decimales.
                 </p>
 
                 <div className="overflow-x-auto">
@@ -926,16 +883,17 @@ export default function CompleteSalePage() {
                               <Select
                                 value={item.discount_type || ''}
                                 onValueChange={(v) => {
+                                  if (!isItemDiscountAllowed(item)) return
                                   setCart((prev) => prev.map((ci, i) =>
                                     i === idx
                                       ? { ...ci, discount_type: v as 'percent' | 'amount', discount_value: ci.discount_value ?? 0 }
                                       : ci
                                   ))
                                 }}
-                                disabled={!hasPermission('aplicar_descuentos')}
+                                disabled={!hasPermission('aplicar_descuentos') || !isItemDiscountAllowed(item)}
                               >
                                 <SelectTrigger className="w-[130px]">
-                                  <SelectValue placeholder="Tipo" />
+                                  <SelectValue placeholder={isItemDiscountAllowed(item) ? 'Tipo' : 'No permitido'} />
                                 </SelectTrigger>
                                 <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
                                   <SelectItem value="percent">% Porcentaje</SelectItem>
@@ -952,6 +910,7 @@ export default function CompleteSalePage() {
                                 placeholder={item.discount_type === 'percent' ? '0.00' : '0.00'}
                                 value={item.discount_value?.toString() || ''}
                                 onChange={(e) => {
+                                  if (!isItemDiscountAllowed(item)) return
                                   const val = e.target.value
                                   setCart((prev) => prev.map((ci, i) =>
                                     i === idx
@@ -959,7 +918,7 @@ export default function CompleteSalePage() {
                                       : ci
                                   ))
                                 }}
-                                disabled={!hasPermission('aplicar_descuentos')}
+                                disabled={!hasPermission('aplicar_descuentos') || !isItemDiscountAllowed(item)}
                               />
                             </TableCell>
                           </TableRow>

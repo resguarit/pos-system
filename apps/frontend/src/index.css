@@ -120,6 +120,18 @@
     color: rgb(17, 24, 39) !important;
   }
 
+  /* Preserve button text colors inside popups (e.g. bg-primary text-white) */
+  [data-radix-dialog-content] button,
+  [data-radix-alert-dialog-content] button {
+    color: inherit;
+  }
+  [data-radix-dialog-content] button.bg-primary,
+  [data-radix-alert-dialog-content] button.bg-primary,
+  [data-radix-dialog-content] button[class*="bg-primary"],
+  [data-radix-alert-dialog-content] button[class*="bg-primary"] {
+    color: white !important;
+  }
+
   /* Asegurar que los elementos con scroll dentro de popovers muestren scrollbar */
   [data-radix-popover-content] .scrollbar-visible,
   [data-radix-popover-content] [data-scrollable="true"] {

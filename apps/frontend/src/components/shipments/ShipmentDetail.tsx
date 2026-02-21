@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Shipment } from '@/types/shipment';
+import { useState, useEffect, useMemo } from 'react';
+import { Shipment, Sale } from '@/types/shipment';
 import { shipmentService } from '@/services/shipmentService';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Package, Calendar, Hash, User, MapPin, Building2, FileText, Phone, Mail, CreditCard, DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Loader2, Package, Calendar, Hash, User, MapPin, Building2, FileText, Phone, Mail, CreditCard, DollarSign, CheckCircle, XCircle, Clock, Wallet } from 'lucide-react';
 import { PaymentShipmentDialog } from './PaymentShipmentDialog';
-import { parseShippingCost } from '@/utils/shipmentUtils';
+import { parseShippingCost, getShipmentPaymentSummary } from '@/utils/shipmentUtils';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 
@@ -70,6 +70,37 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
       currency: 'ARS',
     }).format(amount);
   };
+
+  type SalePaymentLike = {
+    id: number;
+    amount: number | string;
+    payment_method?: {
+      id: number;
+      name: string;
+    };
+  };
+
+  const getSalePayments = (sale: Sale): SalePaymentLike[] => {
+    if (Array.isArray(sale.payments) && sale.payments.length > 0) {
+      return sale.payments.map((payment) => ({
+        id: payment.id,
+        amount: payment.amount,
+        payment_method: payment.payment_method,
+      }));
+    }
+
+    if (Array.isArray(sale.sale_payments) && sale.sale_payments.length > 0) {
+      return sale.sale_payments;
+    }
+
+    return [];
+  };
+
+  // Calcular resumen de pagos
+  const paymentSummary = useMemo(() => {
+    if (!shipment) return null;
+    return getShipmentPaymentSummary(shipment);
+  }, [shipment]);
 
   if (error || !shipment) {
     return (
@@ -360,6 +391,93 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
               </>
             )}
 
+            {/* Resumen de métodos de pago agrupado */}
+            {paymentSummary && paymentSummary.salesInfo.length > 0 && (
+              <>
+                <Separator />
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-blue-600 rounded-full p-3">
+                      <Wallet className="h-7 w-7 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-blue-900">Medios de Pago del Envío</h3>
+                      <p className="text-sm text-blue-700">Totales agrupados sobre todas las ventas</p>
+                    </div>
+                  </div>
+
+                  {/* Panel principal */}
+                  <div className="rounded-xl p-6 mb-6 bg-gradient-to-br from-slate-700 to-slate-800 text-white">
+                    <p className="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Total Pagado Registrado</p>
+                    <p className="text-4xl font-black">{formatCurrency(paymentSummary.paidAmount)}</p>
+                  </div>
+
+                  {/* Métodos de pago agrupados */}
+                  {paymentSummary.instructionsByMethod.length > 0 && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold text-blue-900 uppercase tracking-wider flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        Totales por Método de Pago
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {paymentSummary.instructionsByMethod.map((instruction, idx) => (
+                          <div 
+                            key={idx}
+                            className="bg-white rounded-lg p-4 border-l-4 border-blue-500 shadow-md hover:shadow-lg transition-shadow"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <div className="bg-blue-100 rounded-full p-2">
+                                  <CreditCard className="h-5 w-5 text-blue-600" />
+                                </div>
+                                <span className="font-bold text-gray-900">{instruction.method}</span>
+                              </div>
+                            </div>
+                            <div className="bg-blue-50 rounded-lg p-3 mt-2">
+                              <p className="text-xs text-blue-700 font-medium mb-1">Total</p>
+                              <p className="text-3xl font-black text-blue-900">
+                                {formatCurrency(instruction.amountCollected)}
+                              </p>
+                            </div>
+                            {/* Detalle de ventas para este método */}
+                            {instruction.sales.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <p className="text-xs text-gray-600 mb-2">Desglose:</p>
+                                {instruction.sales.map((sale, saleIdx) => (
+                                  <div key={saleIdx} className="flex justify-between items-center text-xs py-1">
+                                    <span className="text-gray-700">Venta #{sale.receiptNumber}</span>
+                                    <span className="font-bold text-gray-900">{formatCurrency(sale.amount)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentSummary.instructionsByMethod.length === 0 && (
+                    <div className="bg-white border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
+                      Sin métodos de pago registrados en las ventas de este envío.
+                    </div>
+                  )}
+
+                  {/* Resumen totales */}
+                  <div className="mt-6 grid grid-cols-2 gap-4">
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <p className="text-sm text-gray-600 mb-1">Total Ventas</p>
+                      <p className="text-xl font-bold text-gray-900">{formatCurrency(paymentSummary.totalAmount)}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 shadow-sm">
+                      <p className="text-sm text-gray-600 mb-1">Pendiente</p>
+                      <p className="text-xl font-bold text-orange-600">{formatCurrency(paymentSummary.pendingAmount)}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
             {/* Sales Information */}
             <div>
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -409,10 +527,10 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                                       {(person as any).address}
                                     </div>
                                   )}
-                                  {person.documento && (
+                                  {person?.documento && (
                                     <div className="text-xs text-muted-foreground flex items-center gap-1">
                                       <CreditCard className="h-3 w-3 text-purple-600" />
-                                      DNI: {person.documento}
+                                      DNI: {person?.documento}
                                     </div>
                                   )}
                                 </div>
@@ -423,6 +541,55 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                           {sale.receipt_type && (
                             <div className="text-sm text-muted-foreground">
                               Tipo: {sale.receipt_type.name}
+                            </div>
+                          )}
+                          
+                          {/* Métodos de Pago de esta venta */}
+                          {getSalePayments(sale).length > 0 && (
+                            <div className="mt-3 pt-3 border-t">
+                              <p className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                                <CreditCard className="h-3 w-3" />
+                                Métodos de Pago:
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {getSalePayments(sale).map((payment: SalePaymentLike, idx: number) => (
+                                  <div key={idx} className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 flex items-center gap-2">
+                                    <CreditCard className="h-3 w-3 text-blue-600" />
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-medium text-blue-900">
+                                        {payment.payment_method?.name || 'Sin método'}
+                                      </span>
+                                      <span className="text-xs font-bold text-blue-700">
+                                        {formatCurrency(typeof payment.amount === 'number' ? payment.amount : parseFloat(payment.amount?.toString() || '0'))}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Información de pagado/pendiente */}
+                          {(typeof sale.paid_amount !== 'undefined' || typeof sale.pending_amount !== 'undefined') && (
+                            <div className="mt-3 pt-3 border-t">
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                {typeof sale.paid_amount !== 'undefined' && parseFloat(sale.paid_amount.toString()) > 0 && (
+                                  <div className="bg-green-50 rounded p-2">
+                                    <p className="text-green-700 font-medium">Pagado</p>
+                                    <p className="text-sm font-bold text-green-900">
+                                      {formatCurrency(typeof sale.paid_amount === 'number' ? sale.paid_amount : parseFloat(sale.paid_amount?.toString() || '0'))}
+                                    </p>
+                                  </div>
+                                )}
+                                {typeof sale.pending_amount !== 'undefined' && parseFloat(sale.pending_amount.toString()) > 0 && (
+                                  <div className="bg-orange-50 rounded p-2 border border-orange-300">
+                                    <p className="text-orange-700 font-medium">Pendiente</p>
+                                    <p className="text-sm font-bold text-orange-900">
+                                      {formatCurrency(Number(sale.pending_amount ?? 0))}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>

@@ -61,6 +61,7 @@ const ViewSaleDialog = ({
     const [showChooseCuitDialog, setShowChooseCuitDialog] = useState(false);
     const [chosenTaxIdentityId, setChosenTaxIdentityId] = useState<number | null>(null);
     const [isUpdatingCuit, setIsUpdatingCuit] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Actualizar venta cuando cambia la prop
     useEffect(() => {
@@ -236,8 +237,6 @@ const ViewSaleDialog = ({
         p?.method_name ||
         p?.name ||
         "Método";
-
-    const [isDownloading, setIsDownloading] = useState(false);
 
     const handleDownloadPdf = async () => {
         if (!saleToDisplay) return;

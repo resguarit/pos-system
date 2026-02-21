@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Info, Zap } from "lucide-react";
 import { ComboDetailsDialog } from "@/components/ComboDetailsDialog";
+import { ComboSelectionDialog } from "@/components/pos/ComboSelectionDialog";
 import { useCombosInPOS } from "@/hooks/useCombosInPOS";
 import { toast } from "sonner";
 import type { Combo } from "@/types/combo";
@@ -25,6 +26,7 @@ export function ComboSection({
 }: ComboSectionProps) {
   const [selectedCombo, setSelectedCombo] = useState<Combo | null>(null);
   const [showComboDetails, setShowComboDetails] = useState(false);
+  const [showComboSelection, setShowComboSelection] = useState(false);
   const [addingCombo, setAddingCombo] = useState<number | null>(null);
 
   const {
@@ -75,11 +77,16 @@ export function ComboSection({
     setShowComboDetails(true);
   }, []);
 
+  const showComboSelectionDialog = useCallback((combo: Combo) => {
+    setSelectedCombo(combo);
+    setShowComboSelection(true);
+  }, []);
+
   /**
    * Maneja la adición de un combo al carrito con validación de stock
    * Aplica principio SRP - Solo maneja la lógica de agregar combo
    */
-  const handleAddComboToCart = useCallback(async (combo: Combo, qty?: number) => {
+  const handleAddComboToCart = useCallback(async (combo: Combo, qty?: number, customSelections?: Map<number, { option: any, quantity: number }[]>) => {
     try {
       setAddingCombo(combo.id);
       const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1);
@@ -113,7 +120,9 @@ export function ComboSection({
       }
 
       // Delegar al componente padre
-      await onComboAdded(combo, quantityToAdd);
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      await onComboAdded(combo, quantityToAdd, customSelections);
     } catch (error) {
       console.error("Error adding combo to cart:", error);
       toast.error((error as Error).message || "Error al agregar combo al carrito");
@@ -157,7 +166,13 @@ export function ComboSection({
               formatCurrency={formatCurrency}
               addQtyPerClick={addQtyPerClick}
               addingCombo={addingCombo}
-              onAddToCart={handleAddComboToCart}
+              onAddToCart={async (c, q) => {
+                if (c.groups && c.groups.length > 0) {
+                  showComboSelectionDialog(c);
+                } else {
+                  await handleAddComboToCart(c, q);
+                }
+              }}
               onShowDetails={showComboDetailsDialog}
             />
           ))}
@@ -168,8 +183,27 @@ export function ComboSection({
         open={showComboDetails}
         onOpenChange={setShowComboDetails}
         combo={selectedCombo}
-        onAddToCart={(combo) => handleAddComboToCart(combo, addQtyPerClick)}
+        onAddToCart={async (combo) => {
+          if (combo.groups && combo.groups.length > 0) {
+            setShowComboDetails(false);
+            showComboSelectionDialog(combo);
+          } else {
+            await handleAddComboToCart(combo, addQtyPerClick);
+          }
+        }}
         formatCurrency={formatCurrency}
+      />
+
+      {/* Diálogo de selección de opciones para combos dinámicos */}
+      <ComboSelectionDialog
+        open={showComboSelection}
+        onOpenChange={setShowComboSelection}
+        combo={selectedCombo}
+        onConfirm={(selections) => {
+          if (selectedCombo) {
+            handleAddComboToCart(selectedCombo, addQtyPerClick, selections);
+          }
+        }}
       />
     </>
   );

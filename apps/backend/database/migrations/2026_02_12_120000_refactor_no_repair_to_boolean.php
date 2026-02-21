@@ -5,8 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -36,18 +35,20 @@ return new class extends Migration
         // Change status back to valid statuses for repairs that were marked as no-repair
         DB::statement("UPDATE repairs SET status = 'Terminado' WHERE status = 'Sin reparación'");
 
-        // Update the ENUM to remove "Sin reparación"
-        DB::statement("ALTER TABLE repairs MODIFY COLUMN status ENUM(
-            'Pendiente de recepción',
-            'Recibido',
-            'En diagnóstico',
-            'Reparación Interna',
-            'Reparación Externa',
-            'Esperando repuestos',
-            'Terminado',
-            'Entregado',
-            'Cancelado'
-        ) NOT NULL DEFAULT 'Pendiente de recepción'");
+        // Update the ENUM to remove "Sin reparación" (skip on SQLite)
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE repairs MODIFY COLUMN status ENUM(
+                'Pendiente de recepción',
+                'Recibido',
+                'En diagnóstico',
+                'Reparación Interna',
+                'Reparación Externa',
+                'Esperando repuestos',
+                'Terminado',
+                'Entregado',
+                'Cancelado'
+            ) NOT NULL DEFAULT 'Pendiente de recepción'");
+        }
     }
 
     /**
@@ -55,19 +56,21 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Add back the "Sin reparación" status to the ENUM
-        DB::statement("ALTER TABLE repairs MODIFY COLUMN status ENUM(
-            'Pendiente de recepción',
-            'Recibido',
-            'En diagnóstico',
-            'Reparación Interna',
-            'Reparación Externa',
-            'Esperando repuestos',
-            'Terminado',
-            'Entregado',
-            'Cancelado',
-            'Sin reparación'
-        ) NOT NULL DEFAULT 'Pendiente de recepción'");
+        // Add back the "Sin reparación" status to the ENUM (skip on SQLite)
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE repairs MODIFY COLUMN status ENUM(
+                'Pendiente de recepción',
+                'Recibido',
+                'En diagnóstico',
+                'Reparación Interna',
+                'Reparación Externa',
+                'Esperando repuestos',
+                'Terminado',
+                'Entregado',
+                'Cancelado',
+                'Sin reparación'
+            ) NOT NULL DEFAULT 'Pendiente de recepción'");
+        }
 
         // Restore repairs that had is_no_repair = true to "Sin reparación" status
         DB::statement("UPDATE repairs SET status = 'Sin reparación' WHERE is_no_repair = true");

@@ -46,6 +46,7 @@ type ProductFormData = {
   observaciones: string;
   status: string;
   web: string;
+  allow_discount: string;
 };
 
 export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDialogProps) {
@@ -64,7 +65,8 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
     iva_id: "",
     observaciones: "",
     status: "1", 
-    web: "1"     
+    web: "1",
+    allow_discount: "1"
   });
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -246,7 +248,8 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           iva_id: "",
           observaciones: "",
           status: "1",
-          web: "1"
+          web: "1",
+          allow_discount: "1"
         });
         
         // Inicializar sucursales seleccionadas
@@ -646,6 +649,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           observaciones: formData.observaciones || null,
           status: parseInt(formData.status),
           web: parseInt(formData.web),
+          allow_discount: parseInt(formData.allow_discount),
           // Si hay sucursales seleccionadas, enviarlas; si no, no enviar branch_ids
           // para que el backend cree stock en todas las sucursales activas
           ...(selectedBranches.length > 0 ? { branch_ids: selectedBranches.map(id => parseInt(id)) } : {}),
@@ -979,7 +983,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           </div>
 
           {/* Estados */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -997,6 +1001,15 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
                 onChange={(e) => handleInputChange('web', e.target.checked ? "1" : "0")}
               />
               <Label htmlFor="web">Visible en Web</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="allow_discount"
+                checked={formData.allow_discount === "1"}
+                onChange={(e) => handleInputChange('allow_discount', e.target.checked ? "1" : "0")}
+              />
+              <Label htmlFor="allow_discount">Permite descuento</Label>
             </div>
           </div>
         </div>

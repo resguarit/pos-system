@@ -49,6 +49,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createWildcardMatcher } from "@/utils/searchUtils"
 
 export default function StockTransfersPage() {
   const { hasPermission } = usePermissions()
@@ -239,10 +240,17 @@ export default function StockTransfersPage() {
 
   const branchFilterNumbers = new Set(branchFilterUI.map(Number))
 
+  const matchesSearch = createWildcardMatcher(searchTerm)
+
   const filteredTransfers = transfers.filter(transfer => {
-    const sourceName = getBranchName(transfer, 'source').toLowerCase()
-    const destName = getBranchName(transfer, 'destination').toLowerCase()
-    const matchesSearch = sourceName.includes(searchTerm.toLowerCase()) || destName.includes(searchTerm.toLowerCase()) || (transfer.id?.toString() || '').includes(searchTerm)
+    const sourceName = getBranchName(transfer, 'source')
+    const destName = getBranchName(transfer, 'destination')
+
+    // Use the optimized matcher
+    const isSearchMatch = matchesSearch(sourceName) ||
+      matchesSearch(destName) ||
+      matchesSearch((transfer.id?.toString() || ''))
+
     const matchesStatus = statusFilter === 'all' || (transfer.status || '').toLowerCase() === statusFilter
     const matchesBranchFilter = branchFilterNumbers.size === 0
       ? true
@@ -269,7 +277,7 @@ export default function StockTransfersPage() {
       matchesDate = transferDate >= from && transferDate <= to
     }
 
-    return matchesSearch && matchesStatus && matchesBranchFilter && matchesGlobalBranchFilter && matchesDate
+    return isSearchMatch && matchesStatus && matchesBranchFilter && matchesGlobalBranchFilter && matchesDate
   })
 
   const pendingTransfers = transfers.filter(t => isPending(t.status)).length

@@ -1178,10 +1178,16 @@ class CashRegisterController extends Controller
             $name = strtolower($method->name);
             $category = 'other';
 
-            foreach ($cashKeywords as $keyword) {
-                if (strpos($name, $keyword) !== false) {
-                    $category = 'cash';
-                    break;
+            if ($method->affects_cash === true) {
+                $category = 'cash';
+            }
+
+            if ($category === 'other') {
+                foreach ($cashKeywords as $keyword) {
+                    if (strpos($name, $keyword) !== false) {
+                        $category = 'cash';
+                        break;
+                    }
                 }
             }
 

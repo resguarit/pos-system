@@ -80,8 +80,19 @@ export const CloseCashRegisterDialog = ({
     }
   }
 
+  const isCashMethod = (methodName: string) => {
+    if (!methodName) return false
+
+    if (isCashPaymentMethod?.(methodName)) {
+      return true
+    }
+
+    const normalizedName = methodName.toLowerCase()
+    return ['efectivo', 'cash', 'contado'].some(keyword => normalizedName.includes(keyword))
+  }
+
   const calculatePaymentBreakdown = () => {
-    if (!registerToShow) return { breakdown: {}, cashStats: { income: 0, expense: 0 } }
+    if (!registerToShow) return { breakdown: {}, cashStats: { income: 0, expense: 0 }, cashFlow: 0 }
 
     // Variables used for logic but removed to fix linter unused error if truly unused
     // const opening = parseFloat(registerToShow.initial_amount) || 0
@@ -115,7 +126,8 @@ export const CloseCashRegisterDialog = ({
     // Asumimos que 'Efectivo' es el nombre standard. Si viene con otro nombre del backend (ej: "Contado"),
     // la lógica de calculatePaymentMethodTotals usará ese nombre.
     // Intentamos detectar si hay un método que sea efectivo
-    const cashMethodName = totals.find(t => isCashPaymentMethod?.(t.name) || t.name === 'Efectivo')?.name || 'Efectivo'
+    const cashTotals = totals.filter(t => isCashMethod(t.name))
+    const cashFlow = cashTotals.reduce((sum, current) => sum + current.total, 0)
 
     // breakdown[cashMethodName] = (breakdown[cashMethodName] || 0) + opening
     // We now keep breakdown purely as "Flow" (movements) to match the dashboard.
@@ -128,32 +140,30 @@ export const CloseCashRegisterDialog = ({
 
     // Extract Cash specific stats for the detailed view
     // Find the total object corresponding to the cash method
-    const cashTotal = totals.find(t => t.name === cashMethodName) // cashMethodName found above
     const cashStats = {
-      income: cashTotal ? cashTotal.income : 0,
-      expense: cashTotal ? cashTotal.expense : 0
+      income: cashTotals.reduce((sum, current) => sum + current.income, 0),
+      expense: cashTotals.reduce((sum, current) => sum + current.expense, 0)
     }
 
-    return { breakdown, cashStats }
+    return { breakdown, cashStats, cashFlow }
   }
 
   const calculateDifference = () => {
     if (!closingForm.closing_balance) return 0
 
     const countedCash = parseFloat(closingForm.closing_balance) || 0
-    const { breakdown } = calculatePaymentBreakdown()
+    const { cashFlow } = calculatePaymentBreakdown()
     const initialAmount = parseFloat(registerToShow?.initial_amount) || 0
 
     // Nueva lógica:
     // Efectivo en sistema = Inicial + Flujo de Efectivo
-    const cashFlow = breakdown['Efectivo'] || 0
     const expectedCashValue = initialAmount + cashFlow
 
     // Diferencia = Efectivo Contado - Total Esperado
     return countedCash - expectedCashValue
   }
 
-  const { breakdown: paymentBreakdown, cashStats } = calculatePaymentBreakdown()
+  const { breakdown: paymentBreakdown, cashStats, cashFlow } = calculatePaymentBreakdown()
   const difference = calculateDifference()
   const systemBalance = getSystemBalance()
 
@@ -213,7 +223,7 @@ export const CloseCashRegisterDialog = ({
                 <div className="bg-gray-50 p-3 rounded-md space-y-2 border border-gray-200">
                   {(() => {
                     const breakdownEntries = Object.entries(paymentBreakdown)
-                      .filter(([method]) => method !== 'Efectivo') // Excluir Efectivo de esta lista
+                      .filter(([method]) => !isCashMethod(method)) // Excluir todos los métodos de efectivo de esta lista
                       .sort(([a], [b]) => a.localeCompare(b))
 
                     if (breakdownEntries.length === 0) {
@@ -268,8 +278,8 @@ export const CloseCashRegisterDialog = ({
                     </div>
                     <div className="flex justify-between items-center text-sm">
                       <span className="text-slate-600">Flujo Neto Efectivo:</span>
-                      <span className={`text-right font-medium ${(paymentBreakdown['Efectivo'] || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {(paymentBreakdown['Efectivo'] || 0) >= 0 ? '+' : ''}{formatCurrency(paymentBreakdown['Efectivo'] || 0)}
+                      <span className={`text-right font-medium ${cashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {cashFlow >= 0 ? '+' : ''}{formatCurrency(cashFlow)}
                       </span>
                     </div>
                   </div>
@@ -277,7 +287,7 @@ export const CloseCashRegisterDialog = ({
                   <div className="border-t border-slate-300 my-1 pt-2 flex justify-between items-center text-base">
                     <span className="font-bold text-slate-800">Debe haber en caja:</span>
                     <span className="font-bold text-right text-lg text-slate-900">
-                      {formatCurrency((parseFloat(registerToShow?.initial_amount) || 0) + (paymentBreakdown['Efectivo'] || 0))}
+                      {formatCurrency((parseFloat(registerToShow?.initial_amount) || 0) + cashFlow)}
                     </span>
                   </div>
                 </div>

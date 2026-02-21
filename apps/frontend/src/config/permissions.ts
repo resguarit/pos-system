@@ -14,6 +14,7 @@ export const PERMISSIONS_CONFIG = {
     permissions: [
       'ver_productos',
       'ver_stock',
+      'ver_stock_otras_sucursales',
       'ver_trazabilidad_producto',
       'crear_productos',
       'editar_productos',

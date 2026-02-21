@@ -38,6 +38,7 @@ export interface ShipmentStage {
   order: number;
   config: Record<string, any>;
   is_active: boolean;
+  color?: string;
   created_at: string;
   updated_at: string;
 }
@@ -172,6 +173,22 @@ export interface Sale {
     name?: string;
   };
   items?: SaleItem[];
+  payments?: Array<{
+    id: number;
+    amount: number;
+    payment_method?: {
+      id: number;
+      name: string;
+    };
+  }>;
+  sale_payments?: Array<{
+    id: number;
+    amount: number | string;
+    payment_method?: {
+      id: number;
+      name: string;
+    };
+  }>;
 }
 
 export interface SaleItem {

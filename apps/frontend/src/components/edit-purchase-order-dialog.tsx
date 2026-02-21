@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import exchangeRateService from '@/lib/api/exchangeRateService';
 import { formatCurrency } from '@/utils/sale-calculations';
+import { createWildcardMatcher } from '@/utils/searchUtils';
 
 /** Tasa fallback cuando falla la carga de USD→ARS; evita mezclar unidades (1:1 solo para consistencia). */
 const FALLBACK_USD_TO_ARS = 1;
@@ -197,12 +198,10 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
 
   useEffect(() => {
     if (productSearch) {
+      const matcher = createWildcardMatcher(productSearch);
       const filtered = products
         .filter(p => p.currency === selectedCurrency || (!p.currency && selectedCurrency === 'ARS'))
-        .filter(p =>
-          (p.description?.toLowerCase() || '').includes(productSearch.toLowerCase()) ||
-          (p.code?.toLowerCase() || '').includes(productSearch.toLowerCase())
-        )
+        .filter(p => matcher(p.description || '') || matcher(p.code || ''))
       setFilteredProducts(filtered)
     } else {
       setFilteredProducts([])

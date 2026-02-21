@@ -106,6 +106,7 @@ export interface Product {
   supplier_id: number;
   status: boolean | number;
   web: boolean | number;
+  allow_discount?: boolean;
   observaciones: string | null;
   created_at: string;
   updated_at: string;

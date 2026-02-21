@@ -14,6 +14,7 @@ export interface Product {
   image?: string;
   status: string;
   currency?: string;
+  allow_discount?: boolean;
 }
 
 export const getProducts = async (params: any = {}): Promise<any> => {

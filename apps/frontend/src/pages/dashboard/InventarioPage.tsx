@@ -28,11 +28,12 @@ import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resiza
 import { useAuth } from '@/hooks/useAuth';
 import { useBranch } from '@/context/BranchContext';
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { matchesWildcard } from "@/utils/searchUtils";
 
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
-  const { selectedBranchIds, setSelectedBranchIds } = useBranch();
+  const { selectedBranchIds, setSelectedBranchIds, allBranches: contextAllBranches } = useBranch();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -168,9 +169,10 @@ export default function InventarioPage() {
             const lowerQuery = searchQuery.toLowerCase();
             filteredData = filteredData.filter((p: Product) => {
               const q = p as Product & { barcode?: string };
-              return (p.description && p.description.toLowerCase().includes(lowerQuery)) ||
-                (p.code && p.code.toLowerCase().includes(lowerQuery)) ||
-                (q.barcode != null && q.barcode.toLowerCase().includes(lowerQuery));
+              // Use matchesWildcard for all searchable fields
+              return matchesWildcard(p.description || '', searchQuery) ||
+                matchesWildcard(p.code || '', searchQuery) ||
+                (q.barcode && matchesWildcard(q.barcode, searchQuery));
             });
           }
 
@@ -607,7 +609,10 @@ export default function InventarioPage() {
     )
   }
 
-  const branchOptions = branches.map((b) => ({ value: String(b.id), label: b.description || `Sucursal ${b.id}` }))
+  // allBranches ya incluye todas las sucursales si el usuario tiene ver_stock_otras_sucursales,
+  // o solo las asignadas si no (lógica centralizada en BranchContext)
+  const stockBranches = contextAllBranches.length > 0 ? contextAllBranches : branches;
+  const branchOptions = stockBranches.map((b) => ({ value: String(b.id), label: b.description || `Sucursal ${b.id}` }))
   const categoryOptions = [
     ...parentCategories.map((parent) => ({
       value: String(parent.id),

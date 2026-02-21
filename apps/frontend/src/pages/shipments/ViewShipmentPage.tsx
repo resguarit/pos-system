@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, ArrowLeft, Package, Calendar, Hash, User, MapPin, Building2, FileText, Phone, Mail, CreditCard, DollarSign, CheckCircle, XCircle, Clock, Receipt } from 'lucide-react';
 import { PaymentShipmentDialog } from '@/components/shipments/PaymentShipmentDialog';
-import { parseShippingCost } from '@/utils/shipmentUtils';
+import { parseShippingCost, getPaymentMethodsFromShipment, getStageBadgeStyle } from '@/utils/shipmentUtils';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 
@@ -96,7 +96,7 @@ const ViewShipmentPage: React.FC = () => {
         phone: customer.person.phone || 'No disponible',
         address: customer.person.address || 'No disponible',
         dni: customer.person.documento || 'No disponible',
-        email: customer.person.cuit || undefined
+        email: customer.email || undefined
       } : null;
     }
     return null;
@@ -126,11 +126,7 @@ const ViewShipmentPage: React.FC = () => {
 
         {shipment.current_stage && (
           <Badge
-            style={{
-              backgroundColor: `${shipment.current_stage.color}15`,
-              borderColor: shipment.current_stage.color,
-              color: shipment.current_stage.color
-            }}
+            style={getStageBadgeStyle(shipment.current_stage)}
             className="text-base px-4 py-2"
           >
             {shipment.current_stage.name}
@@ -247,6 +243,13 @@ const ViewShipmentPage: React.FC = () => {
                   </p>
                 </div>
               )}
+              <div>
+                <p className="text-sm text-muted-foreground">Medio de Pago</p>
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  {getPaymentMethodsFromShipment(shipment).join(', ')}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -380,9 +383,9 @@ const ViewShipmentPage: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <p className="text-sm text-muted-foreground">Pagado:</p>
-                          <Badge variant="outline">{formatCurrency(typeof sale.paid_amount === 'string' ? parseFloat(sale.paid_amount) : sale.paid_amount)}</Badge>
+                          <Badge variant="outline">{formatCurrency(Number(sale.paid_amount || 0))}</Badge>
                           <p className="text-sm text-muted-foreground">Pendiente:</p>
-                          <Badge variant="secondary">{formatCurrency(sale.pending_amount || 0)}</Badge>
+                          <Badge variant="secondary">{formatCurrency(Number(sale.pending_amount) || 0)}</Badge>
                         </div>
                       </CardContent>
                     </Card>

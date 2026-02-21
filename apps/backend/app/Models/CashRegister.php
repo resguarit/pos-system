@@ -166,6 +166,8 @@ class CashRegister extends Model
 
         return \App\Models\PaymentMethod::where('is_active', true)
             ->where(function ($query) use ($cashKeywords) {
+                $query->where('affects_cash', true);
+
                 foreach ($cashKeywords as $keyword) {
                     $query->orWhere('name', 'LIKE', "%{$keyword}%");
                 }

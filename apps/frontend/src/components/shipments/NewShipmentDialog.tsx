@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,8 @@ import { ShipmentStage, User, Customer } from '@/types/shipment';
 import { useBranch } from '@/context/BranchContext';
 import { SaleHeader } from '@/types/sale';
 import { Textarea } from '@/components/ui/textarea';
+import { Autocomplete } from '@/components/ui/autocomplete';
+import { useTransporters } from '@/hooks/useTransporters';
 
 interface NewShipmentDialogProps {
   open: boolean;
@@ -70,56 +73,20 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   const [showSalesOptions, setShowSalesOptions] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Estados para búsqueda de transportista
-  const [transporterSearch, setTransporterSearch] = useState('');
-  const [showTransporterOptions, setShowTransporterOptions] = useState(false);
-  const [searchedUsers, setSearchedUsers] = useState<User[]>([]);
-  const [searchingUsers, setSearchingUsers] = useState(false);
-
-  // Estados para búsqueda de cliente  
+  // Búsqueda de clientes
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
-  const [searchedCustomers, setSearchedCustomers] = useState<Customer[]>([]);
-  const [searchingCustomers, setSearchingCustomers] = useState(false);
 
-  // Debounced server-side search for transportista
-  const searchUsersDebounced = useCallback(async (term: string) => {
-    setSearchingUsers(true);
-    try {
-      const params = new URLSearchParams();
-      if (term.trim()) params.append('search', term.trim());
-      params.append('limit', '20');
-      const response = await request({ method: 'GET', url: `/users?${params.toString()}` });
-      if (response?.data) {
-        const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setSearchedUsers(usersData);
-      }
-    } catch (error) {
-      console.error('Error searching users:', error);
-      setSearchedUsers([]);
-    } finally {
-      setSearchingUsers(false);
-    }
-  }, [request]);
+  const { transporters, loading: loadingTransporters } = useTransporters();
 
-  // Debounced server-side search for customer
-  const searchCustomersDebounced = useCallback(async (term: string) => {
-    setSearchingCustomers(true);
-    try {
-      const params = new URLSearchParams();
-      if (term.trim()) params.append('search', term.trim());
-      const response = await request({ method: 'GET', url: `/customers?${params.toString()}` });
-      if (response?.data) {
-        const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setSearchedCustomers(customersData);
-      }
-    } catch (error) {
-      console.error('Error searching customers:', error);
-      setSearchedCustomers([]);
-    } finally {
-      setSearchingCustomers(false);
-    }
-  }, [request]);
+  const {
+    results: searchedCustomers,
+    isSearching: searchingCustomers,
+    search: searchCustomers,
+    clear: clearCustomers,
+  } = useDebouncedSearch<Customer>({ endpoint: '/customers' });
+
+
 
   const fetchSales = useCallback(async () => {
     try {
@@ -156,15 +123,12 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
         setNewShipmentForm(prev => ({ ...prev, stage_id: initialStage.id }));
       }
     } else {
-      setTransporterSearch('');
       setCustomerSearch('');
       setSearchSaleTerm('');
-      setShowTransporterOptions(false);
       setShowCustomerOptions(false);
       setSelectedSales([]);
       setFoundSales([]);
-      setSearchedUsers([]);
-      setSearchedCustomers([]);
+      clearCustomers();
     }
   }, [open, stages]);
 
@@ -180,23 +144,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
     return () => clearTimeout(timer);
   }, [searchSaleTerm, fetchSales]);
 
-  // Debounced transportista search
   useEffect(() => {
-    if (!showTransporterOptions) return;
-    const timer = setTimeout(() => {
-      searchUsersDebounced(transporterSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [transporterSearch, showTransporterOptions, searchUsersDebounced]);
-
-  // Debounced customer search
-  useEffect(() => {
-    if (!showCustomerOptions) return;
-    const timer = setTimeout(() => {
-      searchCustomersDebounced(customerSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [customerSearch, showCustomerOptions, searchCustomersDebounced]);
+    if (showCustomerOptions) searchCustomers(customerSearch);
+  }, [customerSearch, showCustomerOptions, searchCustomers]);
 
   const handleCreateShipment = async () => {
     if (selectedSales.length === 0) {
@@ -270,9 +220,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       });
 
       setSearchSaleTerm('');
-      setTransporterSearch('');
       setCustomerSearch('');
-      setShowTransporterOptions(false);
       setShowCustomerOptions(false);
 
       onSuccess();
@@ -303,16 +251,12 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* @ts-expect-error - Radix type issues */}
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* @ts-expect-error - Radix type issues */}
         <DialogHeader>
-          {/* @ts-expect-error - Radix type issues */}
           <DialogTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5 text-primary" />
             Crear Nuevo Envío
           </DialogTitle>
-          {/* @ts-expect-error - Radix type issues */}
           <DialogDescription>
             Completa la información para generar un nuevo despacho. Puedes agregar múltiples ventas a este envío.
           </DialogDescription>
@@ -341,7 +285,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                   }}
                   onFocus={() => {
                     setShowCustomerOptions(true);
-                    if (searchedCustomers.length === 0) searchCustomersDebounced('');
+                    if (searchedCustomers.length === 0) searchCustomers('');
                   }}
                   onBlur={() => setTimeout(() => setShowCustomerOptions(false), 200)}
                   placeholder="Buscar cliente..."
@@ -359,7 +303,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                         const firstName = customer.person?.first_name || '';
                         const lastName = customer.person?.last_name || '';
                         const email = customer.email || '';
-                        const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Cliente sin nombre';
+                        const name = `${firstName} ${lastName}`.trim() || email || 'Cliente sin nombre';
 
                         return (
                           <div
@@ -407,67 +351,19 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                 <Package className="h-4 w-4 text-primary" />
                 Transportista
               </label>
-              <div className="relative group/trans">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground group-focus-within/trans:text-primary transition-colors">
-                  <Search className="h-4 w-4" />
-                </div>
-                <Input
-                  value={transporterSearch}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setTransporterSearch(v);
-                    setShowTransporterOptions(true);
-                    if (!v) {
-                      setNewShipmentForm(prev => ({ ...prev, transportista_id: undefined }));
-                    }
-                  }}
-                  onFocus={() => {
-                    setShowTransporterOptions(true);
-                    if (searchedUsers.length === 0) searchUsersDebounced('');
-                  }}
-                  onBlur={() => setTimeout(() => setShowTransporterOptions(false), 200)}
-                  placeholder="Buscar transportista..."
-                  className="pl-10 h-11 bg-white border-slate-200 rounded-xl focus:ring-primary/20 transition-all"
-                />
-                {showTransporterOptions && (
-                  <div className="absolute left-0 right-0 border rounded-xl bg-white mt-1 max-h-48 overflow-auto z-50 shadow-xl animate-in fade-in zoom-in-95 duration-200">
-                    {searchingUsers ? (
-                      <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Buscando...
-                      </div>
-                    ) : searchedUsers.length > 0 ? (
-                      searchedUsers.map((user) => {
-                        const firstName = user.person?.first_name || '';
-                        const lastName = user.person?.last_name || '';
-                        const email = user.email || '';
-                        const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Usuario sin nombre';
-
-                        return (
-                          <div
-                            key={user.id}
-                            className="p-3 cursor-pointer hover:bg-slate-50 border-b last:border-0 transition-colors"
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setNewShipmentForm(prev => ({ ...prev, transportista_id: user.id }));
-                              setTransporterSearch(`${name} (${email})`);
-                              setShowTransporterOptions(false);
-                            }}
-                          >
-                            <div className="font-medium">{name}</div>
-                            <div className="text-xs text-muted-foreground">{email}</div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                        {transporterSearch.trim() ? 'No se encontraron usuarios' : 'Escriba para buscar'}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <Autocomplete
+                options={transporters.map(t => ({
+                  value: t.id.toString(),
+                  label: t.person
+                    ? `${t.person.first_name} ${t.person.last_name}`.trim()
+                    : t.email
+                }))}
+                value={newShipmentForm.transportista_id?.toString()}
+                onValueChange={(val) => setNewShipmentForm(prev => ({ ...prev, transportista_id: val ? parseInt(val) : undefined }))}
+                placeholder={loadingTransporters ? "Cargando..." : "Seleccionar transportista"}
+                emptyText="No se encontró transportista."
+                className="bg-white border-slate-200 rounded-xl"
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
@@ -655,7 +551,6 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                 value={newShipmentForm.stage_id?.toString() || ''}
                 onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, stage_id: parseInt(value) }))}
               >
-                {/* @ts-expect-error - SelectTrigger className */}
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Seleccionar estado" />
                 </SelectTrigger>
@@ -678,7 +573,6 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                 value={newShipmentForm.priority}
                 onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, priority: value }))}
               >
-                {/* @ts-expect-error - SelectTrigger className */}
                 <SelectTrigger className="rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
@@ -698,7 +592,6 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                   value={newShipmentForm.branch_id?.toString() || ''}
                   onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, branch_id: parseInt(value) }))}
                 >
-                  {/* @ts-expect-error - SelectTrigger className */}
                   <SelectTrigger className="rounded-xl">
                     <SelectValue placeholder="Seleccionar sucursal" />
                   </SelectTrigger>
@@ -724,7 +617,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                 Entrega Estimada
               </label>
               <Input
-                type="date"
+                type="datetime-local"
                 value={newShipmentForm.estimated_delivery_date}
                 onChange={(e) => setNewShipmentForm(prev => ({ ...prev, estimated_delivery_date: e.target.value }))}
                 className="rounded-xl"
@@ -772,7 +665,8 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
             Cancelar
           </Button>
           <Button
-            className="flex-1 rounded-xl bg-primary hover:bg-primary/90 text-white"
+            className="flex-1 rounded-xl bg-primary hover:bg-primary/90"
+            style={{ color: 'white', backgroundColor: '#3B82F6' }}
             onClick={handleCreateShipment}
             disabled={loading}
           >

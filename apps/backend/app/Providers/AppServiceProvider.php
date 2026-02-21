@@ -122,6 +122,7 @@ class AppServiceProvider extends ServiceProvider
             'sale_annulment' => \App\Models\SaleHeader::class,
             'shipment' => \App\Models\Shipment::class,
             'current_account_movement' => \App\Models\CurrentAccountMovement::class,
+            'repair' => \App\Models\Repair::class,
         ]);
 
 

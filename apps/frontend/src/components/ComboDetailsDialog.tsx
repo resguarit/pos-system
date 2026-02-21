@@ -56,7 +56,7 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
@@ -70,37 +70,34 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
         {/* Precio Final del Combo */}
         {priceDetails && (
           <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
+            <CardContent className="p-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-1">Precio Base:</p>
-                  <p className="text-lg font-semibold text-gray-900">{formatCurrency(priceDetails.base_price)}</p>
+                  <p className="text-xs text-gray-600 mb-0.5">Precio Base:</p>
+                  <p className="text-base font-semibold text-gray-900">{formatCurrency(priceDetails.base_price)}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-sm text-gray-600 mb-1">Descuento:</p>
-                  <p className="text-lg font-semibold text-red-600">-{formatCurrency(priceDetails.discount_amount)}</p>
+                  <p className="text-xs text-gray-600 mb-0.5">Descuento:</p>
+                  <p className="text-base font-semibold text-red-600">-{formatCurrency(priceDetails.discount_amount)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-gray-600 mb-1">Precio Final:</p>
-                  <p className="text-2xl font-bold text-blue-600">{formatCurrency(priceDetails.final_price)}</p>
+                  <p className="text-xs text-gray-600 mb-0.5">Precio Final:</p>
+                  <p className="text-xl font-bold text-blue-600">{formatCurrency(priceDetails.final_price)}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         )}
 
-        <div className="space-y-4">
-          {combo.description && (
-            <p className="text-muted-foreground">{combo.description}</p>
-          )}
-
+        {/* Layout en dos columnas: Componentes + Descuento */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
           {/* Componentes del combo */}
           {combo.combo_items && combo.combo_items.length > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Componentes del Combo</CardTitle>
+              <CardHeader className="py-3 px-4">
+                <CardTitle className="text-base">Componentes del Combo</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4 pb-3 pt-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -113,14 +110,14 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
                   <TableBody>
                     {combo.combo_items.map((item, index) => (
                       <TableRow key={index}>
-                        <TableCell className="font-medium">
+                        <TableCell className="font-medium py-2">
                           {item.product?.description || 'Producto no disponible'}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-2">
                           <Badge variant="outline">{item.quantity}</Badge>
                         </TableCell>
-                        <TableCell>{formatCurrency(item.product?.sale_price || 0)}</TableCell>
-                        <TableCell>{formatCurrency((item.product?.sale_price || 0) * item.quantity)}</TableCell>
+                        <TableCell className="py-2">{formatCurrency(item.product?.sale_price || 0)}</TableCell>
+                        <TableCell className="py-2">{formatCurrency((item.product?.sale_price || 0) * item.quantity)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -130,32 +127,32 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
           )}
 
           {/* Información del descuento */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calculator className="h-5 w-5" />
-                Información del Descuento
+          <Card className="md:w-64 h-fit">
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Calculator className="h-4 w-4" />
+                Descuento
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Tipo de Descuento:</span>
+            <CardContent className="px-4 pb-3 pt-0">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-muted-foreground">Tipo:</span>
                   <Badge variant="secondary">
                     {combo.discount_type === 'percentage' ? 'Porcentaje' : 'Monto Fijo'}
                   </Badge>
                 </div>
-                <div className="flex justify-between">
-                  <span>Valor del Descuento:</span>
-                  <span className="text-red-600">
-                    {combo.discount_type === 'percentage' 
-                      ? `${combo.discount_value}%` 
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-muted-foreground">Valor:</span>
+                  <span className="text-red-600 font-medium">
+                    {combo.discount_type === 'percentage'
+                      ? `${combo.discount_value}%`
                       : formatCurrency(combo.discount_value)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Estado:</span>
-                  <Badge 
+                <div className="flex justify-between items-center gap-4">
+                  <span className="text-muted-foreground">Estado:</span>
+                  <Badge
                     variant={combo.is_active ? "default" : "destructive"}
                     className={combo.is_active ? "bg-green-100 text-green-800" : ""}
                   >
@@ -165,21 +162,21 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
               </div>
             </CardContent>
           </Card>
-
-          {/* Botón para agregar al carrito */}
-          {onAddToCart && combo.is_active && (
-            <div className="flex justify-end">
-              <Button 
-                variant="outline"
-                onClick={() => onAddToCart(combo)}
-                className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900"
-              >
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Agregar al Carrito
-              </Button>
-            </div>
-          )}
         </div>
+
+        {/* Botón para agregar al carrito */}
+        {onAddToCart && combo.is_active && (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={() => onAddToCart(combo)}
+              className="bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:text-gray-900"
+            >
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              Agregar al Carrito
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

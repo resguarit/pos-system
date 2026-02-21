@@ -18,8 +18,14 @@ import { Trash2, Plus, Search, Barcode, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { getProducts } from '@/lib/api/productService';
 import { createCombo, updateCombo } from '@/lib/api/comboService';
-import type { Combo, ComboItemForm } from '@/types/combo';
+import type { Combo, ComboItemForm, ComboGroup, ComboGroupOption } from '@/types/combo';
 import type { Product } from '@/types/product';
+
+export interface ComboGroupForm {
+  name: string;
+  required_quantity: number | '';
+  options: { product_id: number; product?: Product }[];
+}
 
 interface ComboManagementDialogProps {
   open: boolean;
@@ -32,17 +38,19 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
   open,
   onOpenChange,
   combo,
-  onSaved = () => {}
+  onSaved = () => { }
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed_amount'>('percentage');
   const [discountValue, setDiscountValue] = useState(0);
   const [items, setItems] = useState<ComboItemForm[]>([]);
+  const [groups, setGroups] = useState<ComboGroupForm[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [addTarget, setAddTarget] = useState<string>('fixed');
   const [loading, setLoading] = useState(false);
-  
+
   // Estados para el buscador
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -59,14 +67,24 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
         setDescription(combo.description || '');
         setDiscountType(combo.discount_type);
         setDiscountValue(combo.discount_value);
-        
+
         const mappedItems = combo.combo_items?.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity,
           product: item.product
         })) || [];
-        
+
         setItems(mappedItems);
+
+        const mappedGroups = combo.groups?.map(group => ({
+          name: group.name,
+          required_quantity: group.required_quantity,
+          options: group.options?.map(opt => ({
+            product_id: opt.product_id,
+            product: opt.product
+          })) || []
+        })) || [];
+        setGroups(mappedGroups);
       } else {
         resetForm();
       }
@@ -115,7 +133,9 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     setDiscountType('percentage');
     setDiscountValue(0);
     setItems([]);
+    setGroups([]);
     setSelectedProduct(null);
+    setAddTarget('fixed');
     setSearchQuery('');
     setFilteredProducts([]);
     setShowSearchResults(false);
@@ -130,12 +150,12 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     }
 
     setIsSearching(true);
-    
+
     const filtered = products.filter(product => {
       const searchLower = query.toLowerCase();
       const nameMatch = product.description.toLowerCase().includes(searchLower);
       const codeMatch = product.code.toLowerCase().includes(searchLower);
-      
+
       return nameMatch || codeMatch;
     });
 
@@ -187,30 +207,79 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     setShowSearchResults(false);
   };
 
-  const addItem = () => {
+  const addItemToTarget = () => {
     if (!selectedProduct) {
       toast.error('Selecciona un producto');
       return;
     }
 
-    const existingItem = items.find(item => item.product_id === selectedProduct.id);
-    if (existingItem) {
-      toast.error('Este producto ya está en el combo');
-      return;
+    if (addTarget === 'fixed') {
+      const existingItem = items.find(item => item.product_id === selectedProduct.id);
+      if (existingItem) {
+        toast.error('Este producto ya está en el combo');
+        return;
+      }
+
+      setItems(prev => [...prev, {
+        product_id: selectedProduct.id,
+        quantity: 1,
+        product: selectedProduct,
+      }]);
+    } else if (addTarget.startsWith('group-')) {
+      const groupIndex = parseInt(addTarget.split('-')[1]);
+      const group = groups[groupIndex];
+      if (!group) return;
+
+      const existingOption = group.options.find(opt => opt.product_id === selectedProduct.id);
+      if (existingOption) {
+        toast.error('Esta opción ya está en el grupo');
+        return;
+      }
+
+      setGroups(prev => {
+        const next = [...prev];
+        next[groupIndex] = {
+          ...next[groupIndex],
+          options: [
+            ...next[groupIndex].options,
+            {
+              product_id: selectedProduct.id,
+              product: selectedProduct
+            }
+          ]
+        };
+        return next;
+      });
     }
 
-    const newItem: ComboItemForm = {
-      product_id: selectedProduct.id,
-      quantity: 1,
-      product: selectedProduct,
-    };
-
-    setItems(prev => [...prev, newItem]);
-    
     // Limpiar el buscador después de agregar
     handleClearSearch();
-    
-    toast.success('Producto agregado al combo');
+
+    toast.success('Producto agregado');
+  };
+
+  const addGroup = () => {
+    setGroups(prev => [...prev, { name: '', required_quantity: 1, options: [] }]);
+  };
+
+  const removeGroup = (index: number) => {
+    setGroups(prev => prev.filter((_, i) => i !== index));
+    if (addTarget === `group-${index}`) setAddTarget('fixed');
+  };
+
+  const updateGroup = (index: number, field: keyof ComboGroupForm, value: any) => {
+    setGroups(prev => prev.map((g, i) => i === index ? { ...g, [field]: value } : g));
+  };
+
+  const removeGroupOption = (groupIndex: number, optionIndex: number) => {
+    setGroups(prev => {
+      const next = [...prev];
+      next[groupIndex] = {
+        ...next[groupIndex],
+        options: next[groupIndex].options.filter((_, i) => i !== optionIndex)
+      };
+      return next;
+    });
   };
 
   const removeItem = (index: number) => {
@@ -219,8 +288,8 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
 
   const updateItemQuantity = (index: number, quantity: number) => {
     const integerQuantity = Math.floor(Math.max(1, quantity));
-    
-    setItems(prev => prev.map((item, i) => 
+
+    setItems(prev => prev.map((item, i) =>
       i === index ? { ...item, quantity: integerQuantity } : item
     ));
   };
@@ -231,8 +300,15 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
       return;
     }
 
-    if (items.length === 0) {
-      toast.error('Debe agregar al menos un producto al combo');
+    if (items.length === 0 && groups.length === 0) {
+      toast.error('Debe agregar al menos un producto o grupo de opciones al combo');
+      return;
+    }
+
+    // validate groups
+    const emptyGrps = groups.filter(g => !g.name.trim() || g.options.length === 0);
+    if (emptyGrps.length > 0) {
+      toast.error('Todos los grupos deben tener un nombre y al menos una opción.');
       return;
     }
 
@@ -246,11 +322,16 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
         items: items.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity
+        })),
+        groups: groups.map(group => ({
+          name: group.name,
+          required_quantity: Number(group.required_quantity) || 1,
+          options: group.options.map(opt => ({ product_id: opt.product_id }))
         }))
       };
 
       if (isEditing && combo) {
-        await updateCombo(combo.id, comboData);
+        await updateCombo(combo.id, { ...comboData, id: combo.id });
         toast.success('Combo actualizado exitosamente');
       } else {
         await createCombo(comboData);
@@ -275,8 +356,8 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
             {isEditing ? 'Editar Combo' : 'Crear Nuevo Combo'}
           </DialogTitle>
           <DialogDescription>
-            {isEditing 
-              ? 'Modifica los detalles del combo existente' 
+            {isEditing
+              ? 'Modifica los detalles del combo existente'
               : 'Crea un nuevo combo con productos y descuentos'
             }
           </DialogDescription>
@@ -336,7 +417,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
           {/* Agregar productos */}
           <div className="space-y-4">
             <Label>Productos del Combo</Label>
-            
+
             {/* Buscador de productos */}
             <div className="relative search-container">
               <div className="flex gap-2">
@@ -365,10 +446,25 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
                     </Button>
                   )}
                 </div>
-                <Button onClick={addItem} disabled={!selectedProduct}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Agregar
-                </Button>
+                <div className="flex gap-2">
+                  <Select value={addTarget} onValueChange={setAddTarget}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Destino..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fixed">Item Fijo</SelectItem>
+                      {groups.map((g, i) => (
+                        <SelectItem key={i} value={`group-${i}`}>
+                          Grupo: {g.name || `#${i + 1}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={addItemToTarget} disabled={!selectedProduct}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Agregar
+                  </Button>
+                </div>
               </div>
 
               {/* Resultados de búsqueda */}
@@ -473,31 +569,98 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
                       <TableCell>
                         {item.product?.description || `Product ID: ${item.product_id}`}
                       </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={item.quantity}
-                            onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 1)}
-                            className="w-20"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeItem(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={item.quantity}
+                          onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 1)}
+                          className="w-20"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeItem(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
           )}
+
+          {/* Grupos personalizables */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex justify-between items-center">
+              <Label className="text-lg">Grupos Personalizables (Opciones)</Label>
+              <Button variant="outline" size="sm" onClick={addGroup}>
+                <Plus className="h-4 w-4 mr-2" />
+                Añadir Grupo
+              </Button>
+            </div>
+            {groups.map((group, groupIndex) => (
+              <div key={groupIndex} className="p-4 border rounded-lg bg-gray-50 relative space-y-4">
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="absolute top-2 right-2 h-8 w-8 p-0 shrink-0 border border-transparent shadow-none bg-transparent hover:bg-red-50 text-red-500 hover:text-red-700"
+                  onClick={() => removeGroup(groupIndex)}
+                >
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-10">
+                  <div className="space-y-2">
+                    <Label>Nombre del Grupo</Label>
+                    <Input
+                      placeholder="Ej: Sabores de Empanadas"
+                      value={group.name}
+                      onChange={(e) => updateGroup(groupIndex, 'name', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Cantidad Requerida</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="Ej: 3"
+                      value={group.required_quantity}
+                      onChange={(e) => updateGroup(groupIndex, 'required_quantity', e.target.value === '' ? '' : parseInt(e.target.value) || 1)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2 pt-2 border-t">
+                  <Label>Opciones del grupo</Label>
+                  {group.options.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">
+                      Utilice el buscador superior para agregar productos al destino "Grupo: {group.name}".
+                    </p>
+                  ) : (
+                    <div className="flex gap-2 flex-wrap">
+                      {group.options.map((opt, optIndex) => (
+                        <Badge key={optIndex} variant="secondary" className="flex items-center gap-1.5 py-1.5 px-3">
+                          <span className="max-w-[150px] truncate" title={opt.product?.description}>
+                            {opt.product?.description}
+                          </span>
+                          <X
+                            className="h-3.5 w-3.5 cursor-pointer text-muted-foreground hover:text-red-500 transition-colors"
+                            onClick={() => removeGroupOption(groupIndex, optIndex)}
+                          />
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <DialogFooter>

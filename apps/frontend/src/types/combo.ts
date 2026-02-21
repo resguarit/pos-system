@@ -12,6 +12,22 @@ export interface Combo {
   created_at: string;
   updated_at: string;
   combo_items?: ComboItem[];
+  groups?: ComboGroup[];
+}
+
+export interface ComboGroup {
+  id: number;
+  combo_id: number;
+  name: string;
+  required_quantity: number;
+  options?: ComboGroupOption[];
+}
+
+export interface ComboGroupOption {
+  id: number;
+  combo_group_id: number;
+  product_id: number;
+  product?: Product;
 }
 
 export interface ComboItem {
@@ -81,6 +97,7 @@ export interface CartItem {
   image: string;
   currency: string;
   iva?: { id: number; rate: number; };
+  allow_discount?: boolean;
   discount_type?: 'percent' | 'amount';
   discount_value?: number;
   // Campos específicos para combos
@@ -100,8 +117,18 @@ export interface CreateComboRequest {
   discount_type: 'percentage' | 'fixed_amount';
   discount_value: number;
   is_active?: boolean;
-  notes?: string;
-  items: ComboItemRequest[];
+  items?: ComboItemRequest[];
+  groups?: ComboGroupRequest[];
+}
+
+export interface ComboGroupRequest {
+  name: string;
+  required_quantity: number;
+  options: ComboGroupOptionRequest[];
+}
+
+export interface ComboGroupOptionRequest {
+  product_id: number;
 }
 
 export interface ComboItemForm {

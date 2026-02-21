@@ -15,12 +15,14 @@ import CashRegisterStatusBadge from "@/components/cash-register-status-badge"
 import { useExchangeRateUpdates } from "@/hooks/useExchangeRateUpdates"
 
 import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status"
-import { Building, Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Package } from "lucide-react"
+import { Building, Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Package, Loader2 } from "lucide-react"
 import { ComboSection } from "@/components/ComboSection"
 import { useCombosInPOS } from "@/hooks/useCombosInPOS"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { CartFloatingButton } from "@/components/pos/CartFloatingButton"
 import type { Combo, CartItem } from "@/types/combo"
+import { matchesWildcard } from "@/utils/searchUtils"
+import { usePosCategories } from "@/hooks/usePosCategories"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { formatCurrency, roundToTwoDecimals } from '@/utils/sale-calculations'
@@ -28,18 +30,29 @@ import { useSaleTotals } from '@/hooks/useSaleTotals'
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import type { SaleHeader } from '@/types/sale'
 
+const SMALL_CATALOG_THRESHOLD = 300
+
 
 export default function POSPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [cart, setCart] = useState<CartItem[]>([])
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [categories, setCategories] = useState<any[]>([])
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [products, setProducts] = useState<any[]>([])
   // Mapa de stock por producto en la sucursal seleccionada
   const [stocksMap, setStocksMap] = useState<Record<number, { current: number; min: number }>>({})
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+
+  // Hook de categorías/subcategorías en cascada
+  const {
+    parentCategories,
+    subcategories,
+    selectedCategoryId,
+    selectedSubcategoryId,
+    loadingSubcategories,
+    setSelectedCategoryId,
+    setSelectedSubcategoryId,
+    filterCategoryIds,
+  } = usePosCategories()
   const { request } = useApi()
   const { selectedBranch, selectionChangeToken, selectedBranchIds, branches, setSelectedBranchIds } = useBranch()
 
@@ -111,6 +124,10 @@ export default function POSPage() {
 
 
   const [productCodeInput, setProductCodeInput] = useState("")
+  const [isSearchingProduct, setIsSearchingProduct] = useState(false)
+  const [productSearchMode, setProductSearchMode] = useState<'local-cache' | 'server-on-demand'>('server-on-demand')
+  const [activeProductsCount, setActiveProductsCount] = useState<number | null>(null)
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false)
 
   // Nueva: cantidad por selección de producto
   const [addQtyPerClick, setAddQtyPerClick] = useState<number>(1)
@@ -129,69 +146,112 @@ export default function POSPage() {
   // Hooks personalizados para responsabilidades separadas
   const isMobile = useIsMobile()
 
-  const fetchCategories = async () => {
-    try {
-      const response = await request({ method: "GET", url: "/categories" })
-      // La API devuelve datos paginados: response.data.data contiene el array de categorías
-      const categoriesData = Array.isArray(response) ? response :
-        Array.isArray(response?.data?.data) ? response.data.data :
-          Array.isArray(response?.data) ? response.data : [];
-      setCategories(categoriesData)
-    } catch (err) {
-      console.error("Error fetching categories:", err);
-      setCategories([])
-    }
-  }
+  // fetchCategories ya no es necesario: usePosCategories se encarga
 
-  const fetchProducts = useCallback(async () => {
+  const mapProductForPos = useCallback((p: any) => {
+    const salePriceWithIva = p.sale_price || 0;
+    const ivaRate = p.iva?.rate || 0;
+
+    const priceWithoutIva = ivaRate > 0
+      ? Math.round((salePriceWithIva / (1 + ivaRate / 100) + Number.EPSILON) * 100) / 100
+      : salePriceWithIva;
+
+    return {
+      ...p,
+      name: p.description,
+      allow_discount: p.allow_discount !== false,
+      price: priceWithoutIva,
+      sale_price: salePriceWithIva,
+      iva_rate: ivaRate,
+      price_with_iva: salePriceWithIva,
+      iva: p.iva
+    };
+  }, [])
+
+  const fetchProducts = useCallback(async (perPage = SMALL_CATALOG_THRESHOLD) => {
     try {
-      const response = await request({ method: "GET", url: "/products?include=category,iva&per_page=3000&status=active" })
+      const response = await request({ method: "GET", url: `/products?include=category,iva&per_page=${perPage}&status=active` })
       // Manejar estructura paginada para productos también
       const productData = Array.isArray(response) ? response :
         Array.isArray(response?.data?.data) ? response.data.data :
           Array.isArray(response?.data) ? response.data : [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mappedProducts = productData.map((p: any) => {
-        const salePriceWithIva = p.sale_price || 0;
-        const ivaRate = p.iva?.rate || 0;
-
-        // El sale_price de la API YA INCLUYE IVA, necesitamos calcular el precio sin IVA
-        // Redondeamos a 2 decimales porque la división puede generar errores de precisión
-        const priceWithoutIva = ivaRate > 0
-          ? Math.round((salePriceWithIva / (1 + ivaRate / 100) + Number.EPSILON) * 100) / 100
-          : salePriceWithIva;
-
-        const result = {
-          ...p,
-          name: p.description,
-          price: priceWithoutIva // Precio sin IVA para cálculos (ya redondeado)
-          , sale_price: salePriceWithIva // Precio original con IVA
-          , iva_rate: ivaRate
-          , price_with_iva: salePriceWithIva // Este es el precio final
-          , iva: p.iva
-        };
-
-
-        return result;
-      });
+      const mappedProducts = productData.map(mapProductForPos);
       setProducts(mappedProducts)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
       setProducts([])
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request]); // Dependencia estable
+  }, [request, mapProductForPos]); // Dependencia estable
+
+  const initializeProductCatalogMode = useCallback(async () => {
+    if (!selectedBranch?.id) {
+      setProducts([])
+      setActiveProductsCount(null)
+      setProductSearchMode('server-on-demand')
+      return
+    }
+
+    setIsLoadingCatalog(true)
+    setProducts([])
+
+    try {
+      const response = await request({ method: 'GET', url: '/products?status=active&per_page=1' })
+
+      const totalActiveProducts = Number(
+        response?.total ??
+        response?.data?.total ??
+        (Array.isArray(response?.data?.data) ? response.data.data.length :
+          Array.isArray(response?.data) ? response.data.length :
+            Array.isArray(response) ? response.length : 0)
+      )
+
+      setActiveProductsCount(totalActiveProducts)
+
+      if (totalActiveProducts > 0 && totalActiveProducts <= SMALL_CATALOG_THRESHOLD) {
+        await fetchProducts(totalActiveProducts)
+        setProductSearchMode('local-cache')
+      } else {
+        setProductSearchMode('server-on-demand')
+        setProducts([])
+      }
+    } catch {
+      setActiveProductsCount(null)
+      setProductSearchMode('server-on-demand')
+      setProducts([])
+    } finally {
+      setIsLoadingCatalog(false)
+    }
+  }, [request, selectedBranch?.id, fetchProducts])
+
+  const findProductOnServer = useCallback(async (query: string) => {
+    const response = await request({
+      method: 'GET',
+      url: '/pos/products',
+      params: { query, limit: 20 }
+    })
+
+    const data = Array.isArray(response)
+      ? response
+      : Array.isArray(response?.data)
+        ? response.data
+        : []
+
+    return data.map(mapProductForPos)
+  }, [request, mapProductForPos])
 
   // Función estable para recargar productos cuando se actualice la tasa de cambio
   const handleExchangeRateUpdate = useCallback(() => {
+    if (productSearchMode !== 'local-cache') return
+
     // Ejecutar fetchProducts y LUEGO mostrar el toast cuando termine con éxito.
-    fetchProducts().then(() => {
+    fetchProducts(activeProductsCount && activeProductsCount > 0 ? activeProductsCount : SMALL_CATALOG_THRESHOLD).then(() => {
       toast.success("Precios actualizados", {
         description: "Los precios se han actualizado con la nueva tasa de cambio"
       });
     });
 
-  }, [fetchProducts]); // fetchProducts es estable por useCallback
+  }, [fetchProducts, productSearchMode, activeProductsCount]); // fetchProducts es estable por useCallback
 
   // Recargar productos cuando se actualice la tasa de cambio
   useExchangeRateUpdates(handleExchangeRateUpdate);
@@ -221,8 +281,9 @@ export default function POSPage() {
           quantity: Number(item.quantity),
           image: '',
           currency: 'ARS',
-          discount_type: item.discount_type,
-          discount_value: Number(item.discount_value),
+          allow_discount: item.product?.allow_discount !== false,
+          discount_type: item.product?.allow_discount === false ? undefined : item.discount_type,
+          discount_value: item.product?.allow_discount === false ? undefined : Number(item.discount_value),
           is_from_combo: false,
         }
       }) || []
@@ -328,11 +389,8 @@ export default function POSPage() {
     }
   }, [cart])
 
-  useEffect(() => {
-    fetchCategories();
-    fetchProducts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Estrategia híbrida: catálogos chicos se precargan para UX instantánea;
+  // catálogos grandes usan búsqueda bajo demanda para performance.
 
 
 
@@ -383,16 +441,16 @@ export default function POSPage() {
   useEffect(() => {
     // Al cambiar de sucursal, refrescar stocks y productos
     fetchStocks()
-    fetchProducts()
+    void initializeProductCatalogMode()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBranch?.id, selectionChangeToken])
+  }, [selectedBranch?.id, selectionChangeToken, initializeProductCatalogMode])
 
   const filteredProducts = products.filter((product) => {
-    const matchesCategory = selectedCategory === "all" || product.category_id?.toString() === selectedCategory;
-    const matchesSearch =
-      !productCodeInput ||
-      product.description?.toLowerCase().includes(productCodeInput.toLowerCase()) ||
-      product.code?.toString().includes(productCodeInput);
+    const matchesCategory = filterCategoryIds === null || filterCategoryIds.includes(product.category_id);
+    const matchesSearch = matchesWildcard(product.description || '', productCodeInput) ||
+      matchesWildcard(String(product.code), productCodeInput) ||
+      (product.barcode && matchesWildcard(String(product.barcode), productCodeInput));
+
     return matchesCategory && matchesSearch;
   });
 
@@ -443,27 +501,63 @@ export default function POSPage() {
     })
   }
 
+  type CustomSelectionsType = Map<number, { option: import("@/types/combo").ComboGroupOption, quantity: number }[]>;
+
   /**
    * Agregar combo al carrito descomponiéndolo en productos individuales
    * Cada producto del combo se agrega con descuento pre-configurado
    * 
    * @param combo - El combo a agregar
    * @param quantity - Cantidad del combo a agregar
+   * @param customSelections - Opciones seleccionadas de los grupos dinámicos (opcional)
    */
-  const addComboToCart = async (combo: Combo, quantity: number) => {
+  const addComboToCart = async (combo: Combo, quantity: number, customSelections?: CustomSelectionsType) => {
     try {
-      // Obtener detalles de precio del combo
+      // Obtener detalles de precio del combo (ítems fijos precalculados por el backend)
       const priceDetails = await getComboPriceDetails(combo.id);
 
-      // Calcular el descuento total aplicado
-      const totalDiscount = priceDetails.discount_amount;
-      const totalBasePrice = priceDetails.base_price;
+      let itemsBreakdown = [...priceDetails.items_breakdown];
+      let totalBasePrice = priceDetails.base_price;
+
+      // Combinar ítems customizados si existen
+      if (customSelections) {
+        customSelections.forEach((selections) => {
+          selections.forEach(({ option, quantity: selQty }) => {
+            if (option.product) {
+              const unitPrice = option.product.sale_price ?? 0;
+              const totalPrice = unitPrice * selQty;
+              totalBasePrice += totalPrice;
+
+              const existingIndex = itemsBreakdown.findIndex(i => i.product.id === option.product?.id);
+              if (existingIndex >= 0) {
+                itemsBreakdown[existingIndex].quantity += selQty;
+                itemsBreakdown[existingIndex].total_price += totalPrice;
+              } else {
+                itemsBreakdown.push({
+                  product: option.product,
+                  quantity: selQty,
+                  unit_price: unitPrice,
+                  total_price: totalPrice
+                });
+              }
+            }
+          });
+        });
+      }
+
+      // Recalcular descuento total considerando el nuevo totalBasePrice
+      let totalDiscount = 0;
+      if (combo.discount_type === 'percentage') {
+        totalDiscount = totalBasePrice * (combo.discount_value / 100);
+      } else if (combo.discount_type === 'fixed_amount') {
+        totalDiscount = Math.min(combo.discount_value, totalBasePrice);
+      }
 
       // Calcular el factor de descuento proporcional
       const discountFactor = totalBasePrice > 0 ? totalDiscount / totalBasePrice : 0;
 
       // Agregar cada producto del combo al carrito con descuento aplicado
-      const comboItems = priceDetails.items_breakdown.map((item) => {
+      const comboItems = itemsBreakdown.map((item) => {
         // Calcular precio con descuento proporcional aplicado
         const discountedPrice = item.total_price * (1 - discountFactor);
         const discountedUnitPrice = item.unit_price * (1 - discountFactor);
@@ -531,34 +625,72 @@ export default function POSPage() {
     }
   }
 
-  const searchAndAddProduct = () => {
+  const searchAndAddProduct = async () => {
     const code = productCodeInput.trim();
     if (!code) return;
 
-    const foundProduct = products.find(p =>
-      String(p.code).toLowerCase() === code.toLowerCase() ||
-      p.code?.toString() === code ||
-      (p.description || '').toLowerCase().includes(code.toLowerCase())
-    );
+    setIsSearchingProduct(true)
 
-    if (foundProduct) {
-      addToCart(foundProduct, addQtyPerClick);
-      toast.success("Producto agregado", {
-        description: `${foundProduct.description} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
+    try {
+      // 1) Buscar primero exacto en caché local
+      let foundProduct = products.find(p =>
+        String(p.code).toLowerCase() === code.toLowerCase() ||
+        String(p.barcode).toLowerCase() === code.toLowerCase()
+      );
+
+      // 2) Si no está en memoria, buscar server-side (evita cargar catálogo completo)
+      if (!foundProduct) {
+        const serverResults = await findProductOnServer(code)
+
+        foundProduct = serverResults.find(p =>
+          String(p.code).toLowerCase() === code.toLowerCase() ||
+          String(p.barcode).toLowerCase() === code.toLowerCase()
+        ) ?? serverResults[0]
+
+        // Cachear resultados en memoria para próximas búsquedas
+        if (serverResults.length > 0) {
+          setProducts((prevProducts) => {
+            const existingById = new Set(prevProducts.map((p) => p.id))
+            const missing = serverResults.filter((p) => !existingById.has(p.id))
+            return missing.length > 0 ? [...prevProducts, ...missing] : prevProducts
+          })
+        }
+      }
+
+      // 3) Fallback local por wildcard
+      if (!foundProduct) {
+        foundProduct = products.find(p =>
+          matchesWildcard(String(p.code), code) ||
+          matchesWildcard(p.description || '', code) ||
+          (p.barcode && matchesWildcard(String(p.barcode), code))
+        );
+      }
+
+      if (foundProduct) {
+        addToCart(foundProduct, addQtyPerClick);
+        toast.success("Producto agregado", {
+          description: `${foundProduct.description} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
+        });
+        setProductCodeInput("");
+      } else {
+        toast.error("Producto no encontrado", {
+          description: `No se encontró ningún producto con "${code}".`,
+        });
+        setProductCodeInput("");
+      }
+    } catch {
+      toast.error("Error al buscar producto", {
+        description: "No se pudo consultar el producto en este momento.",
       });
-      setProductCodeInput("");
-    } else {
-      toast.error("Producto no encontrado", {
-        description: `No se encontró ningún producto con "${code}".`,
-      });
-      setProductCodeInput("");
+    } finally {
+      setIsSearchingProduct(false)
     }
   };
 
   const handleProductCodeSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      searchAndAddProduct();
+      void searchAndAddProduct();
     }
   };
 
@@ -766,101 +898,135 @@ export default function POSPage() {
             />
           )}
 
-          <div className="mb-4 flex flex-col sm:flex-row items-center gap-4">
-            <div className="relative w-full sm:w-auto sm:flex-grow flex">
-              <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
-              <Input
-                type="text"
-                placeholder="Escanear o buscar producto..."
-                className="w-full pl-8 pr-12"
-                value={productCodeInput}
-                onChange={(e) => setProductCodeInput(e.target.value)}
-                onKeyDown={handleProductCodeSubmit}
-                autoFocus
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-1 top-1 h-8 w-8 p-0"
-                onClick={searchAndAddProduct}
-                disabled={!productCodeInput.trim()}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Cantidad por selección (selector único) */}
-            <div className="flex items-center gap-2">
-              <Popover open={qtySelectorOpen} onOpenChange={setQtySelectorOpen}>
-                {/* @ts-expect-error - UI component props mismatch */}
-                <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="min-w-[110px] justify-between">
-                    Cant. x{Math.max(1, addQtyPerClick)}
+          <div className="mb-4 space-y-1">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-full sm:w-auto sm:flex-grow">
+                <div className="relative flex">
+                  <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground z-10" />
+                  <Input
+                    type="text"
+                    placeholder="Escanear o buscar producto..."
+                    className="w-full pl-8 pr-12"
+                    value={productCodeInput}
+                    onChange={(e) => setProductCodeInput(e.target.value)}
+                    onKeyDown={handleProductCodeSubmit}
+                    autoFocus
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-1 top-1 h-8 w-8 p-0"
+                    onClick={() => { void searchAndAddProduct() }}
+                    disabled={!productCodeInput.trim() || isSearchingProduct}
+                  >
+                    {isSearchingProduct ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
                   </Button>
-                </PopoverTrigger>
-                {/* @ts-expect-error - UI component props mismatch */}
-                <PopoverContent className="w-56 p-3" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                  <div className="space-y-2">
-                    <Label className="text-xs">Cantidad</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={addQtyPerClick}
-                      onChange={(e) => {
-                        const v = Math.floor(Number(e.target.value))
-                        setAddQtyPerClick(isNaN(v) ? 1 : Math.max(1, v))
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') setQtySelectorOpen(false)
-                      }}
-                    />
-                    <div className="grid grid-cols-3 gap-2 pt-1">
-                      {[1, 2, 3, 5, 10, 20].map((n) => (
-                        <Button
-                          key={n}
-                          type="button"
-                          variant={addQtyPerClick === n ? 'default' : 'outline'}
-                          size="sm"
-                          className="w-full"
-                          onClick={() => { setAddQtyPerClick(n); setQtySelectorOpen(false) }}
-                        >
-                          x{n}
-                        </Button>
-                      ))}
+                </div>
+              </div>
+
+              {/* Cantidad por selección (selector único) */}
+              <div className="flex items-center gap-2">
+                <Popover open={qtySelectorOpen} onOpenChange={setQtySelectorOpen}>
+                  {/* @ts-expect-error - UI component props mismatch */}
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="outline" className="min-w-[110px] justify-between">
+                      Cant. x{Math.max(1, addQtyPerClick)}
+                    </Button>
+                  </PopoverTrigger>
+                  {/* @ts-expect-error - UI component props mismatch */}
+                  <PopoverContent className="w-56 p-3" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Cantidad</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={addQtyPerClick}
+                        onChange={(e) => {
+                          const v = Math.floor(Number(e.target.value))
+                          setAddQtyPerClick(isNaN(v) ? 1 : Math.max(1, v))
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') setQtySelectorOpen(false)
+                        }}
+                      />
+                      <div className="grid grid-cols-3 gap-2 pt-1">
+                        {[1, 2, 3, 5, 10, 20].map((n) => (
+                          <Button
+                            key={n}
+                            type="button"
+                            variant={addQtyPerClick === n ? 'default' : 'outline'}
+                            size="sm"
+                            className="w-full"
+                            onClick={() => { setAddQtyPerClick(n); setQtySelectorOpen(false) }}
+                          >
+                            x{n}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Categoría padre */}
+              <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                {/* @ts-expect-error - UI component props mismatch */}
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Categoría" />
+                </SelectTrigger>
+                {/* @ts-expect-error - UI component props mismatch */}
+                <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
+                  <SelectItem value="all">Todas las categorías</SelectItem>
+                  {parentCategories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id.toString()}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                  {parentCategories.length === 0 && (
+                    <SelectItem value="no-categories" disabled>
+                      No hay categorías
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+
+              {/* Subcategoría */}
+              <Select
+                value={selectedSubcategoryId}
+                onValueChange={setSelectedSubcategoryId}
+                disabled={selectedCategoryId === 'all' || (subcategories.length === 0 && !loadingSubcategories)}
+              >
+                {/* @ts-expect-error - UI component props mismatch */}
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder={loadingSubcategories ? 'Cargando...' : 'Subcategoría'} />
+                </SelectTrigger>
+                {/* @ts-expect-error - UI component props mismatch */}
+                <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
+                  <SelectItem value="all">Todas las subcategorías</SelectItem>
+                  {subcategories.map((sub) => (
+                    <SelectItem key={sub.id} value={sub.id.toString()}>
+                      {sub.name}
+                    </SelectItem>
+                  ))}
+                  {subcategories.length === 0 && !loadingSubcategories && (
+                    <SelectItem value="no-subcategories" disabled>
+                      Sin subcategorías
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
 
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              {/* @ts-expect-error - UI component props mismatch */}
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="Categoría" />
-              </SelectTrigger>
-              {/* @ts-expect-error - UI component props mismatch */}
-              <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
-                <SelectItem value="all">Todas</SelectItem>
-                {Array.isArray(categories) && categories.map((category) => (
-                  <SelectItem key={category.id} value={category.id.toString()}>
-                    {category.name}
-                  </SelectItem>
-                ))}
-                {(!Array.isArray(categories) || categories.length === 0) && (
-                  <SelectItem value="no-categories" disabled>
-                    No hay categorías disponibles
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+            <p className="text-xs text-muted-foreground">
+              {isLoadingCatalog
+                ? 'Preparando catálogo para esta sucursal...'
+                : 'Buscá por código o descripción.'}
+            </p>
           </div>
 
-          {/* Espaciado adicional */}
-          <div className="mb-6"></div>
-
-          {/* Sección de Combos - Movida al principio para mejor visibilidad */}
+          {/* Sección de Combos */}
           <ComboSection
             branchId={selectedBranch?.id ? Number(selectedBranch.id) : null}
             addQtyPerClick={addQtyPerClick}
@@ -869,8 +1035,12 @@ export default function POSPage() {
             searchTerm={productCodeInput}
           />
 
-          {/* Separador visual */}
-          <div className="my-8 border-t border-gray-200"></div>
+          {/* Título de productos si hay combos */}
+          <div className="flex items-center gap-2 mb-4 mt-8">
+            <h3 className="text-lg font-semibold text-gray-900">
+              Productos
+            </h3>
+          </div>
 
           <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filteredProducts.map((product) => {
@@ -904,6 +1074,16 @@ export default function POSPage() {
               )
             })}
           </div>
+
+          {filteredProducts.length === 0 && (
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              {isLoadingCatalog
+                ? 'Cargando catálogo de la sucursal...'
+                : productSearchMode === 'local-cache'
+                  ? 'No hay productos que coincidan con los filtros actuales.'
+                  : 'Escribí un código o descripción para buscar y agregar productos sin cargar todo el catálogo.'}
+            </div>
+          )}
         </div>
 
         {/* Carrito en desktop - Panel lateral */}

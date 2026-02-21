@@ -97,11 +97,23 @@ class ProductService implements ProductServiceInterface
             if (!empty($filters['search'])) {
                 $search = $filters['search'];
                 $query->where(function ($q) use ($search) {
-                    $q->where('code', 'LIKE', "%{$search}%")
-                        ->orWhere('description', 'LIKE', "%{$search}%")
-                        ->orWhereHas('category', function ($catQ) use ($search) {
-                            $catQ->where('name', 'LIKE', "%{$search}%");
-                        });
+                    // Check if user provided a wildcard
+                    if (strpos($search, '%') !== false) {
+                        // Wrap in % to allow "contains" behavior even with wildcards
+                        // Example: "fin%li" becomes "%fin%li%" -> matches "...fin...li..."
+                        $term = "%{$search}%";
+                        $q->where('code', 'LIKE', $term)
+                            ->orWhere('description', 'LIKE', $term)
+                            ->orWhereHas('category', function ($catQ) use ($term) {
+                                $catQ->where('name', 'LIKE', $term);
+                            });
+                    } else {
+                        $q->where('code', 'LIKE', "%{$search}%")
+                            ->orWhere('description', 'LIKE', "%{$search}%")
+                            ->orWhereHas('category', function ($catQ) use ($search) {
+                                $catQ->where('name', 'LIKE', "%{$search}%");
+                            });
+                    }
                 });
             }
 

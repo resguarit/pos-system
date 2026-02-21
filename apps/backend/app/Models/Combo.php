@@ -48,6 +48,14 @@ class Combo extends Model
     }
 
     /**
+     * Relación con grupos de opciones del combo
+     */
+    public function groups(): HasMany
+    {
+        return $this->hasMany(ComboGroup::class);
+    }
+
+    /**
      * Relación con las ventas que incluyen este combo
      */
     public function saleItems(): HasMany
@@ -72,12 +80,12 @@ class Combo extends Model
             $stock = $comboItem->product->stocks()
                 ->where('branch_id', $branchId)
                 ->first();
-            
+
             if (!$stock || $stock->current_stock < $comboItem->quantity) {
                 return false;
             }
         }
-        
+
         return true;
     }
 
@@ -87,20 +95,20 @@ class Combo extends Model
     public function getMaxAvailableQuantityInBranch(int $branchId): int
     {
         $maxQuantity = PHP_INT_MAX;
-        
+
         foreach ($this->comboItems as $comboItem) {
             $stock = $comboItem->product->stocks()
                 ->where('branch_id', $branchId)
                 ->first();
-            
+
             if (!$stock) {
                 return 0;
             }
-            
+
             $availableForThisProduct = floor($stock->current_stock / $comboItem->quantity);
             $maxQuantity = min($maxQuantity, $availableForThisProduct);
         }
-        
+
         return $maxQuantity;
     }
 
@@ -110,12 +118,12 @@ class Combo extends Model
     public function calculateBasePrice(): float
     {
         $totalPrice = 0;
-        
+
         foreach ($this->comboItems as $comboItem) {
             $productPrice = $comboItem->product->sale_price ?? $comboItem->product->calculateSalePriceFromMarkup();
             $totalPrice += $productPrice * $comboItem->quantity;
         }
-        
+
         return $totalPrice;
     }
 
@@ -125,13 +133,13 @@ class Combo extends Model
     public function calculateFinalPrice(): float
     {
         $basePrice = $this->calculateBasePrice();
-        
+
         if ($this->discount_type === 'percentage') {
             $discountAmount = $basePrice * ($this->discount_value / 100);
         } else {
             $discountAmount = $this->discount_value;
         }
-        
+
         return max(0, $basePrice - $discountAmount);
     }
 
@@ -141,11 +149,11 @@ class Combo extends Model
     public function getDiscountAmount(): float
     {
         $basePrice = $this->calculateBasePrice();
-        
+
         if ($this->discount_type === 'percentage') {
             return $basePrice * ($this->discount_value / 100);
         }
-        
+
         return min($this->discount_value, $basePrice);
     }
 

@@ -122,13 +122,13 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
                 Route::get('/valid', [ArcaCertificateController::class, 'getValid']);
                 Route::get('/check', [ArcaCertificateController::class, 'checkCuit']);
             });
-            
+
             // Rutas de administración de certificados (solo configuración del sistema)
             Route::middleware('has_permission:ver_configuracion_sistema')->group(function () {
                 Route::get('/', [ArcaCertificateController::class, 'index']);
                 Route::get('/{arcaCertificate}', [ArcaCertificateController::class, 'show']);
             });
-            
+
             Route::middleware('has_permission:editar_configuracion_sistema')->group(function () {
                 Route::post('/', [ArcaCertificateController::class, 'store']);
                 Route::put('/{arcaCertificate}', [ArcaCertificateController::class, 'update']);
@@ -343,6 +343,8 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
     });
 
     Route::prefix('users')->group(function () {
+        Route::middleware('has_permission:ver_usuarios|ver_envios|crear_envios|editar_envios')->get('/transporters', [UserController::class, 'getTransporters']);
+
         Route::middleware('has_permission:ver_usuarios')->group(function () {
             Route::get('/', [UserController::class, 'index']);
             Route::get('/check-username/{username}', [UserController::class, 'checkUsername']);
@@ -602,7 +604,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::post('/batch-update-prices', [CurrentAccountController::class, 'batchUpdatePrices']);
     });
 
-    Route::prefix('movement-types')->middleware('has_permission:ver_configuracion_sistema')->group(function () {
+    Route::prefix('movement-types')->middleware('has_permission:crear_movimientos_caja')->group(function () {
         Route::get('/', [MovementTypeController::class, 'index']);
         Route::get('/{id}', [MovementTypeController::class, 'show']);
         Route::middleware('has_permission:editar_configuracion_sistema')->group(function () {

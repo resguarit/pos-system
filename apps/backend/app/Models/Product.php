@@ -33,6 +33,7 @@ class Product extends Model
         'supplier_id',
         'status',
         'web',
+        'allow_discount',
         'observaciones',
     ];
 
@@ -42,6 +43,7 @@ class Product extends Model
         'sale_price' => 'decimal:2',
         'status' => 'boolean',
         'web' => 'boolean',
+        'allow_discount' => 'boolean',
     ];
 
     protected $appends = ['sale_price', 'barcode'];
@@ -168,7 +170,7 @@ class Product extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['description', 'code', 'measure', 'measure_id', 'unit_price', 'currency', 'markup', 'category_id', 'iva_id', 'image_id', 'supplier_id', 'status', 'web', 'observaciones'])
+            ->logOnly(['description', 'code', 'measure', 'measure_id', 'unit_price', 'currency', 'markup', 'category_id', 'iva_id', 'image_id', 'supplier_id', 'status', 'web', 'allow_discount', 'observaciones'])
             ->useLogName('product')
             ->logOnlyDirty();
     }

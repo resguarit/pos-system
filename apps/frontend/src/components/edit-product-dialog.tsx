@@ -31,6 +31,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     iva_id: string;
     status: string;
     web: string;
+    allow_discount: string;
     code: string;
     description: string;
     observaciones: string;
@@ -175,6 +176,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         observaciones: product.observaciones || "",
         status: product.status ? "1" : "0",
         web: product.web ? "1" : "0",
+        allow_discount: product.allow_discount === false ? "0" : "1",
         currency: product.currency || 'ARS',
         code: product.code || ''
       };
@@ -374,6 +376,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         force_manual_price: true, // Campo adicional para forzar precio manual
         status: formData.status === "1",
         web: formData.web === "1",
+        allow_discount: formData.allow_discount === "1",
       };
 
       // Solo enviar la descripción si ha cambiado
@@ -716,7 +719,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
           </div>
 
           {/* Estados */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -734,6 +737,15 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
                 onChange={(e) => handleInputChange('web', e.target.checked ? "1" : "0")}
               />
               <Label htmlFor="web">Visible en Web</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="allow_discount"
+                checked={formData.allow_discount === "1"}
+                onChange={(e) => handleInputChange('allow_discount', e.target.checked ? "1" : "0")}
+              />
+              <Label htmlFor="allow_discount">Permite descuento</Label>
             </div>
           </div>
         </div>

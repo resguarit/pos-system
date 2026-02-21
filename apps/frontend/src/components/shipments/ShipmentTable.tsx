@@ -1,10 +1,12 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Shipment, ShipmentStage } from '@/types/shipment';
-import { Package, Truck, CheckCircle, Clock, Eye, ChevronUp, ChevronDown, Edit, Printer, Download } from 'lucide-react';
+import { Package, Eye, Edit, Printer, Download, MapPin, CreditCard, User, Clock, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { BranchBadge } from '@/components/BranchBadge';
-import { getBranchColor } from '@/utils/branchColor';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
+import { getStageBadgeStyle, getShipmentPaymentSummary } from '@/utils/shipmentUtils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ShipmentTableProps {
   shipments: Shipment[];
@@ -14,27 +16,39 @@ interface ShipmentTableProps {
   onPrintShipment?: (shipmentId: number) => void;
   onDownloadShipment?: (shipmentId: number) => void;
   loading?: boolean;
-  showBranchColumn?: boolean;
-  getBranchInfo?: (branchId: number) => { color?: string; description?: string } | undefined;
 }
 
-type SortField = 'priority' | 'status' | 'created_at';
-type SortDirection = 'asc' | 'desc';
+type DesktopColumnKey =
+  | 'codigo'
+  | 'entrega'
+  | 'estado'
+  | 'medios'
+  | 'direccion'
+  | 'cliente'
+  | 'transportista'
+  | 'acciones';
 
-interface ColumnWidths {
-  reference: number;
-  branch: number;
-  priority: number;
-  status: number;
-  paymentStatus: number;
-  address: number;
-  customer: number;
-  transporter: number;
-  sales: number;
-  updated: number;
-  created: number;
-  actions: number;
-}
+const initialDesktopColumnWidths: Record<DesktopColumnKey, number> = {
+  codigo: 140,
+  entrega: 160,
+  estado: 140,
+  medios: 220,
+  direccion: 260,
+  cliente: 170,
+  transportista: 170,
+  acciones: 140,
+};
+
+const minDesktopColumnWidths: Record<DesktopColumnKey, number> = {
+  codigo: 110,
+  entrega: 130,
+  estado: 120,
+  medios: 170,
+  direccion: 200,
+  cliente: 130,
+  transportista: 130,
+  acciones: 110,
+};
 
 const ShipmentTable: React.FC<ShipmentTableProps> = ({
   shipments,
@@ -44,533 +58,374 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
   onPrintShipment,
   onDownloadShipment,
   loading = false,
-  showBranchColumn = false,
-  getBranchInfo,
 }) => {
   const { hasPermission } = useAuth();
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [columnWidths, setColumnWidths] = useState<ColumnWidths>({
-    reference: 150,
-    branch: 120,
-    priority: 120,
-    status: 150,
-    paymentStatus: 120,
-    address: 180,
-    customer: 150,
-    transporter: 140,
-    sales: 100,
-    updated: 140,
-    created: 140,
-    actions: 200,
-  });
+  const [desktopColumnWidths, setDesktopColumnWidths] = useState<Record<DesktopColumnKey, number>>(initialDesktopColumnWidths);
+  const desktopTableMinWidth = Object.values(desktopColumnWidths).reduce((total, width) => total + width, 0);
 
-  const resizingColumn = useRef<keyof ColumnWidths | null>(null);
-  const startX = useRef<number>(0);
-  const startWidth = useRef<number>(0);
+  const handleResizeStart = (column: DesktopColumnKey) => (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = desktopColumnWidths[column];
 
-  const getStageColor = useCallback((stageId: number): string => {
-    const stage = stages.find(s => s.id === stageId);
-    if (!stage) return 'bg-gray-100 text-gray-700';
-
-    switch (stage.order) {
-      case 1: return 'bg-yellow-100 text-yellow-700';
-      case 2: return 'bg-blue-100 text-blue-700';
-      case 3: return 'bg-purple-100 text-purple-700';
-      case 4: return 'bg-green-100 text-green-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  }, [stages]);
-
-  const getStageIcon = useCallback((stageId: number) => {
-    const stage = stages.find(s => s.id === stageId);
-    if (!stage) return Package;
-
-    switch (stage.order) {
-      case 1: return Clock;
-      case 2: return Package;
-      case 3: return Truck;
-      case 4: return CheckCircle;
-      default: return Package;
-    }
-  }, [stages]);
-
-  const getPriorityColor = useCallback((priority: string = 'normal'): string => {
-    switch (priority.toLowerCase()) {
-      case 'low': return 'bg-gray-100 text-gray-700';
-      case 'normal': return 'bg-blue-100 text-blue-700';
-      case 'high': return 'bg-orange-100 text-orange-700';
-      case 'urgent': return 'bg-red-100 text-red-700';
-      default: return 'bg-blue-100 text-blue-700';
-    }
-  }, []);
-
-  const getPriorityLabel = useCallback((priority: string = 'normal'): string => {
-    switch (priority.toLowerCase()) {
-      case 'low': return 'Baja';
-      case 'normal': return 'Normal';
-      case 'high': return 'Alta';
-      case 'urgent': return 'Urgente';
-      default: return 'Normal';
-    }
-  }, []);
-
-  const handleSort = useCallback((field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('desc');
-    }
-  }, [sortField, sortDirection]);
-
-  const sortedShipments = [...shipments].sort((a, b) => {
-    let aValue: string | number;
-    let bValue: string | number;
-
-    switch (sortField) {
-      case 'priority': {
-        const priorityOrder: Record<string, number> = { urgent: 4, high: 3, normal: 2, low: 1 };
-        aValue = priorityOrder[a.priority?.toLowerCase() || 'normal'] || 2;
-        bValue = priorityOrder[b.priority?.toLowerCase() || 'normal'] || 2;
-        break;
-      }
-      case 'status':
-        aValue = a.current_stage?.name || '';
-        bValue = b.current_stage?.name || '';
-        break;
-      case 'created_at':
-        aValue = new Date(a.created_at).getTime();
-        bValue = new Date(b.created_at).getTime();
-        break;
-      default:
-        return 0;
-    }
-
-    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const handleMouseDown = useCallback((column: keyof ColumnWidths, e: React.MouseEvent) => {
-    e.preventDefault();
-    resizingColumn.current = column;
-    startX.current = e.pageX;
-    startWidth.current = columnWidths[column];
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (resizingColumn.current) {
-        const diff = e.pageX - startX.current;
-        setColumnWidths(prev => ({
-          ...prev,
-          [resizingColumn.current!]: Math.max(80, startWidth.current + diff),
-        }));
-      }
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const nextWidth = Math.max(minDesktopColumnWidths[column], startWidth + deltaX);
+      setDesktopColumnWidths((previous) => ({
+        ...previous,
+        [column]: nextWidth,
+      }));
     };
 
     const handleMouseUp = () => {
-      resizingColumn.current = null;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [columnWidths]);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  };
 
-  const renderSortIcon = useCallback((field: SortField) => {
-    if (sortField !== field) return null;
-    return sortDirection === 'asc' ? (
-      <ChevronUp className="w-4 h-4 inline-block ml-1" />
-    ) : (
-      <ChevronDown className="w-4 h-4 inline-block ml-1" />
-    );
-  }, [sortField, sortDirection]);
+  const formatDeliveryDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      // Validar si la fecha es válida
+      if (isNaN(date.getTime())) return '-';
+
+      return new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    } catch {
+      return '-';
+    }
+  };
+
+  const getCustomerName = (shipment: Shipment) => {
+    const customer = shipment.sales?.[0]?.customer;
+    if (customer?.person) {
+      return [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' ').trim();
+    }
+    const businessName = (customer as { business_name?: string })?.business_name?.trim();
+    return businessName || '-';
+  };
+
+  const getTransporterName = (shipment: Shipment) => {
+    const transporter = shipment.transporter;
+    if (!transporter) return '-';
+    const name = transporter.person
+      ? [transporter.person.first_name, transporter.person.last_name].filter(Boolean).join(' ').trim()
+      : transporter.username;
+    return name || '-';
+  };
+
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (shipments.length === 0) {
+    return (
+      <div className="text-center py-12 bg-white rounded-lg border border-dashed">
+        <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500">No hay envíos disponibles</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200" style={{ tableLayout: 'fixed', width: '100%' }}>
-          <thead className="bg-gray-50">
-            <tr>
-              {/* Referencia */}
-              <th
-                style={{ width: columnWidths.reference }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Referencia
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('reference', e)}
-                />
-              </th>
-
-              {/* Sucursal - Solo mostrar si showBranchColumn es true */}
-              {showBranchColumn && (
-                <th
-                  style={{ width: columnWidths.branch }}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-                >
-                  Sucursal
-                  <div
-                    className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                    onMouseDown={(e) => handleMouseDown('branch', e)}
-                  />
-                </th>
-              )}
-
-              {/* Prioridad */}
-              <th
-                style={{ width: columnWidths.priority }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => handleSort('priority')}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleSort('priority')}
-                aria-label="Ordenar por prioridad"
-              >
-                Prioridad
-                {renderSortIcon('priority')}
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('priority', e)}
-                />
-              </th>
-
-              {/* Estado */}
-              <th
-                style={{ width: columnWidths.status }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => handleSort('status')}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleSort('status')}
-                aria-label="Ordenar por estado"
-              >
-                Estado
-                {renderSortIcon('status')}
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('status', e)}
-                />
-              </th>
-
-              {/* Estado de Pago */}
-              <th
-                style={{ width: columnWidths.paymentStatus }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Estado Pago
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('paymentStatus', e)}
-                />
-              </th>
-
-              {/* Dirección */}
-              <th
-                style={{ width: columnWidths.address }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Dirección
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('address', e)}
-                />
-              </th>
-
-              {/* Cliente */}
-              <th
-                style={{ width: columnWidths.customer }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Cliente
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('customer', e)}
-                />
-              </th>
-
-              {/* Transportista */}
-              <th
-                style={{ width: columnWidths.transporter }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Transportista
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('transporter', e)}
-                />
-              </th>
-
-              {/* Pedidos */}
-              <th
-                style={{ width: columnWidths.sales }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Pedidos
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('sales', e)}
-                />
-              </th>
-
-              {/* Creado */}
-              <th
-                style={{ width: columnWidths.created }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none cursor-pointer hover:bg-gray-100 transition-colors"
-                onClick={() => handleSort('created_at')}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleSort('created_at')}
-                aria-label="Ordenar por fecha de creación"
-              >
-                Creado
-                {renderSortIcon('created_at')}
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('created', e)}
-                />
-              </th>
-
-              {/* Actualizado */}
-              <th
-                style={{ width: columnWidths.updated }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Actualizado
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-500"
-                  onMouseDown={(e) => handleMouseDown('updated', e)}
-                />
-              </th>
-
-              {/* Acciones */}
-              <th
-                style={{ width: columnWidths.actions }}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider relative select-none"
-              >
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {sortedShipments.map((shipment) => (
-              <tr key={shipment.id} className="hover:bg-gray-50">
-                {/* Referencia */}
-                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                  <div className="text-sm font-medium text-gray-900">
-                    {shipment.tracking_number || shipment.reference || `#${shipment.id}`}
-                  </div>
-                </td>
-
-                {/* Sucursal - Solo mostrar si showBranchColumn es true */}
-                {showBranchColumn && shipment.branch_id && (
-                  <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                    {(() => {
-                      const branchInfo = getBranchInfo?.(shipment.branch_id);
-                      const branchColor = getBranchColor({ branchColor: branchInfo?.color });
-                      const branchName = branchInfo?.description ?? `Sucursal ${shipment.branch_id}`;
-
-                      return (
-                        <BranchBadge
-                          name={branchName}
-                          color={branchColor}
-                        />
-                      );
-                    })()}
-                  </td>
-                )}
-
-                {/* Prioridad */}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(shipment.priority)}`}>
-                      {getPriorityLabel(shipment.priority)}
-                    </span>
-                  </div>
-                </td>
-
-                {/* Estado */}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStageColor(shipment.current_stage_id)}`}>
-                      {
-                        (() => {
-                          const IconComponent = getStageIcon(shipment.current_stage_id);
-                          return <IconComponent className="w-3 h-3 mr-1" />;
-                        })()
-                      }
-                      {shipment.current_stage?.name || stages.find(s => s.id === shipment.current_stage_id)?.name || 'Desconocido'}
-                    </span>
-                  </div>
-                </td>
-
-                {/* Estado de Pago */}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {shipment.shipping_cost && parseFloat(shipment.shipping_cost.toString()) > 0 ? (
-                    <div className="flex items-center">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${shipment.is_paid
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
-                        }`}>
-                        {shipment.is_paid ? 'Pagado' : 'Pendiente'}
-                      </span>
+    <div className="space-y-4">
+      {/* Mobile View (Cards) */}
+      <div className="md:hidden space-y-2">
+        {shipments.map((shipment) => {
+          return (
+            <Card key={shipment.id} className="overflow-hidden border-l-4" style={{ borderLeftColor: shipment.current_stage?.color || '#cbd5e1' }}>
+              <CardHeader className="p-2.5 bg-gray-50/50 pb-1.5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-bold text-[15px] text-gray-900 leading-tight">
+                      {shipment.tracking_number || shipment.reference || `#${shipment.id}`}
                     </div>
-                  ) : (
-                    <span className="text-sm text-gray-400">-</span>
-                  )}
-                </td>
-
-                {/* Dirección */}
-                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis" title={shipment.shipping_address}>
-                  <div className="text-sm text-gray-900 max-w-[200px] truncate">
-                    {shipment.shipping_address || '-'}
+                    <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" />
+                      Est. {formatDeliveryDate(shipment.metadata?.estimated_delivery_date || shipment.estimated_delivery_date)}
+                    </div>
                   </div>
-                </td>
-
-                {/* Cliente */}
-                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                  <div className="text-sm text-gray-900 max-w-[150px] truncate">
-                    {(() => {
-                      const customer = shipment.sales?.[0]?.customer;
-                      if (customer?.person) {
-                        const name = [customer.person.first_name, customer.person.last_name].filter(Boolean).join(' ').trim();
-                        if (name) return name;
-                      }
-                      if (customer?.first_name != null || customer?.last_name != null) {
-                        const name = [customer.first_name, customer.last_name].filter(Boolean).join(' ').trim();
-                        if (name) return name;
-                      }
-                      const businessName = (customer as { business_name?: string })?.business_name?.trim();
-                      return businessName || '-';
-                    })()}
+                  <Badge
+                    key={shipment.current_stage_id}
+                    className="font-normal text-[10px] px-2 py-0.5"
+                    style={getStageBadgeStyle(stages.find(s => s.id === shipment.current_stage_id))}
+                    variant="outline"
+                  >
+                    {shipment.current_stage?.name || '-'}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-2.5 py-2 space-y-2">
+                {/* Dirección - Destacada */}
+                <div className="flex gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0 mt-0.5" />
+                  <div className="text-sm font-medium text-gray-900 leading-tight">
+                    {shipment.shipping_address || 'Sin dirección'}
+                    {shipment.shipping_city && <span className="text-gray-500 font-normal block text-[11px] leading-tight">{shipment.shipping_city}</span>}
                   </div>
-                </td>
+                </div>
 
-                {/* Transportista */}
-                <td className="px-6 py-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                  <div className="text-sm text-gray-900 max-w-[150px] truncate">
-                    {(() => {
-                      const transporter = shipment.transporter;
-                      if (!transporter) return '-';
-
-                      const firstName = transporter.person?.first_name || '';
-                      const lastName = transporter.person?.last_name || '';
-
-                      if (firstName || lastName) {
-                        return `${firstName} ${lastName}`.trim();
-                      }
-
-                      return transporter.username || `ID: ${shipment.metadata?.transportista_id}`;
-                    })()}
+                <div className="grid grid-cols-2 gap-1 text-xs">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                      <User className="w-2.5 h-2.5" /> Cliente
+                    </div>
+                    <div className="font-medium truncate text-sm leading-tight" title={getCustomerName(shipment)}>
+                      {getCustomerName(shipment)}
+                    </div>
                   </div>
-                </td>
-
-                {/* Ventas/Pedidos */}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">
-                    {shipment.sales && shipment.sales.length > 0 ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Package className="h-4 w-4" />
-                        {shipment.sales.length} pedido{shipment.sales.length !== 1 ? 's' : ''}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Sin pedidos</span>
-                    )}
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                      <Truck className="w-2.5 h-2.5" /> Transportista
+                    </div>
+                    <div className="font-medium truncate text-sm leading-tight" title={getTransporterName(shipment)}>
+                      {getTransporterName(shipment)}
+                    </div>
                   </div>
-                </td>
+                </div>
 
-                {/* Creado */}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">
-                    {new Date(shipment.created_at).toLocaleDateString()}
+                <div className="pt-1.5 border-t space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <CreditCard className="w-2.5 h-2.5 text-gray-400" />
+                    <span className="text-[11px] font-medium text-gray-600">Medios de pago:</span>
                   </div>
-                </td>
+                  {(() => {
+                    const paymentSummary = getShipmentPaymentSummary(shipment);
 
-                {/* Actualizado */}
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">
-                    {new Date(shipment.updated_at).toLocaleDateString()}
-                  </div>
-                </td>
+                    if (paymentSummary.instructionsByMethod.length > 0) {
+                      return (
+                        <div className="space-y-0.5">
+                          {paymentSummary.instructionsByMethod.map((instruction, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                              <span className="text-[11px] font-medium text-blue-900">{instruction.method}</span>
+                              <span className="text-[11px] font-bold text-blue-700">{formatCurrency(instruction.amountCollected)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
 
-                {/* Acciones */}
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <div className="flex items-center gap-1">
-                    {hasPermission('ver_envios') && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onViewShipment(shipment.id)}
-                        className="h-8 w-8 p-0"
-                        aria-label={`Ver envío ${shipment.tracking_number || shipment.reference || shipment.id}`}
-                        title="Ver detalles"
-                      >
-                        <Eye className="h-4 w-4 text-blue-600" />
-                      </Button>
-                    )}
-
-                    {hasPermission('editar_envios') && onEditShipment && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onEditShipment(shipment.id)}
-                        className="h-8 w-8 p-0"
-                        aria-label="Editar"
-                        title="Editar"
-                      >
-                        <Edit className="h-4 w-4 text-orange-600" />
-                      </Button>
-                    )}
-
-                    {(hasPermission('imprimir_etiqueta_envio') || hasPermission('ver_envios')) && onDownloadShipment && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDownloadShipment(shipment.id)}
-                        className="h-8 w-8 p-0"
-                        aria-label="Descargar etiqueta PDF"
-                        title="Descargar Etiqueta PDF"
-                      >
-                        <Download className="h-4 w-4 text-green-600" />
-                      </Button>
-                    )}
-
-                    {(hasPermission('imprimir_etiqueta_envio') || hasPermission('ver_envios')) && onPrintShipment && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onPrintShipment(shipment.id)}
-                        className="h-8 w-8 p-0"
-                        aria-label="Imprimir etiqueta"
-                        title="Imprimir Etiqueta"
-                      >
-                        <Printer className="h-4 w-4 text-purple-600" />
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    return <span className="text-[11px] text-gray-500">Sin pagos registrados</span>;
+                  })()}
+                </div>
+              </CardContent>
+              <CardFooter className="p-2 bg-gray-50 flex justify-end gap-1">
+                {hasPermission('ver_envios') && (
+                  <Button variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={() => onViewShipment(shipment.id)}>Ver</Button>
+                )}
+                {hasPermission('editar_envios') && onEditShipment && (
+                  <Button variant="outline" size="sm" className="h-6 px-2 text-[11px]" onClick={() => onEditShipment(shipment.id)}>Editar</Button>
+                )}
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
 
-      {shipments.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">No hay envíos disponibles</p>
+      {/* Desktop View (Table) */}
+      <div className="hidden md:block bg-white shadow-sm rounded-lg overflow-hidden border">
+        <div className="overflow-x-auto">
+          <table className="divide-y divide-gray-200 table-fixed" style={{ minWidth: `${desktopTableMinWidth}px` }}>
+            <colgroup>
+              <col style={{ width: `${desktopColumnWidths.codigo}px` }} />
+              <col style={{ width: `${desktopColumnWidths.entrega}px` }} />
+              <col style={{ width: `${desktopColumnWidths.estado}px` }} />
+              <col style={{ width: `${desktopColumnWidths.medios}px` }} />
+              <col style={{ width: `${desktopColumnWidths.direccion}px` }} />
+              <col style={{ width: `${desktopColumnWidths.cliente}px` }} />
+              <col style={{ width: `${desktopColumnWidths.transportista}px` }} />
+              <col style={{ width: `${desktopColumnWidths.acciones}px` }} />
+            </colgroup>
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código<div onMouseDown={handleResizeStart('codigo')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrega Est.<div onMouseDown={handleResizeStart('entrega')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado<div onMouseDown={handleResizeStart('estado')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Medios de pago<div onMouseDown={handleResizeStart('medios')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dirección<div onMouseDown={handleResizeStart('direccion')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente<div onMouseDown={handleResizeStart('cliente')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transportista<div onMouseDown={handleResizeStart('transportista')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones<div onMouseDown={handleResizeStart('acciones')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {shipments.map((shipment) => {
+
+
+                return (
+                  <tr key={shipment.id} className="hover:bg-gray-50 transition-colors">
+                    {/* Código */}
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
+                      {shipment.tracking_number || shipment.reference || `#${shipment.id}`}
+                    </td>
+
+                    {/* Entrega Estimada */}
+                    <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
+                      {formatDeliveryDate(shipment.metadata?.estimated_delivery_date || shipment.estimated_delivery_date)}
+                    </td>
+
+                    {/* Estado */}
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge
+                        className="font-normal"
+                        style={getStageBadgeStyle(stages.find(s => s.id === shipment.current_stage_id))}
+                        variant="outline"
+                      >
+                        {shipment.current_stage?.name || 'Desc.'}
+                      </Badge>
+                    </td>
+
+                    {/* Medios de pago */}
+                    <td className="px-4 py-3 text-sm">
+                      {(() => {
+                        const paymentSummary = getShipmentPaymentSummary(shipment);
+
+                        if (paymentSummary.instructionsByMethod.length > 0) {
+                          return (
+                            <div className="space-y-1">
+                              {paymentSummary.instructionsByMethod.map((instruction, idx) => (
+                                <div key={idx} className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded px-3 py-1.5">
+                                  <CreditCard className="h-3 w-3 text-blue-600" />
+                                  <span className="text-xs font-medium text-blue-900">{instruction.method}</span>
+                                  <span className="text-xs font-bold text-blue-700 ml-auto">{formatCurrency(instruction.amountCollected)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        return <span className="text-xs text-gray-500">Sin pagos registrados</span>;
+                      })()}
+                    </td>
+
+                    {/* Dirección */}
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div className="truncate max-w-[250px]" title={`${shipment.shipping_address}, ${shipment.shipping_city}`}>
+                        {shipment.shipping_address || '-'}
+                      </div>
+                      {shipment.shipping_city && <div className="text-xs text-gray-500 truncate max-w-[250px]">{shipment.shipping_city}</div>}
+                    </td>
+
+                    {/* Cliente */}
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div className="truncate max-w-[140px]" title={getCustomerName(shipment)}>
+                        {getCustomerName(shipment)}
+                      </div>
+                    </td>
+
+                    {/* Transportista */}
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div className="truncate max-w-[140px]" title={getTransporterName(shipment)}>
+                        {getTransporterName(shipment)}
+                      </div>
+                    </td>
+
+                    {/* Acciones */}
+                    <td className="p-4 align-middle text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onViewShipment(shipment.id)}
+                                className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Ver detalles</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        {onEditShipment && hasPermission('editar_envios') && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => onEditShipment(shipment.id)}
+                                  className="h-8 w-8 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Editar envío</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
+                        {onPrintShipment && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => onPrintShipment(shipment.id)}
+                                  className="h-8 w-8 text-violet-600 hover:bg-violet-50 hover:text-violet-700"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Imprimir etiqueta</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
+                        {onDownloadShipment && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => onDownloadShipment(shipment.id)}
+                                  className="h-8 w-8 text-teal-600 hover:bg-teal-50 hover:text-teal-700"
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Descargar comprobante</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
     </div>
   );
 };

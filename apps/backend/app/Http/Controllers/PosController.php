@@ -29,19 +29,22 @@ class PosController extends Controller
     }
     public function searchProducts(Request $request)
     {
-        $query = $request->input('query');
+        $query = trim((string) $request->input('query', ''));
+        $limit = min(max((int) $request->input('limit', 20), 1), 50);
 
         if (empty($query)) {
-            // Opcional: devolver productos populares o recientes si la búsqueda está vacía
             return response()->json([]);
         }
 
-        $products = Product::where('status', true)
+        $products = Product::with(['iva', 'category'])
+            ->where('status', true)
             ->where(function ($q) use ($query) {
-                $q->where('description', 'LIKE', "%{$query}%")
-                    ->orWhere('code', '=', $query);
+                $q->where('code', '=', $query)
+                    ->orWhere('description', 'LIKE', "%{$query}%");
             })
-            ->take(20)
+            ->orderByRaw('CASE WHEN code = ? THEN 0 ELSE 1 END', [$query])
+            ->orderBy('description')
+            ->take($limit)
             ->get();
 
         return response()->json($products);
@@ -211,23 +214,27 @@ class PosController extends Controller
             DB::commit();
 
             // --- AUTORIZACIÓN AFIP INMEDIATA ---
-            // Intentamos autorizar de inmediato si corresponde.
-            // Si falla, no interrumpimos el flujo (la venta ya se creó),
-            // simplemente quedará como "pendiente" para reintentar desde Historial.
-            // Recargar la venta con todas las relaciones necesarias para la autorización
-            $saleHeader->load([
-                'receiptType',
-                'customer.person',
-                'customerTaxIdentity.fiscalCondition',
-                'items.product.iva',
-                'saleIvas.iva',
-                'branch',
-                'saleFiscalCondition',
-            ]);
-            $this->saleService->tryAuthorizeWithAfip($saleHeader, $receiptType, 'PosController');
+            // Para comprobantes fiscales, intentar autorizar de inmediato.
+            // Si falla, la venta queda pendiente para reintentar desde Historial.
+            $authorization = null;
+            if ($receiptType && !AfipConstants::isInternalOnlyReceipt($receiptType->afip_code ?? null)) {
+                // Recargar la venta con todas las relaciones necesarias para la autorización
+                $saleHeader->load([
+                    'receiptType',
+                    'customer.person',
+                    'customerTaxIdentity.fiscalCondition',
+                    'items.product.iva',
+                    'saleIvas.iva',
+                    'branch',
+                    'saleFiscalCondition',
+                ]);
+
+                $authorization = $this->saleService->tryAuthorizeWithAfip($saleHeader, $receiptType, 'PosController');
+            }
 
             return response()->json([
                 'message' => 'Venta creada con éxito',
+                'authorization' => $authorization,
                 'data' => $saleHeader->load([
                     'items.product',
                     'saleIvas',

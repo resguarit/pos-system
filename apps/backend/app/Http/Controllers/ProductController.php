@@ -70,6 +70,7 @@ class ProductController extends Controller
             'supplier_id' => 'required|integer',
             'status' => 'required|boolean',
             'web' => 'required|boolean',
+            'allow_discount' => 'sometimes|boolean',
             'observaciones' => 'nullable|string',
             'branch_id' => 'nullable|integer|exists:branches,id',
             'branch_ids' => 'nullable|array',
@@ -115,6 +116,7 @@ class ProductController extends Controller
             'supplier_id' => 'sometimes|required|integer',
             'status' => 'sometimes|required|boolean',
             'web' => 'sometimes|required|boolean',
+            'allow_discount' => 'sometimes|boolean',
             'observaciones' => 'nullable|string',
         ]);
 

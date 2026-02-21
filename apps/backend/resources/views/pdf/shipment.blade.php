@@ -199,6 +199,12 @@
                 <span class="priority {{ $priorityClass }}">{{ $priorityLabel }}</span>
             </td>
         </tr>
+        @if($shipment->estimated_delivery_date)
+            <tr>
+                <td class="bold">Entrega Estimada:</td>
+                <td colspan="3">{{ \Carbon\Carbon::parse($shipment->estimated_delivery_date)->format('d/m/Y') }}</td>
+            </tr>
+        @endif
     </table>
 
     @if($shipment->transporter)
@@ -316,7 +322,7 @@
             <table class="items-table" style="margin-bottom: 20px;">
                 <thead>
                     <tr style="background: #e8e8e8;">
-                        <th colspan="3">
+                        <th colspan="5">
                             <strong>{{ $sale->receiptType->name ?? $sale->receiptType->description ?? 'N/A' }}
                                 #{{ $sale->receipt_number ?? $sale->id }}</strong> -
                             {{ $sale->date ? \Carbon\Carbon::parse($sale->date)->format('d/m/Y') : 'N/A' }} -
@@ -327,20 +333,28 @@
                 <tbody>
                     @if($sale->items && $sale->items->count() > 0)
                         <tr style="background: #f5f5f5;">
-                            <td class="bold" style="width: 15%;">Código</td>
+                            <td class="bold" style="width: 12%;">Código</td>
                             <td class="bold">Producto</td>
-                            <td class="bold right" style="width: 15%;">Cantidad</td>
+                            <td class="bold right" style="width: 10%;">Cant.</td>
+                            <td class="bold right" style="width: 15%;">Precio Unit.</td>
+                            <td class="bold right" style="width: 15%;">Subtotal</td>
                         </tr>
                         @foreach($sale->items as $item)
                             <tr>
                                 <td>{{ $item->product->code ?? 'N/A' }}</td>
                                 <td>{{ $item->product->description ?? $item->product->name ?? 'Sin descripción' }}</td>
                                 <td class="right">{{ $item->quantity }}</td>
+                                <td class="right">${{ number_format($item->unit_price, 2, ',', '.') }}</td>
+                                <td class="right">${{ number_format($item->item_total, 2, ',', '.') }}</td>
                             </tr>
                         @endforeach
+                        <tr style="background: #f5f5f5;">
+                            <td colspan="4" class="bold right">Total Venta:</td>
+                            <td class="bold right">${{ number_format($sale->total, 2, ',', '.') }}</td>
+                        </tr>
                     @else
                         <tr>
-                            <td colspan="3" style="text-align: center; color: #999;">Sin productos</td>
+                            <td colspan="5" style="text-align: center; color: #999;">Sin productos</td>
                         </tr>
                     @endif
                 </tbody>

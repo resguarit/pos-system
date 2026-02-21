@@ -85,8 +85,9 @@ class SaleService implements SaleServiceInterface
             $itemSubtotalBase = (float) ($unitPrice * $quantity); // sin redondear todavía
 
             // Descuento por ítem (opcional)
-            $discountType = $item['discount_type'] ?? null; // 'percent' | 'amount' | null
-            $discountValue = isset($item['discount_value']) ? (float) $item['discount_value'] : null; // number
+            $productAllowsDiscount = (bool) ($product->allow_discount ?? true);
+            $discountType = $productAllowsDiscount ? ($item['discount_type'] ?? null) : null; // 'percent' | 'amount' | null
+            $discountValue = $productAllowsDiscount && isset($item['discount_value']) ? (float) $item['discount_value'] : null; // number
             $itemDiscountAmount = 0.0;
             if ($discountType && $discountValue !== null) {
                 if ($discountType === 'percent') {
@@ -117,6 +118,7 @@ class SaleService implements SaleServiceInterface
                 'discount_type' => $discountType,
                 'discount_value' => $discountValue,
                 'discount_amount' => $itemDiscountAmount, // solo descuento explícito del ítem
+                'allow_discount' => $productAllowsDiscount,
                 'iva_rate' => $ivaRate,
                 'iva_id' => $product->iva ? $product->iva->id : null,
                 // Guardamos la base neta como item_subtotal
@@ -215,14 +217,26 @@ class SaleService implements SaleServiceInterface
             // Calcular subtotal + IVA antes del descuento global
             $subtotalConIva = round($subtotalGrossBeforeDiscounts + $totalIvaAmount, 2);
 
+            // Para productos sin descuento, excluir su base del descuento global
+            $subtotalConIvaDiscountable = 0.0;
+            foreach ($preparedItems as $item) {
+                if (($item['allow_discount'] ?? true) === false) {
+                    continue;
+                }
+                $subtotalConIvaDiscountable = round(
+                    $subtotalConIvaDiscountable + (float) ($item['item_subtotal'] ?? 0) + (float) ($item['item_iva'] ?? 0),
+                    2
+                );
+            }
+
             if ($globalDiscountType && $globalDiscountValue !== null && $subtotalConIva > 0) {
                 if ($globalDiscountType === 'percent') {
-                    $globalDiscountAmount = round($subtotalConIva * ($globalDiscountValue / 100.0), 2);
+                    $globalDiscountAmount = round($subtotalConIvaDiscountable * ($globalDiscountValue / 100.0), 2);
                 } else { // amount
                     $globalDiscountAmount = round($globalDiscountValue, 2);
                 }
-                if ($globalDiscountAmount > $subtotalConIva) {
-                    $globalDiscountAmount = round($subtotalConIva, 2);
+                if ($globalDiscountAmount > $subtotalConIvaDiscountable) {
+                    $globalDiscountAmount = round($subtotalConIvaDiscountable, 2);
                 }
             }
 
@@ -794,6 +808,15 @@ class SaleService implements SaleServiceInterface
                 }
             } else {
                 $query->where('branch_id', $branchIds);
+            }
+        }
+
+        if ($request->has('product_ids')) {
+            $productIds = $request->input('product_ids');
+            if (is_array($productIds) && count($productIds) > 0) {
+                $query->whereHas('items', function ($q) use ($productIds) {
+                    $q->whereIn('product_id', $productIds);
+                });
             }
         }
 
@@ -1381,6 +1404,15 @@ class SaleService implements SaleServiceInterface
             }
         }
 
+        if ($request->has('product_ids')) {
+            $productIds = $request->input('product_ids');
+            if (is_array($productIds) && count($productIds) > 0) {
+                $query->whereHas('items', function ($q) use ($productIds) {
+                    $q->whereIn('product_id', $productIds);
+                });
+            }
+        }
+
         if ($request->has('search') && $request->input('search')) {
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
@@ -1497,6 +1529,15 @@ class SaleService implements SaleServiceInterface
                 }
             } else {
                 $query->where('branch_id', $branchIds);
+            }
+        }
+
+        if ($request->has('product_ids')) {
+            $productIds = $request->input('product_ids');
+            if (is_array($productIds) && count($productIds) > 0) {
+                $query->whereHas('items', function ($q) use ($productIds) {
+                    $q->whereIn('product_id', $productIds);
+                });
             }
         }
 

@@ -31,6 +31,7 @@ export interface SaleTotals {
   subtotalNet: number
   totalIva: number
   total: number
+  discountableSubtotalWithIva: number
 }
 
 export interface GlobalDiscount {
@@ -53,11 +54,12 @@ export const calculateSaleTotals = (
 
     const unitWithoutIva = ivaRate > 0 ? unitWithIva / (1 + ivaRate) : unitWithIva
     const baseWithoutIva = unitWithoutIva * qty
+    const itemAllowsDiscount = item.allow_discount !== false
 
     let itemDiscountOnBase = 0
     const discountValue = Number(item.discount_value ?? 0)
 
-    if (item.discount_type && discountValue > 0) {
+    if (itemAllowsDiscount && item.discount_type && discountValue > 0) {
       if (item.discount_type === 'percent') {
         itemDiscountOnBase = baseWithoutIva * (discountValue / 100)
       } else {
@@ -82,16 +84,21 @@ export const calculateSaleTotals = (
 
   // 3. Aplicar descuento global
   const subtotalWithIva = roundToTwoDecimals(subtotalAfterItemDiscounts + totalIva)
+  const discountableSubtotalWithIva = roundToTwoDecimals(
+    prepared
+      .filter((x) => x.item.allow_discount !== false)
+      .reduce((sum, x) => sum + x.netBase + (x.netBase * ((x.item.iva_rate || 0) / 100)), 0)
+  )
   let globalDiscountAmount = 0
   const globalDiscountValue = Number(globalDiscount.value)
 
   if (globalDiscount.type && globalDiscountValue > 0) {
     if (globalDiscount.type === 'percent') {
-      globalDiscountAmount = roundToTwoDecimals(subtotalWithIva * (globalDiscountValue / 100))
+      globalDiscountAmount = roundToTwoDecimals(discountableSubtotalWithIva * (globalDiscountValue / 100))
     } else {
       globalDiscountAmount = roundToTwoDecimals(globalDiscountValue)
     }
-    globalDiscountAmount = Math.max(0, Math.min(globalDiscountAmount, subtotalWithIva))
+    globalDiscountAmount = Math.max(0, Math.min(globalDiscountAmount, discountableSubtotalWithIva))
   }
 
   // 4. Calcular total final
@@ -108,6 +115,7 @@ export const calculateSaleTotals = (
     subtotalNet: roundToTwoDecimals(subtotalAfterItemDiscounts),
     totalIva,
     total,
+    discountableSubtotalWithIva,
   }
 }
 
@@ -179,6 +187,21 @@ export interface DiscountableMethod {
   discount_percentage?: number
 }
 
+export interface SalePaymentInput {
+  payment_method_id: string
+  amount: string
+}
+
+export interface PaymentMethodLike {
+  id: string | number
+  name?: string | null
+}
+
+export interface NormalizedSalePayment {
+  payment_method_id: number
+  amount: number
+}
+
 /**
  * Calcula el descuento total por métodos de pago
  * Reglas:
@@ -190,6 +213,21 @@ export const calculatePaymentDiscount = (
   payments: DiscountablePayment[],
   methods: DiscountableMethod[]
 ): number => {
+  const selectedPayments = payments.filter((payment) => Boolean(payment.payment_method_id))
+
+  // Caso UX principal: una sola fila de pago con método con descuento.
+  // El descuento debe mantenerse sobre el total de la venta mientras se escribe
+  // el monto en esa misma fila, para evitar recálculo circular y "objetivo móvil".
+  if (selectedPayments.length === 1) {
+    const singlePayment = selectedPayments[0]
+    const method = methods.find((candidate) => candidate.id.toString() === singlePayment.payment_method_id?.toString())
+    const rate = method?.discount_percentage || 0
+
+    if (rate > 0) {
+      return roundToTwoDecimals(total * (rate / 100))
+    }
+  }
+
   let totalDiscount = 0
   let explicitPaid = 0
 
@@ -201,7 +239,8 @@ export const calculatePaymentDiscount = (
 
     const method = methods.find(m => m.id.toString() === p.payment_method_id?.toString())
     if (method && (method.discount_percentage || 0) > 0) {
-      const discountAmount = amountVal * (method.discount_percentage! / 100)
+      const discountableBase = Math.max(0, Math.min(amountVal, total - explicitPaid))
+      const discountAmount = discountableBase * (method.discount_percentage! / 100)
       totalDiscount += discountAmount
     }
     explicitPaid += amountVal
@@ -233,4 +272,60 @@ export const calculatePaymentDiscount = (
   }
 
   return roundToTwoDecimals(totalDiscount)
+}
+
+/**
+ * Normaliza pagos y, si hay sobrepago, descuenta primero de los métodos en efectivo.
+ * Si no alcanza efectivo para absorber el cambio, usa fallback en la última fila.
+ */
+export const normalizePaymentsForFinalTotal = (
+  finalTotal: number,
+  payments: SalePaymentInput[],
+  paymentMethods: PaymentMethodLike[]
+): { payments: NormalizedSalePayment[]; diff: number } => {
+  const normalizedPayments: NormalizedSalePayment[] = payments.map((payment) => ({
+    payment_method_id: parseInt(payment.payment_method_id),
+    amount: roundToTwoDecimals(parseFloat(payment.amount || '0') || 0),
+  }))
+
+  const paid = roundToTwoDecimals(normalizedPayments.reduce((sum, payment) => sum + payment.amount, 0))
+  const diff = roundToTwoDecimals(finalTotal - paid)
+
+  if (diff >= 0) {
+    return { payments: normalizedPayments, diff }
+  }
+
+  const isCashPaymentMethod = (paymentMethodId: string): boolean => {
+    if (!paymentMethodId) return false
+    const paymentMethod = paymentMethods.find((method) => method.id.toString() === paymentMethodId)
+    const methodName = paymentMethod?.name?.toLowerCase() || ''
+    return methodName.includes('efectivo') || methodName.includes('cash')
+  }
+
+  let remainingChange = roundToTwoDecimals(Math.abs(diff))
+
+  const cashIndexes = payments
+    .map((payment, idx) => (isCashPaymentMethod(payment.payment_method_id) ? idx : -1))
+    .filter((idx) => idx >= 0)
+
+  for (let i = cashIndexes.length - 1; i >= 0 && remainingChange > 0; i -= 1) {
+    const paymentIndex = cashIndexes[i]
+    const currentAmount = normalizedPayments[paymentIndex].amount
+    const reducible = Math.min(currentAmount, remainingChange)
+
+    normalizedPayments[paymentIndex].amount = roundToTwoDecimals(currentAmount - reducible)
+    remainingChange = roundToTwoDecimals(remainingChange - reducible)
+  }
+
+  if (remainingChange > 0 && normalizedPayments.length > 0) {
+    const fallbackIndex = normalizedPayments.length - 1
+    normalizedPayments[fallbackIndex].amount = roundToTwoDecimals(
+      Math.max(0, normalizedPayments[fallbackIndex].amount - remainingChange)
+    )
+  }
+
+  return {
+    payments: normalizedPayments,
+    diff,
+  }
 }

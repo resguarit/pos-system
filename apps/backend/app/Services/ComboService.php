@@ -20,7 +20,7 @@ class ComboService implements ComboServiceInterface
      */
     public function getAll(array $filters = []): Collection
     {
-        $query = Combo::with(['comboItems.product']);
+        $query = Combo::with(['comboItems.product', 'groups.options.product']);
 
         if (isset($filters['active_only']) && $filters['active_only']) {
             $query->active();
@@ -42,9 +42,14 @@ class ComboService implements ComboServiceInterface
     public function getAvailableInBranch(int $branchId): Collection
     {
         return Combo::active()
-            ->with(['comboItems.product.stocks' => function ($query) use ($branchId) {
-                $query->where('branch_id', $branchId);
-            }])
+            ->with([
+                'comboItems.product.stocks' => function ($query) use ($branchId) {
+                    $query->where('branch_id', $branchId);
+                },
+                'groups.options.product.stocks' => function ($query) use ($branchId) {
+                    $query->where('branch_id', $branchId);
+                }
+            ])
             ->get()
             ->filter(function ($combo) use ($branchId) {
                 return $combo->isAvailableInBranch($branchId);
@@ -56,7 +61,7 @@ class ComboService implements ComboServiceInterface
      */
     public function getById(int $id): ?Combo
     {
-        return Combo::with(['comboItems.product', 'comboItems.product.stocks'])->find($id);
+        return Combo::with(['comboItems.product', 'comboItems.product.stocks', 'groups.options.product', 'groups.options.product.stocks'])->find($id);
     }
 
     /**
@@ -80,7 +85,12 @@ class ComboService implements ComboServiceInterface
                 $this->addItemsToCombo($combo, $data['items']);
             }
 
-            return $combo->load('comboItems.product');
+            // Agregar grupos al combo
+            if (isset($data['groups']) && is_array($data['groups'])) {
+                $this->addGroupsToCombo($combo, $data['groups']);
+            }
+
+            return $combo->load(['comboItems.product', 'groups.options.product']);
         });
     }
 
@@ -90,7 +100,7 @@ class ComboService implements ComboServiceInterface
     public function update(int $id, array $data): Combo
     {
         $combo = $this->getById($id);
-        
+
         if (!$combo) {
             throw new \Exception("Combo con ID {$id} no encontrado");
         }
@@ -110,8 +120,22 @@ class ComboService implements ComboServiceInterface
             if (isset($data['items']) && is_array($data['items'])) {
                 $this->updateComboItems($combo, $data['items']);
             }
+            // También permitir vaciar los items si se pasan como arreglo vacío pero está seteado
+            else if (isset($data['items']) && empty($data['items'])) {
+                $combo->comboItems()->delete();
+            }
 
-            return $combo->load('comboItems.product');
+            // Actualizar grupos si se proporcionan
+            if (isset($data['groups']) && is_array($data['groups'])) {
+                $this->updateComboGroups($combo, $data['groups']);
+            } else if (isset($data['groups']) && empty($data['groups'])) {
+                $combo->groups()->each(function ($group) {
+                    $group->options()->delete();
+                    $group->delete();
+                });
+            }
+
+            return $combo->load(['comboItems.product', 'groups.options.product']);
         });
     }
 
@@ -142,6 +166,42 @@ class ComboService implements ComboServiceInterface
     }
 
     /**
+     * Agregar grupos a un combo
+     */
+    public function addGroupsToCombo(Combo $combo, array $groups): void
+    {
+        foreach ($groups as $groupData) {
+            $group = $combo->groups()->create([
+                'name' => $groupData['name'],
+                'required_quantity' => $groupData['required_quantity'],
+            ]);
+
+            if (isset($groupData['options']) && is_array($groupData['options'])) {
+                foreach ($groupData['options'] as $option) {
+                    $group->options()->create([
+                        'product_id' => $option['product_id'],
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Actualizar grupos de un combo
+     */
+    public function updateComboGroups(Combo $combo, array $groups): void
+    {
+        // Eliminar grupos existentes junto con sus opciones (por cascade o manual)
+        $combo->groups()->each(function ($group) {
+            $group->options()->delete();
+            $group->delete();
+        });
+
+        // Crear nuevos grupos
+        $this->addGroupsToCombo($combo, $groups);
+    }
+
+    /**
      * Calcular precio dinámico del combo
      */
     public function calculateComboPrice(Combo $combo): array
@@ -152,9 +212,9 @@ class ComboService implements ComboServiceInterface
         foreach ($combo->comboItems as $comboItem) {
             $productPrice = $comboItem->product->sale_price ?? $comboItem->product->calculateSalePriceFromMarkup();
             $itemTotal = $productPrice * $comboItem->quantity;
-            
+
             $basePrice += $itemTotal;
-            
+
             $itemsBreakdown[] = [
                 'product' => $comboItem->product,
                 'quantity' => $comboItem->quantity,
@@ -164,8 +224,8 @@ class ComboService implements ComboServiceInterface
         }
 
         $discountAmount = $this->calculateDiscountAmount(
-            $basePrice, 
-            $combo->discount_type, 
+            $basePrice,
+            $combo->discount_type,
             $this->ensureFloatValue($combo->discount_value)
         );
         $finalPrice = max(0, $basePrice - $discountAmount);
@@ -192,15 +252,15 @@ class ComboService implements ComboServiceInterface
         if (is_float($value)) {
             return $value;
         }
-        
+
         if (is_int($value)) {
             return (float) $value;
         }
-        
+
         if (is_string($value) && is_numeric($value)) {
             return (float) $value;
         }
-        
+
         throw new \InvalidArgumentException(
             "Expected numeric value for discount calculation, got: " . gettype($value)
         );
@@ -220,11 +280,11 @@ class ComboService implements ComboServiceInterface
         if ($basePrice < 0) {
             throw new \InvalidArgumentException("Base price cannot be negative");
         }
-        
+
         if ($discountValue < 0) {
             throw new \InvalidArgumentException("Discount value cannot be negative");
         }
-        
+
         // Calcular descuento según el tipo
         switch ($discountType) {
             case 'percentage':
@@ -233,11 +293,11 @@ class ComboService implements ComboServiceInterface
                     throw new \InvalidArgumentException("Percentage discount cannot exceed 100%");
                 }
                 return $basePrice * ($discountValue / 100);
-                
+
             case 'fixed_amount':
                 // El descuento fijo no puede exceder el precio base
                 return min($discountValue, $basePrice);
-                
+
             default:
                 throw new \InvalidArgumentException("Invalid discount type: {$discountType}");
         }
@@ -273,7 +333,7 @@ class ComboService implements ComboServiceInterface
             }
 
             $availableForThisProduct = floor($stock->current_stock / $comboItem->quantity);
-            
+
             // Solo marcar como no disponible si no hay stock configurado
             // Permitir stock 0 o negativo para no perder ventas
             if ($availableForThisProduct < $requestedQuantity) {
@@ -308,10 +368,10 @@ class ComboService implements ComboServiceInterface
 
                 if ($stock) {
                     $deductAmount = $comboItem->quantity * $quantity;
-                    
+
                     if ($stock->current_stock >= $deductAmount) {
                         $stock->decrement('current_stock', $deductAmount);
-                        
+
                         Log::info("Stock deducted for combo sale", [
                             'combo_id' => $combo->id,
                             'combo_name' => $combo->name,
@@ -345,7 +405,7 @@ class ComboService implements ComboServiceInterface
                 if ($stock) {
                     $restoreAmount = $comboItem->quantity * $quantity;
                     $stock->increment('current_stock', $restoreAmount);
-                    
+
                     Log::info("Stock restored for combo annulment", [
                         'combo_id' => $combo->id,
                         'combo_name' => $combo->name,
@@ -366,7 +426,7 @@ class ComboService implements ComboServiceInterface
     public function delete(int $id): bool
     {
         $combo = $this->getById($id);
-        
+
         if (!$combo) {
             throw new \Exception("Combo con ID {$id} no encontrado");
         }
@@ -380,7 +440,7 @@ class ComboService implements ComboServiceInterface
     public function calculatePrice(int $comboId): array
     {
         $combo = $this->getById($comboId);
-        
+
         if (!$combo) {
             throw new \Exception("Combo con ID {$comboId} no encontrado");
         }
@@ -394,7 +454,7 @@ class ComboService implements ComboServiceInterface
     public function checkAvailability(int $comboId, int $branchId, int $quantity = 1): array
     {
         $combo = $this->getById($comboId);
-        
+
         if (!$combo) {
             throw new \Exception("Combo con ID {$comboId} no encontrado");
         }
@@ -408,7 +468,7 @@ class ComboService implements ComboServiceInterface
     public function deductComboStock(int $comboId, int $branchId, int $quantity): void
     {
         $combo = $this->getById($comboId);
-        
+
         if (!$combo) {
             throw new \Exception("Combo con ID {$comboId} no encontrado");
         }
@@ -422,7 +482,7 @@ class ComboService implements ComboServiceInterface
     public function restoreComboStock(int $comboId, int $branchId, int $quantity): void
     {
         $combo = $this->getById($comboId);
-        
+
         if (!$combo) {
             throw new \Exception("Combo con ID {$comboId} no encontrado");
         }
@@ -453,11 +513,11 @@ class ComboService implements ComboServiceInterface
             $errors[] = 'El descuento porcentual no puede ser mayor al 100%';
         }
 
-        if (empty($data['items']) || !is_array($data['items'])) {
-            $errors[] = 'El combo debe tener al menos un producto';
+        if (empty($data['items']) && empty($data['groups'])) {
+            $errors[] = 'El combo debe tener al menos un producto o un grupo de opciones';
         }
 
-        if (isset($data['items'])) {
+        if (isset($data['items']) && is_array($data['items'])) {
             foreach ($data['items'] as $index => $item) {
                 if (empty($item['product_id'])) {
                     $errors[] = "El producto en la posición {$index} es requerido";

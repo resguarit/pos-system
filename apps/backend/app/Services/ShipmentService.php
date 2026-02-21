@@ -90,7 +90,8 @@ class ShipmentService implements ShipmentServiceInterface
             'currentStage',
             'creator.person',
             'sales.customer.person',
-            'sales.receiptType'
+            'sales.receiptType',
+            'sales.salePayments.paymentMethod'
         ])
             ->whereIn('branch_id', $user->branches()->pluck('branches.id'))
             ->withCount('sales');
@@ -132,6 +133,7 @@ class ShipmentService implements ShipmentServiceInterface
             'creator.person',
             'sales.customer.person',
             'sales.receiptType',
+            'sales.salePayments.paymentMethod',
             'sales.items.product',
             'events'
         ])

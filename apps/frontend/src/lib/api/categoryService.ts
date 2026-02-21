@@ -18,7 +18,7 @@ export const getCategories = async (): Promise<Category[]> => {
     // No enviar limit ni per_page para obtener TODAS las categorías sin paginación
     // Si se envían parámetros vacíos, algunos frameworks pueden omitirlos
     const response = await api.get('/categories');
-    
+
     // La API puede devolver diferentes estructuras dependiendo de los parámetros
     if (response.data?.data?.data) {
       // Estructura paginada
@@ -30,10 +30,36 @@ export const getCategories = async (): Promise<Category[]> => {
       // Estructura muy simple
       return response.data;
     }
-    
+
     return [];
   } catch (error) {
     console.error('Failed to fetch categories:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene solo las categorías padre (sin parent_id).
+ */
+export const getParentCategories = async (): Promise<Category[]> => {
+  try {
+    const response = await api.get('/categories/parents');
+    return response.data?.data ?? response.data ?? [];
+  } catch (error) {
+    console.error('Failed to fetch parent categories:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtiene las subcategorías de una categoría padre.
+ */
+export const getSubcategoriesByParent = async (parentId: number): Promise<Category[]> => {
+  try {
+    const response = await api.get(`/categories/subcategories/${parentId}`);
+    return response.data?.data ?? response.data ?? [];
+  } catch (error) {
+    console.error('Failed to fetch subcategories:', error);
     throw error;
   }
 };

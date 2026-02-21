@@ -22,7 +22,7 @@ interface ViewProductDialogProps {
 }
 
 export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDialogProps) {
-  const { branches } = useBranch();
+  const { branches, allBranches } = useBranch();
   const { hasPermission } = useAuth();
   const { request, loading: loadingHistory } = useApi();
   const canSeePrices = hasPermission('ver_precio_unitario') ||
@@ -30,6 +30,9 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
     hasPermission('editar_productos') ||
     hasPermission('crear_ordenes_compra') ||
     hasPermission('editar_ordenes_compra');
+  // allBranches ya incluye todas las sucursales si el usuario tiene el permiso,
+  // o solo las asignadas si no lo tiene (lógica centralizada en BranchContext)
+  const stockBranches = allBranches.length > 0 ? allBranches : branches;
   const [activeTab, setActiveTab] = useState<'details' | 'history'>('details');
   const [costHistory, setCostHistory] = useState<ProductCostHistory[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -84,12 +87,12 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
     // Primero intentar con datos embebidos
     if (embedded?.description) return embedded.description;
     if (embedded?.name) return embedded.name;
-    
-    // Luego buscar en el array de branches del contexto
-    const b = branches.find((bb) => String(bb.id) === String(branchId));
+
+    // Luego buscar en el array de branches (incluyendo otras sucursales si tiene permiso)
+    const b = stockBranches.find((bb) => String(bb.id) === String(branchId));
     if (b?.description) return b.description;
     if ((b as any)?.name) return (b as any).name;
-    
+
     // Fallback solo si no se encuentra nada
     return `Sucursal ${branchId}`;
   };
@@ -342,6 +345,21 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                     <span className="col-span-3">{displayProduct.web ? "Sí" : "No"}</span>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <span className="font-medium text-right">Permite descuento:</span>
+                    <span className="col-span-3">
+                      <Badge
+                        variant="outline"
+                        className={
+                          displayProduct.allow_discount !== false
+                            ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                            : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                        }
+                      >
+                        {displayProduct.allow_discount !== false ? "Sí" : "No"}
+                      </Badge>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <span className="font-medium text-right">Observaciones:</span>
                     <span className="col-span-3">{displayProduct.observaciones || '-'}</span>
                   </div>
@@ -363,9 +381,9 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                               (() => {
                                 // Filtrar solo los stocks que correspondan a sucursales válidas del usuario
                                 const validStocks = displayProduct.stocks.filter(stock =>
-                                  branches.some(b => String(b.id) === String(stock.branch_id))
+                                  stockBranches.some(b => String(b.id) === String(stock.branch_id))
                                 );
-                                
+
                                 if (validStocks.length === 0) {
                                   return (
                                     <TableRow>
@@ -375,7 +393,7 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
                                     </TableRow>
                                   );
                                 }
-                                
+
                                 return validStocks.map((stock) => (
                                   <TableRow key={stock.id}>
                                     <TableCell>{resolveBranchName(stock.branch_id, stock.branch)}</TableCell>

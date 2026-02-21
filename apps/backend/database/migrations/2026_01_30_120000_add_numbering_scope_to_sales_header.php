@@ -6,8 +6,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
-{
+return new class extends Migration {
     /**
      * Numeración contigua: ventas (fiscales y no fiscales) comparten una secuencia por sucursal;
      * presupuestos tienen secuencia propia. Este campo define el alcance de unicidad del número.
@@ -16,7 +15,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (! Schema::hasColumn('sales_header', 'numbering_scope')) {
+        $driver = Schema::getConnection()->getDriverName();
+
+        if (!Schema::hasColumn('sales_header', 'numbering_scope')) {
             Schema::table('sales_header', function (Blueprint $table) {
                 $table->string('numbering_scope', 20)->nullable()->after('receipt_number');
             });
@@ -25,14 +26,28 @@ return new class extends Migration
         // Backfill: presupuesto (016) -> 'presupuesto'; resto -> 'sale_{receipt_type_id}' para evitar
         // duplicados si ya existían números por tipo (antes era único por branch+receipt_type+number).
         if (Schema::hasColumn('sales_header', 'numbering_scope')) {
-            DB::statement("
-                UPDATE sales_header sh
-                INNER JOIN receipt_type rt ON sh.receipt_type_id = rt.id
-                SET sh.numbering_scope = IF(rt.afip_code = '016', 'presupuesto', CONCAT('sale_', sh.receipt_type_id))
-            ");
+            if ($driver === 'sqlite') {
+                DB::statement("
+                    UPDATE sales_header
+                    SET numbering_scope = CASE
+                        WHEN (
+                            SELECT afip_code
+                            FROM receipt_type
+                            WHERE receipt_type.id = sales_header.receipt_type_id
+                        ) = '016' THEN 'presupuesto'
+                        ELSE 'sale_' || sales_header.receipt_type_id
+                    END
+                ");
+            } else {
+                DB::statement("
+                    UPDATE sales_header sh
+                    INNER JOIN receipt_type rt ON sh.receipt_type_id = rt.id
+                    SET sh.numbering_scope = IF(rt.afip_code = '016', 'presupuesto', CONCAT('sale_', sh.receipt_type_id))
+                ");
+            }
+
             DB::table('sales_header')->whereNull('numbering_scope')->update(['numbering_scope' => 'sale']);
 
-            $driver = Schema::getConnection()->getDriverName();
             if ($driver === 'mysql') {
                 DB::statement('ALTER TABLE sales_header MODIFY numbering_scope VARCHAR(20) NOT NULL');
             }
@@ -59,12 +74,32 @@ return new class extends Migration
 
         // Repair: si quedaron filas con numbering_scope = 'sale' (backfill viejo), convertirlas a sale_{type_id}
         // para que (branch_id, numbering_scope, receipt_number) sea único antes de crear el índice.
-        DB::statement("
-            UPDATE sales_header sh
-            INNER JOIN receipt_type rt ON sh.receipt_type_id = rt.id
-            SET sh.numbering_scope = CONCAT('sale_', sh.receipt_type_id)
-            WHERE sh.numbering_scope = 'sale' AND (rt.afip_code IS NULL OR rt.afip_code != '016')
-        ");
+        if ($driver === 'sqlite') {
+            DB::statement("
+                UPDATE sales_header
+                SET numbering_scope = 'sale_' || receipt_type_id
+                WHERE numbering_scope = 'sale'
+                AND (
+                    (
+                        SELECT afip_code
+                        FROM receipt_type
+                        WHERE receipt_type.id = sales_header.receipt_type_id
+                    ) IS NULL
+                    OR (
+                        SELECT afip_code
+                        FROM receipt_type
+                        WHERE receipt_type.id = sales_header.receipt_type_id
+                    ) != '016'
+                )
+            ");
+        } else {
+            DB::statement("
+                UPDATE sales_header sh
+                INNER JOIN receipt_type rt ON sh.receipt_type_id = rt.id
+                SET sh.numbering_scope = CONCAT('sale_', sh.receipt_type_id)
+                WHERE sh.numbering_scope = 'sale' AND (rt.afip_code IS NULL OR rt.afip_code != '016')
+            ");
+        }
 
         Schema::table('sales_header', function (Blueprint $table) {
             $table->unique(['branch_id', 'numbering_scope', 'receipt_number'], 'unique_receipt_per_branch_scope');
@@ -78,7 +113,7 @@ return new class extends Migration
                 $table->dropUnique('unique_receipt_per_branch_scope');
             });
         }
-        if (! $this->indexExists('sales_header', 'unique_receipt_per_branch_type')) {
+        if (!$this->indexExists('sales_header', 'unique_receipt_per_branch_type')) {
             Schema::table('sales_header', function (Blueprint $table) {
                 $table->unique(['branch_id', 'receipt_type_id', 'receipt_number'], 'unique_receipt_per_branch_type');
             });
@@ -98,14 +133,14 @@ return new class extends Migration
         }
         $results = DB::select("SHOW INDEX FROM {$table} WHERE Key_name = ?", [$indexName]);
 
-        return ! empty($results);
+        return !empty($results);
     }
 
     /** Add a single-column index only if no other index on that column exists (except unique_receipt_per_branch_type). */
     private function addIndexIfNotExists(string $table, string $column, string $newIndexName): void
     {
         $rows = DB::select("SHOW INDEX FROM {$table} WHERE Column_name = ? AND Key_name != 'unique_receipt_per_branch_type'", [$column]);
-        if (! empty($rows)) {
+        if (!empty($rows)) {
             return;
         }
         DB::statement("CREATE INDEX {$newIndexName} ON {$table} ({$column})");

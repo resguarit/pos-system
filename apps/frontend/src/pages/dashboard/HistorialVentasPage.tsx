@@ -18,11 +18,14 @@ import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import Pagination from '@/components/ui/pagination';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
+import { MultiSelectCombobox, Option } from '@/components/ui/multi-select-combobox';
 
 export default function SalesHistoryPage() {
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [showChart, setShowChart] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [products, setProducts] = useState<Option[]>([]);
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null);
@@ -53,23 +56,45 @@ export default function SalesHistoryPage() {
     setCurrentPage(1); // Reset to first page
     if (branchId) {
       loadSales(branchId);
+      loadProducts(branchId);
+    } else {
+      setProducts([]);
+      setSelectedProductIds([]);
     }
   };
 
-  const loadSales = useCallback(async (branchId: number) => {
+  const loadProducts = async (branchId: number) => {
+    try {
+      const response = await request({
+        method: 'GET',
+        url: `/products`,
+        params: { branch_id: branchId, per_page: 1000 } // Fetch ample products for selection
+      });
+      if (response && response.success) {
+        const productOptions: Option[] = (response.data?.data || []).map((p: any) => ({
+          label: `${p.code} - ${p.name}`,
+          value: p.id.toString()
+        }));
+        setProducts(productOptions);
+      }
+    } catch (error) {
+      console.error('Error loading products:', error);
+    }
+  };
+
+  const loadSales = useCallback(async (branchId: number, productIds: string[] = []) => {
     setLoading(true);
     try {
-      await request({
-        method: 'GET',
-        url: `/sales/history/branch/${branchId}`,
-        params: { group_by: 'day' }
-      });
+      // Para obtener las ventas individuales
+      const params: any = { branch_id: branchId, per_page: 1000 };
+      if (productIds.length > 0) {
+        params.product_ids = productIds.map(id => parseInt(id, 10));
+      }
 
-      // Para obtener las ventas individuales, necesitamos hacer otra llamada
       const salesResponse = await request({
         method: 'GET',
         url: `/sales`,
-        params: { branch_id: branchId, per_page: 1000 } // Obtener todas para paginación client-side
+        params: params
       });
 
       if (salesResponse && salesResponse.success) {
@@ -83,6 +108,12 @@ export default function SalesHistoryPage() {
       setLoading(false);
     }
   }, [request]);
+
+  useEffect(() => {
+    if (selectedBranchId) {
+      loadSales(selectedBranchId, selectedProductIds);
+    }
+  }, [selectedProductIds, loadSales, selectedBranchId]);
 
   // Helper functions
   const getCustomerName = (sale: SaleHeader) => {
@@ -252,6 +283,21 @@ export default function SalesHistoryPage() {
             Mostrar Gráfico
           </Button>
         </CardContent>
+        {selectedBranchId && (
+          <CardContent className="pt-0">
+            <div className="w-full sm:w-[400px]">
+              <h3 className="text-sm font-medium mb-2">Filtrar por Producto(s)</h3>
+              <MultiSelectCombobox
+                options={products}
+                selected={selectedProductIds}
+                onChange={setSelectedProductIds}
+                placeholder="Seleccionar productos..."
+                searchPlaceholder="Buscar producto..."
+                emptyMessage="No se encontraron productos"
+              />
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       {showChart && selectedBranchId && (

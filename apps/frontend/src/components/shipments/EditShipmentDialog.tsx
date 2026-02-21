@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,8 @@ import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
 import { Shipment, ShipmentStage, User, Customer, Sale } from '@/types/shipment';
 import { useAuth } from '@/context/AuthContext';
+import { Autocomplete } from '@/components/ui/autocomplete';
+import { useTransporters } from '@/hooks/useTransporters';
 
 interface EditShipmentDialogProps {
   open: boolean;
@@ -50,18 +53,19 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [searchingUsers, setSearchingUsers] = useState(false);
-  const [searchingCustomers, setSearchingCustomers] = useState(false);
-
-  // Estados para búsqueda de transportista
-  const [transporterSearch, setTransporterSearch] = useState('');
-  const [showTransporterOptions, setShowTransporterOptions] = useState(false);
-
-  // Estados para búsqueda de cliente  
+  // Búsqueda de clientes
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerOptions, setShowCustomerOptions] = useState(false);
+
+  // Transportistas
+  const { transporters, loading: loadingTransporters } = useTransporters();
+
+  const {
+    results: customers,
+    isSearching: searchingCustomers,
+    search: searchCustomers,
+    clear: clearCustomers,
+  } = useDebouncedSearch<Customer>({ endpoint: '/customers' });
 
   // Estados para gestión de ventas
   const [selectedSales, setSelectedSales] = useState<SaleHeader[]>([]);
@@ -85,44 +89,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     stage_id: undefined,
   });
 
-  // Debounced server-side search for transportista
-  const searchUsersDebounced = useCallback(async (term: string) => {
-    setSearchingUsers(true);
-    try {
-      const params = new URLSearchParams();
-      if (term.trim()) params.append('search', term.trim());
-      params.append('limit', '20');
-      const response = await request({ method: 'GET', url: `/users?${params.toString()}` });
-      if (response?.data) {
-        const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setUsers(usersData);
-      }
-    } catch (error) {
-      console.error('Error searching users:', error);
-      setUsers([]);
-    } finally {
-      setSearchingUsers(false);
-    }
-  }, [request]);
 
-  // Debounced server-side search for customer
-  const searchCustomersDebounced = useCallback(async (term: string) => {
-    setSearchingCustomers(true);
-    try {
-      const params = new URLSearchParams();
-      if (term.trim()) params.append('search', term.trim());
-      const response = await request({ method: 'GET', url: `/customers?${params.toString()}` });
-      if (response?.data) {
-        const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-        setCustomers(customersData);
-      }
-    } catch (error) {
-      console.error('Error searching customers:', error);
-      setCustomers([]);
-    } finally {
-      setSearchingCustomers(false);
-    }
-  }, [request]);
 
   // Cargar usuarios y clientes cuando se abre el dialog
   const fetchShipmentData = useCallback(async () => {
@@ -148,7 +115,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           shipping_postal_code: shipmentData.shipping_postal_code || '',
           shipping_country: shipmentData.shipping_country || 'Argentina',
           priority: shipmentData.priority || 'normal',
-          estimated_delivery_date: shipmentData.estimated_delivery_date ? shipmentData.estimated_delivery_date.split('T')[0] : '',
+          estimated_delivery_date: shipmentData.estimated_delivery_date ? shipmentData.estimated_delivery_date.slice(0, 16) : '',
           notes: shipmentData.notes || '',
           shipping_cost: shipmentData.shipping_cost ? shipmentData.shipping_cost.toString() : '',
           transportista_id: shipmentData.metadata?.transportista_id,
@@ -177,7 +144,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
         // Establecer búsquedas
         if (shipmentData.metadata?.transportista_id) {
-          // will be handled by useEffect that watches users
+          // handled by hook and combobox
         }
       }
     } catch (error) {
@@ -188,22 +155,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     }
   }, [shipmentId]);
 
-  // Fetch transporter name when editing a shipment with transportista_id
-  const populateTransporterName = useCallback(async (transporterId: number) => {
-    try {
-      const response = await request({ method: 'GET', url: `/users/${transporterId}` });
-      if (response?.data) {
-        const user = response.data.data || response.data;
-        if (user?.person) {
-          const name = `${user.person.first_name} ${user.person.last_name}`;
-          const email = user.email || '';
-          setTransporterSearch(`${name} (${email})`);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching transporter:', error);
-    }
-  }, [request]);
 
   // Fetch customer name when editing a shipment with customer_id
   const populateCustomerName = useCallback(async (customerId: number) => {
@@ -224,14 +175,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     }
   }, [request]);
 
-  useEffect(() => {
-    if (shipment) {
-      const transporterId = shipment.metadata?.transportista_id;
-      if (transporterId) {
-        populateTransporterName(transporterId);
-      }
-    }
-  }, [shipment, populateTransporterName]);
 
   useEffect(() => {
     if (shipment) {
@@ -292,36 +235,20 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     return () => clearTimeout(timer);
   }, [salesSearch, fetchSales]);
 
-  // Debounced transportista search
-  useEffect(() => {
-    if (!showTransporterOptions) return;
-    const timer = setTimeout(() => {
-      searchUsersDebounced(transporterSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [transporterSearch, showTransporterOptions, searchUsersDebounced]);
 
-  // Debounced customer search
   useEffect(() => {
-    if (!showCustomerOptions) return;
-    const timer = setTimeout(() => {
-      searchCustomersDebounced(customerSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [customerSearch, showCustomerOptions, searchCustomersDebounced]);
+    if (showCustomerOptions) searchCustomers(customerSearch);
+  }, [customerSearch, showCustomerOptions, searchCustomers]);
 
   useEffect(() => {
     if (open) {
       fetchShipmentData();
     } else {
-      setTransporterSearch('');
       setCustomerSearch('');
-      setShowTransporterOptions(false);
       setShowCustomerOptions(false);
       setShowCancelConfirm(false);
       setShipment(null);
-      setUsers([]);
-      setCustomers([]);
+      clearCustomers();
     }
   }, [open, fetchShipmentData]);
 
@@ -415,7 +342,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   if (loadingData) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* @ts-expect-error - Radix DialogContent props mismatch */}
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -427,7 +353,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* @ts-expect-error - Radix type issues */}
       <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>Editar Envío {shipment?.reference}</DialogTitle>
@@ -443,7 +368,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
               value={editForm.stage_id?.toString() || ''}
               onValueChange={(value) => setEditForm(prev => ({ ...prev, stage_id: parseInt(value) }))}
             >
-              {/* @ts-expect-error - SelectTrigger className */}
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar estado" />
               </SelectTrigger>
@@ -466,7 +390,6 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
               value={editForm.priority}
               onValueChange={(value) => setEditForm(prev => ({ ...prev, priority: value }))}
             >
-              {/* @ts-expect-error - SelectTrigger className */}
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar prioridad" />
               </SelectTrigger>
@@ -481,64 +404,18 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
           <div className="space-y-2">
             <label className="text-sm font-medium">Transportista</label>
-            <div className="relative">
-              <Input
-                value={transporterSearch}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setTransporterSearch(v);
-                  setShowTransporterOptions(true);
-                  if (!v) {
-                    setEditForm(prev => ({ ...prev, transportista_id: undefined }));
-                  }
-                }}
-                onFocus={() => {
-                  setShowTransporterOptions(true);
-                  if (users.length === 0) searchUsersDebounced('');
-                }}
-                onBlur={() => setTimeout(() => setShowTransporterOptions(false), 200)}
-                placeholder="Buscar transportista..."
-              />
-              {showTransporterOptions && (
-                <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                  {searchingUsers ? (
-                    <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                      Buscando...
-                    </div>
-                  ) : users.length > 0 ? (
-                    users.map((user) => {
-                      const firstName = user.person?.first_name || '';
-                      const lastName = user.person?.last_name || '';
-                      const email = user.email || '';
-                      const name = firstName && lastName ? `${firstName} ${lastName}` : email || 'Usuario sin nombre';
-
-                      return (
-                        <div
-                          key={user.id}
-                          className="p-2 cursor-pointer hover:bg-gray-100"
-                          role="button"
-                          tabIndex={0}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setEditForm(prev => ({ ...prev, transportista_id: user.id }));
-                            setTransporterSearch(`${name} (${email})`);
-                            setShowTransporterOptions(false);
-                          }}
-                        >
-                          {name} ({email})
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                      {transporterSearch.trim() ? 'No se encontraron usuarios' : 'Escriba para buscar'}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            <Autocomplete
+              options={transporters.map(t => ({
+                value: t.id.toString(),
+                label: t.person
+                  ? `${t.person.first_name} ${t.person.last_name}`.trim()
+                  : t.email
+              }))}
+              value={editForm.transportista_id?.toString() || ""}
+              onValueChange={(val) => setEditForm(prev => ({ ...prev, transportista_id: val ? parseInt(val) : undefined }))}
+              placeholder={loadingTransporters ? "Cargando..." : "Seleccionar transportista"}
+              emptyText="No se encontró transportista."
+            />
           </div>
 
           <div className="space-y-2">
@@ -559,7 +436,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 }}
                 onFocus={() => {
                   setShowCustomerOptions(true);
-                  if (customers.length === 0) searchCustomersDebounced('');
+                  if (customers.length === 0) searchCustomers('');
                 }}
                 onBlur={() => setTimeout(() => setShowCustomerOptions(false), 200)}
                 placeholder="Buscar cliente para el envío..."
@@ -800,7 +677,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
                 Entrega Estimada
               </label>
               <Input
-                type="date"
+                type="datetime-local"
                 value={editForm.estimated_delivery_date}
                 onChange={(e) => setEditForm(prev => ({ ...prev, estimated_delivery_date: e.target.value }))}
                 className="rounded-xl"
@@ -867,17 +744,13 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       </DialogContent>
 
       <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
-        {/* @ts-expect-error - Radix type issues */}
         <DialogContent className="max-w-md">
-          {/* @ts-expect-error - Radix type issues */}
           <DialogHeader>
-            {/* @ts-expect-error - Radix type issues */}
             <DialogTitle className="flex items-center gap-2 text-red-600">
               ¿Confirmas cancelar este envío?
             </DialogTitle>
-            {/* @ts-expect-error - Radix type issues */}
             <DialogDescription>
-              Esta acción no se puede deshacer. El envío será eliminado y los pedidos asociados quedarán disponibles para un nuevo envío.
+              ¿Estás seguro que deseas cancelar este envío? Esta acción no se puede deshacer y liberará los pedidos asociados.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-3 pt-4">

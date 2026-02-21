@@ -7,6 +7,8 @@ export type { BranchLike };
 
 interface BranchContextType {
   branches: BranchLike[];
+  /** Todas las sucursales activas del sistema (para ver stock de otras sucursales) */
+  allBranches: BranchLike[];
   // Compat: primera seleccionada
   selectedBranch: BranchLike | null;
   // Multi selección
@@ -26,10 +28,11 @@ interface BranchProviderProps {
 }
 
 export function BranchProvider({ children }: BranchProviderProps) {
-  const { isLoading: isAuthLoading, user } = useAuth();
+  const { isLoading: isAuthLoading, user, hasPermission } = useAuth();
   const { request } = useApi();
 
   const [branches, setBranches] = useState<BranchLike[]>([]);
+  const [allBranches, setAllBranches] = useState<BranchLike[]>([]);
   const [isBranchesLoading, setIsBranchesLoading] = useState<boolean>(false);
   const [selectedBranchIds, setSelectedBranchIdsState] = useState<string[]>([]);
   const [selectionChangeToken, setSelectionChangeToken] = useState<number>(0);
@@ -67,10 +70,22 @@ export function BranchProvider({ children }: BranchProviderProps) {
 
         // Obtener datos completos de sucursales desde la API
         const response = await request({ method: 'GET', url: '/branches' });
-        const allBranches = response?.data || response || [];
+        const apiBranches = response?.data || response || [];
+
+        // Si el usuario tiene permiso de ver stock de otras sucursales,
+        // exponer todas las branches activas; si no, solo las asignadas
+        const allActiveBranches = apiBranches
+          .filter((b: any) => isActiveBranch(b))
+          .map((b: any) => ({
+            id: b.id,
+            description: b.description || b.name || `Sucursal ${b.id}`,
+            cuit: b.cuit,
+            enabled_receipt_types: b.enabled_receipt_types,
+            ...b,
+          }));
 
         // Filtrar solo las sucursales del usuario y que estén activas
-        const list = allBranches
+        const list = apiBranches
           .filter((b: any) => {
             const match = userBranchIds.includes(String(b.id));  // Normalizar a string
             const active = isActiveBranch(b);
@@ -85,6 +100,7 @@ export function BranchProvider({ children }: BranchProviderProps) {
           }));
 
         setBranches(list);
+        setAllBranches(hasPermission('ver_stock_otras_sucursales') ? allActiveBranches : list);
       } catch (error) {
         console.error('Error loading branches:', error);
         // Fallback: usar las sucursales del usuario sin datos completos
@@ -97,6 +113,7 @@ export function BranchProvider({ children }: BranchProviderProps) {
             ...b,
           }));
         setBranches(list);
+        setAllBranches(list); // Sin datos de API, fallback a branches del usuario
       } finally {
         setIsBranchesLoading(false);
       }
@@ -209,6 +226,7 @@ export function BranchProvider({ children }: BranchProviderProps) {
     <BranchContext.Provider
       value={{
         branches,
+        allBranches,
         selectedBranch,
         selectedBranchIds,
         setSelectedBranchIds,

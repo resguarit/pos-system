@@ -9,12 +9,45 @@ import {
   ConfigureVisibilityRequest 
 } from '@/types/shipment';
 
+export const sanitizeShipmentFilters = (filters: Record<string, any> = {}): Record<string, any> => {
+  return Object.entries(filters).reduce<Record<string, any>>((acc, [key, value]) => {
+    if (value === undefined || value === null) {
+      return acc;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return acc;
+      }
+      acc[key] = trimmed;
+      return acc;
+    }
+
+    if (Array.isArray(value)) {
+      const normalized = value
+        .map((item) => (typeof item === 'string' ? item.trim() : item))
+        .filter((item) => item !== '' && item !== undefined && item !== null);
+
+      if (normalized.length === 0) {
+        return acc;
+      }
+
+      acc[key] = normalized;
+      return acc;
+    }
+
+    acc[key] = value;
+    return acc;
+  }, {});
+};
+
 class ShipmentService {
 
   // Shipment methods
   async getShipments(filters: Record<string, any> = {}): Promise<any> {
     try {
-      const response = await api.get('/shipments', { params: filters });
+      const response = await api.get('/shipments', { params: sanitizeShipmentFilters(filters) });
       
       // Normalizar la respuesta para asegurar que siempre tengamos un array
       let shipmentsData: Shipment[] = [];

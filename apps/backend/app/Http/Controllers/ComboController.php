@@ -13,7 +13,8 @@ class ComboController extends Controller
 {
     public function __construct(
         private readonly ComboServiceInterface $comboService
-    ) {}
+    ) {
+    }
 
     /**
      * Listar todos los combos
@@ -49,14 +50,14 @@ class ComboController extends Controller
     {
         try {
             $combo = $this->comboService->getById($id);
-            
+
             if (!$combo) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Combo no encontrado'
                 ], 404);
             }
-            
+
             $priceCalculation = $this->comboService->calculatePrice($id);
 
             return response()->json([
@@ -89,9 +90,14 @@ class ComboController extends Controller
                 'discount_value' => 'required|numeric|min:0',
                 'is_active' => 'boolean',
                 'notes' => 'nullable|string|max:1000',
-                'items' => 'required|array|min:1',
-                'items.*.product_id' => 'required|exists:products,id',
-                'items.*.quantity' => 'required|integer|min:1',
+                'items' => 'sometimes|array',
+                'items.*.product_id' => 'required_with:items|exists:products,id',
+                'items.*.quantity' => 'required_with:items|integer|min:1',
+                'groups' => 'sometimes|array',
+                'groups.*.name' => 'required_with:groups|string|max:255',
+                'groups.*.required_quantity' => 'required_with:groups|integer|min:1',
+                'groups.*.options' => 'required_with:groups|array|min:1',
+                'groups.*.options.*.product_id' => 'required_with:groups|exists:products,id',
             ]);
 
             // Validación adicional usando el servicio
@@ -138,9 +144,14 @@ class ComboController extends Controller
                 'discount_value' => 'sometimes|numeric|min:0',
                 'is_active' => 'boolean',
                 'notes' => 'nullable|string|max:1000',
-                'items' => 'sometimes|array|min:1',
+                'items' => 'sometimes|array',
                 'items.*.product_id' => 'required_with:items|exists:products,id',
                 'items.*.quantity' => 'required_with:items|integer|min:1',
+                'groups' => 'sometimes|array',
+                'groups.*.name' => 'required_with:groups|string|max:255',
+                'groups.*.required_quantity' => 'required_with:groups|integer|min:1',
+                'groups.*.options' => 'required_with:groups|array|min:1',
+                'groups.*.options.*.product_id' => 'required_with:groups|exists:products,id',
             ]);
 
             // Validación adicional usando el servicio

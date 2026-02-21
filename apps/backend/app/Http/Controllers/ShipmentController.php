@@ -149,7 +149,7 @@ class ShipmentController extends Controller
 
         try {
             // Obtener todos los envíos de las sucursales especificadas
-            $query = Shipment::with(['currentStage', 'creator.person', 'sales.customer.person', 'sales.receiptType'])
+            $query = Shipment::with(['currentStage', 'creator.person', 'sales.customer.person', 'sales.receiptType', 'sales.salePayments.paymentMethod'])
                 ->whereIn('branch_id', $branchIds);
 
             // Aplicar filtros de stage_id

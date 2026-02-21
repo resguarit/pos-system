@@ -143,6 +143,30 @@ class UserController extends Controller
         return response()->json(['message' => 'Sucursales actualizadas']);
     }
 
+    public function getTransporters(Request $request)
+    {
+        try {
+            $transporters = User::with(['person:id,first_name,last_name'])
+                ->where('active', true)
+                ->where('hidden', false)
+                ->select('id', 'email', 'person_id')
+                ->get();
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'data' => $transporters,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching transporters: ' . $e->getMessage());
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error interno del servidor'
+            ], 500);
+        }
+    }
+
     // Obtener sucursales asignadas a un usuario
     public function getUserBranches($id)
     {

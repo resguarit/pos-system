@@ -49,6 +49,7 @@ class PermissionSeeder extends Seeder
 
             // Stock e Inventario
             ['name' => 'ver_stock', 'description' => 'Ver niveles de stock', 'module' => 'inventario'],
+            ['name' => 'ver_stock_otras_sucursales', 'description' => 'Ver stock de todas las sucursales (solo lectura)', 'module' => 'inventario'],
             ['name' => 'ajustar_stock', 'description' => 'Realizar ajustes de stock', 'module' => 'inventario'],
             ['name' => 'ver_alertas_stock', 'description' => 'Ver alertas de stock bajo', 'module' => 'inventario'],
             ['name' => 'realizar_inventario', 'description' => 'Realizar toma de inventario', 'module' => 'inventario'],

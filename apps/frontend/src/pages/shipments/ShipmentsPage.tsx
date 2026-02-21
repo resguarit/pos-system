@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { Shipment, ShipmentStage } from '@/types/shipment';
+import { Shipment, ShipmentStage, User, Customer } from '@/types/shipment';
 import { shipmentService } from '@/services/shipmentService';
 import ShipmentTable from '@/components/shipments/ShipmentTable';
 import ShipmentDetail from '@/components/shipments/ShipmentDetail';
@@ -10,6 +10,7 @@ import { EditShipmentDialog } from '@/components/shipments/EditShipmentDialog';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import useApi from '@/hooks/useApi';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { useMultipleBranchesShipments } from '@/hooks/useMultipleBranchesShipments';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,8 +21,8 @@ import { toast } from 'sonner';
 import SelectBranchPlaceholder from '@/components/ui/select-branch-placeholder';
 import Pagination from '@/components/ui/pagination';
 import { DatePickerWithRange, DateRange } from '@/components/ui/date-range-picker';
-
-
+import { Autocomplete } from '@/components/ui/autocomplete';
+import { useTransporters } from '@/hooks/useTransporters';
 /**
  * Clasificación de Estados de Envío basada en el campo 'order' del stage:
  * - order = 1: Pendiente (Pendiente)
@@ -57,17 +58,16 @@ export default function ShipmentsPage() {
 
   // Estados para búsqueda de clientes y transportistas
   const [customerSearch, setCustomerSearch] = useState('');
-  const [transporterSearch, setTransporterSearch] = useState('');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [customers, setCustomers] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [users, setUsers] = useState<any[]>([]);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
-  const [searchingCustomers, setSearchingCustomers] = useState(false);
-  const [searchingUsers, setSearchingUsers] = useState(false);
-  const customerSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const transporterSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { transporters, loading: loadingTransporters } = useTransporters();
+
+  // Búsqueda server-side con debounce
+  const {
+    results: customers,
+    isSearching: searchingCustomers,
+    search: searchCustomersDebounced,
+    clear: clearCustomers,
+  } = useDebouncedSearch<Customer>({ endpoint: '/customers' });
 
   const [filters, setFilters] = useState({
     stage_id: '',
@@ -125,7 +125,8 @@ export default function ShipmentsPage() {
         // Las estadísticas vienen del hook useMultipleBranchesShipments
       } else {
         // Cargar envíos de una sola sucursal
-        const shipmentsResponse = await shipmentService.getShipments({ ...filters, per_page: perPage, page });
+        const singleBranchId = currentBranchIds.length === 1 ? currentBranchIds[0] : undefined;
+        const shipmentsResponse = await shipmentService.getShipments({ ...filters, branch_id: singleBranchId, per_page: perPage, page });
         const shipmentsData = Array.isArray(shipmentsResponse.data)
           ? shipmentsResponse.data
           : [];
@@ -169,50 +170,7 @@ export default function ShipmentsPage() {
     }
   }, [authLoading, fetchData]);
 
-  // Debounced server-side search for customers
-  const searchCustomersDebounced = useCallback((term: string) => {
-    if (customerSearchTimerRef.current) clearTimeout(customerSearchTimerRef.current);
-    setSearchingCustomers(true);
-    customerSearchTimerRef.current = setTimeout(async () => {
-      try {
-        const params = new URLSearchParams();
-        if (term.trim()) params.append('search', term.trim());
-        const response = await request({ method: 'GET', url: `/customers?${params.toString()}` });
-        if (response?.data) {
-          const customersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-          setCustomers(customersData);
-        }
-      } catch (error) {
-        console.error('Error searching customers:', error);
-        setCustomers([]);
-      } finally {
-        setSearchingCustomers(false);
-      }
-    }, 300);
-  }, [request]);
 
-  // Debounced server-side search for transportistas
-  const searchUsersDebounced = useCallback((term: string) => {
-    if (transporterSearchTimerRef.current) clearTimeout(transporterSearchTimerRef.current);
-    setSearchingUsers(true);
-    transporterSearchTimerRef.current = setTimeout(async () => {
-      try {
-        const params = new URLSearchParams();
-        if (term.trim()) params.append('search', term.trim());
-        params.append('limit', '20');
-        const response = await request({ method: 'GET', url: `/users?${params.toString()}` });
-        if (response?.data) {
-          const usersData = Array.isArray(response.data) ? response.data : response.data.data || [];
-          setUsers(usersData);
-        }
-      } catch (error) {
-        console.error('Error searching users:', error);
-        setUsers([]);
-      } finally {
-        setSearchingUsers(false);
-      }
-    }, 300);
-  }, [request]);
 
   // Función para ver detalles de una sucursal específica
   // Función para volver a la vista de múltiples sucursales
@@ -329,9 +287,8 @@ export default function ShipmentsPage() {
       branch: '',
     });
     setCustomerSearch('');
-    setTransporterSearch('');
+    clearCustomers();
     setCurrentPage(1);
-    setTimeout(() => fetchData(1), 100);
   };
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
@@ -655,28 +612,45 @@ export default function ShipmentsPage() {
       </div>
 
       {/* Search and Filters Row */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-4">
         {/* Search */}
-        <div className="flex-1 max-w-xs">
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por referencia o ciudad..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8"
-            />
-          </div>
+        <div className="flex-1 max-w-none sm:max-w-xs relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar referencia o ciudad..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 bg-white"
+          />
+        </div>
+
+        {/* Quick Transporter Filter */}
+        <div className="w-full sm:w-[250px]">
+          <Autocomplete
+            options={transporters.map(t => ({
+              value: t.id.toString(),
+              label: t.person
+                ? `${t.person.first_name} ${t.person.last_name}`.trim()
+                : t.email
+            }))}
+            value={filters.transporter}
+            onValueChange={(val) => {
+              handleFilterChange('transporter', val);
+            }}
+            placeholder={loadingTransporters ? "Cargando transportistas..." : "Filtro: Todo el personal"}
+            emptyText="No se encontró transportista."
+            className="bg-white"
+          />
         </div>
 
         {/* Filter Button */}
         <Button
-          variant="outline"
+          variant={showFilters ? "default" : "outline"}
           onClick={() => setShowFilters(!showFilters)}
-          className="gap-2"
+          className="gap-2 shrink-0 bg-white sm:bg-transparent"
         >
           <Filter className="h-4 w-4" />
-          Filtros
+          Filtros Especiales
         </Button>
       </div>
 
@@ -817,63 +791,6 @@ export default function ShipmentsPage() {
                 )}
               </div>
 
-              <div className="relative">
-                <label className="text-sm font-medium mb-2 block">Transportista</label>
-                <Input
-                  placeholder="Buscar transportista..."
-                  value={transporterSearch}
-                  onFocus={() => {
-                    setShowTransporterDropdown(true);
-                    if (users.length === 0) searchUsersDebounced('');
-                  }}
-                  onChange={(e) => {
-                    setTransporterSearch(e.target.value);
-                    setShowTransporterDropdown(true);
-                    searchUsersDebounced(e.target.value);
-                    if (!e.target.value) {
-                      handleFilterChange('transporter', '');
-                    }
-                  }}
-                  onBlur={() => setTimeout(() => setShowTransporterDropdown(false), 200)}
-                />
-                {showTransporterDropdown && (
-                  <div className="absolute z-10 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {searchingUsers ? (
-                      <div className="flex items-center justify-center py-4 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        Buscando...
-                      </div>
-                    ) : users.length > 0 ? (
-                      users.map(user => (
-                        <div
-                          key={user.id}
-                          className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            const name = user.person
-                              ? `${user.person.first_name} ${user.person.last_name}`.trim()
-                              : user.username || user.email || `ID: ${user.id}`;
-                            setTransporterSearch(name);
-                            handleFilterChange('transporter', user.id.toString());
-                            setShowTransporterDropdown(false);
-                          }}
-                        >
-                          <div className="text-sm font-medium">
-                            {user.person
-                              ? `${user.person.first_name} ${user.person.last_name}`.trim()
-                              : user.username || 'Sin nombre'}
-                          </div>
-                          {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-sm text-muted-foreground text-center">
-                        {transporterSearch.trim() ? 'No se encontraron transportistas' : 'Escriba para buscar'}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
 
               <div>
                 <label className="text-sm font-medium mb-2 block">Referencia</label>
@@ -957,8 +874,6 @@ export default function ShipmentsPage() {
         onPrintShipment={handlePrintShipment}
         onDownloadShipment={handleDownloadShipment}
         loading={loading || allShipmentsLoading}
-        showBranchColumn={selectedBranchIdsArray.length > 1}
-        getBranchInfo={getBranchInfo}
       />
 
       {/* Paginación */}
