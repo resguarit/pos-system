@@ -91,40 +91,75 @@ export const ComboDetailsDialog: React.FC<ComboDetailsDialogProps> = ({
 
         {/* Layout en dos columnas: Componentes + Descuento */}
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
-          {/* Componentes del combo */}
-          {combo.combo_items && combo.combo_items.length > 0 && (
-            <Card>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="text-base">Componentes del Combo</CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-3 pt-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Producto</TableHead>
-                      <TableHead>Cantidad</TableHead>
-                      <TableHead>Precio Unit.</TableHead>
-                      <TableHead>Subtotal</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {combo.combo_items.map((item, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium py-2">
-                          {item.product?.description || 'Producto no disponible'}
-                        </TableCell>
-                        <TableCell className="py-2">
-                          <Badge variant="outline">{item.quantity}</Badge>
-                        </TableCell>
-                        <TableCell className="py-2">{formatCurrency(item.product?.sale_price || 0)}</TableCell>
-                        <TableCell className="py-2">{formatCurrency((item.product?.sale_price || 0) * item.quantity)}</TableCell>
+          {/* Columna Izquierda: Componentes y Grupos */}
+          <div className="space-y-4">
+            {/* Componentes del combo */}
+            {combo.combo_items && combo.combo_items.length > 0 && (
+              <Card>
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-base">Componentes Fijos del Combo</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 pt-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Producto</TableHead>
+                        <TableHead>Cantidad</TableHead>
+                        <TableHead>Precio Unit.</TableHead>
+                        <TableHead>Subtotal</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          )}
+                    </TableHeader>
+                    <TableBody>
+                      {combo.combo_items.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium py-2">
+                            {item.product?.description || 'Producto no disponible'}
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <Badge variant="outline">{item.quantity}</Badge>
+                          </TableCell>
+                          <TableCell className="py-2">{formatCurrency(item.product?.sale_price || 0)}</TableCell>
+                          <TableCell className="py-2">{formatCurrency((item.product?.sale_price || 0) * item.quantity)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Grupos personalizables */}
+            {combo.groups && combo.groups.length > 0 && (
+              <Card>
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="text-base">Grupos Personalizables (Opciones)</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3 pt-0 space-y-3">
+                  {combo.groups.map((group, index) => (
+                    <div key={index} className="border rounded-md p-3 bg-gray-50/50">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-medium text-sm text-gray-900">{group.name}</span>
+                        <Badge variant="secondary" className="text-xs">
+                          Elegir {group.required_quantity}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-1">
+                        {group.options && group.options.length > 0 ? (
+                          group.options.map((opt, optIndex) => (
+                            <Badge key={optIndex} variant="outline" className="bg-white text-gray-700">
+                              {opt.product?.description || 'Producto no disponible'}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-muted-foreground italic text-xs">Sin opciones configuradas</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           {/* Información del descuento */}
           <Card className="md:w-64 h-fit">

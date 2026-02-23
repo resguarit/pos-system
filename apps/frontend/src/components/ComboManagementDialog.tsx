@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,15 +10,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Plus, Search, Barcode, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { getProducts } from '@/lib/api/productService';
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { createCombo, updateCombo } from '@/lib/api/comboService';
-import type { Combo, ComboItemForm, ComboGroup, ComboGroupOption } from '@/types/combo';
+import type { Combo, ComboItemForm } from '@/types/combo';
 import type { Product } from '@/types/product';
 
 export interface ComboGroupForm {
@@ -46,22 +45,56 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
   const [discountValue, setDiscountValue] = useState(0);
   const [items, setItems] = useState<ComboItemForm[]>([]);
   const [groups, setGroups] = useState<ComboGroupForm[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addTarget, setAddTarget] = useState<string>('fixed');
   const [loading, setLoading] = useState(false);
 
   // Estados para el buscador
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
+
+  const {
+    results: filteredProducts,
+    isSearching,
+    search: searchProductsDebounced,
+    clear: clearSearchDebounced,
+  } = useDebouncedSearch<Product>({
+    endpoint: '/products',
+    extraParams: { per_page: '20' },
+    extractData: (res: any) => {
+      const data = res?.data?.data || res?.data || (Array.isArray(res) ? res : []);
+      return (Array.isArray(data) ? data : []).map((product: any) => ({
+        id: parseInt(product.id),
+        description: product.name || product.description || '',
+        code: product.code || product.sku || product.id.toString(),
+        measure_id: product.measure_id || 1,
+        unit_price: product.unit_price || product.sale_price || '0',
+        currency: product.currency || 'ARS',
+        markup: product.markup || '0',
+        category_id: product.category_id || 1,
+        iva_id: product.iva_id || 1,
+        image_id: product.image_id || null,
+        supplier_id: product.supplier_id || 1,
+        status: product.status || true,
+        web: product.web || false,
+        observaciones: product.observaciones || null,
+        created_at: product.created_at || new Date().toISOString(),
+        updated_at: product.updated_at || new Date().toISOString(),
+        deleted_at: product.deleted_at || null,
+        sale_price: product.sale_price || parseFloat(product.unit_price) || 0,
+        measure: product.measure || { id: 1, name: 'Unidad', created_at: '', updated_at: '', deleted_at: null },
+        category: product.category || { id: 1, name: 'General', description: '', parent_id: null, created_at: '', updated_at: '', deleted_at: null },
+        iva: product.iva || { id: 1, name: 'IVA', rate: 0, created_at: '', updated_at: '', deleted_at: null },
+        supplier: product.supplier || { id: 1, name: 'General', contact_name: null, phone: '', email: '', cuit: '', address: '', status: 'active', created_at: '', updated_at: '', deleted_at: null },
+        stocks: product.stocks || []
+      }));
+    }
+  });
 
   const isEditing = !!combo;
 
   useEffect(() => {
     if (open) {
-      loadProducts();
       if (combo) {
         setName(combo.name);
         setDescription(combo.description || '');
@@ -91,42 +124,6 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     }
   }, [open, combo]);
 
-  const loadProducts = async () => {
-    try {
-      const productsData = await getProducts();
-      // Convert the products to match our Product type
-      const convertedProducts: Product[] = productsData.map((product: any) => ({
-        id: parseInt(product.id),
-        description: product.name || product.description || '',
-        code: product.code || product.sku || product.id.toString(),
-        measure_id: product.measure_id || 1,
-        unit_price: product.unit_price || product.sale_price || '0',
-        currency: product.currency || 'ARS',
-        markup: product.markup || '0',
-        category_id: product.category_id || 1,
-        iva_id: product.iva_id || 1,
-        image_id: product.image_id || null,
-        supplier_id: product.supplier_id || 1,
-        status: product.status || true,
-        web: product.web || false,
-        observaciones: product.observaciones || null,
-        created_at: product.created_at || new Date().toISOString(),
-        updated_at: product.updated_at || new Date().toISOString(),
-        deleted_at: product.deleted_at || null,
-        sale_price: product.sale_price || parseFloat(product.unit_price) || 0,
-        measure: product.measure || { id: 1, name: 'Unidad', created_at: '', updated_at: '', deleted_at: null },
-        category: product.category || { id: 1, name: 'General', description: '', parent_id: null, created_at: '', updated_at: '', deleted_at: null },
-        iva: product.iva || { id: 1, name: 'IVA', rate: 0, created_at: '', updated_at: '', deleted_at: null },
-        supplier: product.supplier || { id: 1, name: 'General', contact_name: null, phone: '', email: '', cuit: '', address: '', status: 'active', created_at: '', updated_at: '', deleted_at: null },
-        stocks: product.stocks || []
-      }));
-      setProducts(convertedProducts);
-    } catch (error) {
-      console.error('Error loading products:', error);
-      toast.error('Error al cargar productos');
-    }
-  };
-
   const resetForm = () => {
     setName('');
     setDescription('');
@@ -137,41 +134,9 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     setSelectedProduct(null);
     setAddTarget('fixed');
     setSearchQuery('');
-    setFilteredProducts([]);
+    clearSearchDebounced();
     setShowSearchResults(false);
   };
-
-  // Función para filtrar productos con debounce
-  const searchProducts = useCallback((query: string) => {
-    if (!query.trim()) {
-      setFilteredProducts([]);
-      setShowSearchResults(false);
-      return;
-    }
-
-    setIsSearching(true);
-
-    const filtered = products.filter(product => {
-      const searchLower = query.toLowerCase();
-      const nameMatch = product.description.toLowerCase().includes(searchLower);
-      const codeMatch = product.code.toLowerCase().includes(searchLower);
-
-      return nameMatch || codeMatch;
-    });
-
-    setFilteredProducts(filtered);
-    setShowSearchResults(true);
-    setIsSearching(false);
-  }, [products]);
-
-  // Debounce para la búsqueda
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      searchProducts(searchQuery);
-    }, 300);
-
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchProducts]);
 
   // Cerrar resultados cuando se hace clic fuera
   useEffect(() => {
@@ -192,6 +157,11 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     setSearchQuery(value);
     if (!value.trim()) {
       setSelectedProduct(null);
+      clearSearchDebounced();
+      setShowSearchResults(false);
+    } else {
+      searchProductsDebounced(value);
+      setShowSearchResults(true);
     }
   };
 
@@ -204,6 +174,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
   const handleClearSearch = () => {
     setSearchQuery('');
     setSelectedProduct(null);
+    clearSearchDebounced();
     setShowSearchResults(false);
   };
 
