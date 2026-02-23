@@ -23,20 +23,20 @@ interface UseCashRegisterReturn {
   paymentMethods: any[] // TODO: Create PaymentMethod type
   registerHistory: CashRegister[]
   isLoading: boolean
-  
+
   // Operaciones
   loadCurrentCashRegister: (branchId: number) => Promise<void>
   openCashRegister: (data: OpenCashRegisterRequest) => Promise<CashRegister>
   closeCashRegister: (registerId: number, data: CloseCashRegisterRequest) => Promise<void>
   addMovement: (data: CreateMovementRequest, opts?: MovementPaginationOptions) => Promise<CashMovement>
   deleteMovement: (movementId: number, opts?: MovementPaginationOptions) => Promise<void>
-  loadMovements: (cashRegisterId: number, page?: number, perPage?: number, q?: string, cashOnly?: boolean) => Promise<void>
+  loadMovements: (cashRegisterId: number, page?: number, perPage?: number, q?: string, cashOnly?: boolean, movementTypeId?: string) => Promise<void>
   loadAllMovements: (cashRegisterId: number) => Promise<void>
   loadMovementTypes: () => Promise<void>
   loadPaymentMethods: () => Promise<void>
   loadRegisterHistory: (branchId: number, fromDate?: Date, toDate?: Date) => Promise<void>
   loadCashOnlyMovements: (cashRegisterId: number, page?: number, perPage?: number, q?: string) => Promise<void>
-  
+
   // Cálculos
   calculateBalance: () => number
   calculateTodayIncome: () => number
@@ -46,15 +46,15 @@ interface UseCashRegisterReturn {
 
 export const useCashRegister = (): UseCashRegisterReturn => {
   const { request } = useApi()
-  
+
   // Estados
   const [currentRegister, setCurrentRegister] = useState<CashRegister | null>(null)
   const [movements, setMovements] = useState<CashMovement[]>([])
   const [allMovements, setAllMovements] = useState<CashMovement[]>([])
-  const [movementsMeta, setMovementsMeta] = useState<MovementsPaginationMeta>({ 
-    currentPage: 1, 
-    perPage: 10, 
-    total: 0, 
+  const [movementsMeta, setMovementsMeta] = useState<MovementsPaginationMeta>({
+    currentPage: 1,
+    perPage: 10,
+    total: 0,
     lastPage: 1 // Added default value for lastPage
   })
   const [movementTypes, setMovementTypes] = useState<MovementType[]>([])
@@ -65,9 +65,9 @@ export const useCashRegister = (): UseCashRegisterReturn => {
   // Cargar caja actual
   // En tu archivo useCashRegister.ts
 
-// En useCashRegister.ts
+  // En useCashRegister.ts
 
-const loadCurrentCashRegister = useCallback(async (branchId: number) => {
+  const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     try {
       setIsLoading(true);
       const response = await request({
@@ -77,19 +77,19 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
 
       // 1. CORRECCIÓN: Leemos la ruta correcta al objeto de la caja.
       // La API devuelve el registro dentro de `response.data.data` si es un wrapper, o directamente en `response.data`.
-      const registerData = response.data?.data || response.data; 
-      
+      const registerData = response.data?.data || response.data;
+
       if (registerData && registerData.id) {
         // 2. RESPONSABILIDAD ÚNICA: Solo actualizamos el estado de la caja.
         setCurrentRegister(registerData);
-        
+
         // Si la caja está cerrada, limpiar los movimientos
         if (registerData.status !== 'open') {
           setMovements([]);
           setAllMovements([]);
           setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 });
         }
-        
+
         // 3. LÍNEA ELIMINADA: Ya no llamamos a loadMovements desde aquí.
         // Esto evita la llamada redundante y la condición de carrera.
         // await loadMovements(response.data.id); 
@@ -114,20 +114,20 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
   }, [request]); // El array de dependencias queda limpio.
 
   // Abrir caja
-  const openCashRegister = useCallback(async (data: { 
+  const openCashRegister = useCallback(async (data: {
     branch_id: number
     user_id: number
     opening_balance: number
-    notes?: string 
+    notes?: string
   }) => {
     setIsLoading(true)
-    
+
     // Limpiar estado anterior inmediatamente
     setCurrentRegister(null)
     setMovements([])
     setAllMovements([]) // Limpiar también allMovements al abrir una nueva caja
     setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
-    
+
     try {
       // Mapear opening_balance a initial_amount para el backend
       const backendData = {
@@ -148,7 +148,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
       setAllMovements([]) // Asegurar que allMovements esté limpio para la nueva caja
       setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
       toast.success('Caja abierta exitosamente')
-      
+
       return response.data
     } catch (error: any) {
       console.error('Error opening cash register:', error)
@@ -169,7 +169,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     data: CloseCashRegisterRequest
   ): Promise<void> => {
     setIsLoading(true)
-    
+
     try {
       // Mapear closing_balance a final_amount para el backend
       const backendData = {
@@ -207,12 +207,12 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     if (Array.isArray(apiResponse?.data)) {
       return apiResponse.data
     }
-    
+
     // Si apiResponse es directamente un array (respuesta sin paginación)
     if (Array.isArray(apiResponse)) {
       return apiResponse
     }
-    
+
     return []
   }
 
@@ -242,7 +242,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     }
   }, [request])
 
-  const loadMovements = useCallback(async (cashRegisterId: number, page: number = 1, perPage: number = 10, q: string = '', cashOnly: boolean = false) => {
+  const loadMovements = useCallback(async (cashRegisterId: number, page: number = 1, perPage: number = 10, q: string = '', cashOnly: boolean = false, movementTypeId?: string) => {
     try {
       const params: any = {
         cash_register_id: cashRegisterId,
@@ -253,7 +253,10 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
       if (cashOnly) {
         params.cash_only = 'true'
       }
-      
+      if (movementTypeId && movementTypeId !== 'all') {
+        params.movement_type_id = movementTypeId
+      }
+
       // IMPORTANTE: useApi.request() ya devuelve response.data, no el objeto response completo
       // Entonces 'apiResponse' es directamente el body: { current_page, data: [...], last_page, ... }
       const apiResponse = await request({
@@ -261,11 +264,11 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
         url: `/cash-movements`,
         params,
       })
-      
+
       // Extraer los movimientos del array 'data' dentro de la respuesta paginada
       const items = extractMovementsFromApiResponse(apiResponse)
       setMovements(items)
-      
+
       // Extraer metadatos de paginación directamente de apiResponse
       // Laravel devuelve: { current_page, data: [...], last_page, per_page, total, ... }
       const meta = {
@@ -274,7 +277,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
         total: apiResponse?.total ?? items.length,
         lastPage: apiResponse?.last_page ?? Math.ceil((apiResponse?.total ?? items.length) / (apiResponse?.per_page ?? perPage))
       }
-      
+
       setMovementsMeta(meta)
     } catch (error) {
       console.error('Error loading cash movements:', error)
@@ -296,7 +299,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     opts?: MovementPaginationOptions
   ): Promise<CashMovement> => {
     setIsLoading(true)
-    
+
     try {
       const response = await request({
         method: 'POST',
@@ -305,22 +308,22 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
       })
 
       toast.success('Movimiento registrado exitosamente')
-      
+
       // Extract created movement from response
       const newMovement = response?.data?.data || response?.data
-      
+
       // Optimistic update: Add movement to allMovements if it belongs to current register
       if (newMovement && currentRegister?.id === newMovement.cash_register_id) {
         setAllMovements(prev => {
           // Check if movement already exists (idempotency)
           const exists = prev.some(m => m.id === newMovement.id)
           if (exists) return prev
-          
+
           // Add to beginning of list (most recent first)
           return [newMovement, ...prev]
         })
       }
-      
+
       // Reload paginated movements
       await loadMovements(
         data.cash_register_id,
@@ -329,16 +332,16 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
         opts?.q || '',
         false
       )
-      
+
       // Reload all movements to ensure complete synchronization
       await loadAllMovements(data.cash_register_id)
-      
+
       return newMovement
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
+      const errorMessage = error instanceof Error
+        ? error.message
         : (error as any)?.response?.data?.message || 'Error al registrar el movimiento'
-      
+
       console.error('Error adding movement:', error)
       toast.error(errorMessage)
       throw error
@@ -363,7 +366,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
       })
 
       toast.success('Movimiento eliminado exitosamente')
-      
+
       if (currentRegister) {
         // Recargar movimientos paginados
         await loadMovements(currentRegister.id, opts?.page ?? 1, opts?.perPage ?? 10, opts?.q || '', false)
@@ -384,7 +387,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
         method: 'GET',
         url: '/movement-types',
       })
-      
+
       const typesData = response.data?.data || response.data || []
       setMovementTypes(Array.isArray(typesData) ? typesData : [])
     } catch (error) {
@@ -401,7 +404,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
         method: 'GET',
         url: '/payment-methods',
       })
-      
+
       const methodsData = response.data?.data || response.data || []
       setPaymentMethods(Array.isArray(methodsData) ? methodsData : [])
     } catch (error) {
@@ -416,23 +419,23 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     try {
       const today = new Date()
       const thirtyDaysAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
-      
+
       const params: any = { branch_id: branchId }
       if (fromDate) params.from_date = format(fromDate, 'yyyy-MM-dd')
       if (toDate) params.to_date = format(toDate, 'yyyy-MM-dd')
-      
+
       // Si no se proporcionan fechas, usar últimos 30 días
       if (!fromDate || !toDate) {
         params.from_date = format(thirtyDaysAgo, 'yyyy-MM-dd')
         params.to_date = format(today, 'yyyy-MM-dd')
       }
-      
+
       const response = await request({
         method: 'GET',
         url: '/cash-registers/history',
         params,
       })
-      
+
       const payload = response?.data ?? response
       const items = Array.isArray(payload?.data)
         ? payload.data
@@ -575,7 +578,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     paymentMethods,
     registerHistory,
     isLoading,
-    
+
     // Operaciones
     loadCurrentCashRegister,
     openCashRegister,
@@ -588,7 +591,7 @@ const loadCurrentCashRegister = useCallback(async (branchId: number) => {
     loadPaymentMethods,
     loadRegisterHistory,
     loadCashOnlyMovements,
-    
+
     // Cálculos
     calculateBalance,
     calculateTodayIncome,

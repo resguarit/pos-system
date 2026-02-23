@@ -77,7 +77,7 @@ export const MultiBranchFilters = ({
           <SelectTrigger className="w-full sm:w-[200px]">
             <SelectValue placeholder="Tipo de movimiento" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
             <SelectItem value="all">Todos los tipos</SelectItem>
             {filterCashMovementTypes(movementTypes).map((type) => (
               <SelectItem key={type.id} value={type.id.toString()}>

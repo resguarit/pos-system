@@ -464,7 +464,7 @@ export default function CajaPage() {
   useEffect(() => {
     // Solo cargar movimientos paginados cuando sea necesario (tab actual)
     if (currentRegister?.id && canViewMovements && activeTab === "current" && selectedBranchIdsArray.length === 1) {
-      loadMovements(currentRegister.id, movementsPage, movementsPerPage, searchTerm, false)
+      loadMovements(currentRegister.id, movementsPage, movementsPerPage, searchTerm, false, movementTypeFilter)
 
       const sp = new URLSearchParams(searchParams)
       sp.set('page', String(movementsPage))
@@ -1819,7 +1819,7 @@ export default function CajaPage() {
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && currentRegister?.id) {
-                            loadMovements(currentRegister.id, 1, movementsPerPage, searchTerm)
+                            loadMovements(currentRegister.id, 1, movementsPerPage, searchTerm, false, movementTypeFilter)
                             const sp = new URLSearchParams(searchParams)
                             sp.set('page', '1')
                             sp.set('per_page', String(movementsPerPage))

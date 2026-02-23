@@ -1685,6 +1685,13 @@ class SaleService implements SaleServiceInterface
                 $canonicalDesc = 'Ingreso por venta cobrada con cheque';
             }
 
+            // Si no hay un nombre canónico, usar el nombre del método de pago dinámicamente
+            if (!$canonicalName) {
+                $originalName = trim($paymentMethod->name ?? 'otro medio');
+                $canonicalName = 'Venta por ' . $originalName;
+                $canonicalDesc = 'Ingreso por venta cobrada por ' . $originalName;
+            }
+
             if ($canonicalName) {
                 // Buscar o crear el tipo con flags correctos
                 return \App\Models\MovementType::firstOrCreate(
@@ -1698,6 +1705,10 @@ class SaleService implements SaleServiceInterface
                 );
             }
         } catch (\Throwable $t) {
+            \Illuminate\Support\Facades\Log::error('Error resolviendo MovementType: ' . $t->getMessage(), [
+                'exception' => $t,
+                'paymentMethodName' => $paymentMethod->name ?? 'null'
+            ]);
             // ignorar y permitir fallback
         }
         return null;

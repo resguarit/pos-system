@@ -33,7 +33,7 @@ import { matchesWildcard } from "@/utils/searchUtils";
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
-  const { selectedBranchIds, setSelectedBranchIds, allBranches: contextAllBranches } = useBranch();
+  const { selectedBranchIds, setSelectedBranchIds, branches: userBranches } = useBranch();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -609,10 +609,8 @@ export default function InventarioPage() {
     )
   }
 
-  // allBranches ya incluye todas las sucursales si el usuario tiene ver_stock_otras_sucursales,
-  // o solo las asignadas si no (lógica centralizada en BranchContext)
-  const stockBranches = contextAllBranches.length > 0 ? contextAllBranches : branches;
-  const branchOptions = stockBranches.map((b) => ({ value: String(b.id), label: b.description || `Sucursal ${b.id}` }))
+  // Usar las sucursales del contexto (solo las asignadas al usuario) para el filtro
+  const branchOptions = userBranches.map((b) => ({ value: String(b.id), label: b.description || `Sucursal ${b.id}` }))
   const categoryOptions = [
     ...parentCategories.map((parent) => ({
       value: String(parent.id),
