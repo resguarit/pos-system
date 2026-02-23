@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -9,11 +9,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Plus, Minus, Package, ShoppingCart } from 'lucide-react';
-import type { Combo, ComboGroup, ComboGroupOption } from '@/types/combo';
+import type { Combo, ComboGroupOption } from '@/types/combo';
 import { formatCurrency } from '@/utils/sale-calculations';
 
 interface ComboSelectionDialogProps {
@@ -89,8 +88,8 @@ export function ComboSelectionDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0 gap-0">
-                <DialogHeader className="p-6 pb-4 border-b shrink-0 bg-primary/5">
+            <DialogContent className="sm:max-w-[550px] w-[95vw] max-h-[90dvh] md:max-h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
+                <DialogHeader className="p-4 sm:p-6 pb-4 border-b shrink-0 bg-primary/5">
                     <div className="flex items-center justify-between">
                         <div>
                             <DialogTitle className="text-xl flex items-center gap-2">
@@ -106,8 +105,8 @@ export function ComboSelectionDialog({
                     </div>
                 </DialogHeader>
 
-                <ScrollArea className="flex-1 overflow-y-auto px-6 py-4 bg-muted/10">
-                    <div className="space-y-6">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 bg-muted/10">
+                    <div className="space-y-4">
                         {combo.groups && combo.groups.map((group) => {
                             const groupSelections = selections.get(group.id) || [];
                             const totalSelected = groupSelections.reduce((sum, item) => sum + item.quantity, 0);
@@ -115,14 +114,14 @@ export function ComboSelectionDialog({
                             const isComplete = totalSelected === group.required_quantity;
 
                             return (
-                                <div key={group.id} className="space-y-3 bg-background p-4 rounded-xl shadow-sm border border-border/50">
-                                    <div className="flex justify-between items-center px-1">
-                                        <h3 className="font-semibold text-base text-foreground">
+                                <div key={group.id} className="space-y-2.5 bg-background p-3.5 rounded-xl shadow-sm border border-border/50">
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 px-1">
+                                        <h3 className="font-semibold text-base text-foreground leading-tight">
                                             {group.name}
                                         </h3>
                                         <Badge
                                             variant={isComplete ? "default" : "secondary"}
-                                            className={`h-6 ${isComplete ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
+                                            className={`h-6 self-start sm:self-auto ${isComplete ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'}`}
                                         >
                                             {totalSelected} / {group.required_quantity} elegidos
                                         </Badge>
@@ -142,13 +141,13 @@ export function ComboSelectionDialog({
                                             return (
                                                 <Card
                                                     key={option.id}
-                                                    className={`flex justify-between items-center p-3 shadow-sm transition-all duration-200 ${isSelected
+                                                    className={`flex flex-col sm:flex-row justify-between sm:items-center p-2.5 shadow-sm transition-all duration-200 gap-2 sm:gap-3 ${isSelected
                                                         ? 'border-primary ring-1 ring-primary/20 bg-primary/5'
                                                         : 'border-border/60 hover:border-primary/40 hover:bg-muted/30'
                                                         }`}
                                                 >
-                                                    <div className="flex-1 min-w-0 pr-4">
-                                                        <p className={`font-medium text-sm truncate transition-colors ${isSelected ? 'text-primary' : 'text-foreground/90'}`} title={option.product?.description}>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className={`font-medium text-sm line-clamp-1 leading-tight transition-colors ${isSelected ? 'text-primary' : 'text-foreground/90'}`} title={option.product?.description}>
                                                             {option.product?.description}
                                                         </p>
                                                         {option.product?.sale_price && (
@@ -158,7 +157,7 @@ export function ComboSelectionDialog({
                                                         )}
                                                     </div>
 
-                                                    <div className={`flex items-center gap-2 shrink-0 p-1 rounded-md border transition-colors ${isSelected ? 'bg-background border-primary/20 shadow-sm' : 'bg-muted/40 border-transparent'
+                                                    <div className={`flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 shrink-0 p-1 rounded-md border transition-colors self-stretch sm:self-auto ${isSelected ? 'bg-background border-primary/20 shadow-sm' : 'bg-muted/40 border-transparent'
                                                         }`}>
                                                         <Button
                                                             variant="ghost"
@@ -174,7 +173,7 @@ export function ComboSelectionDialog({
                                                             <Minus className="h-4 w-4" />
                                                         </Button>
 
-                                                        <span className={`w-6 text-center font-bold text-sm ${isSelected ? 'text-primary' : 'text-muted-foreground'}`}>
+                                                        <span className={`w-8 text-center font-bold text-sm ${isSelected ? 'text-primary' : 'text-muted-foreground'}`}>
                                                             {currentQty}
                                                         </span>
 
@@ -206,10 +205,10 @@ export function ComboSelectionDialog({
                             </div>
                         )}
                     </div>
-                </ScrollArea>
+                </div>
 
-                <DialogFooter className="p-6 pt-4 border-t bg-muted/10 shrink-0">
-                    <div className="w-full flex justify-between items-center">
+                <DialogFooter className="p-4 sm:p-6 pt-4 border-t bg-muted/10 shrink-0">
+                    <div className="w-full flex justify-between items-center gap-4">
                         <Button
                             variant="outline"
                             onClick={() => onOpenChange(false)}
@@ -222,10 +221,10 @@ export function ComboSelectionDialog({
                                 onOpenChange(false);
                             }}
                             disabled={!isConfirmedReady}
-                            className="gap-2"
+                            className="gap-2 flex-1 sm:flex-none"
                         >
-                            <ShoppingCart className="h-4 w-4" />
-                            Confirmar Selección
+                            <ShoppingCart className="h-4 w-4 shrink-0" />
+                            <span className="truncate">Confirmar Selección</span>
                         </Button>
                     </div>
                 </DialogFooter>
