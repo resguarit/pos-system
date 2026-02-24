@@ -66,13 +66,13 @@ class UpdateCustomerRequest extends FormRequest
             'documento' => [
                 'nullable',
                 'regex:/^[0-9]+$/',
-                'between:6,12',
+                'between:7,8',
                 function ($attribute, $value, $fail) use ($personId) {
                     if ($value === null || trim((string) $value) === '') {
                         return;
                     }
                     $exists = Person::whereNull('deleted_at')
-                        ->when($personId, fn ($query) => $query->where('id', '!=', $personId))
+                        ->when($personId, fn($query) => $query->where('id', '!=', $personId))
                         ->where(function ($query) use ($value) {
                             $query->where('documento', $value)
                                 ->orWhere('cuit', $value);
@@ -94,7 +94,7 @@ class UpdateCustomerRequest extends FormRequest
                         return;
                     }
                     $exists = Person::whereNull('deleted_at')
-                        ->when($personId, fn ($query) => $query->where('id', '!=', $personId))
+                        ->when($personId, fn($query) => $query->where('id', '!=', $personId))
                         ->where(function ($query) use ($value) {
                             $query->where('cuit', $value)
                                 ->orWhere('documento', $value);
@@ -160,7 +160,7 @@ class UpdateCustomerRequest extends FormRequest
 
             // Document Number
             'documento.regex' => 'El número de documento debe contener solo números (sin puntos, guiones ni letras).',
-            'documento.between' => 'El número de documento debe tener entre 6 y 12 dígitos.',
+            'documento.between' => 'El DNI debe tener 7 u 8 dígitos.',
             'documento.unique' => 'Ya existe un cliente con este DNI.',
 
             // Document Type

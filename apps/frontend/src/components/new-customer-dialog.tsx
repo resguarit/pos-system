@@ -9,6 +9,7 @@ import useApi from "@/hooks/useApi";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { normalizePhone } from "@/lib/formatters/phoneFormatter";
+import { useFiscalConditions } from "@/hooks/useFiscalConditions";
 
 interface Customer {
   id: number;
@@ -35,6 +36,7 @@ export interface NewCustomerFormContentProps {
 export function NewCustomerFormContent({ onSuccess, onCancel }: NewCustomerFormContentProps) {
   const { request } = useApi();
   const [isLoading, setIsLoading] = useState(false);
+  const { fiscalConditions } = useFiscalConditions();
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
@@ -44,9 +46,19 @@ export function NewCustomerFormContent({ onSuccess, onCancel }: NewCustomerFormC
     city: "",
     state: "",
     cuit: "",
-    fiscal_condition_id: "1", // Consumidor Final
+    fiscal_condition_id: "",
     person_type_id: "1", // Persona Física
   });
+
+  // Resolver dinámicamente el ID de Consumidor Final por AFIP code
+  useEffect(() => {
+    if (fiscalConditions.length > 0 && !formData.fiscal_condition_id) {
+      const cf = fiscalConditions.find(fc => fc.afip_code === '5' || fc.name.toLowerCase().includes('consumidor final'));
+      if (cf) {
+        setFormData(prev => ({ ...prev, fiscal_condition_id: String(cf.id) }));
+      }
+    }
+  }, [fiscalConditions, formData.fiscal_condition_id]);
   const [nameError, setNameError] = useState("");
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [emailError, setEmailError] = useState("");

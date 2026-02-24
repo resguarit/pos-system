@@ -57,7 +57,7 @@ class StoreCustomerRequest extends FormRequest
             'documento' => [
                 'nullable',
                 'regex:/^[0-9]+$/',
-                'between:6,12',
+                'between:7,8',
                 function ($attribute, $value, $fail) {
                     if ($value === null || trim((string) $value) === '') {
                         return;
@@ -145,7 +145,7 @@ class StoreCustomerRequest extends FormRequest
 
             // Document Number
             'documento.regex' => 'El número de documento debe contener solo números (sin puntos, guiones ni letras).',
-            'documento.between' => 'El número de documento debe tener entre 6 y 12 dígitos.',
+            'documento.between' => 'El DNI debe tener 7 u 8 dígitos.',
             'documento.unique' => 'Ya existe un cliente con este DNI.',
 
             // Document Type

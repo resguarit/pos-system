@@ -71,20 +71,25 @@ export interface EmisionValidation {
  * - RI → Monotributista = Factura A
  * - RI → CF/Exento = Factura B
  * 
+ * Regla especial: si el receptor NO tiene CUIT válido, se trata como
+ * Consumidor Final independientemente de la condición fiscal almacenada.
+ * Factura A siempre requiere CUIT; Factura B permite DocTipo 99 / DocNro 0.
+ * 
  * @param selectedReceiptAfipCode Código AFIP del comprobante seleccionado (001=A, 006=B)
  * @param receiverConditionCode Código AFIP de la condición IVA del receptor
+ * @param receiverHasCuit Si el receptor tiene un CUIT válido de 11 dígitos
  * @returns Objeto con resultado de validación y tipo sugerido
  */
 export function validateEmisionRulesForRI(
   selectedReceiptAfipCode: string | null | undefined,
-  receiverConditionCode: number | null | undefined
+  receiverConditionCode: number | null | undefined,
+  receiverHasCuit: boolean = true
 ): EmisionValidation {
   if (!selectedReceiptAfipCode || receiverConditionCode == null) {
     return { isValid: true, suggestedReceiptType: null, message: null }
   }
 
   const code = String(selectedReceiptAfipCode)
-  const receiverCode = Number(receiverConditionCode)
 
   // Solo validamos facturas A y B
   const isFacturaA = code === ARCA_CODES.FACTURA_A // 001
@@ -94,13 +99,29 @@ export function validateEmisionRulesForRI(
     return { isValid: true, suggestedReceiptType: null, message: null }
   }
 
+  // Sin CUIT válido → se trata como Consumidor Final para AFIP.
+  // Factura B es válida (DocTipo 99, DocNro 0); Factura A requiere CUIT obligatoriamente.
+  if (!receiverHasCuit) {
+    if (isFacturaA) {
+      return {
+        isValid: false,
+        suggestedReceiptType: 'B',
+        message: 'No se puede emitir Factura A sin CUIT. Se debe emitir Factura B (Consumidor Final).',
+      }
+    }
+    // Factura B sin CUIT → válida (consumidor final)
+    return { isValid: true, suggestedReceiptType: null, message: null }
+  }
+
+  const receiverCode = Number(receiverConditionCode)
+
   // Receptores que requieren Factura A
-  const requiresFacturaA = 
+  const requiresFacturaA =
     receiverCode === CONDICION_IVA.RESPONSABLE_INSCRIPTO ||
     receiverCode === CONDICION_IVA.MONOTRIBUTO
 
   // Receptores que requieren Factura B
-  const requiresFacturaB = 
+  const requiresFacturaB =
     receiverCode === CONDICION_IVA.CONSUMIDOR_FINAL ||
     receiverCode === CONDICION_IVA.EXENTO
 

@@ -185,6 +185,9 @@ class ImportLegacyCustomers extends Command
             $lastName = implode(' ', $parts); // Resto de las palabras
         }
 
+        // Resolver Consumidor Final dinámicamente por AFIP code '5'
+        $consumidorFinalId = \App\Models\FiscalCondition::where('afip_code', '5')->value('id') ?? 1;
+
         // Preparar datos para el servicio
         // Usamos el CustomerService para asegurar que se creen las cuentas corrientes
         // y se ejecute cualquier otra lógica de negocio asociada.
@@ -202,7 +205,7 @@ class ImportLegacyCustomers extends Command
             'city' => null,
             'state' => null,
             'postal_code' => null,
-            'fiscal_condition_id' => 1, // Consumidor Final por defecto
+            'fiscal_condition_id' => $consumidorFinalId, // Consumidor Final (AFIP code 5)
             'person_type_id' => 1,      // Persona Física por defecto
             'credit_limit' => null,     // Infinito
         ];

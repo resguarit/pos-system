@@ -381,7 +381,9 @@ export default function CompleteSalePage() {
           : null)
       const receiverConditionCode = resolveFiscalConditionCode(receiverFiscalCondition)
 
-      const emisionValidation = validateEmisionRulesForRI(String(selectedReceiptType.afip_code), receiverConditionCode)
+      const effectiveCuit = chosenIdentity?.cuit ?? selectedCustomer?.cuit
+      const receiverHasCuit = isValidCuitForArca(effectiveCuit)
+      const emisionValidation = validateEmisionRulesForRI(String(selectedReceiptType.afip_code), receiverConditionCode, receiverHasCuit)
 
       if (!emisionValidation.isValid && emisionValidation.message) {
         toast.error('Tipo de comprobante incorrecto', {
@@ -450,7 +452,7 @@ export default function CompleteSalePage() {
             quantity: item.quantity,
             unit_price: Number(item.price || 0),
             ...(item.discount_type && (item.discount_value ?? 0) > 0
-            && isItemDiscountAllowed(item)
+              && isItemDiscountAllowed(item)
               ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
               : {}),
           }

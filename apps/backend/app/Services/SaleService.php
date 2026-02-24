@@ -2295,6 +2295,9 @@ class SaleService implements SaleServiceInterface
                             $customerDocumentType = AfipConstants::DOC_TIPO_CUIT;
                         } elseif ($len >= 7 && $len <= 8) {
                             $customerDocumentType = AfipConstants::DOC_TIPO_DNI;
+                        } else {
+                            // Número no válido como CUIT ni DNI: AFIP exige DocNro=0 para DocTipo=99
+                            $customerDocumentNumber = '0';
                         }
                     }
                 }

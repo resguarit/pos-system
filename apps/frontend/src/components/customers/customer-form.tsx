@@ -598,7 +598,11 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
                             value={formData.documento}
                             onChange={handleInputChange}
                             disabled={viewOnly || isLoading}
-                            placeholder="Número de documento"
+                            placeholder="7 u 8 dígitos"
+                            maxLength={8}
+                            minLength={7}
+                            pattern="[0-9]{7,8}"
+                            inputMode="numeric"
                             className={documentoError ? 'border-red-500 focus:border-red-500 focus:ring-red-500 focus:ring-2' : ''}
                             style={{ borderColor: documentoError ? '#ef4444' : undefined }}
                           />
