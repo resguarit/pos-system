@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react"
+import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -149,6 +150,7 @@ export default function POSPage() {
 
   // fetchCategories ya no es necesario: usePosCategories se encarga
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapProductForPos = useCallback((p: any) => {
     const salePriceWithIva = p.sale_price || 0;
     const ivaRate = p.iva?.rate || 0;
@@ -182,7 +184,6 @@ export default function POSPage() {
     } catch (err) {
       setProducts([])
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request, mapProductForPos]); // Dependencia estable
 
   const initializeProductCatalogMode = useCallback(async () => {
@@ -395,6 +396,38 @@ export default function POSPage() {
   // Estrategia híbrida: catálogos chicos se precargan para UX instantánea;
   // catálogos grandes usan búsqueda bajo demanda para performance.
 
+  // ── Búsqueda server-side con debounce (modo server-on-demand) ──
+  const debouncedSearchTerm = useDebouncedValue(productCodeInput, 400)
+
+  useEffect(() => {
+    if (productSearchMode !== 'server-on-demand') return
+    const trimmed = debouncedSearchTerm.trim()
+
+    // Si el usuario borró el campo de búsqueda, limpiar la grilla
+    if (!trimmed || trimmed.length < 2) {
+      setProducts([])
+      return
+    }
+
+    let cancelled = false
+
+    const fetchServerResults = async () => {
+      setIsSearchingProduct(true)
+      try {
+        const serverResults = await findProductOnServer(trimmed)
+        if (cancelled) return
+        // Reemplazar productos — solo mostrar los que coinciden con la búsqueda actual
+        setProducts(serverResults)
+      } catch {
+        // silently fail — user can retry
+      } finally {
+        if (!cancelled) setIsSearchingProduct(false)
+      }
+    }
+
+    void fetchServerResults()
+    return () => { cancelled = true }
+  }, [debouncedSearchTerm, productSearchMode, findProductOnServer])
 
 
 
@@ -519,7 +552,7 @@ export default function POSPage() {
       // Obtener detalles de precio del combo (ítems fijos precalculados por el backend)
       const priceDetails = await getComboPriceDetails(combo.id);
 
-      let itemsBreakdown = [...priceDetails.items_breakdown];
+      const itemsBreakdown = [...priceDetails.items_breakdown];
       let totalBasePrice = priceDetails.base_price;
 
       // Combinar ítems customizados si existen
@@ -629,75 +662,92 @@ export default function POSPage() {
     }
   }
 
-  const searchAndAddProduct = async () => {
-    const code = productCodeInput.trim();
-    if (!code) return;
+  /**
+   * Busca productos en el servidor y los muestra en la grilla (sin agregar al carrito).
+   * Se usa cuando el usuario quiere ver resultados manualmente.
+   */
+  const searchProductsOnServer = useCallback(async () => {
+    const query = productCodeInput.trim()
+    if (!query) return
 
     setIsSearchingProduct(true)
-
     try {
-      // 1) Buscar primero exacto en caché local
-      let foundProduct = products.find(p =>
-        String(p.code).toLowerCase() === code.toLowerCase() ||
-        String(p.barcode).toLowerCase() === code.toLowerCase()
-      );
-
-      // 2) Si no está en memoria, buscar server-side (evita cargar catálogo completo)
-      if (!foundProduct) {
-        const serverResults = await findProductOnServer(code)
-
-        foundProduct = serverResults.find(p =>
-          String(p.code).toLowerCase() === code.toLowerCase() ||
-          String(p.barcode).toLowerCase() === code.toLowerCase()
-        ) ?? serverResults[0]
-
-        // Cachear resultados en memoria para próximas búsquedas
-        if (serverResults.length > 0) {
-          setProducts((prevProducts) => {
-            const existingById = new Set(prevProducts.map((p) => p.id))
-            const missing = serverResults.filter((p) => !existingById.has(p.id))
-            return missing.length > 0 ? [...prevProducts, ...missing] : prevProducts
-          })
-        }
-      }
-
-      // 3) Fallback local por wildcard
-      if (!foundProduct) {
-        foundProduct = products.find(p =>
-          matchesWildcard(String(p.code), code) ||
-          matchesWildcard(p.description || '', code) ||
-          (p.barcode && matchesWildcard(String(p.barcode), code))
-        );
-      }
-
-      if (foundProduct) {
-        addToCart(foundProduct, addQtyPerClick);
-        sileo.success({
-          title: "Producto agregado",
-          description: `${foundProduct.description} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
-        });
-        setProductCodeInput("");
-      } else {
-        sileo.error({
-          title: "Producto no encontrado",
-          description: `No se encontró ningún producto con "${code}".`,
-        });
-        setProductCodeInput("");
-      }
+      const serverResults = await findProductOnServer(query)
+      // Reemplazar productos con los resultados de esta búsqueda
+      setProducts(serverResults)
     } catch {
       sileo.error({
         title: "Error al buscar producto",
         description: "No se pudo consultar el producto en este momento.",
-      });
+      })
     } finally {
       setIsSearchingProduct(false)
     }
-  };
+  }, [productCodeInput, findProductOnServer])
+
+  /**
+   * Busca coincidencia EXACTA por código o barcode y agrega al carrito.
+   * Diseñado para lectores de código de barras que envían Enter al final.
+   *
+   * Si no es match exacto, solo dispara la búsqueda visual (no agrega).
+   */
+  const scanAndAddProduct = useCallback(async () => {
+    const code = productCodeInput.trim()
+    if (!code) return
+
+    setIsSearchingProduct(true)
+
+    try {
+      const isExactMatch = (p: { code?: string | number; barcode?: string | number }) =>
+        String(p.code).toLowerCase() === code.toLowerCase() ||
+        (p.barcode && String(p.barcode).toLowerCase() === code.toLowerCase())
+
+      // 1) Buscar en caché local
+      let foundProduct = products.find(isExactMatch)
+
+      // 2) Buscar en servidor si no está en memoria
+      if (!foundProduct) {
+        const serverResults = await findProductOnServer(code)
+        foundProduct = serverResults.find(isExactMatch)
+
+        // Cachear resultados para próximas búsquedas
+        if (serverResults.length > 0 && productSearchMode === 'local-cache') {
+          setProducts(prev => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const existingIds = new Set(prev.map((p: any) => p.id))
+            const newProducts = serverResults.filter(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (p: any) => !existingIds.has(p.id)
+            )
+            return newProducts.length > 0 ? [...prev, ...newProducts] : prev
+          })
+        }
+      }
+
+      // 3) Solo agregar al carrito si hay match EXACTO (escáner)
+      if (foundProduct) {
+        addToCart(foundProduct, addQtyPerClick)
+        sileo.success({
+          title: "Producto agregado",
+          description: `${foundProduct.description} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
+        })
+        setProductCodeInput("")
+      }
+      // Si no hay match exacto no mostramos error — los resultados ya se ven en la grilla
+    } catch {
+      sileo.error({
+        title: "Error al buscar producto",
+        description: "No se pudo consultar el producto en este momento.",
+      })
+    } finally {
+      setIsSearchingProduct(false)
+    }
+  }, [productCodeInput, products, findProductOnServer, addToCart, addQtyPerClick, productSearchMode])
 
   const handleProductCodeSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      e.preventDefault();
-      void searchAndAddProduct();
+      e.preventDefault()
+      void scanAndAddProduct()
     }
   };
 
@@ -924,7 +974,7 @@ export default function POSPage() {
                     variant="ghost"
                     size="sm"
                     className="absolute right-1 top-1 h-8 w-8 p-0"
-                    onClick={() => { void searchAndAddProduct() }}
+                    onClick={() => { void searchProductsOnServer() }}
                     disabled={!productCodeInput.trim() || isSearchingProduct}
                   >
                     {isSearchingProduct ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -1029,7 +1079,7 @@ export default function POSPage() {
             <p className="text-xs text-muted-foreground">
               {isLoadingCatalog
                 ? 'Preparando catálogo para esta sucursal...'
-                : 'Buscá por código o descripción.'}
+                : 'Buscá por código o descripción. Escaneá un código de barras para agregar directo al carrito.'}
             </p>
           </div>
 
