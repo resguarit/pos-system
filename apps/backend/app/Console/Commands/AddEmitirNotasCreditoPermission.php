@@ -29,14 +29,25 @@ class AddEmitirNotasCreditoPermission extends Command
     public function handle()
     {
         $permissionName = 'emitir notas de credito';
+        $permissionModule = 'ventas';
+        $permissionDescription = 'Emitir notas de crédito desde el historial de ventas o presupuestos';
 
         // 1. Check or create the permission
         $permission = Permission::where('name', $permissionName)->first();
         if (!$permission) {
-            $permission = Permission::create(['name' => $permissionName, 'guard_name' => 'api']);
+            $permission = Permission::create([
+                'name' => $permissionName,
+                'guard_name' => 'api',
+                'module' => $permissionModule,
+                'description' => $permissionDescription
+            ]);
             $this->info("Permission '{$permissionName}' created successfully.");
         } else {
-            $this->warn("Permission '{$permissionName}' already exists.");
+            $permission->update([
+                'module' => $permissionModule,
+                'description' => $permissionDescription
+            ]);
+            $this->warn("Permission '{$permissionName}' already exists, updated description and module.");
         }
 
         // 2. Assign to Admin and Dueño
