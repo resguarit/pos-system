@@ -2471,13 +2471,17 @@ class SaleService implements SaleServiceInterface
                     'resolved_receiver_condition_iva' => $receiverConditionIVA,
                 ]);
             }
-        } elseif ($sale->customer && $sale->customer->person) {
+        } else {
             // Fallback: usar CUIT del person del customer
-            $cuit = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit ?? '');
-            if (strlen($cuit) === AfipConstants::CUIT_LENGTH) {
-                $customerCuit = $cuit;
+            $cuitFromPerson = null;
+            if ($sale->customer && $sale->customer->person && !empty($sale->customer->person->cuit)) {
+                $cuitFromPerson = preg_replace('/[^0-9]/', '', $sale->customer->person->cuit);
+            }
+
+            if ($cuitFromPerson && strlen($cuitFromPerson) === AfipConstants::CUIT_LENGTH) {
+                $customerCuit = $cuitFromPerson;
                 $customerDocumentType = AfipConstants::DOC_TIPO_CUIT;
-                $customerDocumentNumber = $cuit;
+                $customerDocumentNumber = $cuitFromPerson;
             } elseif (!empty($sale->sale_document_number)) {
                 $docNumber = preg_replace('/[^0-9]/', '', $sale->sale_document_number);
                 if (strlen($docNumber) > 0) {
@@ -2498,6 +2502,14 @@ class SaleService implements SaleServiceInterface
                         }
                     }
                 }
+            }
+        }
+
+        // Validación extra: Si es comprobante "A" (Factura A, Nota Debito A, Nota Credito A), AFIP exige DocTipo 80 y CUIT válido
+        if (in_array($invoiceType, [1, 2, 3]) && $customerDocumentType !== AfipConstants::DOC_TIPO_CUIT) {
+            // Si el DocNro tiene 11 caracteres pero DocTipo no es 80, forzamos el DocTipo a 80
+            if (strlen($customerDocumentNumber) === AfipConstants::CUIT_LENGTH) {
+                $customerDocumentType = AfipConstants::DOC_TIPO_CUIT;
             }
         }
 
@@ -2524,6 +2536,24 @@ class SaleService implements SaleServiceInterface
                 'sale_id' => $sale->id,
                 'invoice_type' => $invoiceType,
             ]);
+        }
+
+        // --- CORRECCIÓN FINAL DE INCONSISTENCIAS PARA EVITAR RECHAZO DEL SDK O AFIP ---
+        $facturaBCodes = [AfipConstants::COMPROBANTE_FACTURA_B, 7, 8, 9, 10];
+        $facturaACodes = [AfipConstants::COMPROBANTE_FACTURA_A, 2, 3, 4, 5];
+
+        if (in_array($invoiceType, $facturaBCodes, true)) {
+            // Factura B (o NC B / ND B) SOLO acepta Consumidor Final (5) o Exento (4)
+            if (!in_array($receiverConditionIVA, [AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL, AfipConstants::CONDICION_IVA_EXENTO], true)) {
+                Log::warning("Forzando Condicion IVA a CF para comprobante clase B. Original: {$receiverConditionIVA}", ['sale_id' => $sale->id]);
+                $receiverConditionIVA = AfipConstants::CONDICION_IVA_CONSUMIDOR_FINAL;
+            }
+        } elseif (in_array($invoiceType, $facturaACodes, true)) {
+            // Factura A (o NC A / ND A) SOLO acepta RI (1), Monotributo (6) o Monotributo Social (13)
+            if (!in_array($receiverConditionIVA, [AfipConstants::CONDICION_IVA_RESPONSABLE_INSCRIPTO, AfipConstants::CONDICION_IVA_MONOTRIBUTO, 13], true)) {
+                Log::warning("Forzando Condicion IVA a RI para comprobante clase A. Original: {$receiverConditionIVA}", ['sale_id' => $sale->id]);
+                $receiverConditionIVA = AfipConstants::CONDICION_IVA_RESPONSABLE_INSCRIPTO;
+            }
         }
 
         Log::debug('prepareInvoiceDataForAfip: Datos del receptor resueltos', [
