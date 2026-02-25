@@ -415,6 +415,7 @@ class SaleController extends Controller
             // Autorizar con AFIP
             $result = $this->saleService->authorizeWithAfip($sale);
 
+            $receiptName = $sale->receiptType->description ?? 'Comprobante';
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -424,7 +425,7 @@ class SaleController extends Controller
                     'point_of_sale' => $result['point_of_sale'] ?? null,
                     'invoice_type' => $result['invoice_type'] ?? null,
                 ],
-                'message' => 'Venta autorizada con AFIP exitosamente'
+                'message' => "{$receiptName} autorizada con AFIP exitosamente"
             ]);
 
         } catch (\Resguar\AfipSdk\Exceptions\AfipValidationException $e) {

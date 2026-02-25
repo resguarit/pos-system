@@ -132,7 +132,8 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
       // Validar antes de autorizar
       const validation = canAuthorize(sale);
       if (!validation.can) {
-        sileo.error({ title: 'No se puede autorizar',
+        sileo.error({
+          title: 'No se puede autorizar',
           id: toastId,
           description: validation.reason,
         });
@@ -146,7 +147,9 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
       });
 
       if (response.success && response.data) {
-        sileo.success({ title: 'Venta autorizada con ARCA',
+        const toastTitle = response.message || 'Comprobante autorizado con ARCA';
+        sileo.success({
+          title: toastTitle,
           id: toastId,
           description: `CAE: ${response.data.cae || 'N/A'}`,
         });
@@ -154,7 +157,8 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
         return response.data as ArcaAuthorizationResult;
       } else {
         const errorMessage = response.message || 'Error al autorizar con ARCA';
-        sileo.error({ title: 'Error al autorizar',
+        sileo.error({
+          title: 'Error al autorizar',
           id: toastId,
           description: errorMessage,
         });
@@ -170,7 +174,8 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
         description += ` (Código ARCA: ${afipCode})`;
       }
 
-      sileo.error({ title: 'Error al autorizar con ARCA',
+      sileo.error({
+        title: 'Error al autorizar con ARCA',
         id: toastId,
         description,
       });
