@@ -28,7 +28,7 @@ class AddEmitirNotasCreditoPermission extends Command
      */
     public function handle()
     {
-        $permissionName = 'emitir notas de credito';
+        $permissionName = 'emitir_notas_credito';
         $permissionModule = 'ventas';
         $permissionDescription = 'Emitir notas de crédito desde el historial de ventas o presupuestos';
 
