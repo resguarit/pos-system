@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
-import { Shipment, ShipmentStage, User, Customer } from '@/types/shipment';
+import { Shipment, ShipmentStage, Customer } from '@/types/shipment';
 import { shipmentService } from '@/services/shipmentService';
 import ShipmentTable from '@/components/shipments/ShipmentTable';
 import ShipmentDetail from '@/components/shipments/ShipmentDetail';
@@ -160,15 +160,14 @@ export default function ShipmentsPage() {
         setLoading(false);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading]);
+  }, [authLoading, hasPermission]);
 
   // Efecto separado para fetchData que depende de selección de sucursales y filtros
   useEffect(() => {
     if (!authLoading && hasPermission('ver_envios')) {
       fetchData();
     }
-  }, [authLoading, fetchData]);
+  }, [authLoading, hasPermission, fetchData]);
 
 
 
@@ -423,23 +422,23 @@ export default function ShipmentsPage() {
             sileo.error({ title: "No se pudo abrir el diálogo de impresión." });
           }
 
-          // Limpiar después de un tiempo
+          // Limpiar después de un tiempo prolongado para no cerrar el diálogo
           setTimeout(() => {
             if (document.body.contains(iframe)) {
               document.body.removeChild(iframe);
             }
             window.URL.revokeObjectURL(blobUrl);
-          }, 1000);
+          }, 60000); // 60 segundos
         }, 500);
       };
 
-      // Timeout de seguridad
+      // Timeout de seguridad extendido
       setTimeout(() => {
         if (document.body.contains(iframe)) {
           document.body.removeChild(iframe);
         }
         window.URL.revokeObjectURL(blobUrl);
-      }, 30000);
+      }, 120000); // 2 minutos
 
     } catch (error) {
       sileo.error({ title: 'Error al imprimir etiqueta' });

@@ -7,6 +7,7 @@ import { type ApiParams } from '@/hooks/useApi';
  */
 export async function printSalePdf(
   sale: SaleHeader,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   requestFn: (params: ApiParams) => Promise<any>
 ): Promise<void> {
   if (!sale || !sale.id) {
@@ -36,7 +37,7 @@ export async function printSalePdf(
     iframe.style.width = '0';
     iframe.style.height = '0';
     iframe.style.border = 'none';
-    
+
     document.body.appendChild(iframe);
 
     // Cargar el PDF en el iframe
@@ -50,12 +51,14 @@ export async function printSalePdf(
         console.error('Error al intentar imprimir:', e);
         alert('Error al abrir el diálogo de impresión. Intente con otro navegador.');
       }
-      
-      // Limpiar después de un breve delay para dar tiempo a la impresión
+
+      // Limpiar después de un delay largo para no cerrar el diálogo de impresión prematuramente
       setTimeout(() => {
-        document.body.removeChild(iframe);
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
         window.URL.revokeObjectURL(url);
-      }, 1000);
+      }, 60000); // 60 segundos
     };
 
     iframe.onerror = () => {

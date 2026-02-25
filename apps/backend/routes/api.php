@@ -630,6 +630,17 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::get('/general', [StatisticsController::class, 'general']);
         Route::get('/sales-by-product', [StatisticsController::class, 'salesByProduct']);
         Route::get('/top-products', [StatisticsController::class, 'topProducts']);
+
+        // Advanced statistics
+        Route::get('/advanced', [StatisticsController::class, 'advancedStats']);
+        Route::get('/by-user', [StatisticsController::class, 'salesByUser']);
+        Route::get('/by-category', [StatisticsController::class, 'salesByCategory']);
+        Route::get('/by-supplier', [StatisticsController::class, 'salesBySupplier']);
+        Route::get('/by-hour', [StatisticsController::class, 'salesByHour']);
+        Route::get('/by-payment-method', [StatisticsController::class, 'salesByPaymentMethod']);
+        Route::get('/by-day-of-week', [StatisticsController::class, 'salesByDayOfWeek']);
+        Route::get('/daily-trend', [StatisticsController::class, 'salesDailyTrend']);
+        Route::get('/top-products-advanced', [StatisticsController::class, 'topProductsAdvanced']);
     });
 
     // Financial Reports Routes

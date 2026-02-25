@@ -110,7 +110,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
       .finally(() => {
         setPreviewLoading(false);
       });
-  }, [open, sale?.id, isThermal, useSdkPreview]);
+  }, [open, sale?.id, isThermal, useSdkPreview, request]);
 
   if (!sale) {
     return null;
@@ -163,15 +163,18 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
           } catch (e) {
             console.error('Error al imprimir:', e);
           } finally {
-            // Limpiar
+            // Limpiar UI state primero, y luego retrasar la destrucción del iframe
+            setIsPrinting(false);
             setTimeout(() => {
-              document.body.removeChild(iframe);
+              if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+              }
               window.URL.revokeObjectURL(url);
-              setIsPrinting(false);
-            }, 1000);
+            }, 60000); // 60s para no matar el diálogo de impresión en Chrome/Safari
           }
         }, 500);
       };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("Error al imprimir:", error);
       const errorMessage = error?.response?.data?.message ||
@@ -221,6 +224,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("Error downloading PDF:", error);
       const errorMessage = error?.response?.data?.message ||
@@ -283,7 +287,7 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
                 }
                 : { width: 800, minWidth: 800, minHeight: 900 }
             }
-            sandbox="allow-same-origin"
+            sandbox="allow-same-origin allow-scripts allow-modals"
           />
         </div>
       ) : (
