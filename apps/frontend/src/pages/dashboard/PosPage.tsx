@@ -1089,7 +1089,7 @@ export default function POSPage() {
             addQtyPerClick={addQtyPerClick}
             formatCurrency={formatCurrency}
             onComboAdded={addComboToCart}
-            searchTerm={productCodeInput}
+
           />
 
           {/* Título de productos si hay combos */}
