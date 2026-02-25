@@ -15,8 +15,7 @@ import useApi from "@/hooks/useApi"
 import { useState } from "react"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 export default function DashboardPage() {
   const { selectedBranchIds, branches, selectionChangeToken } = useBranch()
   const [selectedSale, setSelectedSale] = useState<any>(null)
@@ -158,7 +157,7 @@ export default function DashboardPage() {
       setShowReceiptPreview(true)
     } catch (error) {
       console.error('Error fetching sale details for receipt:', error)
-      toast.error('No se pudo cargar el detalle del comprobante')
+      sileo.error({ title: 'No se pudo cargar el detalle del comprobante' })
       setSelectedReceiptSale(sale)
       setShowReceiptPreview(true)
     }

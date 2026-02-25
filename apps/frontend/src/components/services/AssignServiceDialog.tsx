@@ -22,7 +22,7 @@ import {
 import { ChevronDown, Check, Loader2, Package, Plus, X, AlertCircle, Info, DollarSign, Percent, Calendar, Clock } from "lucide-react"
 import { cn } from "@/lib/utils"
 import api from "@/lib/api"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { format } from "date-fns"
 import { useCustomerSearch, CustomerOption } from "@/hooks/useCustomerSearch"
 import CustomerForm from "@/components/customers/customer-form"
@@ -110,7 +110,7 @@ export default function AssignServiceDialog({
             setServiceTypes(normalizeArrayResponse<ServiceType>(response.data))
         } catch (error) {
             console.error("Error fetching service types:", error)
-            toast.error("Error al cargar tipos de servicio")
+            sileo.error({ title: "Error al cargar tipos de servicio" })
         } finally {
             setLoadingServiceTypes(false)
         }
@@ -327,7 +327,7 @@ export default function AssignServiceDialog({
         }
         handleCustomerSelect(newCustomerOption)
         setNewCustomerOpen(false)
-        toast.success("Cliente creado y seleccionado")
+        sileo.success({ title: "Cliente creado y seleccionado" })
     }
 
     const resetForm = () => {
@@ -353,28 +353,29 @@ export default function AssignServiceDialog({
 
     const handleSubmit = async () => {
         if (!formData.customer_id) {
-            toast.error("Selecciona un cliente")
+            sileo.error({ title: "Selecciona un cliente" })
             return
         }
         if (formData.services.length === 0) {
-            toast.error("Selecciona al menos un servicio")
+            sileo.error({ title: "Selecciona al menos un servicio" })
             return
         }
 
         if (formData.date_mode === "start_date" && !formData.start_date) {
-            toast.error("Ingresa la fecha de inicio")
+            sileo.error({ title: "Ingresa la fecha de inicio" })
             return
         }
 
         if (formData.date_mode === "next_due_date" && !formData.next_due_date) {
-            toast.error("Ingresa la fecha de vencimiento")
+            sileo.error({ title: "Ingresa la fecha de vencimiento" })
             return
         }
 
         // Validate all services with detailed errors
         const validationErrors = getValidationErrors()
         if (validationErrors.length > 0) {
-            toast.error(validationErrors[0], {
+            sileo.error({
+                title: validationErrors[0],
                 description: validationErrors.length > 1 ? `Y ${validationErrors.length - 1} error(es) más` : undefined
             })
             return
@@ -403,12 +404,12 @@ export default function AssignServiceDialog({
 
             await Promise.all(promises)
 
-            toast.success(`${formData.services.length} servicio(s) asignado(s) exitosamente`)
+            sileo.success({ title: `${formData.services.length} servicio(s) asignado(s) exitosamente` })
             resetForm()
             onSuccess()
         } catch (error) {
             console.error("Error assigning services:", error)
-            toast.error("Error al asignar los servicios")
+            sileo.error({ title: "Error al asignar los servicios" })
         } finally {
             setSaving(false)
         }

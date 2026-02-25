@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar, FileText, Download, Loader2, X } from 'lucide-react'
 import useApi from '@/hooks/useApi'
-import { toast } from 'sonner'
+import { sileo } from "sileo"
 import { format, startOfMonth } from 'date-fns'
 
 interface CashReportsProps {
@@ -72,11 +72,11 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
 
-      toast.success('Reporte de movimientos generado exitosamente')
+      sileo.success({ title: 'Reporte de movimientos generado exitosamente' })
     } catch (error: unknown) {
       console.error('Error generating movements report:', error)
       const message = error instanceof Error ? error.message : 'Error al generar el reporte de movimientos'
-      toast.error(message)
+      sileo.error({ title: message })
     } finally {
       setIsLoading(false)
     }
@@ -119,11 +119,11 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
 
-      toast.success('Reporte de cierres generado exitosamente')
+      sileo.success({ title: 'Reporte de cierres generado exitosamente' })
     } catch (error: unknown) {
       console.error('Error generating closures report:', error)
       const message = error instanceof Error ? error.message : 'Error al generar el reporte de cierres'
-      toast.error(message)
+      sileo.error({ title: message })
     } finally {
       setIsLoading(false)
     }
@@ -159,11 +159,11 @@ export default function CashReports({ currentBranchId = 1 }: CashReportsProps) {
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
 
-      toast.success('Reporte financiero generado exitosamente')
+      sileo.success({ title: 'Reporte financiero generado exitosamente' })
     } catch (error: unknown) {
       console.error('Error generating financial report:', error)
       const message = error instanceof Error ? error.message : 'Error al generar el reporte financiero'
-      toast.error(message)
+      sileo.error({ title: message })
     } finally {
       setIsLoading(false)
     }

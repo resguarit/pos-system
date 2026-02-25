@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/hooks/useAuth"
 import { useSystemConfigContext } from "@/context/SystemConfigContext"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import api from "@/lib/api"
 import { resolveSystemImageUrl } from "@/lib/imageUtils"
 
@@ -75,7 +75,7 @@ export default function ConfiguracionSistemaPage() {
       }
     } catch (error) {
       console.error("Error loading configuration:", error)
-      toast.error("Error al cargar la configuración")
+      sileo.error({ title: "Error al cargar la configuración" })
     } finally {
       setLoading(false)
     }
@@ -89,7 +89,7 @@ export default function ConfiguracionSistemaPage() {
     formData.append('file', file)
     formData.append('type', 'logo')
 
-    const uploadToast = toast.loading("Subiendo logo...")
+    const uploadToast = sileo.info({ title: "Subiendo logo..." })
 
     try {
       const response = await api.post('/settings/upload-image', formData, {
@@ -101,19 +101,19 @@ export default function ConfiguracionSistemaPage() {
       // Refresh system config to apply logo immediately
       await refreshConfig()
 
-      toast.success("Logo actualizado correctamente", { id: uploadToast })
+      sileo.success({ title: "Logo actualizado correctamente", id: uploadToast })
 
       // Reload configuration to show the new logo
       await loadConfiguration()
     } catch (error) {
-      toast.error("Error al subir el logo", { id: uploadToast })
+      sileo.error({ title: "Error al subir el logo", id: uploadToast })
       console.error(error)
     }
   }
 
   const handleSave = async () => {
     if (!hasPermission('editar_configuracion_sistema')) {
-      toast.error("No tienes permisos para editar la configuración")
+      sileo.error({ title: "No tienes permisos para editar la configuración" })
       return
     }
 
@@ -124,9 +124,9 @@ export default function ConfiguracionSistemaPage() {
       // Refresh system config to apply favicon and other changes immediately
       await refreshConfig()
 
-      toast.success("Configuración guardada correctamente")
+      sileo.success({ title: "Configuración guardada correctamente" })
     } catch (error) {
-      toast.error("Error al guardar la configuración")
+      sileo.error({ title: "Error al guardar la configuración" })
       console.error(error)
     } finally {
       setSaving(false)

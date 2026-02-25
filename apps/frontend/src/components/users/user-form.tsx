@@ -13,9 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { toast } from "sonner"
-
-// Hooks y Contexto
+import { sileo } from "sileo"
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
 
@@ -145,7 +143,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       } catch (error: any) {
         if (!axios.isCancel(error)) {
           console.error("Error fetching user form data:", error);
-          toast.error("Error al cargar datos", { description: "No se pudieron obtener los datos para el formulario." });
+          sileo.error({ title: "Error al cargar datos", description: "No se pudieron obtener los datos para el formulario." });
         }
       } finally {
         if (!signal.aborted) {
@@ -214,7 +212,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
       if (response.exists && username !== (userId ? formData.username : '')) {
         setUsernameError("Este nombre de usuario ya está en uso");
-        toast.error("Este nombre de usuario ya está en uso", {
+        sileo.error({ title: "Este nombre de usuario ya está en uso",
           description: "Por favor, elige un nombre de usuario diferente."
         });
       } else {
@@ -244,7 +242,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
       if (response.exists && email !== (userId ? formData.email : '')) {
         setEmailError("Este email ya está en uso");
-        toast.error("Este email ya está en uso", {
+        sileo.error({ title: "Este email ya está en uso",
           description: "Por favor, elige un email diferente."
         });
       } else {
@@ -274,7 +272,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
       if (response.exists && (firstName !== (userId ? formData.firstName : '') || lastName !== (userId ? formData.lastName : ''))) {
         setNameError("Esta combinación de nombre y apellido ya está en uso");
-        toast.error("Esta combinación de nombre y apellido ya está en uso", {
+        sileo.error({ title: "Esta combinación de nombre y apellido ya está en uso",
           description: "Por favor, elige un nombre o apellido diferente."
         });
       } else {
@@ -379,20 +377,20 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
 
     if (formData.password && formData.password !== repeatPassword) {
       setPasswordError("Las contraseñas no coinciden");
-      toast.error("Error de validación", { description: "Las contraseñas no coinciden." });
+      sileo.error({ title: "Error de validación", description: "Las contraseñas no coinciden." });
       return;
     }
     const requiredFields = ['firstName', 'lastName', 'email', 'username', 'roleId'];
     if (requiredFields.some(field => !formData[field as keyof typeof formData])) {
-      toast.error("Error de validación", { description: "Por favor, completa todos los campos obligatorios." });
+      sileo.error({ title: "Error de validación", description: "Por favor, completa todos los campos obligatorios." });
       return;
     }
     if (!userId && !formData.password) {
-      toast.error("Error de validación", { description: "La contraseña es obligatoria para nuevos usuarios." });
+      sileo.error({ title: "Error de validación", description: "La contraseña es obligatoria para nuevos usuarios." });
       return;
     }
     if (formData.branches.length === 0) {
-      toast.error("Error de validación", { description: "Debe asignar al menos una sucursal." });
+      sileo.error({ title: "Error de validación", description: "Debe asignar al menos una sucursal." });
       return;
     }
 
@@ -420,17 +418,17 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       if (userId) {
         await request({ method: "PUT", url: `/users/${userId}`, data: payload });
         await request({ method: "PUT", url: `/users/${userId}/branches`, data: { branch_ids: formData.branches.map(Number) } });
-        toast.success("Usuario actualizado correctamente.");
+        sileo.success({ title: "Usuario actualizado correctamente." });
       } else {
         const fullPayload = { ...payload, branches: formData.branches.map(Number) };
         await request({ method: "POST", url: "/users", data: fullPayload });
-        toast.success("Usuario creado correctamente.");
+        sileo.success({ title: "Usuario creado correctamente." });
       }
       navigate("/dashboard/usuarios");
 
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || "Ocurrió un error inesperado.";
-      toast.error("Error al guardar", { description: errorMessage });
+      sileo.error({ title: "Error al guardar", description: errorMessage });
     } finally {
       setIsSubmitting(false);
     }

@@ -25,7 +25,7 @@ import { NewStockTransferDialog, StockTransferDialog } from "@/components/stock-
 import { ViewStockTransferDialog } from "@/components/stock-transfers/view-stock-transfer-dialog"
 import { stockTransferService } from '@/lib/api/stockTransferService'
 import type { StockTransfer } from '@/types/stockTransfer'
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { useBranch } from '@/context/BranchContext'
 import { exportTransferToPDF, exportTransferToExcel } from '@/lib/utils/transferExport'
 import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
@@ -90,6 +90,8 @@ export default function StockTransfersPage() {
   const [transferToDelete, setTransferToDelete] = useState<number | null>(null)
   const [viewTransferId, setViewTransferId] = useState<number | null>(null)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [completeTransferDetails, setCompleteTransferDetails] = useState<StockTransfer | null>(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
 
   const { selectedBranchIds } = useBranch()
 
@@ -121,7 +123,7 @@ export default function StockTransfersPage() {
       setTransfers(data)
     } catch (error) {
       console.error('Error loading stock transfers:', error)
-      toast.error("Error al cargar transferencias")
+      sileo.error({ title: "Error al cargar transferencias" })
       setTransfers([])
     } finally {
       setLoading(false)
@@ -136,36 +138,51 @@ export default function StockTransfersPage() {
   const handleCompleteTransfer = async (id: number) => {
     try {
       await stockTransferService.complete(id)
-      toast.success("Transferencia completada exitosamente")
+      sileo.success({ title: "Transferencia completada exitosamente" })
       setTransferToComplete(null)
+      setCompleteTransferDetails(null)
       await loadTransfers()
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Error al completar")
+      sileo.error({ title: err.response?.data?.error || "Error al completar" })
+    }
+  }
+
+  const handleOpenCompleteConfirm = async (id: number) => {
+    setTransferToComplete(id)
+    setLoadingDetails(true)
+    try {
+      const data = await stockTransferService.getById(id)
+      setCompleteTransferDetails(data)
+    } catch (error) {
+      console.error("Error loading transfer details:", error)
+      sileo.error({ title: "Error al cargar detalles de la transferencia" })
+    } finally {
+      setLoadingDetails(false)
     }
   }
 
   const handleCancelTransfer = async (id: number) => {
     try {
       await stockTransferService.cancel(id)
-      toast.success("Transferencia cancelada")
+      sileo.success({ title: "Transferencia cancelada" })
       setTransferToCancel(null)
       await loadTransfers()
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Error al cancelar")
+      sileo.error({ title: err.response?.data?.error || "Error al cancelar" })
     }
   }
 
   const handleDeleteTransfer = async (id: number) => {
     try {
       await stockTransferService.delete(id)
-      toast.success("Transferencia eliminada")
+      sileo.success({ title: "Transferencia eliminada" })
       setTransferToDelete(null)
       await loadTransfers()
     } catch (error) {
       const err = error as { response?: { data?: { error?: string } } };
-      toast.error(err.response?.data?.error || "Error al eliminar")
+      sileo.error({ title: err.response?.data?.error || "Error al eliminar" })
     }
   }
 
@@ -465,7 +482,7 @@ export default function StockTransfersPage() {
                             </Button>
                           )}
                           {canComplete && canCompleteTransfer(transfer) && (
-                            <Button variant="ghost" size="icon" onClick={() => setTransferToComplete(transfer.id!)} className="text-green-600 hover:text-green-700 hover:bg-green-50" title="Completar">
+                            <Button variant="ghost" size="icon" onClick={() => handleOpenCompleteConfirm(transfer.id!)} className="text-green-600 hover:text-green-700 hover:bg-green-50" title="Completar">
                               <CheckCircle className="h-4 w-4" />
                             </Button>
                           )}
@@ -543,10 +560,12 @@ export default function StockTransfersPage() {
                 <p>¿Está seguro que desea completar esta transferencia? El stock se moverá entre sucursales.</p>
 
                 {/* Transfer details */}
-                {transferToComplete && (() => {
-                  const transfer = transfers.find(t => t.id === transferToComplete);
-                  if (!transfer) return null;
-
+                {transferToComplete && (loadingDetails ? (
+                  <div className="flex justify-center py-4">
+                    <span className="text-sm text-muted-foreground italic">Cargando detalles...</span>
+                  </div>
+                ) : completeTransferDetails ? (() => {
+                  const transfer = completeTransferDetails;
                   return (
                     <div className="space-y-3 pt-2">
                       {/* Branches info */}
@@ -593,7 +612,7 @@ export default function StockTransfersPage() {
                       </div>
                     </div>
                   );
-                })()}
+                })() : null)}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

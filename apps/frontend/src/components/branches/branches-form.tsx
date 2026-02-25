@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Loader2, Save, ArrowLeft, RefreshCw, Check } from "lucide-react"
 
 // Hooks y Contexto
@@ -183,7 +183,7 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     } catch (error: any) {
       if (!axios.isCancel(error)) {
         console.error("Error fetching users for branch form:", error)
-        toast.error("No se pudieron cargar los usuarios")
+        sileo.error({ title: "No se pudieron cargar los usuarios" })
       }
       setUsers([])
     } finally {
@@ -207,7 +207,8 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
 
       if (response.exists && name !== (branch?.description || '')) {
         setNameError("Este nombre ya está en uso");
-        toast.error("Este nombre ya está en uso", {
+        sileo.error({
+          title: "Este nombre ya está en uso",
           description: "Por favor, elige un nombre diferente para la sucursal."
         });
       } else {
@@ -235,7 +236,8 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     if (!certCheck.has_certificate || !certCheck.is_valid) {
       setArcaPointsOfSale([])
       if (!silent) {
-        toast.warning('Este CUIT no tiene certificado configurado', {
+        sileo.warning({
+          title: 'Este CUIT no tiene certificado configurado',
           description: 'Registre el certificado ARCA para este CUIT en Configuración.'
         })
       }
@@ -255,12 +257,12 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
       if (points && points.length > 0) {
         setArcaPointsOfSale(points)
         if (!silent) {
-          toast.success(`Se encontraron ${points.length} punto(s) de venta habilitado(s) en ARCA`)
+          sileo.success({ title: `Se encontraron ${points.length} punto(s) de venta habilitado(s) en ARCA` })
         }
       } else {
         setArcaPointsOfSale([])
         if (!silent) {
-          toast.info('No se encontraron puntos de venta habilitados para este CUIT en ARCA')
+          sileo.info({ title: 'No se encontraron puntos de venta habilitados para este CUIT en ARCA' })
         }
       }
     } catch (error) {
@@ -284,7 +286,8 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     if (!certCheck.has_certificate || !certCheck.is_valid) {
       setArcaReceiptTypes([])
       if (!silent) {
-        toast.warning('Este CUIT no tiene certificado configurado', {
+        sileo.warning({
+          title: 'Este CUIT no tiene certificado configurado',
           description: 'Solo puede emitir comprobantes ARCA para CUITs con certificado válido registrado en el sistema.'
         })
       }
@@ -304,12 +307,12 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         setArcaReceiptTypes(types)
 
         if (!silent) {
-          toast.success(`Se encontraron ${types.length} tipo(s) de comprobante disponible(s)`)
+          sileo.success({ title: `Se encontraron ${types.length} tipo(s) de comprobante disponible(s)` })
         }
       } else {
         setArcaReceiptTypes([])
         if (!silent) {
-          toast.info('No se encontraron tipos de comprobantes para este CUIT')
+          sileo.info({ title: 'No se encontraron tipos de comprobantes para este CUIT' })
         }
       }
     } catch (error) {
@@ -382,7 +385,8 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
     }
 
     if (errors.length > 0) {
-      toast.error("Campos obligatorios faltantes", {
+      sileo.error({
+        title: "Campos obligatorios faltantes",
         description: errors.join(", ")
       })
       return
@@ -433,11 +437,11 @@ export function BranchesForm({ branch, isReadOnly = false }: BranchFormProps) {
         dispatch({ type: "SET_ENTITY", entityType: "branches", id: String(savedBranch.id), entity: normalizedBranch });
       }
 
-      toast.success(isEditing ? "Sucursal actualizada" : "Sucursal creada")
+      sileo.success({ title: isEditing ? "Sucursal actualizada" : "Sucursal creada" })
       navigate("/dashboard/sucursales")
     } catch (error: any) {
       console.error("Error saving branch:", error)
-      toast.error(isEditing ? "Error al actualizar" : "Error al crear")
+      sileo.error({ title: isEditing ? "Error al actualizar" : "Error al crear" })
     } finally {
       setLoading(false)
     }

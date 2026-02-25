@@ -10,7 +10,7 @@ import { Search, Pencil, Trash2, RotateCw, Plus, X, DollarSign, Users, Building,
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
 import Pagination from "@/components/ui/pagination"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -255,7 +255,7 @@ export default function ExpensesListPage() {
             }
         } catch (error) {
             console.error("Error fetching expenses:", error);
-            toast.error("Error al cargar los gastos");
+            sileo.error({ title: "Error al cargar los gastos" });
         }
     }, [request, debouncedSearchTerm, filters]);
 
@@ -302,13 +302,13 @@ export default function ExpensesListPage() {
 
         try {
             await request({ method: "DELETE", url: `/expenses/${expenseToDelete}` })
-            toast.success('Gasto eliminado correctamente')
+            sileo.success({ title: 'Gasto eliminado correctamente' })
             fetchExpenses(currentPage);
             fetchStats();
             setDeleteDialogOpen(false)
             setExpenseToDelete(null)
         } catch (error: any) {
-            toast.error(error?.message || 'Error al eliminar el gasto')
+            sileo.error({ title: error?.message || 'Error al eliminar el gasto' })
         }
     }
 
@@ -319,11 +319,11 @@ export default function ExpensesListPage() {
                 url: `/expenses/${expense.id}`,
                 data: { status: 'paid' }
             });
-            toast.success('Gasto marcado como pagado');
+            sileo.success({ title: 'Gasto marcado como pagado' });
             fetchExpenses(currentPage);
             fetchStats();
         } catch (error: any) {
-            toast.error(error?.message || 'Error al pagar el gasto');
+            sileo.error({ title: error?.message || 'Error al pagar el gasto' });
         }
     }
 

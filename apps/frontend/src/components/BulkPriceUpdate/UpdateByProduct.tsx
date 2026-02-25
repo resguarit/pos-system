@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { Search, Loader2, DollarSign, Percent, TrendingUp, AlertCircle } from 'lucide-react';
 import { getProducts, type Product } from '@/lib/api/productService';
 import { bulkPriceService } from '@/lib/api/bulkPriceService';
@@ -46,7 +46,7 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
       setProducts(productList);
     } catch (error) {
       console.error('Error cargando productos:', error);
-      toast.error('Error al cargar productos');
+      sileo.error({ title: 'Error al cargar productos' });
     } finally {
       setIsLoading(false);
     }
@@ -130,13 +130,13 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
 
   const handleUpdate = async () => {
     if (!updateValue || selectedProducts.size === 0) {
-      toast.error('Selecciona productos y especifica un valor');
+      sileo.error({ title: 'Selecciona productos y especifica un valor' });
       return;
     }
 
     const value = Number(updateValue);
     if (isNaN(value)) {
-      toast.error('Valor inválido');
+      sileo.error({ title: 'Valor inválido' });
       return;
     }
 
@@ -146,7 +146,7 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
 
     const validation = strategy.validate();
     if (!validation.isValid) {
-      toast.error(validation.error || 'Error de validación');
+      sileo.error({ title: validation.error || 'Error de validación' });
       return;
     }
 
@@ -168,15 +168,15 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
       const result = await bulkPriceService.bulkUpdatePrices({ updates });
 
       if (result.success) {
-        toast.success(result.message);
+        sileo.success({ title: result.message });
         onSuccess?.();
         onClose();
       } else {
-        toast.error(result.message || 'Error al actualizar precios');
+        sileo.error({ title: result.message || 'Error al actualizar precios' });
       }
     } catch (error) {
       console.error('Error actualizando precios:', error);
-      toast.error('Error al actualizar precios');
+      sileo.error({ title: 'Error al actualizar precios' });
     } finally {
       setIsUpdating(false);
     }

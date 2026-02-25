@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { RefreshCw, ArrowUp, ArrowDown, AlertTriangle, Loader2 } from 'lucide-react';
 import {
     UpdateSalePricesService,
@@ -46,7 +46,7 @@ export function UpdateSalePriceDialog({
             setPreview(data);
         } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error('Error loading price preview:', error);
-            toast.error(error.response?.data?.message || 'Error al cargar vista previa');
+            sileo.error({ title: error.response?.data?.message || 'Error al cargar vista previa' });
             onOpenChange(false);
         } finally {
             setLoading(false);
@@ -68,15 +68,13 @@ export function UpdateSalePriceDialog({
             setUpdating(true);
             const result = await UpdateSalePricesService.updateSalePrice(accountId, saleId);
 
-            toast.success(
-                `Precio actualizado correctamente. ${result.difference > 0 ? 'Aumento' : 'Descenso'}: ${CurrentAccountUtils.formatCurrency(Math.abs(result.difference))}`
-            );
+            sileo.success({ title: `Precio actualizado correctamente. ${result.difference > 0 ? 'Aumento' : 'Descenso'}: ${CurrentAccountUtils.formatCurrency(Math.abs(result.difference))}` });
 
             onSuccess();
             onOpenChange(false);
         } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error('Error updating price:', error);
-            toast.error(error.response?.data?.message || 'Error al actualizar precio');
+            sileo.error({ title: error.response?.data?.message || 'Error al actualizar precio' });
         } finally {
             setUpdating(false);
         }

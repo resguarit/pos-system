@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/ui/table';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowLeft, Download, TrendingUp, BarChart3, DollarSign, Award, RefreshCw } from 'lucide-react';
@@ -187,10 +187,10 @@ export default function UserPerformancePage() {
         // Si la respuesta viene directamente sin .data
         setUser(response);
       } else {
-        toast.error('No se pudieron cargar los datos del usuario');
+        sileo.error({ title: 'No se pudieron cargar los datos del usuario' });
       }
     } catch {
-      toast.error('Error al cargar los datos del usuario');
+      sileo.error({ title: 'Error al cargar los datos del usuario' });
     } finally {
       setLoadingUser(false);
     }
@@ -253,7 +253,7 @@ export default function UserPerformancePage() {
         }
       }
     } catch {
-      toast.error('Error al cargar las ventas');
+      sileo.error({ title: 'Error al cargar las ventas' });
     } finally {
       setLoadingData(false);
     }
@@ -324,7 +324,7 @@ export default function UserPerformancePage() {
         setStatistics(mappedStatistics);
       }
     } catch {
-      toast.error('Error al cargar las estadísticas');
+      sileo.error({ title: 'Error al cargar las estadísticas' });
     }
   }, [userId, dateRange, branchFilter, request]);
 
@@ -446,7 +446,7 @@ export default function UserPerformancePage() {
       fetchUserData();
       fetchBranches();
     } else {
-      toast.error('ID de usuario no válido');
+      sileo.error({ title: 'ID de usuario no válido' });
     }
   }, [userId, fetchUserData, fetchBranches]);
 
@@ -464,11 +464,11 @@ export default function UserPerformancePage() {
   const handleExportCSV = async () => {
     try {
       if (!hasPermission('exportar_reportes')) {
-        toast.error('No tienes permisos para exportar reportes');
+        sileo.error({ title: 'No tienes permisos para exportar reportes' });
         return;
       }
 
-      toast.loading('Generando exportación...', { id: 'export-toast' });
+      sileo.info({ title: 'Generando exportación...', id: 'export-toast' });
 
       const params: any = {
         per_page: 1000,
@@ -529,12 +529,12 @@ export default function UserPerformancePage() {
         const fileName = `desempeno_${userName}_${format(dateRange?.from || new Date(), 'yyyy-MM-dd')}_${format(dateRange?.to || new Date(), 'yyyy-MM-dd')}.xlsx`;
         XLSX.writeFile(workbook, fileName);
 
-        toast.success(`Exportación completada: ${allSales.length} ventas exportadas.`, { id: 'export-toast' });
+        sileo.success({ title: `Exportación completada: ${allSales.length} ventas exportadas.`, id: 'export-toast' });
       } else {
-        toast.error('No se pudieron obtener las ventas para exportar.', { id: 'export-toast' });
+        sileo.error({ title: 'No se pudieron obtener las ventas para exportar.', id: 'export-toast' });
       }
     } catch {
-      toast.error('Error al generar la exportación.', { id: 'export-toast' });
+      sileo.error({ title: 'Error al generar la exportación.', id: 'export-toast' });
     }
   };
 

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, BarChart3, Loader2 } from "lucide-react";
 import useApi from '@/hooks/useApi';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { format, parse, isValid, eachDayOfInterval, startOfMonth, endOfMonth, eachMonthOfInterval } from 'date-fns';
 import { es as esLocale } from 'date-fns/locale';
 
@@ -243,12 +243,12 @@ const SalesHistoryChart: React.FC<SalesHistoryChartProps> = ({ branchId, classNa
       }
 
       if (!hasData && !originalHasData) {
-        toast.info('No hay datos de ventas para el período seleccionado.');
+        sileo.info({ title: 'No hay datos de ventas para el período seleccionado.' });
       }
     } catch (err: any) {
       if (err.name !== 'CanceledError' && err.code !== 'ERR_CANCELED' && err.name !== 'AbortError') {
         setError('Error al cargar el historial de ventas.');
-        toast.error('Error al cargar el historial de ventas.');
+        sileo.error({ title: 'Error al cargar el historial de ventas.' });
       }
     } finally {
       setLoading(false);

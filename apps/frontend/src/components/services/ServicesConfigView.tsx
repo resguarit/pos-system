@@ -49,7 +49,7 @@ import {
 import Pagination from "@/components/ui/pagination"
 import { useResizableColumns } from "@/hooks/useResizableColumns"
 import api from "@/lib/api"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { getBillingCycleLabel, getBillingCycleBadgeStyles } from "@/utils/billingCycleUtils"
 
 // Iconos disponibles para servicios
@@ -157,7 +157,7 @@ export default function ServicesConfigView() {
             setTotalPages(getLastPage(response.data))
         } catch (error) {
             console.error("Error fetching service types:", error)
-            toast.error("Error al cargar los servicios")
+            sileo.error({ title: "Error al cargar los servicios" })
         } finally {
             setLoading(false)
         }
@@ -197,23 +197,23 @@ export default function ServicesConfigView() {
     const handleSave = async () => {
         try {
             if (!formData.name || !formData.price) {
-                toast.error("Completa los campos requeridos")
+                sileo.error({ title: "Completa los campos requeridos" })
                 return
             }
 
             if (editingService) {
                 await api.put(`/service-types/${editingService.id}`, formData)
-                toast.success("Servicio actualizado exitosamente")
+                sileo.success({ title: "Servicio actualizado exitosamente" })
             } else {
                 await api.post("/service-types", formData)
-                toast.success("Servicio creado exitosamente")
+                sileo.success({ title: "Servicio creado exitosamente" })
             }
 
             setDialogOpen(false)
             fetchServiceTypes()
         } catch (error) {
             console.error("Error saving service:", error)
-            toast.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || "Error al guardar el servicio")
+            sileo.error({ title: (error as { response?: { data?: { message?: string } } }).response?.data?.message || "Error al guardar el servicio" })
         }
     }
 
@@ -227,13 +227,13 @@ export default function ServicesConfigView() {
 
         try {
             await api.delete(`/service-types/${serviceToDelete.id}`)
-            toast.success("Servicio eliminado exitosamente")
+            sileo.success({ title: "Servicio eliminado exitosamente" })
             setDeleteDialogOpen(false)
             setServiceToDelete(null)
             fetchServiceTypes()
         } catch (error) {
             console.error("Error deleting service:", error)
-            toast.error((error as { response?: { data?: { message?: string } } }).response?.data?.message || "Error al eliminar el servicio")
+            sileo.error({ title: (error as { response?: { data?: { message?: string } } }).response?.data?.message || "Error al eliminar el servicio" })
         }
     }
 

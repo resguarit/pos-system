@@ -8,8 +8,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Link } from "react-router-dom"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 export default function ConfiguracionPage() {
   const [isLoading, setIsLoading] = useState(false)
   // Gestión de Tipos de Movimiento (Caja)
@@ -26,7 +25,7 @@ export default function ConfiguracionPage() {
       setMovementTypes(Array.isArray(data) ? data : [])
     } catch (e: any) {
       console.error('Error loading movement types', e)
-      toast.error('Error al cargar los tipos de movimiento')
+      sileo.error({ title: 'Error al cargar los tipos de movimiento' })
     } finally {
       setMtLoading(false)
     }
@@ -53,7 +52,7 @@ export default function ConfiguracionPage() {
       setSettings(settingsMap)
     } catch (error) {
       console.error("Error al cargar la configuración:", error)
-      toast.error("No se pudo cargar la configuración del sistema.")
+      sileo.error({ title: "No se pudo cargar la configuración del sistema." })
     } finally {
       setIsLoading(false)
     }
@@ -109,17 +108,17 @@ export default function ConfiguracionPage() {
       const toCreate = suggestedPaymentTypes.filter(t => !existingNames.has(t.name.toLowerCase()))
 
       if (toCreate.length === 0) {
-        toast.info('Ya existen todos los tipos sugeridos')
+        sileo.info({ title: 'Ya existen todos los tipos sugeridos' })
         return
       }
 
       await Promise.all(toCreate.map(t => request({ method: 'POST', url: '/movement-types', data: t })))
-      toast.success('Tipos de movimiento creados exitosamente')
+      sileo.success({ title: 'Tipos de movimiento creados exitosamente' })
       await loadMovementTypes()
     } catch (e: any) {
       console.error('Error creating movement types', e)
       const msg = e?.response?.data?.message || e?.response?.data?.errors ? JSON.stringify(e?.response?.data?.errors) : 'Error al crear los tipos sugeridos'
-      toast.error(msg)
+      sileo.error({ title: msg })
     } finally {
       setMtLoading(false)
     }
@@ -135,10 +134,10 @@ export default function ConfiguracionPage() {
       // Convert the settings map back to an array of key-value pairs for the API
       const settingsPayload = Object.entries(settings).map(([key, value]) => ({ key, value }))
       await request({ method: 'POST', url: '/settings', data: { settings: settingsPayload } })
-      toast.success("Configuración guardada exitosamente.")
+      sileo.success({ title: "Configuración guardada exitosamente." })
     } catch (error) {
       console.error("Error al guardar la configuración:", error)
-      toast.error("No se pudo guardar la configuración.")
+      sileo.error({ title: "No se pudo guardar la configuración." })
     } finally {
       setIsLoading(false)
     }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Link } from "react-router-dom";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -67,13 +67,13 @@ export default function CustomerPurchasesPage() {
       if (response && response.success) {
         setCustomer(response.data)
       } else {
-        toast.error("Error", {
+        sileo.error({ title: "Error",
           description: "No se pudo cargar la información del cliente",
         })
       }
     } catch (error) {
       console.error("Error fetching customer:", error)
-      toast.error("Error", {
+      sileo.error({ title: "Error",
         description: "No se pudo cargar la información del cliente",
       })
     }
@@ -128,7 +128,7 @@ export default function CustomerPurchasesPage() {
           totalIva: response.grand_total_iva ?? 0,
         });
       } else {
-        toast.error("Error al cargar compras", {
+        sileo.error({ title: "Error al cargar compras",
           description: response?.message || "No se pudo cargar el historial de compras del cliente.",
         });
         setPurchases([]);
@@ -137,7 +137,7 @@ export default function CustomerPurchasesPage() {
     } catch (error: any) {
       console.error("Error fetching purchases:", error);
       const errorMessage = error?.response?.data?.message || error.message || "No se pudo cargar el historial de compras";
-      toast.error("Error", {
+      sileo.error({ title: "Error",
         description: errorMessage,
       });
       setPurchases([]);
@@ -269,7 +269,7 @@ export default function CustomerPurchasesPage() {
       setIsDetailOpen(true);
     } catch (error) {
       console.error('Error al cargar el detalle de la venta:', error);
-      toast.error('No se pudo cargar el detalle de la venta');
+      sileo.error({ title: 'No se pudo cargar el detalle de la venta' });
       setSelectedSale(sale);
       setIsDetailOpen(true);
     }
@@ -570,7 +570,7 @@ export default function CustomerPurchasesPage() {
               setIsReceiptOpen(true)
             } catch (error) {
               console.error('Error fetching sale details for receipt:', error)
-              toast.error('No se pudo cargar el detalle del comprobante')
+              sileo.error({ title: 'No se pudo cargar el detalle del comprobante' })
               setSelectedSale(sale)
               setIsReceiptOpen(true)
             }

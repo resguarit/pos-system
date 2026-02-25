@@ -9,7 +9,7 @@ import { Search, Pencil, Trash2, RotateCw, Plus, ChevronRight, ChevronDown, Fold
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
 import Pagination from "@/components/ui/pagination"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -102,7 +102,7 @@ export default function ExpenseCategoriesPage() {
             }
         } catch (error) {
             console.error("Error fetching categories:", error);
-            toast.error("Error al cargar categorías");
+            sileo.error({ title: "Error al cargar categorías" });
         }
     }, [request, debouncedSearchTerm]);
 
@@ -190,13 +190,13 @@ export default function ExpenseCategoriesPage() {
 
         try {
             await request({ method: "DELETE", url: `/expense-categories/${categoryToDelete}` })
-            toast.success('Categoría eliminada correctamente')
+            sileo.success({ title: 'Categoría eliminada correctamente' })
             fetchCategories(currentPage);
             setDeleteDialogOpen(false)
             setCategoryToDelete(null)
         } catch (error: unknown) {
             const errMsg = error instanceof Error ? error.message : 'Error al eliminar la categoría';
-            toast.error(errMsg)
+            sileo.error({ title: errMsg })
         }
     }
 

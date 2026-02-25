@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import {
     RefreshCw,
     ArrowUp,
@@ -70,7 +70,7 @@ export function BatchUpdatePricesDialog({
             setExpandedCustomers(customerKeys);
         } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error('Error loading batch preview:', error);
-            toast.error(error.response?.data?.message || 'Error al cargar vista previa');
+            sileo.error({ title: error.response?.data?.message || 'Error al cargar vista previa' });
             onOpenChange(false);
         } finally {
             setLoading(false);
@@ -89,7 +89,7 @@ export function BatchUpdatePricesDialog({
 
     const handleUpdate = async () => {
         if (selectedSaleIds.size === 0) {
-            toast.error('Selecciona al menos una venta para actualizar');
+            sileo.error({ title: 'Selecciona al menos una venta para actualizar' });
             return;
         }
 
@@ -98,17 +98,15 @@ export function BatchUpdatePricesDialog({
             const result = await UpdateSalePricesService.batchUpdatePrices(Array.from(selectedSaleIds));
 
             if (result.success) {
-                toast.success(
-                    `${result.updated} ventas actualizadas correctamente. Total: ${CurrentAccountUtils.formatCurrency(result.total_difference)}`
-                );
+                sileo.success({ title: `${result.updated} ventas actualizadas correctamente. Total: ${CurrentAccountUtils.formatCurrency(result.total_difference)}` });
                 onSuccess();
                 onOpenChange(false);
             } else {
-                toast.error(`Se actualizaron ${result.updated} ventas. ${result.failed} fallaron.`);
+                sileo.error({ title: `Se actualizaron ${result.updated} ventas. ${result.failed} fallaron.` });
             }
         } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error('Error updating prices:', error);
-            toast.error(error.response?.data?.message || 'Error al actualizar precios');
+            sileo.error({ title: error.response?.data?.message || 'Error al actualizar precios' });
         } finally {
             setUpdating(false);
         }

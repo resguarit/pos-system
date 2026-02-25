@@ -21,7 +21,7 @@ import {
 import { Combobox } from '@/components/ui/combobox';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Pencil } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { useBranch } from '@/context/BranchContext';
 
@@ -191,13 +191,13 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSuccess }: Ed
             });
 
             if (response?.success) {
-                toast.success('Gasto actualizado correctamente');
+                sileo.success({ title: 'Gasto actualizado correctamente' });
                 onOpenChange(false);
                 onSuccess();
             }
         } catch (error: any) {
             console.error('Error updating expense:', error);
-            toast.error(error?.response?.data?.message || 'Error al actualizar el gasto');
+            sileo.error({ title: error?.response?.data?.message || 'Error al actualizar el gasto' });
         } finally {
             setLoading(false);
         }

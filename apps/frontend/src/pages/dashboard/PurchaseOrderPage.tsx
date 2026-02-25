@@ -19,7 +19,7 @@ import EditPurchaseOrderDialog from "@/components/edit-purchase-order-dialog"
 import { CancelPurchaseOrderDialog } from "@/components/cancel-purchase-order-dialog"
 import { getPurchaseOrders, finalizePurchaseOrder, getPurchaseSummaryByCurrency } from "@/lib/api/purchaseOrderService"
 import type { PurchaseOrder as APIPurchaseOrder } from "@/lib/api/purchaseOrderService"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import type { DateRange } from "@/components/ui/date-range-picker"
 import { format, startOfMonth } from "date-fns"
@@ -163,7 +163,7 @@ export default function PurchaseOrderPage() {
       setTotalPOPages(response.last_page);
     } catch (error) {
       console.error('Error loading purchase orders:', error);
-      toast.error("Error al cargar órdenes de compra");
+      sileo.error({ title: "Error al cargar órdenes de compra" });
       setPurchaseOrders([]);
       setTotalPOItems(0);
       setTotalPOPages(1);
@@ -187,7 +187,7 @@ export default function PurchaseOrderPage() {
           setSummary(summaryData.totals)
           setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
         } catch (error) {
-          toast.error("Error al cargar el resumen de compras por moneda.")
+          sileo.error({ title: "Error al cargar el resumen de compras por moneda." })
           setSummary({})
           setSummaryPeriod(null)
         }
@@ -269,16 +269,16 @@ export default function PurchaseOrderPage() {
 
   const handleCompletePurchaseOrder = async (orderId: number) => {
     if (!isCashRegisterOpen || !cashRegisterStatus?.cash_register?.id) {
-      toast.error("No hay caja abierta en la sucursal seleccionada. Debe abrir la caja antes de finalizar la orden.");
+      sileo.error({ title: "No hay caja abierta en la sucursal seleccionada. Debe abrir la caja antes de finalizar la orden." });
       return;
     }
     try {
       const cashRegisterId = cashRegisterStatus.cash_register.id;
       await finalizePurchaseOrder(orderId, cashRegisterId);
-      toast.success("Orden de compra finalizada exitosamente");
+      sileo.success({ title: "Orden de compra finalizada exitosamente" });
       await refreshCards();
     } catch (error) {
-      toast.error("Error al finalizar la orden de compra");
+      sileo.error({ title: "Error al finalizar la orden de compra" });
     }
   }
 
@@ -292,9 +292,9 @@ export default function PurchaseOrderPage() {
   const handleCancelDialogComplete = async () => {
     const wasCompleted = cancelOrderStatus === 'completed'
     if (wasCompleted) {
-      toast.success("Orden de compra cancelada y revertida exitosamente")
+      sileo.success({ title: "Orden de compra cancelada y revertida exitosamente" })
     } else {
-      toast.success("Orden de compra cancelada")
+      sileo.success({ title: "Orden de compra cancelada" })
     }
     await refreshCards()
   }

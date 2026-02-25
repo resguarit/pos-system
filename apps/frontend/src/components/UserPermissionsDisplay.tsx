@@ -168,6 +168,7 @@ export function UserPermissionsDisplay({
       'ver_ventas': 'Ver ventas',
       'crear_ventas': 'Crear ventas',
       'anular_ventas': 'Anular ventas',
+      'emitir_notas_credito': 'Emitir notas de crédito y devoluciones',
       'reimprimir_comprobantes': 'Reimprimir comprobantes',
       'aplicar_descuentos': 'Aplicar descuentos',
       'ver_productos': 'Ver productos',

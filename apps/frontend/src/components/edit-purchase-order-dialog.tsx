@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Plus, Trash2, Search, Calendar as CalendarIcon, Pencil } from 'lucide-react'
-import { toast } from 'sonner'
+import { sileo } from "sileo"
 import { purchaseOrderService } from '@/lib/api/purchaseOrderService'
 import { getBranches } from '@/lib/api/branchService'
 import { getProducts } from '@/lib/api/productService'
@@ -151,9 +151,6 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
               rate = await exchangeRateService.getCurrentRate('USD', 'ARS');
             } catch {
               rate = FALLBACK_USD_TO_ARS;
-              toast.warning('Tasa de cambio no disponible', {
-                description: 'Se usó 1:1 para mostrar los montos en ARS. Verifique los valores antes de guardar.',
-              });
             }
             setPayments(orderPayments.map((p) => ({
               payment_method_id: String(p.payment_method_id),
@@ -176,9 +173,6 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
                 r = await exchangeRateService.getCurrentRate('USD', 'ARS');
               } catch {
                 r = FALLBACK_USD_TO_ARS;
-                toast.warning('Tasa de cambio no disponible', {
-                  description: 'Se usó 1:1 para mostrar el monto en ARS. Verifique antes de guardar.',
-                });
               }
               amountStr = String((amt * r).toFixed(2));
             } else {
@@ -338,7 +332,7 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
         })).filter((item) => item.quantity > 0)
       }
       await purchaseOrderService.update(purchaseOrderId, payload)
-      toast.success('Orden de compra actualizada', { description: 'Los cambios fueron guardados.' })
+      sileo.success({ title: 'Orden de compra actualizada', description: 'Los cambios fueron guardados.' })
       onSaved()
       onOpenChange(false)
     } catch (err: unknown) {

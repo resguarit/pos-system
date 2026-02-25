@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Download, Search, Loader2, FileSpreadsheet, FileText } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import type { DateRange } from 'react-day-picker';
 import { saleService } from '@/lib/api/saleService';
 
@@ -38,12 +38,12 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
     // Search sold products from API
     const handleSearch = async () => {
         if (!sourceBranchId) {
-            toast.error("Seleccione una sucursal de origen para buscar ventas");
+            sileo.error({ title: "Seleccione una sucursal de origen para buscar ventas" });
             return;
         }
 
         if (!dateRange?.from || !dateRange?.to) {
-            toast.error("Seleccione un rango de fechas");
+            sileo.error({ title: "Seleccione un rango de fechas" });
             return;
         }
 
@@ -62,13 +62,13 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
             setResults(soldProducts);
 
             if (soldProducts.length === 0) {
-                toast.info("No se encontraron productos vendidos en el rango seleccionado");
+                sileo.info({ title: "No se encontraron productos vendidos en el rango seleccionado" });
             } else {
-                toast.success(`Se encontraron ${soldProducts.length} productos vendidos`);
+                sileo.success({ title: `Se encontraron ${soldProducts.length} productos vendidos` });
             }
         } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error("Error fetching sold products:", error);
-            toast.error(error?.response?.data?.message || "Error al buscar productos vendidos");
+            sileo.error({ title: error?.response?.data?.message || "Error al buscar productos vendidos" });
             setResults([]);
         } finally {
             setLoading(false);
@@ -93,7 +93,7 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
         const selectedProducts = results.filter(r => selectedIds.includes(r.id));
 
         if (selectedProducts.length === 0) {
-            toast.error("Seleccione al menos un producto para importar");
+            sileo.error({ title: "Seleccione al menos un producto para importar" });
             return;
         }
 
@@ -107,14 +107,14 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
         }));
 
         onImport(itemsToImport);
-        toast.success(`${itemsToImport.length} productos agregados a la transferencia`);
+        sileo.success({ title: `${itemsToImport.length} productos agregados a la transferencia` });
 
         // Reset selection
         setSelectedIds([]);
     };
     const handleExport = async (type: 'pdf' | 'excel') => {
         if (results.length === 0) {
-            toast.error("No hay datos para exportar");
+            sileo.error({ title: "No hay datos para exportar" });
             return;
         }
 
@@ -157,7 +157,7 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
                 });
 
                 doc.save(`productos-vendidos-${new Date().getTime()}.pdf`);
-                toast.success("PDF generado exitosamente");
+                sileo.success({ title: "PDF generado exitosamente" });
             } else if (type === 'excel') {
                 // Importación dinámica de xlsx
                 const XLSX = await import('xlsx');
@@ -200,11 +200,11 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
 
                 // Generar archivo
                 XLSX.writeFile(wb, `productos-vendidos-${new Date().getTime()}.xlsx`);
-                toast.success("Excel generado exitosamente");
+                sileo.success({ title: "Excel generado exitosamente" });
             }
         } catch (error) {
             console.error('Error al exportar:', error);
-            toast.error(`Error al generar ${type.toUpperCase()}`);
+            sileo.error({ title: `Error al generar ${type.toUpperCase()}` });
         }
     };
 

@@ -12,8 +12,7 @@ import {
 import { Trash2, AlertTriangle } from "lucide-react";
 import type { Product } from "@/types/product";
 import useApi from "@/hooks/useApi";
-import { toast } from "sonner";
-
+import { sileo } from "sileo"
 interface DeleteProductDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -39,14 +38,14 @@ export function DeleteProductDialog({ open, onOpenChange, product, onProductDele
       onOpenChange(false);
       onProductDeleted(); // Call the success handler
 
-      toast.success("Producto eliminado correctamente", {
+      sileo.success({ title: "Producto eliminado correctamente",
         description: `El producto "${product.description}" fue eliminado del inventario.`,
       });
     } catch (err) {
       console.error("Error al eliminar producto:", err);
       setIsDeleting(false);
 
-      toast.error("Error al eliminar producto", {
+      sileo.error({ title: "Error al eliminar producto",
         description: "Ocurrió un error al eliminar el producto.",
       });
     }

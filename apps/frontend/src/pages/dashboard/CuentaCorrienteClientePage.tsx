@@ -5,8 +5,7 @@ import { CurrentAccountDetails } from "@/components/currentAccount/CurrentAccoun
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import useApi from "@/hooks/useApi";
-import { toast } from "sonner";
-
+import { sileo } from "sileo"
 export default function CuentaCorrienteClientePage() {
   const params = useParams();
   const navigate = useNavigate();
@@ -39,12 +38,12 @@ export default function CuentaCorrienteClientePage() {
       if (accounts.length > 0) {
         setAccountId(accounts[0].id);
       } else {
-        toast.error("El cliente no tiene cuenta corriente activa");
+        sileo.error({ title: "El cliente no tiene cuenta corriente activa" });
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Error fetching account:', error);
-      toast.error(error?.message || "Error al buscar la cuenta corriente");
+      sileo.error({ title: error?.message || "Error al buscar la cuenta corriente" });
     } finally {
       setInitialLoading(false);
     }

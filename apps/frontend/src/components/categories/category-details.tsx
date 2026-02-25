@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
-import { toast } from "sonner"
-
-// Hooks
+import { sileo } from "sileo"
 import useApi from "@/hooks/useApi"
 import { useAuth } from "@/hooks/useAuth"
 
@@ -80,7 +78,7 @@ export default function CategoryDetails({
       } catch (error: any) {
         if (!axios.isCancel(error)) {
           console.error("Error fetching category details:", error)
-          toast.error("Error al cargar datos", { 
+          sileo.error({ title: "Error al cargar datos", 
             description: `No se pudieron obtener los datos de la ${entityLabelLower}.`
           })
           navigate(basePath)

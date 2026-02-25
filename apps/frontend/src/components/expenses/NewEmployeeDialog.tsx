@@ -20,7 +20,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Plus, UserPlus, Link2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { useBranch } from '@/context/BranchContext';
 
@@ -213,13 +213,13 @@ export function NewEmployeeDialog({ open, onOpenChange, onSuccess }: NewEmployee
             });
 
             if (response?.success) {
-                toast.success('Empleado creado correctamente');
+                sileo.success({ title: 'Empleado creado correctamente' });
                 onOpenChange(false);
                 onSuccess();
             }
         } catch (error: any) {
             console.error('Error creating employee:', error);
-            toast.error(error?.response?.data?.message || 'Error al crear el empleado');
+            sileo.error({ title: error?.response?.data?.message || 'Error al crear el empleado' });
         } finally {
             setLoading(false);
         }

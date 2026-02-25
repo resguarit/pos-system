@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Plus, Trash2, ArrowLeft, Check, ChevronsUpDown } from "lucide-react"
 import useApi from "@/hooks/useApi"
 import { useBranch } from "@/context/BranchContext"
@@ -53,7 +53,7 @@ export default function OpenDetailInvoicePage() {
 
     // State
     const [items, setItems] = useState<ManualItem[]>([])
-    const [products, setProducts] = useState<Array<{ id: number; description?: string; sale_price?: number; iva?: { rate?: number }; [key: string]: unknown }>>([])
+    const [products, setProducts] = useState<Array<{ id: number; description?: string; sale_price?: number; iva?: { rate?: number };[key: string]: unknown }>>([])
     const [openCombobox, setOpenCombobox] = useState(false)
     const [selectedProductId, setSelectedProductId] = useState<number | null>(null)
 
@@ -69,7 +69,7 @@ export default function OpenDetailInvoicePage() {
         { payment_method_id: '', amount: '' }
     ])
     const [isProcessing, setIsProcessing] = useState(false)
-    const [genericProduct, setGenericProduct] = useState<{ id: number; [key: string]: unknown } | null>(null)
+    const [genericProduct, setGenericProduct] = useState<{ id: number;[key: string]: unknown } | null>(null)
 
     // Customer search hooks
     const {
@@ -151,7 +151,7 @@ export default function OpenDetailInvoicePage() {
 
     const addItem = () => {
         if (!newItemDescription || price <= 0 || qty <= 0) {
-            toast.error("Complete todos los campos del ítem correctamente")
+            sileo.error({ title: "Complete todos los campos del ítem correctamente" })
             return
         }
 
@@ -160,7 +160,7 @@ export default function OpenDetailInvoicePage() {
         const finalProductId = selectedProductId || genericProduct?.id
 
         if (!finalProductId) {
-            toast.error("Error interno: No se pudo asignar un ID de producto genérico. Intente recargar.")
+            sileo.error({ title: "Error interno: No se pudo asignar un ID de producto genérico. Intente recargar." })
             return
         }
 
@@ -187,7 +187,7 @@ export default function OpenDetailInvoicePage() {
         setPrice(0)
         setQty(1)
         setSelectedProductId(null) // Reset selection
-        toast.success("Ítem agregado")
+        sileo.success({ title: "Ítem agregado" })
     }
 
     const removeItem = (id: string) => {
@@ -244,15 +244,15 @@ export default function OpenDetailInvoicePage() {
     const handleProcessSale = async () => {
         if (!selectedBranch) return
         if (items.length === 0) {
-            toast.error("Agrega items a la venta")
+            sileo.error({ title: "Agrega items a la venta" })
             return
         }
         if (pendingAmount > 0.05) { // Tolerance
-            toast.error("El pago no cubre el total")
+            sileo.error({ title: "El pago no cubre el total" })
             return
         }
         if (!receiptTypeId) {
-            toast.error("Selecciona un tipo de comprobante")
+            sileo.error({ title: "Selecciona un tipo de comprobante" })
             return
         }
 
@@ -289,7 +289,7 @@ export default function OpenDetailInvoicePage() {
             const response = await request({ method: 'POST', url: '/pos/sales', data: saleData })
 
             if (response) {
-                toast.success("Venta creada exitosamente!")
+                sileo.success({ title: "Venta creada exitosamente!" })
                 // Clear
                 setItems([])
                 setPayments([{ payment_method_id: '', amount: '' }])
@@ -297,13 +297,13 @@ export default function OpenDetailInvoicePage() {
         } catch (e: unknown) {
             const err = e as { response?: { data?: { message?: string } }; message?: string };
             console.error(e)
-            toast.error("Error al procesar venta: " + (err.response?.data?.message || err.message || ''))
+            sileo.error({ title: "Error al procesar venta: " + (err.response?.data?.message || err.message || '') })
         } finally {
             setIsProcessing(false)
         }
     }
 
-    const handleProductSelect = (product: { id: number; description?: string; sale_price?: number; iva?: { rate?: number }; [key: string]: unknown }) => {
+    const handleProductSelect = (product: { id: number; description?: string; sale_price?: number; iva?: { rate?: number };[key: string]: unknown }) => {
         setSelectedProductId(product.id)
         setNewItemDescription(product.description ?? '')
         // Calculate net price from sale_price (which usually includes IVA in this system)
@@ -313,7 +313,7 @@ export default function OpenDetailInvoicePage() {
 
         setPrice(parseFloat(priceNet.toFixed(2)))
         setOpenCombobox(false)
-        toast.success("Producto seleccionado")
+        sileo.success({ title: "Producto seleccionado" })
     }
 
     return (
@@ -429,7 +429,7 @@ export default function OpenDetailInvoicePage() {
                                         setSelectedProductId(null)
                                         setNewItemDescription("")
                                         setPrice(0)
-                                        toast.info("Selección limpiada")
+                                        sileo.info({ title: "Selección limpiada" })
                                     }}>
                                         Limpiar
                                     </Button>

@@ -8,7 +8,8 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary-color-custom: var(--primary-color-custom, 3B82F6); /* Default to blue */
+    --primary-color-custom: var(--primary-color-custom, 3B82F6);
+    /* Default to blue */
     --primary: var(--primary-color-custom);
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
@@ -99,7 +100,13 @@
   }
 
   /* FIXES FOR TRANSPARENCY AND STYLING ISSUES */
-  
+
+  /* 0. Sileo Toasts - Forzar z-index más alto que los modales (Radix usa z-50 = 50) */
+  [data-sileo-viewport],
+  [data-sileo-toast] {
+    z-index: 9999 !important;
+  }
+
   /* 1. Dialog overlays - difuminar el fondo */
   [data-radix-dialog-overlay],
   [data-radix-alert-dialog-overlay] {
@@ -125,6 +132,7 @@
   [data-radix-alert-dialog-content] button {
     color: inherit;
   }
+
   [data-radix-dialog-content] button.bg-primary,
   [data-radix-alert-dialog-content] button.bg-primary,
   [data-radix-dialog-content] button[class*="bg-primary"],
@@ -231,10 +239,12 @@
     background-color: rgb(31, 41, 55) !important;
     color: rgb(243, 244, 246) !important;
   }
+
   /* 7. Fix para elementos con clases específicas de TailwindCSS */
   .text-card-foreground {
     color: rgb(17, 24, 39) !important;
   }
+
   .dark .text-card-foreground {
     color: rgb(243, 244, 246) !important;
   }
@@ -242,29 +252,38 @@
 
 /* Scrollbar hide utility */
 .scrollbar-hide {
-  -ms-overflow-style: none;  /* Internet Explorer 10+ */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* Internet Explorer 10+ */
+  scrollbar-width: none;
+  /* Firefox */
 }
+
 .scrollbar-hide::-webkit-scrollbar {
-  display: none;  /* Safari and Chrome */
+  display: none;
+  /* Safari and Chrome */
 }
 
 /* Scrollbar visible utility - for category and branch lists */
 .scrollbar-visible,
 .scrollbar-visible[data-scrollable="true"],
 div.scrollbar-visible {
-  scrollbar-width: thin !important;  /* Firefox */
-  scrollbar-color: #64748b #f1f5f9 !important;  /* Firefox: thumb and track */
-  -ms-overflow-style: scroll !important;  /* IE and Edge */
+  scrollbar-width: thin !important;
+  /* Firefox */
+  scrollbar-color: #64748b #f1f5f9 !important;
+  /* Firefox: thumb and track */
+  -ms-overflow-style: scroll !important;
+  /* IE and Edge */
   overflow-y: auto !important;
 }
 
 .scrollbar-visible::-webkit-scrollbar,
 .scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar,
 div.scrollbar-visible::-webkit-scrollbar {
-  width: 12px !important;  /* Chrome, Safari, Edge - making it wider */
+  width: 12px !important;
+  /* Chrome, Safari, Edge - making it wider */
   height: 12px !important;
-  display: block !important;  /* Force display */
+  display: block !important;
+  /* Force display */
   -webkit-appearance: none !important;
   background: transparent !important;
 }
@@ -272,7 +291,8 @@ div.scrollbar-visible::-webkit-scrollbar {
 .scrollbar-visible::-webkit-scrollbar-track,
 .scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar-track,
 div.scrollbar-visible::-webkit-scrollbar-track {
-  background: #f1f5f9 !important;  /* Track color */
+  background: #f1f5f9 !important;
+  /* Track color */
   border-radius: 6px !important;
   margin: 4px !important;
 }
@@ -280,7 +300,8 @@ div.scrollbar-visible::-webkit-scrollbar-track {
 .scrollbar-visible::-webkit-scrollbar-thumb,
 .scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar-thumb,
 div.scrollbar-visible::-webkit-scrollbar-thumb {
-  background: #64748b !important;  /* Thumb color - darker to be more visible */
+  background: #64748b !important;
+  /* Thumb color - darker to be more visible */
   border-radius: 6px !important;
   border: 2px solid #f1f5f9 !important;
   min-height: 20px !important;
@@ -289,7 +310,8 @@ div.scrollbar-visible::-webkit-scrollbar-thumb {
 .scrollbar-visible::-webkit-scrollbar-thumb:hover,
 .scrollbar-visible[data-scrollable="true"]::-webkit-scrollbar-thumb:hover,
 div.scrollbar-visible::-webkit-scrollbar-thumb:hover {
-  background: #475569 !important;  /* Thumb color on hover - even darker */
+  background: #475569 !important;
+  /* Thumb color on hover - even darker */
 }
 
 .scrollbar-visible::-webkit-scrollbar-corner,

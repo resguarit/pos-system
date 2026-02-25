@@ -12,8 +12,7 @@ import { EditCustomerDialog } from "@/components/edit-customer-dialog"
 import useApi from "@/hooks/useApi"
 import { Link } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -212,20 +211,20 @@ export default function ClientesPage() {
     if (!customerToDelete) return
 
     if (!hasPermission('eliminar_clientes')) {
-      toast.error('No tienes permisos para eliminar clientes');
+      sileo.error({ title: 'No tienes permisos para eliminar clientes' });
       return;
     }
 
     try {
       await request({ method: "DELETE", url: `/customers/${customerToDelete}` })
       setCustomers(customers.filter((customer) => customer.id !== customerToDelete))
-      toast.success('Cliente eliminado correctamente')
+      sileo.success({ title: 'Cliente eliminado correctamente' })
       setDeleteDialogOpen(false)
       setCustomerToDelete(null)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || 'Error al eliminar el cliente'
-      toast.error(errorMessage)
+      sileo.error({ title: errorMessage })
       // Solo cerrar el diálogo si fue un error que no es de deuda
       if (error?.response?.status !== 409) {
         setDeleteDialogOpen(false)

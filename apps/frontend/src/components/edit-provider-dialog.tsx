@@ -6,8 +6,7 @@ import { createSupplier, updateSupplier } from '@/lib/api/supplierService'
 import type { Supplier } from '@/types/product';
 import { useFormSubmit } from '@/hooks/useFormSubmit'
 import useApi from "@/hooks/useApi";
-import { toast } from 'sonner';
-
+import { sileo } from "sileo"
 interface EditProviderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -72,7 +71,7 @@ export default function EditProviderDialog({ open, onOpenChange, supplier, onSav
       
       if (response.exists && name !== (supplier?.name || '')) {
         setNameError("Este nombre ya está en uso");
-        toast.error("Este nombre ya está en uso", {
+        sileo.error({ title: "Este nombre ya está en uso",
           description: "Por favor, elige un nombre diferente para el proveedor."
         });
       } else {

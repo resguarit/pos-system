@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { format } from 'date-fns';
 import { stockTransferService } from '@/lib/api/stockTransferService';
 import { getBranches } from '@/lib/api/branchService';
@@ -156,18 +156,13 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   const loadInitialData = useCallback(async () => {
     setLoading(true);
     try {
-      const branchesData = await getBranches();
+      const branchesData = await getBranches(true);
 
-      // Filter only active branches
-      const activeBranches = (branchesData as Branch[]).filter(
-        branch => branch.status === true
-      );
-
-      setAllBranches(activeBranches);
+      setAllBranches(branchesData as Branch[]);
       setDataLoaded(true);
     } catch (error) {
       console.error('Error loading initial data:', error);
-      toast.error('Error al cargar datos iniciales');
+      sileo.error({ title: 'Error al cargar datos iniciales' });
     } finally {
       setLoading(false);
     }
@@ -217,50 +212,31 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
         notes: transfer.notes ?? '',
       });
 
-      // Set items with product info and fetch stock
+      // Set items with product info directly from the transfer object
       if (transfer.items && Array.isArray(transfer.items)) {
-        const transferItems: TransferItem[] = await Promise.all(
-          transfer.items.map(async (item: { product_id: number; quantity: number; product?: { id: number; description: string; code?: string; barcode?: string } }) => {
-            // Try to fetch product info from API
-            let product: Product | null = null;
-            try {
-              const fetched = await getProductById(item.product_id.toString());
-              if (fetched) {
-                product = fetched as unknown as Product;
-              }
-            } catch {
-              // Use inline data from the transfer item itself
-            }
+        const transferItems: TransferItem[] = transfer.items.map((item: any) => ({
+          product_id: item.product_id,
+          quantity: item.quantity,
+          availableStock: 0, // Will be updated by the useEffect if needed, or we can leave it as 0 for initial load
+          product: item.product ? {
+            id: item.product.id,
+            description: item.product.description,
+            code: item.product.code ?? null,
+            barcode: item.product.barcode ?? null,
+          } : undefined,
+        }));
 
-            // Fetch available stock for this item
-            let availableStock = 0;
-            if (sourceBranchId) {
-              try {
-                const stock = await getStockByProductAndBranch(item.product_id, parseInt(sourceBranchId));
-                availableStock = stock?.current_stock ?? 0;
-              } catch {
-                availableStock = 0;
-              }
-            }
-
-            return {
-              product_id: item.product_id,
-              quantity: item.quantity,
-              availableStock,
-              product: product ? {
-                id: typeof product.id === 'string' ? parseInt(product.id) : product.id,
-                description: product.description,
-                code: product.code ?? null,
-                barcode: product.barcode ?? null,
-              } : item.product,
-            };
-          })
-        );
         setItems(transferItems);
+
+        // After setting items, trigger a stock update for all of them
+        if (sourceBranchId) {
+          // We don't await here to let the UI render the items first
+          updateAllItemStocks();
+        }
       }
     } catch (error) {
       console.error('Error loading transfer:', error);
-      toast.error('Error al cargar la transferencia');
+      sileo.error({ title: 'Error al cargar la transferencia' });
     } finally {
       setLoading(false);
     }
@@ -309,10 +285,10 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   }, [form.source_branch_id, getProductStock]);
 
   useEffect(() => {
-    if (!dataLoaded && userBranchIds.length > 0) {
+    if (!dataLoaded) {
       loadInitialData();
     }
-  }, [userBranchIds.length, dataLoaded, loadInitialData]);
+  }, [dataLoaded, loadInitialData]);
 
   // Load transfer data when transferId changes (edit mode)
   useEffect(() => {
@@ -336,12 +312,12 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
   const addItem = useCallback(async (productId: number, quantity: number): Promise<boolean> => {
     if (!form.source_branch_id) {
-      toast.error('Seleccione primero la sucursal de origen');
+      sileo.error({ title: 'Seleccione primero la sucursal de origen' });
       return false;
     }
 
     if (quantity <= 0) {
-      toast.error('La cantidad debe ser mayor a 0');
+      sileo.error({ title: 'La cantidad debe ser mayor a 0' });
       return false;
     }
 
@@ -353,11 +329,11 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
         product = fetched as unknown as Product;
       }
     } catch {
-      toast.error('Producto no encontrado');
+      sileo.error({ title: 'Producto no encontrado' });
       return false;
     }
     if (!product) {
-      toast.error('Producto no encontrado');
+      sileo.error({ title: 'Producto no encontrado' });
       return false;
     }
 
@@ -367,7 +343,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     if (existingIndex !== -1) {
       const currentQty = items[existingIndex].quantity;
       if (currentQty + quantity > availableStock) {
-        toast.warning(`Advertencia: Stock insuficiente. Disponible: ${availableStock}, Ya agregado: ${currentQty}`);
+        sileo.warning({ title: `Advertencia: Stock insuficiente. Disponible: ${availableStock}, Ya agregado: ${currentQty}` });
       }
 
       const updatedItems = [...items];
@@ -378,7 +354,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       setItems(updatedItems);
     } else {
       if (quantity > availableStock) {
-        toast.warning(`Advertencia: Stock insuficiente. Disponible: ${availableStock}`);
+        sileo.warning({ title: `Advertencia: Stock insuficiente. Disponible: ${availableStock}` });
       }
 
       setItems(prev => [...prev, {
@@ -400,7 +376,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
   const addItems = useCallback(async (newItems: { productId: number; quantity: number; productCode?: string; productName?: string; availableStock?: number }[]): Promise<boolean> => {
     if (!form.source_branch_id) {
-      toast.error('Seleccione primero la sucursal de origen');
+      sileo.error({ title: 'Seleccione primero la sucursal de origen' });
       return false;
     }
 
@@ -448,7 +424,8 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
     }
 
     if (warnings.length > 0) {
-      toast.warning(`Advertencia de stock:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? '...' : ''}`, {
+      sileo.warning({
+        title: `Advertencia de stock:\n${warnings.slice(0, 3).join('\n')}${warnings.length > 3 ? '...' : ''}`,
         duration: 6000
       });
     }
@@ -507,7 +484,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
     if (!validation.valid) {
       const firstError = Object.values(validation.errors)[0];
-      toast.error(firstError || 'Por favor corrija los errores');
+      sileo.error({ title: firstError || 'Por favor corrija los errores' });
       return false;
     }
 
@@ -527,10 +504,10 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
       if (isEditMode && transferId) {
         await stockTransferService.update(transferId, payload);
-        toast.success('Transferencia actualizada exitosamente');
+        sileo.success({ title: 'Transferencia actualizada exitosamente' });
       } else {
         await stockTransferService.create(payload);
-        toast.success('Transferencia creada exitosamente');
+        sileo.success({ title: 'Transferencia creada exitosamente' });
         clearDraft();
         reset();
       }
@@ -543,7 +520,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       console.error('Error saving transfer:', error);
       const err = error as { response?: { data?: { error?: string; message?: string } } };
       const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Error al guardar la transferencia';
-      toast.error(errorMessage);
+      sileo.error({ title: errorMessage });
       return false;
     } finally {
       setIsSubmitting(false);

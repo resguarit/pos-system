@@ -9,7 +9,7 @@ import { Download, TrendingUp, TrendingDown, DollarSign, ChevronDown, ChevronUp 
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { useAuth } from "@/hooks/useAuth"
 import type { DateRange } from "react-day-picker"
 
@@ -142,7 +142,7 @@ export default function ReportesFinancierosPage() {
       }
     } catch (error: any) {
       console.error('Error al cargar resumen financiero:', error)
-      toast.error('Error', {
+      sileo.error({ title: 'Error',
         description: error?.response?.data?.error || 'No se pudo cargar el resumen financiero'
       })
     }
@@ -164,7 +164,7 @@ export default function ReportesFinancierosPage() {
   }
 
   const handleExport = () => {
-    toast.info('Funcionalidad de exportación próximamente disponible')
+    sileo.info({ title: 'Funcionalidad de exportación próximamente disponible' })
   }
 
   const handleQuickPeriod = (period: string) => {

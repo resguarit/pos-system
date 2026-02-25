@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import Pagination from "@/components/ui/pagination"
 import { useAuth } from "@/context/AuthContext"
 import { useNavigate } from "react-router-dom"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -133,9 +133,9 @@ export default function SucursalesPage() {
         url: `/branches/${branchToDelete}`,
       });
       setBranches((prev) => prev.filter((branch) => branch.id !== branchToDelete));
-      toast.success("Sucursal eliminada");
+      sileo.success({ title: "Sucursal eliminada" });
     } catch (error: any) {
-      toast.error("Error al eliminar", {
+      sileo.error({ title: "Error al eliminar",
         description: error?.response?.data?.message || "No se pudo eliminar la sucursal.",
       });
     } finally {

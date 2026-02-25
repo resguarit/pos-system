@@ -45,7 +45,7 @@ import {
     Utensils,
     TruckIcon
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { useBranch } from '@/context/BranchContext';
 import { useSystemConfigContext } from '@/context/SystemConfigContext';
 import useApi from '@/hooks/useApi';
@@ -276,12 +276,12 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
             };
 
             await expensesService.createExpense(payload);
-            toast.success('Gasto registrado correctamente');
+            sileo.success({ title: 'Gasto registrado correctamente' });
             onSuccess();
             onOpenChange(false);
         } catch (error: unknown) {
             console.error(error);
-            toast.error('Error al registrar gasto');
+            sileo.error({ title: 'Error al registrar gasto' });
         } finally {
             setLoading(false);
         }

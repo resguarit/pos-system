@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge'
 import { Search, Eye, Calendar, X } from 'lucide-react'
 import useApi from '@/hooks/useApi'
-import { toast } from 'sonner'
+import { sileo } from "sileo"
 import { format, startOfMonth } from 'date-fns'
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
@@ -69,7 +69,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
       setShowReceiptPreview(true)
     } catch (error) {
       console.error('Error fetching sale details for receipt:', error)
-      toast.error('No se pudo cargar el detalle del comprobante')
+      sileo.error({ title: 'No se pudo cargar el detalle del comprobante' })
       // Fallback to passed sale if fetch fails, though it might be incomplete
       setSelectedReceiptSale(sale)
       setShowReceiptPreview(true)
@@ -133,7 +133,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
       setAllTransactions(combined)
     } catch (error: any) {
       console.error('Error loading transactions:', error)
-      toast.error(error.response?.data?.message || 'Error al cargar el historial de transacciones')
+      sileo.error({ title: error.response?.data?.message || 'Error al cargar el historial de transacciones' })
       setAllTransactions([])
     } finally {
       setIsLoading(false)
@@ -220,7 +220,7 @@ export default function TransactionHistory({ currentBranchId = 1 }: TransactionH
       setSaleDialogOpen(true)
     } catch (error) {
       console.error('Error al cargar los detalles de la venta:', error)
-      toast.error('No se pudo cargar el detalle de la venta')
+      sileo.error({ title: 'No se pudo cargar el detalle de la venta' })
     }
   }
 

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import useApi from './useApi'
-import { toast } from 'sonner'
+import { sileo } from "sileo"
 import { format } from 'date-fns'
 import type {
   CashRegister,
@@ -103,7 +103,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
     } catch (error: any) {
       console.error('Error loading current cash register:', error);
       if (error.response?.status !== 404) {
-        toast.error('Error al cargar la caja actual');
+        sileo.error({ title: 'Error al cargar la caja actual' });
       }
       setCurrentRegister(null);
       setMovements([]);
@@ -147,12 +147,12 @@ export const useCashRegister = (): UseCashRegisterReturn => {
       setMovements([])
       setAllMovements([]) // Asegurar que allMovements esté limpio para la nueva caja
       setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
-      toast.success('Caja abierta exitosamente')
+      sileo.success({ title: 'Caja abierta exitosamente' })
 
       return response.data
     } catch (error: any) {
       console.error('Error opening cash register:', error)
-      toast.error(error.response?.data?.message || 'Error al abrir la caja')
+      sileo.error({ title: error.response?.data?.message || 'Error al abrir la caja' })
       throw error
     } finally {
       setIsLoading(false)
@@ -187,10 +187,10 @@ export const useCashRegister = (): UseCashRegisterReturn => {
       setMovements([])
       setAllMovements([]) // Limpiar también allMovements cuando se cierra la caja
       setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
-      toast.success('Caja cerrada exitosamente')
+      sileo.success({ title: 'Caja cerrada exitosamente' })
     } catch (error: any) {
       console.error('Error closing cash register:', error)
-      toast.error(error.response?.data?.message || 'Error al cerrar la caja')
+      sileo.error({ title: error.response?.data?.message || 'Error al cerrar la caja' })
       throw error
     } finally {
       setIsLoading(false)
@@ -281,7 +281,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
       setMovementsMeta(meta)
     } catch (error) {
       console.error('Error loading cash movements:', error)
-      toast.error('Error al cargar los movimientos de caja')
+      sileo.error({ title: 'Error al cargar los movimientos de caja' })
       setMovements([])
       setMovementsMeta({ currentPage: 1, perPage: 10, total: 0, lastPage: 1 })
     }
@@ -307,7 +307,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
         data,
       })
 
-      toast.success('Movimiento registrado exitosamente')
+      sileo.success({ title: 'Movimiento registrado exitosamente' })
 
       // Extract created movement from response
       const newMovement = response?.data?.data || response?.data
@@ -343,7 +343,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
         : (error as any)?.response?.data?.message || 'Error al registrar el movimiento'
 
       console.error('Error adding movement:', error)
-      toast.error(errorMessage)
+      sileo.error({ title: errorMessage })
       throw error
     } finally {
       setIsLoading(false)
@@ -365,7 +365,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
         url: `/cash-movements/${movementId}`,
       })
 
-      toast.success('Movimiento eliminado exitosamente')
+      sileo.success({ title: 'Movimiento eliminado exitosamente' })
 
       if (currentRegister) {
         // Recargar movimientos paginados
@@ -375,7 +375,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
       }
     } catch (error: any) {
       console.error('Error deleting movement:', error)
-      toast.error(error.response?.data?.message || 'Error al eliminar el movimiento')
+      sileo.error({ title: error.response?.data?.message || 'Error al eliminar el movimiento' })
       throw error
     }
   }, [request, currentRegister, loadMovements, loadAllMovements])
@@ -392,7 +392,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
       setMovementTypes(Array.isArray(typesData) ? typesData : [])
     } catch (error) {
       console.error('Error loading movement types:', error)
-      toast.error('Error al cargar los tipos de movimiento')
+      sileo.error({ title: 'Error al cargar los tipos de movimiento' })
       setMovementTypes([])
     }
   }, [request])
@@ -409,7 +409,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
       setPaymentMethods(Array.isArray(methodsData) ? methodsData : [])
     } catch (error) {
       console.error('Error loading payment methods:', error)
-      toast.error('Error al cargar los métodos de pago')
+      sileo.error({ title: 'Error al cargar los métodos de pago' })
       setPaymentMethods([])
     }
   }, [request])
@@ -447,7 +447,7 @@ export const useCashRegister = (): UseCashRegisterReturn => {
       setRegisterHistory(items as any[])
     } catch (error) {
       console.error('Error loading register history:', error)
-      toast.error('Error al cargar el historial de cajas')
+      sileo.error({ title: 'Error al cargar el historial de cajas' })
       setRegisterHistory([])
     }
   }, [request])

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import useApi from '@/hooks/useApi'
-import { toast } from 'sonner'
-
+import { sileo } from "sileo"
 interface Budget {
     id: number
     date: string
@@ -122,7 +121,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             }
         } catch (error) {
             console.error('Error fetching budgets:', error)
-            toast.error('Error al cargar presupuestos')
+            sileo.error({ title: 'Error al cargar presupuestos' })
         }
     }, [request, options.branchIds, options.status, options.fromDate, options.toDate, options.search, options.page, options.limit])
 
@@ -163,7 +162,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
                 errorMessage = error.message
             }
 
-            toast.error(errorMessage, { duration: 5000 })
+            sileo.error({ title: errorMessage, duration: 5000 })
             throw error
         } finally {
             setActionLoading(null)
@@ -179,7 +178,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             })
 
             if (response?.success) {
-                toast.success('Presupuesto eliminado exitosamente')
+                sileo.success({ title: 'Presupuesto eliminado exitosamente' })
                 await fetchBudgets() // Refrescar lista
                 return true
             } else {
@@ -188,7 +187,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             console.error('Error deleting budget:', error)
-            toast.error(error?.message || 'Error al eliminar presupuesto')
+            sileo.error({ title: error?.message || 'Error al eliminar presupuesto' })
             throw error
         } finally {
             setActionLoading(null)
@@ -204,7 +203,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             })
 
             if (response?.success) {
-                toast.success('Presupuesto aprobado exitosamente')
+                sileo.success({ title: 'Presupuesto aprobado exitosamente' })
                 await fetchBudgets() // Refrescar lista
                 return response.data
             } else {
@@ -213,7 +212,7 @@ export function useBudgets(options: UseBudgetsOptions = {}) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             console.error('Error approving budget:', error)
-            toast.error(error?.message || 'Error al aprobar presupuesto')
+            sileo.error({ title: error?.message || 'Error al aprobar presupuesto' })
             throw error
         } finally {
             setActionLoading(null)

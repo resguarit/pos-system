@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import useApi from "@/hooks/useApi"
 import { useBranch } from "@/context/BranchContext"
 import { useAuth } from "@/context/AuthContext"
@@ -147,7 +147,7 @@ export default function CompleteSalePage() {
   // Si no hay carrito, redirigir al POS
   useEffect(() => {
     if (initialCart.length === 0) {
-      toast.error("No hay productos en el carrito")
+      sileo.error({ title: "No hay productos en el carrito" })
       navigate("/dashboard/pos")
     }
   }, [initialCart.length, navigate])
@@ -208,7 +208,7 @@ export default function CompleteSalePage() {
       setPaymentMethods(filteredMethods)
     } catch (err) {
       setPaymentMethods([])
-      toast.error("Error al cargar los métodos de pago.")
+      sileo.error({ title: "Error al cargar los métodos de pago." })
     }
   }, [request])
 
@@ -264,7 +264,7 @@ export default function CompleteSalePage() {
         availableTypes = availableTypes.filter((t: ReceiptType) => t.afip_code !== '016')
 
         if (availableTypes.length === 0) {
-          toast.error('No hay tipos de comprobante de venta disponibles para convertir este presupuesto')
+          sileo.error({ title: 'No hay tipos de comprobante de venta disponibles para convertir este presupuesto' })
         }
       } else if (isRestrictedToBudgets) {
         const presupuesto = availableTypes.find((t: ReceiptType) => t.afip_code === '016') // Presupuesto Code = 016
@@ -273,7 +273,7 @@ export default function CompleteSalePage() {
         } else {
           // Si por alguna razón Presupuesto no está disponible, mostrar error
           availableTypes = []
-          toast.error('Tienes restricción de solo presupuestos pero el tipo Presupuesto no está disponible')
+          sileo.error({ title: 'Tienes restricción de solo presupuestos pero el tipo Presupuesto no está disponible' })
         }
       }
 
@@ -292,12 +292,12 @@ export default function CompleteSalePage() {
       } else {
         // Si no hay tipos disponibles, limpiar selección
         setReceiptTypeId(undefined)
-        toast.warning('No hay tipos de comprobante disponibles para esta sucursal')
+        sileo.warning({ title: 'No hay tipos de comprobante disponibles para esta sucursal' })
       }
     } catch (err) {
       console.error('Error al cargar tipos de comprobante:', err)
       setReceiptTypes([])
-      toast.error("Error al cargar los tipos de comprobante.")
+      sileo.error({ title: "Error al cargar los tipos de comprobante." })
     }
   }, [request, effectiveBranch, checkCuitCertificate, getArcaReceiptTypes, convertedFromBudgetId, hasPermission])
 
@@ -345,7 +345,7 @@ export default function CompleteSalePage() {
     const selectedReceiptType = receiptTypes.find((rt) => rt.id === receiptTypeId)
     const requiresCuit = receiptTypeRequiresCustomerWithCuit(selectedReceiptType?.afip_code)
     if (requiresCuit && !selectedCustomer) {
-      toast.error('Factura A requiere cliente', {
+      sileo.error({ title: 'Factura A requiere cliente',
         description: 'Seleccioná un cliente con CUIT para continuar.',
         duration: 5000,
       })
@@ -359,7 +359,7 @@ export default function CompleteSalePage() {
         : null
       const effectiveCuit = chosenIdentity?.cuit ?? selectedCustomer.cuit
       if (!isValidCuitForArca(effectiveCuit)) {
-        toast.error('Cliente sin CUIT válido', {
+        sileo.error({ title: 'Cliente sin CUIT válido',
           description: 'El cliente debe tener un CUIT de 11 dígitos para Factura A.',
           duration: 5000,
         })
@@ -386,7 +386,7 @@ export default function CompleteSalePage() {
       const emisionValidation = validateEmisionRulesForRI(String(selectedReceiptType.afip_code), receiverConditionCode, receiverHasCuit)
 
       if (!emisionValidation.isValid && emisionValidation.message) {
-        toast.error('Tipo de comprobante incorrecto', {
+        sileo.error({ title: 'Tipo de comprobante incorrecto',
           description: emisionValidation.message,
           duration: 6000,
         })
@@ -395,7 +395,7 @@ export default function CompleteSalePage() {
     }
 
     if (!activeBranch) {
-      toast.error('Debe seleccionar una sucursal antes de realizar la venta', {
+      sileo.error({ title: 'Debe seleccionar una sucursal antes de realizar la venta',
         description: 'Use el selector de sucursal en la parte superior del POS'
       })
       return
@@ -411,7 +411,7 @@ export default function CompleteSalePage() {
       }
 
       if (!user || !activeBranch) {
-        toast.error("Error de sesión o sucursal. Recargue la página.")
+        sileo.error({ title: "Error de sesión o sucursal. Recargue la página." })
         setIsProcessingSale(false)
         return
       }
@@ -465,7 +465,7 @@ export default function CompleteSalePage() {
 
       if (authorization && authorization.success === false) {
         const arcaError = authorization.error || 'No se pudo autorizar el comprobante con ARCA.'
-        toast.error('Error al autorizar con ARCA', {
+        sileo.error({ title: 'Error al autorizar con ARCA',
           description: arcaError,
           duration: 10000,
         })
@@ -475,12 +475,12 @@ export default function CompleteSalePage() {
       const saleStatus = (saleResponse as any)?.status || (saleResponse as any)?.data?.status
 
       if (saleStatus === 'pending') {
-        toast.info('Venta registrada - Pendiente de aprobación', {
+        sileo.info({ title: 'Venta registrada - Pendiente de aprobación',
           description: 'Tu venta ha sido registrada pero requiere aprobación de un supervisor antes de ser procesada. El stock y la caja no serán afectados hasta que sea aprobada.',
           duration: 8000,
         })
       } else {
-        toast.success('¡Venta realizada con éxito!')
+        sileo.success({ title: '¡Venta realizada con éxito!' })
       }
 
       try {
@@ -516,7 +516,7 @@ export default function CompleteSalePage() {
       } else if (err?.response?.data?.message) {
         errorMessage = err.response.data.message
       }
-      toast.error('Error al procesar la venta', {
+      sileo.error({ title: 'Error al procesar la venta',
         description: errorMessage,
         duration: 9000,
       })
@@ -579,7 +579,7 @@ export default function CompleteSalePage() {
       if (hasChange) {
         // Solo permitir cambio si hay un método de Efectivo
         if (!hasCashPayment) {
-          toast.error('Monto no coincide', {
+          sileo.error({ title: 'Monto no coincide',
             description: 'Para métodos de pago diferentes a efectivo, el monto debe ser exacto. Por favor ajusta el monto a pagar.',
             duration: 5000,
           })
@@ -592,7 +592,7 @@ export default function CompleteSalePage() {
       }
       // Si hay falta de pago (no debería pasar por validación canConfirm, pero validamos por seguridad)
       if (diff > 0) {
-        toast.error('Pago incompleto', {
+        sileo.error({ title: 'Pago incompleto',
           description: `Falta ${formatCurrency(diff)} para completar el pago.`,
           duration: 5000,
         })
@@ -725,7 +725,7 @@ export default function CompleteSalePage() {
     setSelectedCustomer(opt)
     setCustomerSearch(opt.name)
     setShowNewCustomerDialog(false)
-    toast.success("Cliente agregado y seleccionado")
+    sileo.success({ title: "Cliente agregado y seleccionado" })
   }, [setSelectedCustomer, setCustomerSearch])
 
   useEffect(() => {

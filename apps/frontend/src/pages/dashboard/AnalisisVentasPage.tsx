@@ -11,8 +11,7 @@ import { useBranches } from "@/hooks/useBranches"
 import { useAuth } from "@/hooks/useAuth"
 import { startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, format, parseISO } from "date-fns"
 import * as XLSX from "xlsx"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 interface GeneralStats {
   total_sales: number
   total_revenue: number
@@ -115,12 +114,12 @@ export default function AnalisisVentasPage() {
       // Generar nombre de archivo con fecha y periodo
       const fileName = `analisis_ventas_${period}_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`
       XLSX.writeFile(wb, fileName)
-      toast.success("Informe exportado correctamente", {
+      sileo.success({ title: "Informe exportado correctamente",
         description: "El archivo Excel se ha descargado con el detalle completo."
       })
     } catch (error) {
       console.error("Error exporting report:", error)
-      toast.error("Error al exportar el informe")
+      sileo.error({ title: "Error al exportar el informe" })
     }
   }
 

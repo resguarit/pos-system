@@ -7,7 +7,7 @@
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { StockTransfer } from '@/types/stockTransfer';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { resolveSystemImageUrl } from '@/lib/imageUtils';
 
 interface TransferExportData {
@@ -150,10 +150,10 @@ export async function exportTransferToPDF({ transfer, getStatusLabel, getBranchN
         doc.text(`Generado el ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: es })}`, 14, doc.internal.pageSize.getHeight() - 10);
 
         doc.save(`transferencia-${transfer.id}.pdf`);
-        toast.success('PDF generado exitosamente');
+        sileo.success({ title: 'PDF generado exitosamente' });
     } catch (error) {
         console.error('Error generating PDF:', error);
-        toast.error('Error al generar el PDF');
+        sileo.error({ title: 'Error al generar el PDF' });
     }
 }
 
@@ -212,9 +212,9 @@ export async function exportTransferToExcel({ transfer, getStatusLabel, getBranc
         XLSX.utils.book_append_sheet(wb, ws, 'Transferencia');
         XLSX.writeFile(wb, `transferencia-${transfer.id}.xlsx`);
 
-        toast.success('Excel generado exitosamente');
+        sileo.success({ title: 'Excel generado exitosamente' });
     } catch (error) {
         console.error('Error generating Excel:', error);
-        toast.error('Error al generar el Excel');
+        sileo.error({ title: 'Error al generar el Excel' });
     }
 }

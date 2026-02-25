@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Pencil, Link2, Eye } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { useBranch } from '@/context/BranchContext';
 import { Badge } from '@/components/ui/badge';
@@ -188,13 +188,13 @@ export function EditEmployeeDialog({ open, onOpenChange, employee, onSuccess, vi
             });
 
             if (response?.success) {
-                toast.success('Empleado actualizado correctamente');
+                sileo.success({ title: 'Empleado actualizado correctamente' });
                 onOpenChange(false);
                 onSuccess();
             }
         } catch (error: any) {
             console.error('Error updating employee:', error);
-            toast.error(error?.response?.data?.message || 'Error al actualizar el empleado');
+            sileo.error({ title: error?.response?.data?.message || 'Error al actualizar el empleado' });
         } finally {
             setLoading(false);
         }

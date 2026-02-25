@@ -5,8 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Info, ArrowUp, CreditCard, Users, RefreshCw } from 'lucide-react';
 import useApi from '@/hooks/useApi';
-import { toast } from 'sonner';
-
+import { sileo } from "sileo"
 interface AnnulSaleDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
@@ -24,12 +23,12 @@ export default function AnnulSaleDialog({ isOpen, onClose, sale, onSuccess }: An
 		setLoading(true);
 		try {
 			await request({ method: 'POST', url: `/sales/${sale.id}/annul`, data: { reason } });
-			toast.success('Venta anulada');
+			sileo.success({ title: 'Venta anulada' });
 			onSuccess?.(sale.id);
 			onClose();
 			setReason('');
 		} catch (e: any) {
-			toast.error('Error al anular', { description: e?.response?.data?.message || 'Intenta nuevamente.' });
+			sileo.error({ title: 'Error al anular', description: e?.response?.data?.message || 'Intenta nuevamente.' });
 		} finally {
 			setLoading(false);
 		}

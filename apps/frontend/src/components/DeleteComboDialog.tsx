@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Trash2, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { deleteCombo } from '@/lib/api/comboService';
 import type { Combo } from '@/types/combo';
 
@@ -42,12 +42,12 @@ export const DeleteComboDialog: React.FC<DeleteComboDialogProps> = ({
     
     try {
       await deleteCombo(combo.id);
-      toast.success(`Combo "${combo.name}" eliminado exitosamente`);
+      sileo.success({ title: `Combo "${combo.name}" eliminado exitosamente` });
       onDeleted();
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error deleting combo:', error);
-      toast.error(error.message || 'Error al eliminar el combo');
+      sileo.error({ title: error.message || 'Error al eliminar el combo' });
     } finally {
       setIsDeleting(false);
     }

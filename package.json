@@ -50,5 +50,8 @@
     "apps/frontend/src/**/*.{ts,tsx}": [
       "bash -c 'cd apps/frontend && npx eslint --max-warnings=500 \"$@\"' _"
     ]
+  },
+  "dependencies": {
+    "motion-utils": "^12.29.2"
   }
 }

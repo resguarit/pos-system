@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import useApi from '@/hooks/useApi';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { DollarSign, Edit, Check } from 'lucide-react';
 
 export function ExchangeRateCard() {
@@ -40,10 +40,10 @@ export function ExchangeRateCard() {
         url: '/settings',
         data: { settings: [{ key: 'usd_exchange_rate', value: rate }] },
       });
-      toast.success('Cotización actualizada');
+      sileo.success({ title: 'Cotización actualizada' });
       setIsEditing(false);
     } catch (error) {
-      toast.error('Error al actualizar la cotización');
+      sileo.error({ title: 'Error al actualizar la cotización' });
     } finally {
       setIsLoading(false);
     }

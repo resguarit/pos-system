@@ -70,9 +70,9 @@ export function CheckboxMultiSelect({
     }
   };
 
-  const label = selected.length === 0 
-    ? placeholder 
-    : selected.length === 1 
+  const label = selected.length === 0
+    ? placeholder
+    : selected.length === 1
       ? options.find(o => o.value === selected[0])?.label || placeholder
       : `${selected.length} seleccionados`;
 
@@ -105,8 +105,8 @@ export function CheckboxMultiSelect({
           <div className="flex items-center justify-between px-2 py-1 mb-1">
             <span className="text-xs text-gray-500">{options.length} opciones</span>
             {options.length > 1 && (
-              <button 
-                className="text-xs text-blue-600 hover:underline" 
+              <button
+                className="text-xs text-blue-600 hover:underline"
                 onClick={toggleAll}
               >
                 {selected.length === options.length ? 'Limpiar' : 'Seleccionar todas'}
@@ -127,8 +127,8 @@ export function CheckboxMultiSelect({
                   )}
                 >
                   <span className={cn(
-                    "h-4 w-4 inline-flex items-center justify-center rounded border flex-shrink-0",
-                    checked ? "bg-blue-600 border-blue-600 text-white" : "border-gray-300"
+                    "h-5 w-5 inline-flex items-center justify-center rounded border-2 flex-shrink-0 transition-colors",
+                    checked ? "bg-blue-600 border-blue-600 text-white" : "border-slate-500"
                   )}>
                     {checked && <Check className="h-3 w-3" />}
                   </span>
@@ -138,7 +138,7 @@ export function CheckboxMultiSelect({
                       checked ? "text-blue-700" : "text-gray-700"
                     )}>
                       {option.color && (
-                        <div 
+                        <div
                           className="w-3 h-3 rounded-full border flex-shrink-0"
                           style={{ backgroundColor: option.color }}
                         />

@@ -11,8 +11,7 @@ import NewPurchaseOrderDialog from '@/components/new-purchase-order-dialog';
 import EditPurchaseOrderDialog from '@/components/edit-purchase-order-dialog';
 import { ViewPurchaseOrderDialog } from '@/components/view-purchase-order-dialog';
 import CompleteOrderDialog from '@/components/complete-order-dialog-simple';
-import { toast } from "sonner";
-
+import { sileo } from "sileo"
 type CurrencyTotals = {
   ARS?: number;
   USD?: number;
@@ -97,12 +96,12 @@ export default function PurchaseOrdersPage() {
 
     try {
       await purchaseOrderService.finalize(orderToComplete.id, paymentMethodId);
-      toast.success("Orden completada", {
+      sileo.success({ title: "Orden completada",
         description: "La orden de compra se completó y el stock se actualizó correctamente."
       });
       loadPurchaseOrders();
     } catch (err: any) {
-      toast.error("Error al completar la orden", {
+      sileo.error({ title: "Error al completar la orden",
         description: err.message || "Error al completar la orden de compra"
       });
       throw err; // Re-throw para que el modal maneje el error
@@ -112,10 +111,10 @@ export default function PurchaseOrdersPage() {
   const handleCancel = async (id: number) => {
     try {
       await purchaseOrderService.cancel(id);
-      toast.success("Orden cancelada", { description: "La orden de compra se canceló correctamente." });
+      sileo.success({ title: "Orden cancelada", description: "La orden de compra se canceló correctamente." });
       loadPurchaseOrders();
     } catch (err: any) {
-      toast.error("Error al cancelar la orden", { description: err.message || "Error al cancelar la orden de compra" });
+      sileo.error({ title: "Error al cancelar la orden", description: err.message || "Error al cancelar la orden de compra" });
     }
   };
 

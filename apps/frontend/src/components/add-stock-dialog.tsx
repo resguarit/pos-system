@@ -14,8 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, PackagePlus, Search } from "lucide-react"
 import useApi from "@/hooks/useApi"
 import type { Product, Branch } from "@/types/product"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 /**
  * Límites de MySQL INTEGER para validación de stock.
  * Estos valores corresponden al rango del tipo INTEGER en MySQL.
@@ -400,7 +399,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
 
     const hasErrors = Object.keys(newErrors).length > 0;
     if (hasErrors) {
-      toast.error("Error de validación", {
+      sileo.error({ title: "Error de validación",
         description: Object.values(newErrors).join("\n"),
       });
     }
@@ -474,7 +473,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       onSuccess()
       onOpenChange(false)
       // Mostrar toast de éxito
-      toast.success("Stock ajustado exitosamente", {
+      sileo.success({ title: "Stock ajustado exitosamente",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         description: `Se ${Number(stockToAdd) >= 0 ? 'agregaron' : 'restaron'} ${Math.abs(Number(stockToAdd))} unidades de ${selectedProduct?.description} a la sucursal ${resolveBranchLabel(allBranches.find(b => String((b as any).id) === String(selectedBranch)) as Branch)}.`,
       });
@@ -494,7 +493,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       }
 
       // Mostrar toast de error de API
-      toast.error("Error al agregar stock", {
+      sileo.error({ title: "Error al agregar stock",
         description: errorMessage,
       });
     }

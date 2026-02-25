@@ -21,8 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 interface Category {
   id: string
   name: string
@@ -173,7 +172,7 @@ export default function CategoriesPage({
     if (!categoryToDelete) return
 
     if (!hasPermission('eliminar_categorias')) {
-      toast.error("Sin permisos", {
+      sileo.error({ title: "Sin permisos",
         description: "No tienes permisos para eliminar categorías",
       })
       return
@@ -188,12 +187,12 @@ export default function CategoriesPage({
       // Recargar todas las categorías desde el backend para mantener consistencia
       await fetchCategories(1)
 
-      toast.success("Categoría eliminada", {
+      sileo.success({ title: "Categoría eliminada",
         description: "La categoría ha sido eliminada correctamente",
       })
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || "No se pudo eliminar la categoría"
-      toast.error("Error", {
+      sileo.error({ title: "Error",
         description: errorMsg,
       })
     } finally {

@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { Minus, Loader2 } from 'lucide-react';
 import { MovementType, CreateMovementData } from '@/types/currentAccount';
 import { CurrentAccountService, MovementTypeService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
@@ -70,7 +70,7 @@ export function NewMovementDialog({
       setMovementTypes(manualTypes);
     } catch (error) {
       console.error('Error loading movement types:', error);
-      toast.error('Error al cargar los tipos de movimiento');
+      sileo.error({ title: 'Error al cargar los tipos de movimiento' });
       setMovementTypes([]);
     } finally {
       setLoadingTypes(false);
@@ -102,7 +102,7 @@ export function NewMovementDialog({
     
     const validation = validateForm();
     if (!validation.isValid) {
-      toast.error(validation.error || 'Error de validación');
+      sileo.error({ title: validation.error || 'Error de validación' });
       return;
     }
 
@@ -119,7 +119,7 @@ export function NewMovementDialog({
 
       await CurrentAccountService.createMovement(movementData);
 
-      toast.success('Movimiento creado exitosamente');
+      sileo.success({ title: 'Movimiento creado exitosamente' });
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
@@ -127,7 +127,7 @@ export function NewMovementDialog({
       const errorMessage = error?.response?.data?.message 
         || error?.message 
         || 'Error al crear el movimiento';
-      toast.error(errorMessage);
+      sileo.error({ title: errorMessage });
     } finally {
       setLoading(false);
     }

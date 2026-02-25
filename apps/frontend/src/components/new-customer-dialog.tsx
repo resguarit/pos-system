@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import type { Dispatch, SetStateAction } from 'react';
 import { useEffect, useState } from "react";
 import useApi from "@/hooks/useApi";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { Loader2 } from "lucide-react";
 import { normalizePhone } from "@/lib/formatters/phoneFormatter";
 import { useFiscalConditions } from "@/hooks/useFiscalConditions";
@@ -143,17 +143,17 @@ export function NewCustomerFormContent({ onSuccess, onCancel }: NewCustomerFormC
     e.preventDefault();
 
     if (!formData.first_name || !formData.last_name) {
-      toast.error("Error", { description: "Nombre y Apellido son obligatorios" });
+      sileo.error({ title: "Error", description: "Nombre y Apellido son obligatorios" });
       return;
     }
 
     if (isCheckingName) {
-      toast.error("Espera un momento", { description: "Estamos verificando el nombre y apellido." });
+      sileo.error({ title: "Espera un momento", description: "Estamos verificando el nombre y apellido." });
       return;
     }
 
     if (nameError) {
-      toast.error("Cliente duplicado", { description: nameError });
+      sileo.error({ title: "Cliente duplicado", description: nameError });
       return;
     }
 
@@ -173,12 +173,12 @@ export function NewCustomerFormContent({ onSuccess, onCancel }: NewCustomerFormC
       });
 
       if (response && response.success) {
-        toast.success("Cliente creado correctamente");
+        sileo.success({ title: "Cliente creado correctamente" });
         if (onSuccess) {
           onSuccess(response.data);
         }
       } else {
-        toast.error("Error al crear cliente", { description: response?.message || "Ocurrió un error desconocido" });
+        sileo.error({ title: "Error al crear cliente", description: response?.message || "Ocurrió un error desconocido" });
       }
     } catch (error: any) {
       console.error("Error creating customer:", error);
@@ -197,13 +197,13 @@ export function NewCustomerFormContent({ onSuccess, onCancel }: NewCustomerFormC
       }
       if (emailDuplicateMessage) {
         setEmailError(emailDuplicateMessage);
-        toast.error("Email duplicado", { description: emailDuplicateMessage });
+        sileo.error({ title: "Email duplicado", description: emailDuplicateMessage });
       } else if (typeof phoneMessage === "string" && phoneMessage.trim()) {
-        toast.error("Telefono duplicado", { description: phoneMessage });
+        sileo.error({ title: "Telefono duplicado", description: phoneMessage });
       } else if (typeof nameMessage === "string" && nameMessage.trim()) {
-        toast.error("Cliente duplicado", { description: nameMessage });
+        sileo.error({ title: "Cliente duplicado", description: nameMessage });
       } else {
-        toast.error("Error al crear cliente", { description: error.message || "Ocurrio un error desconocido" });
+        sileo.error({ title: "Error al crear cliente", description: error.message || "Ocurrio un error desconocido" });
       }
     } finally {
       setIsLoading(false);

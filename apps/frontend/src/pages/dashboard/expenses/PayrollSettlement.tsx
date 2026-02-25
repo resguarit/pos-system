@@ -6,10 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { sileo } from "sileo";
 
 export default function PayrollSettlement() {
-    const { toast } = useToast();
+
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         month: new Date().getMonth() + 1,
@@ -25,16 +25,15 @@ export default function PayrollSettlement() {
             // Need to fetch category ID for "Sueldos" or let user select
             // For now, assuming user selects or we hardcode if we knew it
             await expensesService.generatePayroll(formData);
-            toast({
+            sileo.success({
                 title: "Liquidación generada",
                 description: "Los gastos de nómina se han generado correctamente.",
             });
         } catch (error) {
             console.error("Error generating payroll:", error);
-            toast({
+            sileo.error({
                 title: "Error",
                 description: "No se pudo generar la liquidación.",
-                variant: "destructive",
             });
         } finally {
             setLoading(false);

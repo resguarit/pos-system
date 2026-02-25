@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import useApi from "@/hooks/useApi";
 import { useBranch } from "@/context/BranchContext";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import type {
     Repair,
     RepairFilters,
@@ -173,7 +173,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                 const error = err as { name?: string; message?: string };
                 if (error?.name !== "AbortError" && error?.message !== "canceled") {
                     console.error("Error fetching repairs", err);
-                    toast.error("No se pudieron cargar las reparaciones");
+                    sileo.error({ title: "No se pudieron cargar las reparaciones" });
                     setRepairs([]);
                 }
             } finally {
@@ -231,7 +231,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                 const error = err as { name?: string; message?: string };
                 if (error?.name !== "AbortError" && error?.message !== "canceled") {
                     console.error("Error fetching kanban data", err);
-                    toast.error("No se pudo cargar la vista Kanban");
+                    sileo.error({ title: "No se pudo cargar la vista Kanban" });
                 }
             } finally {
                 setLoading(false);
@@ -264,7 +264,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         async (data: CreateRepairData): Promise<Repair | null> => {
             const resp = await request({ method: "POST", url: "/repairs", data });
             const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-            toast.success("Reparación creada");
+            sileo.success({ title: "Reparación creada" });
             return repair;
         },
         [request]
@@ -275,7 +275,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         async (id: number, data: UpdateRepairData): Promise<Repair | null> => {
             const resp = await request({ method: "PUT", url: `/repairs/${id}`, data });
             const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-            toast.success("Reparación actualizada");
+            sileo.success({ title: "Reparación actualizada" });
             return repair;
         },
         [request]
@@ -286,10 +286,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         async (id: number): Promise<boolean> => {
             try {
                 await request({ method: "DELETE", url: `/repairs/${id}` });
-                toast.success("Reparación eliminada");
+                sileo.success({ title: "Reparación eliminada" });
                 return true;
             } catch {
-                toast.error("No se pudo eliminar la reparación");
+                sileo.error({ title: "No se pudo eliminar la reparación" });
                 return false;
             }
         },
@@ -306,10 +306,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                     data: { status },
                 });
                 const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-                toast.success(`Estado actualizado a "${status}"`);
+                sileo.success({ title: `Estado actualizado a "${status}"` });
                 return repair;
             } catch {
-                toast.error("No se pudo actualizar el estado");
+                sileo.error({ title: "No se pudo actualizar el estado" });
                 return null;
             }
         },
@@ -326,12 +326,12 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                     data: paymentData,
                 });
                 const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-                toast.success("Pago registrado en caja");
+                sileo.success({ title: "Pago registrado en caja" });
                 return repair;
             } catch (err) {
                 const error = err as { response?: { data?: { error?: string } } };
                 const errorMsg = error?.response?.data?.error || "No se pudo registrar el pago";
-                toast.error(errorMsg);
+                sileo.error({ title: errorMsg });
                 return null;
             }
         },
@@ -347,10 +347,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                     data: payload,
                 });
                 const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-                toast.success("Reparación marcada como sin reparación");
+                sileo.success({ title: "Reparación marcada como sin reparación" });
                 return repair;
             } catch {
-                toast.error("No se pudo marcar como sin reparación");
+                sileo.error({ title: "No se pudo marcar como sin reparación" });
                 return null;
             }
         },
@@ -362,10 +362,10 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         async (id: number, note: string): Promise<boolean> => {
             try {
                 await request({ method: "POST", url: `/repairs/${id}/notes`, data: { note } });
-                toast.success("Nota agregada");
+                sileo.success({ title: "Nota agregada" });
                 return true;
             } catch {
-                toast.error("No se pudo agregar la nota");
+                sileo.error({ title: "No se pudo agregar la nota" });
                 return false;
             }
         },
@@ -383,7 +383,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                     (resp as Repair);
                 return repair;
             } catch {
-                toast.error("No se pudo cargar la reparación");
+                sileo.error({ title: "No se pudo cargar la reparación" });
                 return null;
             }
         },
@@ -414,7 +414,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
             } catch {
-                toast.error("No se pudo descargar el comprobante");
+                sileo.error({ title: "No se pudo descargar el comprobante" });
             }
         },
         [request]
@@ -444,7 +444,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
             } catch {
-                toast.error("No se pudo descargar el acta de recepción");
+                sileo.error({ title: "No se pudo descargar el acta de recepción" });
             }
         },
         [request]
@@ -473,7 +473,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                 document.body.removeChild(a);
                 window.URL.revokeObjectURL(url);
             } catch {
-                toast.error("No se pudo descargar el acta sin reparación");
+                sileo.error({ title: "No se pudo descargar el acta sin reparación" });
             }
         },
         [request]

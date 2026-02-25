@@ -1,8 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import useApi from "@/hooks/useApi";
-import { toast } from "sonner";
-
-// Types
+import { sileo } from "sileo"
 export interface ClientService {
     id: number;
     customer_id: number;
@@ -166,7 +164,7 @@ export function useServices(options: UseServicesOptions = {}): UseServicesReturn
                 const error = err as { name?: string; message?: string };
                 if (error?.name !== "AbortError" && error?.message !== "canceled") {
                     console.error("Error fetching services", err);
-                    toast.error("Error al cargar servicios");
+                    sileo.error({ title: "Error al cargar servicios" });
                     setServices([]);
                 }
             } finally {
@@ -227,12 +225,12 @@ export function useServices(options: UseServicesOptions = {}): UseServicesReturn
             try {
                 const resp = await request({ method: "POST", url: `/customers/${data.customer_id}/services`, data });
                 const service = resp?.data || resp;
-                toast.success("Servicio creado");
+                sileo.success({ title: "Servicio creado" });
                 return service as ClientService;
             } catch (err: unknown) {
                 const error = err as { response?: { data?: { message?: string } } };
                 const msg = error?.response?.data?.message || "No se pudo crear el servicio";
-                toast.error(msg);
+                sileo.error({ title: msg });
                 return null;
             }
         },
@@ -245,12 +243,12 @@ export function useServices(options: UseServicesOptions = {}): UseServicesReturn
             try {
                 const resp = await request({ method: "PUT", url: `/client-services/${id}`, data });
                 const service = resp?.data || resp;
-                toast.success("Servicio actualizado");
+                sileo.success({ title: "Servicio actualizado" });
                 return service as ClientService;
             } catch (err: unknown) {
                 const error = err as { response?: { data?: { message?: string } } };
                 const msg = error?.response?.data?.message || "No se pudo actualizar el servicio";
-                toast.error(msg);
+                sileo.error({ title: msg });
                 return null;
             }
         },
@@ -262,10 +260,10 @@ export function useServices(options: UseServicesOptions = {}): UseServicesReturn
         async (id: number): Promise<boolean> => {
             try {
                 await request({ method: "DELETE", url: `/client-services/${id}` });
-                toast.success("Servicio eliminado");
+                sileo.success({ title: "Servicio eliminado" });
                 return true;
             } catch {
-                toast.error("No se pudo eliminar el servicio");
+                sileo.error({ title: "No se pudo eliminar el servicio" });
                 return false;
             }
         },
@@ -282,12 +280,12 @@ export function useServices(options: UseServicesOptions = {}): UseServicesReturn
                     data: amount ? { amount } : {},
                 });
                 const service = resp?.data || resp;
-                toast.success("Servicio renovado");
+                sileo.success({ title: "Servicio renovado" });
                 return service as ClientService;
             } catch (err: unknown) {
                 const error = err as { response?: { data?: { message?: string } } };
                 const msg = error?.response?.data?.message || "No se pudo renovar el servicio";
-                toast.error(msg);
+                sileo.error({ title: msg });
                 return null;
             }
         },
@@ -301,7 +299,7 @@ export function useServices(options: UseServicesOptions = {}): UseServicesReturn
                 const resp = await request({ method: "GET", url: `/client-services/${id}` });
                 return (resp?.data || resp) as ClientService;
             } catch {
-                toast.error("No se pudo cargar el servicio");
+                sileo.error({ title: "No se pudo cargar el servicio" });
                 return null;
             }
         },
@@ -315,7 +313,7 @@ export function useServices(options: UseServicesOptions = {}): UseServicesReturn
                 const resp = await request({ method: "GET", url: `/client-services/${id}/payments` });
                 return (Array.isArray(resp) ? resp : resp?.data || []) as ClientServicePayment[];
             } catch {
-                toast.error("No se pudo cargar el historial de pagos");
+                sileo.error({ title: "No se pudo cargar el historial de pagos" });
                 return [];
             }
         },

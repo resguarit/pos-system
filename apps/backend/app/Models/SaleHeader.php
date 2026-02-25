@@ -10,6 +10,32 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\LogsActivityWithContext;
 
+/**
+ * @property int $id
+ * @property \Carbon\Carbon $date
+ * @property int $receipt_type_id
+ * @property int $branch_id
+ * @property string|null $receipt_number
+ * @property string $numbering_scope
+ * @property int|null $customer_id
+ * @property string|null $subtotal
+ * @property string|null $total_iva_amount
+ * @property string|null $iibb
+ * @property string|null $internal_tax
+ * @property string|null $discount_amount
+ * @property string $total
+ * @property string|null $cae
+ * @property \Carbon\Carbon|null $cae_expiration_date
+ * @property string $status
+ * @property int|null $original_sale_id
+ * 
+ * @property-read \App\Models\ReceiptType $receiptType
+ * @property-read \App\Models\Branch $branch
+ * @property-read \App\Models\Customer|null $customer
+ * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\SaleItem[] $items
+ * @property-read \App\Models\SaleHeader|null $originalSale
+ * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\SaleHeader[] $creditNotes
+ */
 class SaleHeader extends Model
 {
     use HasFactory, SoftDeletes, LogsActivity, LogsActivityWithContext;
@@ -53,6 +79,7 @@ class SaleHeader extends Model
         'metadata',
         'converted_from_budget_id',
         'converted_to_sale_id',
+        'original_sale_id',
     ];
 
     protected $casts = [
@@ -80,7 +107,7 @@ class SaleHeader extends Model
     {
         static::saving(function (SaleHeader $model) {
             if (array_key_exists('numbering_scope', $model->getDirty()) && $model->numbering_scope !== null) {
-                if (! SaleNumberingScope::isValid($model->numbering_scope)) {
+                if (!SaleNumberingScope::isValid($model->numbering_scope)) {
                     throw new \InvalidArgumentException(
                         'numbering_scope inválido: "' . $model->numbering_scope . '". Valores permitidos: ' . implode(', ', SaleNumberingScope::allowedValues())
                     );
@@ -311,6 +338,22 @@ class SaleHeader extends Model
     public function convertedFromBudget()
     {
         return $this->belongsTo(SaleHeader::class, 'converted_from_budget_id');
+    }
+
+    /**
+     * Relación con la venta original (para notas de crédito o débito)
+     */
+    public function originalSale()
+    {
+        return $this->belongsTo(SaleHeader::class, 'original_sale_id');
+    }
+
+    /**
+     * Relación con las notas de crédito emitidas a partir de esta venta
+     */
+    public function creditNotes()
+    {
+        return $this->hasMany(SaleHeader::class, 'original_sale_id');
     }
 
     public function getActivitylogOptions(): LogOptions

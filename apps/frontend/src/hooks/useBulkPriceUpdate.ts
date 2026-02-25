@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { BulkUpdateStatsResponse, ProductSearchParams } from '@/lib/api/bulkPriceService';
-import { 
-  isValidUpdateValue, 
+import {
+  isValidUpdateValue,
   getValidationErrorMessage,
   UpdateType as PriceUpdateType
 } from '@/utils/priceCalculations';
@@ -15,17 +15,17 @@ import {
   DEFAULT_PAGE_SIZE
 } from '@/utils/bulkPriceUpdate';
 import { ERROR_MESSAGES, getErrorMessage } from '@/constants/errorMessages';
-import type { 
-  UseBulkPriceUpdateProps, 
-  UseBulkPriceUpdateReturn, 
-  FilterState, 
-  PaginationState 
+import type {
+  UseBulkPriceUpdateProps,
+  UseBulkPriceUpdateReturn,
+  FilterState,
+  PaginationState
 } from '@/types/bulkPriceUpdate';
 import { ProductRepository } from '@/services/products/ProductRepository';
-import { 
-  PriceUpdateContext, 
-  PercentageUpdateStrategy, 
-  FixedUpdateStrategy 
+import {
+  PriceUpdateContext,
+  PercentageUpdateStrategy,
+  FixedUpdateStrategy
 } from '@/services/products/priceUpdate/PriceUpdateStrategy';
 
 export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}): UseBulkPriceUpdateReturn => {
@@ -54,22 +54,22 @@ export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}):
   // Estados de actualización
   const [updateType, setUpdateType] = useState<PriceUpdateType>('percentage');
   const [updateValue, setUpdateValue] = useState('');
-  
+
   // Inicializar repositorio y contexto de actualización
   const productRepository = useMemo(() => new ProductRepository(), []);
   const priceUpdateContext = useMemo(() => {
     return new PriceUpdateContext(
-      updateType === 'percentage' 
-        ? new PercentageUpdateStrategy(0) 
+      updateType === 'percentage'
+        ? new PercentageUpdateStrategy(0)
         : new FixedUpdateStrategy(0)
     );
   }, [updateType]);
 
   // Memoized computed values
   const selectedProductsCount = useMemo(() => selectedProducts.size, [selectedProducts]);
-  
+
   const hasSelectedProducts = useMemo(() => selectedProductsCount > 0, [selectedProductsCount]);
-  
+
   const isValidUpdateValueComputed = useMemo(() => {
     return isValidUpdateValue(updateValue, updateType);
   }, [updateValue, updateType]);
@@ -97,7 +97,7 @@ export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}):
         to: null,
       });
     } catch (error: any) {
-      toast.error(getErrorMessage(error, ERROR_MESSAGES.SEARCH_PRODUCTS));
+      sileo.error({ title: getErrorMessage(error, ERROR_MESSAGES.SEARCH_PRODUCTS) });
     } finally {
       setLoading(false);
     }
@@ -163,43 +163,43 @@ export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}):
 
   // Función para calcular el nuevo precio según el tipo de actualización
   const calculateNewPrice = useCallback((currentPrice: number, type: PriceUpdateType, value: number): number => {
-    const strategy = type === 'percentage' 
+    const strategy = type === 'percentage'
       ? new PercentageUpdateStrategy(value)
       : new FixedUpdateStrategy(value);
-      
+
     return strategy.calculateNewPrice(currentPrice);
   }, []);
 
   // Funciones de actualización de precios usando el patrón Strategy
   const updatePrices = useCallback(async () => {
     if (!updateValue || !isValidUpdateValueComputed) {
-      toast.error(getValidationErrorMessage(updateType));
+      sileo.error({ title: getValidationErrorMessage(updateType) });
       return;
     }
 
     if (!hasSelectedProducts) {
-      toast.error(ERROR_MESSAGES.SELECT_PRODUCTS);
+      sileo.error({ title: ERROR_MESSAGES.SELECT_PRODUCTS });
       return;
     }
 
     const value = Number(updateValue);
-    
+
     // Configurar la estrategia según el tipo de actualización
-    const strategy = updateType === 'percentage' 
+    const strategy = updateType === 'percentage'
       ? new PercentageUpdateStrategy(value)
       : new FixedUpdateStrategy(value);
-      
+
     priceUpdateContext.setStrategy(strategy);
-    
+
     // Validar la estrategia
     const validation = priceUpdateContext.validate();
     if (!validation.isValid) {
-      toast.error(validation.error || 'Error de validación');
+      sileo.error({ title: validation.error || 'Error de validación' });
       return;
     }
 
     setUpdating(true);
-    
+
     try {
       // Obtener los productos seleccionados con sus precios actuales
       const productsToUpdate = products
@@ -208,34 +208,34 @@ export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}):
           id: product.id,
           currentPrice: Number(product.unit_price ?? 0)
         }));
-      
+
       // Aplicar la actualización
       const result = await priceUpdateContext.applyBulkUpdate(productsToUpdate);
-      
+
       if (result.success) {
-        toast.success(result.message);
+        sileo.success({ title: result.message });
         if (result.failed_updates && result.failed_updates.length > 0) {
-          toast.warning(`${result.failed_updates.length} productos no se pudieron actualizar`);
+          sileo.warning({ title: `${result.failed_updates.length} productos no se pudieron actualizar` });
         }
         onSuccess?.();
         resetState();
       } else {
-        toast.error(result.message || ERROR_MESSAGES.UPDATE_PRICES);
+        sileo.error({ title: result.message || ERROR_MESSAGES.UPDATE_PRICES });
       }
     } catch (error: any) {
       console.error('Error actualizando precios:', error);
-      toast.error(getErrorMessage(error, ERROR_MESSAGES.UPDATE_PRICES));
+      sileo.error({ title: getErrorMessage(error, ERROR_MESSAGES.UPDATE_PRICES) });
     } finally {
       setUpdating(false);
     }
   }, [
-    updateValue, 
-    isValidUpdateValueComputed, 
-    updateType, 
-    hasSelectedProducts, 
-    selectedProducts, 
-    products, 
-    onSuccess, 
+    updateValue,
+    isValidUpdateValueComputed,
+    updateType,
+    hasSelectedProducts,
+    selectedProducts,
+    products,
+    onSuccess,
     priceUpdateContext
   ]);
 
@@ -262,30 +262,30 @@ export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}):
     filters,
     updateType: updateType as 'percentage' | 'fixed',
     updateValue,
-    
+
     // Estados calculados
     selectedProductsCount,
     hasSelectedProducts,
     isValidUpdateValue: isValidUpdateValueComputed,
-    
+
     // Funciones de búsqueda
     searchProducts,
     getStats,
-    
+
     // Funciones de selección
     toggleProductSelection,
     selectAllProducts,
     deselectAllProducts,
-    
+
     // Funciones de filtros
     applyFilters,
     clearFilters,
     updateFilters,
-    
+
     // Funciones de paginación
     handlePageChange,
     handlePerPageChange,
-    
+
     // Funciones de actualización
     calculateNewPrice: (currentPrice: number, type: 'percentage' | 'fixed', value: number) => {
       return calculateNewPrice(currentPrice, type, value);
@@ -293,7 +293,7 @@ export const useBulkPriceUpdate = ({ onSuccess }: UseBulkPriceUpdateProps = {}):
     updatePrices,
     setUpdateType: (type: 'percentage' | 'fixed') => setUpdateType(type as PriceUpdateType),
     setUpdateValue,
-    
+
     // Utilidades
     resetState,
   };

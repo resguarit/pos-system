@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Loader2, ArrowLeft, Package, Calendar, Hash, User, MapPin, Building2, FileText, Phone, Mail, CreditCard, DollarSign, CheckCircle, XCircle, Clock, Receipt } from 'lucide-react';
 import { PaymentShipmentDialog } from '@/components/shipments/PaymentShipmentDialog';
 import { parseShippingCost, getPaymentMethodsFromShipment, getStageBadgeStyle } from '@/utils/shipmentUtils';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { useAuth } from '@/context/AuthContext';
 
 const ViewShipmentPage: React.FC = () => {
@@ -25,7 +25,7 @@ const ViewShipmentPage: React.FC = () => {
     // Refetch shipment data to show updated payment status
     if (id) {
       shipmentService.getShipment(parseInt(id)).then(setShipment).catch(() => {
-        toast.error('Error al actualizar datos del envío');
+        sileo.error({ title: 'Error al actualizar datos del envío' });
       });
     }
     setShowPaymentDialog(false);
@@ -41,7 +41,7 @@ const ViewShipmentPage: React.FC = () => {
       } catch (err) {
         setError('Error al cargar el envío');
         console.error('Error fetching shipment:', err);
-        toast.error('Error al cargar el envío');
+        sileo.error({ title: 'Error al cargar el envío' });
       } finally {
         setLoading(false);
       }

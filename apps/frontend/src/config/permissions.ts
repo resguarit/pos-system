@@ -54,6 +54,7 @@ export const PERMISSIONS_CONFIG = {
       'crear_ventas',
       'editar_ventas',
       'anular_ventas',
+      'emitir_notas_credito',
       'reimprimir_comprobantes',
       'aplicar_descuentos',
       'gestionar_presupuestos',

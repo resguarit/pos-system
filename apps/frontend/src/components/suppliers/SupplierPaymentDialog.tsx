@@ -16,7 +16,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { CreditCard, Loader2 } from 'lucide-react';
 import { CurrentAccountService } from '@/lib/services/currentAccountService';
 import api from '@/lib/api';
@@ -67,7 +67,7 @@ export function SupplierPaymentDialog({ open, onOpenChange, accountId, currentBa
             setPaymentMethods(filteredMethods);
         } catch (error) {
             console.error('Error loading payment methods:', error);
-            toast.error('Error al cargar métodos de pago');
+            sileo.error({ title: 'Error al cargar métodos de pago' });
         } finally {
             //
         }
@@ -120,13 +120,13 @@ export function SupplierPaymentDialog({ open, onOpenChange, accountId, currentBa
         e.preventDefault();
 
         if (!selectedPaymentMethod) {
-            toast.error('Selecciona un método de pago');
+            sileo.error({ title: 'Selecciona un método de pago' });
             return;
         }
 
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount <= 0) {
-            toast.error('Ingresa un monto válido');
+            sileo.error({ title: 'Ingresa un monto válido' });
             return;
         }
 
@@ -143,13 +143,13 @@ export function SupplierPaymentDialog({ open, onOpenChange, accountId, currentBa
 
             await CurrentAccountService.processSupplierPayment(accountId, paymentData);
 
-            toast.success('Pago registrado exitosamente');
+            sileo.success({ title: 'Pago registrado exitosamente' });
             onSuccess();
             onOpenChange(false);
         } catch (error: any) {
             console.error('Error processing payment:', error);
             const message = error?.response?.data?.message || error?.message || 'Error al procesar el pago';
-            toast.error(message);
+            sileo.error({ title: message });
         } finally {
             setLoading(false);
         }

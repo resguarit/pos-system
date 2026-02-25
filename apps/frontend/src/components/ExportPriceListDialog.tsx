@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, Loader2, FolderOpen, Folder, ChevronDown, ChevronRight, Search } from "lucide-react";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { priceListService, type PriceListExportOptions } from "@/lib/api/priceListService";
 import { getCategories } from "@/lib/api/categoryService";
 
@@ -70,12 +70,12 @@ export const ExportPriceListDialog: React.FC<ExportPriceListDialogProps> = ({
       } else {
         console.error('Las categorías no son un array:', categoriesData);
         setCategories([]);
-        toast.error('Error: formato de categorías inválido');
+        sileo.error({ title: 'Error: formato de categorías inválido' });
       }
     } catch (error) {
       console.error('Error cargando categorías:', error);
       setCategories([]);
-      toast.error('Error al cargar las categorías');
+      sileo.error({ title: 'Error al cargar las categorías' });
     }
   };
 
@@ -103,12 +103,12 @@ export const ExportPriceListDialog: React.FC<ExportPriceListDialogProps> = ({
       } else {
         console.error('Las sucursales no son un array:', branchesData);
         setBranches([]);
-        toast.error('Error: formato de sucursales inválido');
+        sileo.error({ title: 'Error: formato de sucursales inválido' });
       }
     } catch (error) {
       console.error('Error cargando sucursales activas:', error);
       setBranches([]);
-      toast.error('Error al cargar las sucursales activas');
+      sileo.error({ title: 'Error al cargar las sucursales activas' });
     }
   };
 
@@ -130,14 +130,14 @@ export const ExportPriceListDialog: React.FC<ExportPriceListDialogProps> = ({
 
       await priceListService.exportPriceList(options);
       
-      toast.success('Lista de precios exportada correctamente', {
+      sileo.success({ title: 'Lista de precios exportada correctamente',
         description: 'El archivo PDF se ha descargado en tu dispositivo.',
       });
       
       onOpenChange(false);
     } catch (error) {
       console.error('Error al exportar lista de precios:', error);
-      toast.error('Error al exportar la lista de precios', {
+      sileo.error({ title: 'Error al exportar la lista de precios',
         description: 'Por favor, intenta nuevamente.',
       });
     } finally {

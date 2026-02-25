@@ -6,7 +6,7 @@ import { Package, Info, Zap } from "lucide-react";
 import { ComboDetailsDialog } from "@/components/ComboDetailsDialog";
 import { ComboSelectionDialog } from "@/components/pos/ComboSelectionDialog";
 import { useCombosInPOS } from "@/hooks/useCombosInPOS";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import type { Combo } from "@/types/combo";
 
 interface ComboSectionProps {
@@ -65,7 +65,7 @@ export function ComboSection({
         setComboPrices(pricesMap);
       } catch (error) {
         console.error('Error loading combos:', error);
-        toast.error('Error al cargar combos');
+        sileo.error({ title: 'Error al cargar combos' });
       }
     };
 
@@ -113,9 +113,9 @@ export function ComboSection({
         const productName = limitingProduct.product?.description || 'producto';
 
         if (limitingProduct.reason === 'Stock negativo') {
-          toast.warning(`⚠️ Stock negativo en ${productName} (${limitingProduct.available} unidades). La venta continuará.`);
+          sileo.warning({ title: `⚠️ Stock negativo en ${productName} (${limitingProduct.available} unidades). La venta continuará.` });
         } else if (limitingProduct.reason === 'Stock bajo') {
-          toast.warning(`⚠️ Stock bajo en ${productName} (${limitingProduct.available} unidades). Considera reponer.`);
+          sileo.warning({ title: `⚠️ Stock bajo en ${productName} (${limitingProduct.available} unidades). Considera reponer.` });
         }
       }
 
@@ -125,7 +125,7 @@ export function ComboSection({
       await onComboAdded(combo, quantityToAdd, customSelections);
     } catch (error) {
       console.error("Error adding combo to cart:", error);
-      toast.error((error as Error).message || "Error al agregar combo al carrito");
+      sileo.error({ title: (error as Error).message || "Error al agregar combo al carrito" });
     } finally {
       setAddingCombo(null);
     }

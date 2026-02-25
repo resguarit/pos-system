@@ -2,8 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { toast } from 'sonner';
-
+import { sileo } from "sileo"
 import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { SubmitButton } from '@/components/ui/submit-button';
@@ -39,11 +38,11 @@ const SupplierForm: React.FC<SupplierFormProps> = ({ onSuccess }) => {
   const onSubmit = async (data: SupplierFormValues) => {
     try {
       await createSupplier(data);
-      toast.success('Proveedor creado con éxito!');
+      sileo.success({ title: 'Proveedor creado con éxito!' });
       onSuccess(); // Llama a la función onSuccess para refrescar la lista y cerrar el modal
     } catch (error) {
       console.error('Failed to create supplier:', error);
-      toast.error('Error al crear el proveedor.');
+      sileo.error({ title: 'Error al crear el proveedor.' });
     }
   };
 

@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { Customer } from '@/types/customer';
 import { CurrentAccountService } from '@/lib/services/currentAccountService';
 import { CreateCurrentAccountData, UpdateCurrentAccountData } from '@/types/currentAccount';
@@ -72,7 +72,7 @@ export function CurrentAccountForm({ open, onOpenChange, account, onSuccess }: C
       ]);
     } catch (error) {
       console.error('Error loading customers:', error);
-      toast.error('Error al cargar los clientes');
+      sileo.error({ title: 'Error al cargar los clientes' });
     } finally {
       setLoadingCustomers(false);
     }
@@ -82,7 +82,7 @@ export function CurrentAccountForm({ open, onOpenChange, account, onSuccess }: C
     e.preventDefault();
     
     if (!formData.customer_id) {
-      toast.error('Selecciona un cliente');
+      sileo.error({ title: 'Selecciona un cliente' });
       return;
     }
 
@@ -97,17 +97,17 @@ export function CurrentAccountForm({ open, onOpenChange, account, onSuccess }: C
 
       if (account) {
         await CurrentAccountService.update(account.id, data as UpdateCurrentAccountData);
-        toast.success('Cuenta corriente actualizada exitosamente');
+        sileo.success({ title: 'Cuenta corriente actualizada exitosamente' });
       } else {
         await CurrentAccountService.create(data as CreateCurrentAccountData);
-        toast.success('Cuenta corriente creada exitosamente');
+        sileo.success({ title: 'Cuenta corriente creada exitosamente' });
       }
       
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error saving account:', error);
-      toast.error(error.response?.data?.message || 'Error al guardar la cuenta corriente');
+      sileo.error({ title: error.response?.data?.message || 'Error al guardar la cuenta corriente' });
     } finally {
       setLoading(false);
     }

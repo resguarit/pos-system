@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Trash2, Search, Calendar as CalendarIcon, Check, X, Loader2, ShoppingCart } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { purchaseOrderService, type PurchaseOrderItem } from '@/lib/api/purchaseOrderService';
 import { getBranches } from '@/lib/api/branchService';
 import { getProducts } from '@/lib/api/productService';
@@ -282,7 +282,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
           setItems(updatedItems);
         } else {
           // Si el precio es diferente, muestra una notificación
-          toast.warning("Producto ya agregado con otro precio", {
+          sileo.warning({ title: "Producto ya agregado con otro precio",
             description: "No se puede agregar el mismo producto con un precio de compra diferente.",
           });
           return; // No hace nada más
@@ -416,7 +416,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
         }),
         affects_cash_register: affectsCashRegister,
       });
-      toast.success("Orden de compra creada", {
+      sileo.success({ title: "Orden de compra creada",
         description: "La orden de compra se creó exitosamente.",
       });
       onSaved();
@@ -457,7 +457,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
     const idx = items.findIndex(i => i.product_id === pid)
 
     if (idx !== -1) {
-      toast.warning('Producto ya agregado', {
+      sileo.warning({ title: 'Producto ya agregado',
         description: 'Este producto ya está en la lista de compra.'
       })
       return
@@ -473,7 +473,7 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
     setItems([...items, newItemToAdd]);
 
     setEditingSuggestion(null)
-    toast.success('Producto agregado', {
+    sileo.success({ title: 'Producto agregado',
       description: `${editingSuggestion.product.description} agregado a la orden.`
     })
   }

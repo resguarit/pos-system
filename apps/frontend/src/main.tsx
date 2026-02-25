@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App'
 import './index.css'
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "sonner"
+import { Toaster } from "sileo"
 import { EntityProvider } from "@/context/EntityContext"
 import { AuthProvider } from "@/context/AuthContext"
 import { BranchProvider } from "@/context/BranchContext"
@@ -35,7 +35,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                             <ErrorBoundary>
                               <App />
                             </ErrorBoundary>
-                            <Toaster />
+                            <Toaster position="top-right" options={{ fill: "#171717", styles: { title: "text-white!", description: "text-white/75!" } }} />
                             <EnterSubmitProvider />
                           </NewPurchaseOrderProvider>
                         </CartProvider>

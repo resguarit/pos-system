@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CalendarDays, Building2, User, Package, DollarSign, Printer, CheckCircle, AlertCircle } from "lucide-react"
 import { type PurchaseOrder } from "@/lib/api/purchaseOrderService"
 import { getPurchaseOrderById, openPurchaseOrderPdf } from "@/lib/api/purchaseOrderService"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/useAuth"
@@ -53,7 +53,7 @@ export function ViewPurchaseOrderDialog({ open, onOpenChange, purchaseOrderId }:
       setPurchaseOrder(order)
     } catch (error) {
       console.error('Error loading purchase order details:', error)
-      toast.error("Error al cargar los detalles de la orden de compra")
+      sileo.error({ title: "Error al cargar los detalles de la orden de compra" })
     } finally {
       setLoading(false)
     }

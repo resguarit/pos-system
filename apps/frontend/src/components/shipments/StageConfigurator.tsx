@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { shipmentService } from '@/services/shipmentService';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { Plus, Pencil, Trash2, Lock } from 'lucide-react';
 import {
   AlertDialog,
@@ -74,21 +74,21 @@ const StageConfigurator: React.FC<StageConfiguratorProps> = ({ stages, onStageUp
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      toast.error('El nombre es obligatorio');
+      sileo.error({ title: 'El nombre es obligatorio' });
       return;
     }
 
     try {
       setLoading(true);
       await shipmentService.upsertStage(formData);
-      toast.success(editingStage ? 'Etapa actualizada correctamente' : 'Etapa creada correctamente');
+      sileo.success({ title: editingStage ? 'Etapa actualizada correctamente' : 'Etapa creada correctamente' });
       setIsDialogOpen(false);
       onStageUpdate();
     } catch (error) {
       console.error('Error saving stage:', error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       const errorMessage = err.response?.data?.error?.message || err.message || 'Error al guardar la etapa';
-      toast.error(errorMessage);
+      sileo.error({ title: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -100,14 +100,14 @@ const StageConfigurator: React.FC<StageConfiguratorProps> = ({ stages, onStageUp
     try {
       setLoading(true);
       await shipmentService.deleteStage(stageToDelete.id);
-      toast.success('Etapa eliminada correctamente');
+      sileo.success({ title: 'Etapa eliminada correctamente' });
       setIsDeleteDialogOpen(false);
       onStageUpdate();
     } catch (error) {
       console.error('Error deleting stage:', error);
       const err = error as { response?: { data?: { error?: { message?: string } } }; message?: string };
       const errorMessage = err.response?.data?.error?.message || err.message || 'Error al eliminar la etapa. Verifica que no tenga envíos asociados.';
-      toast.error(errorMessage);
+      sileo.error({ title: errorMessage });
     } finally {
       setLoading(false);
       setStageToDelete(null);

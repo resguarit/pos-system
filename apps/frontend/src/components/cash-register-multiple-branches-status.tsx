@@ -19,8 +19,7 @@ import {
 } from 'lucide-react'
 import { useBranch } from '@/context/BranchContext'
 import useApi from '@/hooks/useApi'
-import { toast } from 'sonner'
-
+import { sileo } from "sileo"
 interface MultipleBranchesCashStatusProps {
   className?: string
   showOpenButton?: boolean
@@ -87,7 +86,7 @@ export default function MultipleBranchesCashStatus({
     } catch (error: any) {
       console.error('Error checking multiple branches cash status:', error)
       if (showToast) {
-        toast.error('Error al verificar el estado de las cajas')
+        sileo.error({ title: 'Error al verificar el estado de las cajas' })
       }
     } finally {
       setIsLoading(false)
@@ -96,11 +95,11 @@ export default function MultipleBranchesCashStatus({
 
   const showStatusToast = useCallback((statusData: CashRegisterStatus) => {
     if (statusData.all_open) {
-      toast.success('Todas las sucursales tienen caja abierta')
+      sileo.success({ title: 'Todas las sucursales tienen caja abierta' })
     } else if (statusData.all_closed) {
-      toast.warning('Todas las sucursales tienen caja cerrada')
+      sileo.warning({ title: 'Todas las sucursales tienen caja cerrada' })
     } else {
-      toast.info(`Estado mixto: ${statusData.open_count} abiertas, ${statusData.closed_count} cerradas`)
+      sileo.info({ title: `Estado mixto: ${statusData.open_count} abiertas, ${statusData.closed_count} cerradas` })
     }
   }, [])
 

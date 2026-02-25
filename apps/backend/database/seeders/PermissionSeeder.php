@@ -21,6 +21,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'ver_ventas', 'description' => 'Ver listado de ventas', 'module' => 'ventas'],
             ['name' => 'crear_ventas', 'description' => 'Registrar nueva venta', 'module' => 'ventas'],
             ['name' => 'anular_ventas', 'description' => 'Anular venta', 'module' => 'ventas'],
+            ['name' => 'emitir_notas_credito', 'description' => 'Emitir notas de crédito y devoluciones', 'module' => 'ventas'],
             ['name' => 'reimprimir_comprobantes', 'description' => 'Reimprimir comprobantes', 'module' => 'ventas'],
             ['name' => 'aplicar_descuentos', 'description' => 'Aplicar descuentos en ventas', 'module' => 'ventas'],
             ['name' => 'solo_crear_presupuestos', 'description' => 'Solo puede crear presupuestos (sin facturar ni crear ventas)', 'module' => 'ventas'],

@@ -47,7 +47,7 @@ import type { Repair, RepairNote, RepairPriority, RepairStatus, Insurer } from "
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import useApi from "@/hooks/useApi";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { useBranches } from "@/hooks/useBranches";
 import { useRepairs } from "@/hooks/useRepairs";
 
@@ -319,7 +319,7 @@ export default function RepairDetailDialogV2({
             setTimeout(() => {
                 onOpenChange(false);
             }, 300);
-            toast.success("Los cambios se guardaron correctamente");
+            sileo.success({ title: "Los cambios se guardaron correctamente" });
         } catch (error: unknown) {
             console.error("Error saving repair:", error);
             // @ts-expect-error - request hook throws object with response
@@ -329,12 +329,12 @@ export default function RepairDetailDialogV2({
                 setErrors(validationErrors);
                 const firstField = Object.keys(validationErrors)[0];
                 const firstErrorMsg = validationErrors[firstField]?.[0];
-                toast.error(firstErrorMsg || "Hay errores de validación.");
+                sileo.error({ title: firstErrorMsg || "Hay errores de validación." });
             } else {
                 // @ts-expect-error - request hook throws object with response
                 const msg = error?.response?.data?.message || "Ocurrió un error al guardar los cambios.";
                 setErrors({ general: [msg] });
-                toast.error(msg);
+                sileo.error({ title: msg });
             }
         } finally {
             setSaving(false);
@@ -985,7 +985,7 @@ export default function RepairDetailDialogV2({
                                                                     amount_paid: parseFloat(paymentAmount),
                                                                 });
                                                                 if (result) {
-                                                                    toast.success("Pago registrado exitosamente. Se actualizó la caja.");
+                                                                    sileo.success({ title: "Pago registrado exitosamente. Se actualizó la caja." });
                                                                     setShowPaymentForm(false);
                                                                     onPaymentSuccess?.();
                                                                     onOpenChange(false);

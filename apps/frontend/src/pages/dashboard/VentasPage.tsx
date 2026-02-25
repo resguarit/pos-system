@@ -15,13 +15,14 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { ChevronDown, ChevronUp, Download, FileText, Filter, Printer, RefreshCw, TrendingUp, Users, Wallet, X, Loader2, Eye } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, FileText, Filter, Printer, RefreshCw, TrendingUp, Users, Wallet, X, Loader2, Eye, Undo2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 
 
 import ViewSaleDialog from "@/components/view-sale-dialog";
 import AnnulSaleDialog from "@/components/AnnulSaleDialog";
+import EmitCreditNoteDialog from "@/components/sales/EmitCreditNoteDialog";
 import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
 import { getReceiptTypeBadgeStyle } from "@/utils/arcaReceiptTypes";
@@ -36,7 +37,7 @@ import { es } from "date-fns/locale";
 import { useState, useEffect, useRef, useMemo } from "react";
 import useApi from "@/hooks/useApi";
 import { type SaleHeader } from "@/types/sale";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -90,6 +91,8 @@ export default function VentasPage() {
   const [isReceiptOpen, setIsReceiptOpen] = useState(false);
   const [isAnnulDialogOpen, setIsAnnulDialogOpen] = useState(false);
   const [saleToAnnul, setSaleToAnnul] = useState<SaleHeader | null>(null);
+  const [isDevolutionDialogOpen, setIsDevolutionDialogOpen] = useState(false);
+  const [saleToDevolve, setSaleToDevolve] = useState<SaleHeader | null>(null);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
@@ -484,7 +487,8 @@ export default function VentasPage() {
 
     } catch (error) {
       console.error('Error in fetchSales:', error);
-      toast.error("Error", {
+      sileo.error({
+        title: "Error",
         description: "No se pudo cargar el historial de ventas.",
       });
       setSales([]);
@@ -536,7 +540,8 @@ export default function VentasPage() {
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
-      toast.error("Error", {
+      sileo.error({
+        title: "Error",
         description: "No se pudieron cargar las estadísticas de ventas.",
       });
       setStats({
@@ -617,6 +622,33 @@ export default function VentasPage() {
       };
     }
     return { displayName: "N/A", filterKey: "N/A", arcaCode: "N/A" };
+  };
+
+  const canIssueCreditNote = (sale: SaleHeader): boolean => {
+    const receiptType = getReceiptType(sale).displayName;
+    const afipCode = getReceiptType(sale).arcaCode;
+
+    // Si es un comprobante que debería ir a ARCA pero no tiene CAE, no permitir emitir NC
+    const isInternal = afipCode === '016' || afipCode === '017' || receiptType.includes('PRESUPUESTO') || receiptType.includes(' X');
+    if (!isInternal && !sale.cae) {
+      return false;
+    }
+
+    return !(
+      receiptType.includes('NOTA DE CRÉDITO') ||
+      receiptType.includes('DEVOLUCIÓN') ||
+      receiptType.includes('PRESUPUESTO') ||
+      receiptType.includes(' X') ||
+      (sale.credit_notes && sale.credit_notes.length > 0)
+    );
+  };
+
+  const canAnnulSale = (sale: SaleHeader): boolean => {
+    const receiptType = getReceiptType(sale).displayName;
+    return !(
+      receiptType.includes('NOTA DE CRÉDITO') ||
+      receiptType.includes('DEVOLUCIÓN')
+    );
   };
 
   const getReceiptTypeBadge = (
@@ -730,7 +762,8 @@ export default function VentasPage() {
           setAnnulledSales(annulled);
         } catch (error) {
           console.error('Error fetching annulled sales:', error);
-          toast.error("Error", {
+          sileo.error({
+            title: "Error",
             description: "No se pudieron cargar las ventas anuladas.",
           });
           setAnnulledSales([]);
@@ -853,12 +886,12 @@ export default function VentasPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "VentasGlobales");
     XLSX.writeFile(workbook, 'ventas_globales.xlsx');
-    toast.success("Exportación CSV generada.");
+    sileo.success({ title: "Exportación CSV generada." });
   };
 
   const handleExportPDF = () => {
     if (filteredSales.length === 0) {
-      toast.error("No hay ventas para exportar.");
+      sileo.error({ title: "No hay ventas para exportar." });
       return;
     }
 
@@ -887,7 +920,7 @@ export default function VentasPage() {
 
     doc.text("Reporte de Ventas", 14, 15);
     doc.save("reporte_ventas.pdf");
-    toast.success("Exportación PDF generada.");
+    sileo.success({ title: "Exportación PDF generada." });
   };
 
   const handleViewDetail = async (sale: SaleHeader) => {
@@ -904,7 +937,8 @@ export default function VentasPage() {
       setIsDetailOpen(true);
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
-      toast.error("Error", {
+      sileo.error({
+        title: "Error",
         description: "No se pudo cargar el detalle completo de la venta.",
       });
       setSelectedSale(sale);
@@ -956,7 +990,7 @@ export default function VentasPage() {
       setSelectedSale(fullSaleData);
       setIsReceiptOpen(true);
     } catch (error) {
-      toast.error("Error", {
+      sileo.error({ title: "Error",
         description: "No se pudo cargar el detalle completo para el comprobante.",
       });
       setSelectedSale(sale);
@@ -987,9 +1021,10 @@ export default function VentasPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+      const rawDesc = typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante';
+      const receiptTypeDesc = rawDesc.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_');
       const receiptNumber = sale.receipt_number || sale.id;
-      const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '');
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
@@ -1012,7 +1047,7 @@ export default function VentasPage() {
       setShowReceiptPreview(true)
     } catch (error) {
       console.error('Error fetching sale details for receipt:', error)
-      toast.error('No se pudo cargar el detalle del comprobante')
+      sileo.error({ title: 'No se pudo cargar el detalle del comprobante' })
       setSelectedReceiptSale(sale)
       setShowReceiptPreview(true)
     }
@@ -1560,8 +1595,23 @@ export default function VentasPage() {
                                   <div className="flex items-center gap-2">
                                     {getReceiptTypeBadge(getReceiptType(sale))}
                                     {getBudgetStatusBadge(sale)}
-                                    <ArcaStatusBadge sale={sale} showConfigWarning />
-
+                                    <div className="flex flex-col gap-1 items-start">
+                                      <ArcaStatusBadge sale={sale} showConfigWarning />
+                                      {sale.original_sale_receipt && (
+                                        <Badge variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 font-normal text-xs" title="Revierte la venta original">
+                                          ANULA: {sale.original_sale_receipt}
+                                        </Badge>
+                                      )}
+                                      {sale.credit_notes && sale.credit_notes.length > 0 && (
+                                        <>
+                                          {sale.credit_notes.map(cn => (
+                                            <Badge key={cn.id} variant="outline" className="border-fuchsia-300 text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100 font-normal text-xs" title="Venta con Nota de Crédito/Devolución emitida">
+                                              NC EMITIDA: {cn.receipt_number || cn.id}
+                                            </Badge>
+                                          ))}
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </ResizableTableCell>
                                 <ResizableTableCell
@@ -1639,38 +1689,59 @@ export default function VentasPage() {
                                         <Download className="h-4 w-4" />
                                       )}
                                     </Button>
-                                    <Button
-                                      variant="ghost"
-                                      className={`text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
-                                      size="icon"
-                                      onClick={
-                                        hasPermission('reimprimir_comprobantes')
-                                          ? () => handlePrintReceipt(sale)
-                                          : undefined
-                                      }
-                                      title={
-                                        hasPermission('reimprimir_comprobantes') ? 'Imprimir comprobante' : ''
-                                      }
-                                      type="button"
-                                      disabled={loadingActions[`print-${sale.id}`]}
-                                    >
-                                      {loadingActions[`print-${sale.id}`] ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <Printer className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                    {hasPermission('anular_ventas') && (sale.status === 'active' || sale.status === 'completed') && (
+                                    {!getReceiptType(sale).displayName.includes('NOTA DE CRÉDITO') && !getReceiptType(sale).displayName.includes('DEVOLUCIÓN') && (
                                       <Button
                                         variant="ghost"
-                                        className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                                        className={`text-green-700 hover:bg-green-100 hover:text-green-800 border-green-200 ${hasPermission('reimprimir_comprobantes') ? 'cursor-pointer' : 'invisible cursor-default'}`}
                                         size="icon"
-                                        onClick={() => handleAnnulSale(sale)}
-                                        title="Anular Venta"
+                                        onClick={
+                                          hasPermission('reimprimir_comprobantes')
+                                            ? () => handlePrintReceipt(sale)
+                                            : undefined
+                                        }
+                                        title={
+                                          hasPermission('reimprimir_comprobantes') ? 'Imprimir comprobante' : ''
+                                        }
                                         type="button"
+                                        disabled={loadingActions[`print-${sale.id}`]}
                                       >
-                                        <X className="h-4 w-4" />
+                                        {loadingActions[`print-${sale.id}`] ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <Printer className="h-4 w-4" />
+                                        )}
                                       </Button>
+                                    )}
+                                    {(sale.status === 'active' || sale.status === 'completed') && (
+                                      <>
+                                        {hasPermission('emitir_notas_credito') && canIssueCreditNote(sale) && (
+                                          <Button
+                                            variant="ghost"
+                                            className="text-orange-700 hover:bg-orange-100 hover:text-orange-800 border-orange-200 cursor-pointer"
+                                            size="icon"
+                                            onClick={() => {
+                                              setSaleToDevolve(sale);
+                                              setIsDevolutionDialogOpen(true);
+                                            }}
+                                            title="Emitir Nota de Crédito / Devolución"
+                                            type="button"
+                                          >
+                                            <Undo2 className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                        {hasPermission('anular_ventas') && canAnnulSale(sale) && (
+                                          <Button
+                                            variant="ghost"
+                                            className="text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200 cursor-pointer"
+                                            size="icon"
+                                            onClick={() => handleAnnulSale(sale)}
+                                            title={sale.status === 'completed' ? 'Anular Venta (Opción recomendada para ventas de días anteriores)' : 'Anular Venta (Para corregir o cancelar una venta actual)'}
+                                            type="button"
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </Button>
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                 </ResizableTableCell>
@@ -1719,7 +1790,7 @@ export default function VentasPage() {
                   }}
                   onDownloadPdf={async (sale) => {
                     if (!sale || !sale.id) {
-                      toast.error("No se puede descargar el PDF: ID de venta faltante.");
+                      sileo.error({ title: "No se puede descargar el PDF: ID de venta faltante." });
                       return;
                     }
                     try {
@@ -1743,10 +1814,10 @@ export default function VentasPage() {
                       a.click();
                       document.body.removeChild(a);
                       window.URL.revokeObjectURL(url);
-                      toast.success("PDF descargado exitosamente");
+                      sileo.success({ title: "PDF descargado exitosamente" });
                       // eslint-disable-next-line @typescript-eslint/no-unused-vars
                     } catch (error) {
-                      toast.error("Error al descargar PDF");
+                      sileo.error({ title: "Error al descargar PDF" });
                     }
                   }}
                   onSaleUpdated={handleSaleUpdated}
@@ -1762,6 +1833,22 @@ export default function VentasPage() {
                   onClose={() => setIsAnnulDialogOpen(false)}
                   sale={saleToAnnul}
                   onSuccess={handleAnnulSuccess}
+                />
+              )
+            }
+
+            {/* Emit Credit Note Dialog */}
+            {
+              saleToDevolve && (
+                <EmitCreditNoteDialog
+                  isOpen={isDevolutionDialogOpen}
+                  onClose={() => setIsDevolutionDialogOpen(false)}
+                  sale={saleToDevolve}
+                  onSuccess={() => {
+                    // Refetch sales after devolution to reflect the newly created credit note
+                    fetchSales(dateRange?.from, dateRange?.to, currentPage, searchTerm);
+                    fetchStats(dateRange?.from, dateRange?.to);
+                  }}
                 />
               )
             }

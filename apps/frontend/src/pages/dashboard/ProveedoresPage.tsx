@@ -11,7 +11,7 @@ import { DeleteSupplierDialog } from "@/components/delete-supplier-dialog"
 import { SupplierCurrentAccountDetails } from "@/components/suppliers/SupplierCurrentAccountDetails";
 import { getSupplierById } from "@/lib/api/supplierService"
 import type { Supplier as SupplierType } from "@/types"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { useAuth } from "@/hooks/useAuth"
 import useApi from "@/hooks/useApi"
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper"
@@ -118,7 +118,7 @@ export default function ProveedoresPage() {
       }
 
     } catch (_error: unknown) {
-      toast.error("Error al cargar proveedores")
+      sileo.error({ title: "Error al cargar proveedores" })
       setSuppliers([])
       setTotalItems(0)
       setTotalPages(1)
@@ -138,7 +138,7 @@ export default function ProveedoresPage() {
 
   const handleOpenCurrentAccount = (supplier: SupplierType) => {
     if (!supplier.current_account?.id) {
-      toast.error("Este proveedor no tiene una cuenta corriente activa.");
+      sileo.error({ title: "Este proveedor no tiene una cuenta corriente activa." });
       return;
     }
     setSelectedSupplier(supplier)
@@ -153,7 +153,7 @@ export default function ProveedoresPage() {
       navigate(`/dashboard/proveedores/${supplier.id}/ver`)
     } catch (error) {
       console.error('Error al obtener detalles del proveedor:', error)
-      toast.error("Error al cargar los detalles del proveedor")
+      sileo.error({ title: "Error al cargar los detalles del proveedor" })
     } finally {
       setLoading(false)
     }

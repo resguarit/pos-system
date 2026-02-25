@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import useApi from './useApi'
-import { toast } from 'sonner'
-
+import { sileo } from "sileo"
 /**
  * Tipo de comprobante AFIP
  */
@@ -167,7 +166,7 @@ export const useArca = () => {
           return []
         }
 
-        toast.error('Error al obtener tipos de comprobantes', {
+        sileo.error({ title: 'Error al obtener tipos de comprobantes',
           description: error?.response?.data?.message || 'No se pudieron cargar los tipos de comprobantes desde ARCA',
         })
         return null
@@ -214,7 +213,7 @@ export const useArca = () => {
           ? 'No se pudo conectar con ARCA. Verifique su conexión o intente más tarde.'
           : errorMessage;
 
-        toast.error('Error al obtener puntos de venta', {
+        sileo.error({ title: 'Error al obtener puntos de venta',
           description: friendlyMessage,
         })
         return null

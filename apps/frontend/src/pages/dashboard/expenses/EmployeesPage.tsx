@@ -10,7 +10,7 @@ import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
 import Pagination from "@/components/ui/pagination"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -117,7 +117,7 @@ export default function EmployeesPage() {
             }
         } catch (error) {
             console.error("Error fetching employees:", error);
-            toast.error("Error al cargar empleados");
+            sileo.error({ title: "Error al cargar empleados" });
         }
     }, [request, debouncedSearchTerm]);
 
@@ -147,12 +147,12 @@ export default function EmployeesPage() {
 
         try {
             await request({ method: "DELETE", url: `/employees/${employeeToDelete}` })
-            toast.success('Empleado eliminado correctamente')
+            sileo.success({ title: 'Empleado eliminado correctamente' })
             fetchEmployees(currentPage);
             setDeleteDialogOpen(false)
             setEmployeeToDelete(null)
         } catch (error: any) {
-            toast.error(error?.message || 'Error al eliminar el empleado')
+            sileo.error({ title: error?.message || 'Error al eliminar el empleado' })
         }
     }
 

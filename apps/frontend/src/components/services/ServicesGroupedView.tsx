@@ -18,8 +18,7 @@ import { es } from "date-fns/locale"
 import { getBillingCycleConfig } from "@/utils/billingCycleUtils"
 import { formatPrice } from "@/lib/utils/currency"
 import { getServicePaymentStatus } from "@/utils/servicePaymentStatus"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 interface ServiceType {
     id: number
     name: string
@@ -192,7 +191,7 @@ export default function ServicesGroupedView() {
             setServices(aggregated)
         } catch (error) {
             console.error("Error fetching services:", error)
-            toast.error("Error al cargar los servicios")
+            sileo.error({ title: "Error al cargar los servicios" })
         } finally {
             setLoading(false)
         }
@@ -260,17 +259,17 @@ export default function ServicesGroupedView() {
         if (!paymentService) return
 
         if (!paymentForm.amount || parseFloat(paymentForm.amount) <= 0) {
-            toast.error("Ingrese un monto valido")
+            sileo.error({ title: "Ingrese un monto valido" })
             return
         }
 
         if (userBranches.length > 1 && !paymentForm.branch_id) {
-            toast.error("Selecciona una sucursal")
+            sileo.error({ title: "Selecciona una sucursal" })
             return
         }
 
         if (paymentMethods.length > 0 && !paymentForm.payment_method_id) {
-            toast.error("Selecciona un metodo de pago")
+            sileo.error({ title: "Selecciona un metodo de pago" })
             return
         }
 
@@ -285,12 +284,12 @@ export default function ServicesGroupedView() {
                 payment_method_id: paymentForm.payment_method_id ? parseInt(paymentForm.payment_method_id) : undefined,
             })
 
-            toast.success("Pago registrado exitosamente")
+            sileo.success({ title: "Pago registrado exitosamente" })
             setPaymentDialogOpen(false)
             fetchServices()
         } catch (error) {
             console.error("Error registering payment:", error)
-            toast.error("Error al registrar el pago")
+            sileo.error({ title: "Error al registrar el pago" })
         } finally {
             setPaymentLoading(false)
         }

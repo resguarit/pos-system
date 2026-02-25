@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { ChevronDown, Check } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { CurrentAccount, GeneralStatistics } from '@/types/currentAccount';
 import { CurrentAccountService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
 import { CurrentAccountList } from '@/components/currentAccount/CurrentAccountList';
@@ -62,7 +62,7 @@ export default function CurrentAccountsPage() {
       setStatistics(stats);
     } catch (error) {
       console.error('Error loading statistics:', error);
-      toast.error('Error al cargar las estadísticas. Verifica tu conexión e intenta nuevamente.');
+      sileo.error({ title: 'Error al cargar las estadísticas. Verifica tu conexión e intenta nuevamente.' });
       setStatistics(null); // Asegurar que no queden datos previos
     } finally {
       setLoadingStats(false);
@@ -124,10 +124,10 @@ export default function CurrentAccountsPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Datos exportados exitosamente');
+      sileo.success({ title: 'Datos exportados exitosamente' });
     } catch (error) {
       console.error('Error al exportar:', error);
-      toast.error('Error al exportar los datos');
+      sileo.error({ title: 'Error al exportar los datos' });
     }
   };
 

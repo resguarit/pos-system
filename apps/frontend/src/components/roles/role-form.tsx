@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // Hooks y Contexto
@@ -257,7 +257,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         }
       } catch (error) {
         if (!axios.isCancel(error)) {
-          toast.error("Error al cargar datos", { description: "No se pudieron obtener los datos para el formulario de roles." });
+          sileo.error({ title: "Error al cargar datos", description: "No se pudieron obtener los datos para el formulario de roles." });
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -288,7 +288,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
       // Usar initialNameRef.current en lugar de formData.name para evitar dependencia circular
       if (response.exists && name !== initialNameRef.current) {
         setNameError("Este nombre ya está en uso");
-        toast.error("Este nombre ya está en uso", {
+        sileo.error({ title: "Este nombre ya está en uso",
           description: "Por favor, elige un nombre diferente para el rol."
         });
       } else {
@@ -345,7 +345,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      toast.error("Validación fallida", { description: "El nombre del rol es obligatorio." });
+      sileo.error({ title: "Validación fallida", description: "El nombre del rol es obligatorio." });
       return;
     }
     setIsSubmitting(true);
@@ -364,7 +364,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
         });
         // Actualizar permisos del rol
         await request({ method: 'PUT', url: `/roles/${roleId}/permissions`, data: { permissions: formData.permissions.map(Number) } });
-        toast.success("Rol actualizado con éxito.");
+        sileo.success({ title: "Rol actualizado con éxito." });
 
         // Marcar que hubo cambios en roles para forzar recarga de permisos
         localStorage.setItem('roles_updated', Date.now().toString());
@@ -380,7 +380,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
             single_session_only: formData.single_session_only,
           }
         });
-        toast.success("Rol creado con éxito.");
+        sileo.success({ title: "Rol creado con éxito." });
 
         // Marcar que hubo cambios en roles
         localStorage.setItem('roles_updated', Date.now().toString());
@@ -388,7 +388,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
       navigate('/dashboard/roles');
     } catch (error) {
       const errorMsg = (error as { response?: { data?: { message?: string } } }).response?.data?.message || "Ocurrió un error inesperado.";
-      toast.error("Error al guardar", { description: errorMsg });
+      sileo.error({ title: "Error al guardar", description: errorMsg });
     } finally {
       setIsSubmitting(false);
     }

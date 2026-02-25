@@ -5,7 +5,7 @@ import { apiUrl } from "@/lib/api/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { Loader2 } from "lucide-react";
 
 interface IvaFormProps {
@@ -36,9 +36,9 @@ export function IvaForm({ iva, onSuccess }: IvaFormProps) {
     setLoading(true);
     try {
       if (iva?.id) {
-        await axios.put(`${apiUrl}/ivas/${iva.id}`, data);        toast.success("IVA rate updated successfully!");
+        await axios.put(`${apiUrl}/ivas/${iva.id}`, data);        sileo.success({ title: "IVA rate updated successfully!" });
       } else {
-        await axios.post(`${apiUrl}/ivas`, data);        toast.success("IVA rate created successfully!");
+        await axios.post(`${apiUrl}/ivas`, data);        sileo.success({ title: "IVA rate created successfully!" });
         reset();
       }
       
@@ -46,7 +46,7 @@ export function IvaForm({ iva, onSuccess }: IvaFormProps) {
         onSuccess();
       }
     } catch (error) {
-      console.error("Failed to save IVA rate:", error);      toast.error("Failed to save IVA rate. Please try again.");
+      console.error("Failed to save IVA rate:", error);      sileo.error({ title: "Failed to save IVA rate. Please try again." });
     } finally {
       setLoading(false);
     }

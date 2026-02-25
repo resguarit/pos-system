@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { CurrentAccount } from '@/types/currentAccount';
 import { CurrentAccountService } from '@/lib/services/currentAccountService';
 
@@ -15,14 +15,14 @@ export function useCurrentAccountActions() {
     try {
       setLoading(true);
       const result = await action();
-      toast.success(successMessage);
+      sileo.success({ title: successMessage });
       onSuccess?.();
       return result;
     } catch (error: any) {
       console.error('Error executing action:', error);
       // Extraer mensaje del backend si existe
       const backendMessage = error?.response?.data?.message || error?.message;
-      toast.error(backendMessage || errorMessage);
+      sileo.error({ title: backendMessage || errorMessage });
       return null;
     } finally {
       setLoading(false);
@@ -66,8 +66,8 @@ export function useCurrentAccountActions() {
   };
 
   const processPayment = async (
-    accountId: number, 
-    paymentData: any, 
+    accountId: number,
+    paymentData: any,
     onSuccess?: () => void,
     onAfterSuccess?: () => void
   ) => {
@@ -84,8 +84,8 @@ export function useCurrentAccountActions() {
   };
 
   const processCreditPurchase = async (
-    accountId: number, 
-    purchaseData: any, 
+    accountId: number,
+    purchaseData: any,
     onSuccess?: () => void
   ) => {
     return executeAction(

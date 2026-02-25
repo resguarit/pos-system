@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { History, TrendingUp, TrendingDown, Minus, Loader2, AlertCircle } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface ViewProductDialogProps {
@@ -116,7 +116,7 @@ export function ViewProductDialog({ open, onOpenChange, product }: ViewProductDi
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || 'Error desconocido al cargar el historial';
       setHistoryError(errorMessage);
-      toast.error('Error al cargar el historial de costos', {
+      sileo.error({ title: 'Error al cargar el historial de costos',
         description: errorMessage
       });
     }

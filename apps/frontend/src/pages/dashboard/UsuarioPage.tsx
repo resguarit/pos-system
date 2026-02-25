@@ -22,8 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 interface User {
   id: string
   name: string
@@ -150,7 +149,7 @@ export default function UsuariosPage() {
       if (error.name === 'AbortError' || error.name === 'CanceledError') {
       } else if (!signal?.aborted) {
         setRoles([]);
-        // toast.error("Error al cargar roles");
+        // sileo.error({ title: "Error al cargar roles" });
       }
     }
   }, [request]); // Added dependency
@@ -185,7 +184,7 @@ export default function UsuariosPage() {
 
     // Verificar permiso antes de eliminar
     if (!hasPermission('eliminar_usuarios')) {
-      toast.error("Sin permisos", {
+      sileo.error({ title: "Sin permisos",
         description: "No tienes permisos para eliminar usuarios",
       })
       return
@@ -200,11 +199,11 @@ export default function UsuariosPage() {
 
       setUsers(users.filter((user) => user.id !== userToDelete))
 
-      toast.success("Usuario eliminado", {
+      sileo.success({ title: "Usuario eliminado",
         description: "El usuario ha sido eliminado correctamente",
       })
     } catch (error) {
-      toast.error("Error", {
+      sileo.error({ title: "Error",
         description: "No se pudo eliminar el usuario",
       })
     } finally {

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { useAuth } from "@/hooks/useAuth";
 
 interface ProductFormProps {
@@ -241,7 +241,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
           }
         }
       } catch (error) {
-        console.error("Failed to fetch reference data:", error); toast.error("Failed to load reference data.");
+        console.error("Failed to fetch reference data:", error); sileo.error({ title: "Failed to load reference data." });
       }
     };
 
@@ -262,9 +262,9 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     setLoading(true);
     try {
       if (product?.id) {
-        await axios.put(`${apiUrl}/products/${product.id}`, data); toast.success("Product updated successfully!");
+        await axios.put(`${apiUrl}/products/${product.id}`, data); sileo.success({ title: "Product updated successfully!" });
       } else {
-        await axios.post(`${apiUrl}/products`, data); toast.success("Product created successfully!");
+        await axios.post(`${apiUrl}/products`, data); sileo.success({ title: "Product created successfully!" });
         reset();
       }
 

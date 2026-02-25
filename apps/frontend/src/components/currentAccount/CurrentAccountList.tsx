@@ -6,7 +6,7 @@ import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/table';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { usePendingSalesData } from '@/hooks/usePendingSalesData';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { Eye, Pause, Play, CreditCard, DollarSign } from 'lucide-react';
 import Pagination from '@/components/ui/pagination';
 import { CurrentAccount, CurrentAccountFilters, PaginatedResponse } from '@/types/currentAccount';
@@ -108,7 +108,7 @@ export function CurrentAccountList({
       });
     } catch (error) {
       console.error('Error loading accounts:', error);
-      toast.error('Error al cargar las cuentas corrientes');
+      sileo.error({ title: 'Error al cargar las cuentas corrientes' });
     } finally {
       setLoading(false);
     }

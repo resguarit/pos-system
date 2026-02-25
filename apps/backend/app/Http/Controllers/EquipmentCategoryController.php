@@ -65,7 +65,9 @@ class EquipmentCategoryController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('categories', 'name')->where('category_type', $this->type),
+                Rule::unique('categories', 'name')
+                    ->where('category_type', $this->type)
+                    ->whereNull('deleted_at'),
             ],
             'description' => ['nullable', 'string', 'max:500'],
             'parent_id' => [
@@ -104,6 +106,7 @@ class EquipmentCategoryController extends Controller
                 'max:255',
                 Rule::unique('categories', 'name')
                     ->where('category_type', $this->type)
+                    ->whereNull('deleted_at')
                     ->ignore($id),
             ],
             'description' => ['nullable', 'string', 'max:500'],

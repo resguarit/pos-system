@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import useApi from "@/hooks/useApi"
@@ -117,7 +117,8 @@ export default function POSPage() {
     }
 
     setSelectedBranchIds([branchId]);
-    toast.success('Sucursal cambiada', {
+    sileo.success({
+      title: 'Sucursal cambiada',
       description: `Ahora trabajas en ${branches.find(b => b.id.toString() === branchId)?.description || 'la sucursal seleccionada'}`
     });
   };
@@ -246,7 +247,8 @@ export default function POSPage() {
 
     // Ejecutar fetchProducts y LUEGO mostrar el toast cuando termine con éxito.
     fetchProducts(activeProductsCount && activeProductsCount > 0 ? activeProductsCount : SMALL_CATALOG_THRESHOLD).then(() => {
-      toast.success("Precios actualizados", {
+      sileo.success({
+        title: "Precios actualizados",
         description: "Los precios se han actualizado con la nueva tasa de cambio"
       });
     });
@@ -290,7 +292,8 @@ export default function POSPage() {
 
       if (mappedItems.length > 0) {
         setCart(mappedItems)
-        toast.success(`Presupuesto ${budget.receipt_number || `#${budget.id}`} cargado`, {
+        sileo.success({
+          title: `Presupuesto ${budget.receipt_number || `#${budget.id}`} cargado`,
           description: 'Se han cargado los ítems del presupuesto.'
         })
         setConvertedFromBudgetId(budget.id)
@@ -322,7 +325,7 @@ export default function POSPage() {
       const savedCart = loadCartFromStorage()
       if (savedCart.length > 0) {
         setCart(savedCart)
-        toast.info(`Carrito restaurado: ${savedCart.length} producto${savedCart.length > 1 ? 's' : ''} encontrado${savedCart.length > 1 ? 's' : ''}`)
+        sileo.info({ title: `Carrito restaurado: ${savedCart.length} producto${savedCart.length > 1 ? 's' : ''} encontrado${savedCart.length > 1 ? 's' : ''}` })
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -616,12 +619,13 @@ export default function POSPage() {
         return newCart;
       });
 
-      toast.success("Combo agregado al carrito", {
+      sileo.success({
+        title: "Combo agregado al carrito",
         description: `${combo.name} x${quantity} se descompuso en ${comboItems.length} productos con descuento aplicado.`,
       });
     } catch (error) {
       console.error("Error adding combo to cart:", error);
-      toast.error("Error al agregar combo al carrito");
+      sileo.error({ title: "Error al agregar combo al carrito" });
     }
   }
 
@@ -668,18 +672,21 @@ export default function POSPage() {
 
       if (foundProduct) {
         addToCart(foundProduct, addQtyPerClick);
-        toast.success("Producto agregado", {
+        sileo.success({
+          title: "Producto agregado",
           description: `${foundProduct.description} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
         });
         setProductCodeInput("");
       } else {
-        toast.error("Producto no encontrado", {
+        sileo.error({
+          title: "Producto no encontrado",
           description: `No se encontró ningún producto con "${code}".`,
         });
         setProductCodeInput("");
       }
     } catch {
-      toast.error("Error al buscar producto", {
+      sileo.error({
+        title: "Error al buscar producto",
         description: "No se pudo consultar el producto en este momento.",
       });
     } finally {

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import useApi from './useApi'
-import { toast } from 'sonner'
-
+import { sileo } from "sileo"
 interface CashRegisterStatus {
   is_open: boolean
   cash_register: {
@@ -85,9 +84,9 @@ export const useCashRegisterStatus = (branchId: number = 1) => {
 
       if (showToast) {
         if (response.is_open) {
-          toast.success('Caja abierta y disponible para operaciones')
+          sileo.success({ title: 'Caja abierta y disponible para operaciones' })
         } else {
-          toast.warning('No hay caja abierta. Debe abrir la caja antes de realizar operaciones.')
+          sileo.warning({ title: 'No hay caja abierta. Debe abrir la caja antes de realizar operaciones.' })
         }
       }
 
@@ -95,7 +94,7 @@ export const useCashRegisterStatus = (branchId: number = 1) => {
     } catch (error: any) {
       console.error('Error checking cash register status:', error)
       if (showToast) {
-        toast.error('Error al verificar el estado de la caja')
+        sileo.error({ title: 'Error al verificar el estado de la caja' })
       }
       return false
     } finally {
@@ -129,7 +128,7 @@ export const useCashRegisterStatus = (branchId: number = 1) => {
     const isOpen = await checkCashRegisterStatus(false)
     
     if (!isOpen) {
-      toast.error(`No se puede realizar ${operationName}. Debe abrir la caja primero.`, {
+      sileo.error({ title: `No se puede realizar ${operationName}. Debe abrir la caja primero.`,
         action: {
           label: 'Abrir Caja',
           onClick: () => {

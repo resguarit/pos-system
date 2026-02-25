@@ -7,7 +7,7 @@ import type { Product } from "@/types/product"
 import { useState, useEffect, useCallback, useRef } from 'react';
 import useApi from "@/hooks/useApi"
 import { Textarea } from "@/components/ui/textarea"
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { usePricing } from '@/hooks/usePricing';
 import FormattedNumberInput from '@/components/ui/formatted-number-input';
 import { useEntityContext } from "@/context/EntityContext";
@@ -153,7 +153,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       if (error.name !== 'AbortError' && !error.message?.includes('canceled')) {
         console.error("Error general al cargar catálogos:", error);
-        toast.error("Error al cargar datos necesarios para editar.");
+        sileo.error({ title: "Error al cargar datos necesarios para editar." });
       }
     }
   }, [open, request, fetchStockForBranch]);
@@ -222,7 +222,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
       if (response.exists && code !== product.code) {
         setCodeError("Este código ya está en uso");
-        toast.error("Este código ya está en uso", {
+        sileo.error({ title: "Este código ya está en uso",
           description: "Por favor, elige un código diferente para el producto."
         });
       } else {
@@ -251,7 +251,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
       if (response.exists && description !== product.description) {
         setDescriptionError("Esta descripción ya está en uso");
-        toast.error("Esta descripción ya está en uso", {
+        sileo.error({ title: "Esta descripción ya está en uso",
           description: "Por favor, elige una descripción diferente para el producto."
         });
       } else {
@@ -330,7 +330,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
     // Validar precios
     if (!validatePricing()) {
-      toast.error("Los parámetros de precio no son válidos");
+      sileo.error({ title: "Los parámetros de precio no son válidos" });
       return;
     }
 
@@ -340,12 +340,12 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       const maxStock = parseFloat(stockData.max_stock);
 
       if (minStock < 0) {
-        toast.error("El stock mínimo no puede ser negativo");
+        sileo.error({ title: "El stock mínimo no puede ser negativo" });
         return;
       }
 
       if (maxStock <= minStock) {
-        toast.error("El stock máximo debe ser mayor que el stock mínimo");
+        sileo.error({ title: "El stock máximo debe ser mayor que el stock mínimo" });
         return;
       }
     }
@@ -428,7 +428,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         }
       }
 
-      toast.success("Producto actualizado correctamente");
+      sileo.success({ title: "Producto actualizado correctamente" });
       onProductUpdated();
       onOpenChange(false);
 
@@ -441,10 +441,10 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       if (error.response?.data?.errors) {
         const errors = error.response.data.errors;
         Object.values(errors).flat().forEach((errorMsg: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-          toast.error(errorMsg);
+          sileo.error({ title: errorMsg });
         });
       } else {
-        toast.error("Error al actualizar el producto");
+        sileo.error({ title: "Error al actualizar el producto" });
       }
     }
   };

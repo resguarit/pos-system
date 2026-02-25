@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import useApi from '@/hooks/useApi'
-import { toast } from 'sonner'
-
+import { sileo } from "sileo"
 interface CashRegisterStatus {
   is_open: boolean
   cash_register: {
@@ -106,7 +105,7 @@ export function CashRegisterProvider({ children }: CashRegisterProviderProps) {
         setCurrentBranchId(branchId)
 
         if (showToast) {
-          toast.success('Caja abierta y disponible para operaciones')
+          sileo.success({ title: 'Caja abierta y disponible para operaciones' })
         }
 
         return true
@@ -124,7 +123,7 @@ export function CashRegisterProvider({ children }: CashRegisterProviderProps) {
         setCurrentBranchId(branchId)
 
         if (showToast) {
-          toast.warning('No hay caja abierta. Debe abrir la caja antes de realizar operaciones.')
+          sileo.warning({ title: 'No hay caja abierta. Debe abrir la caja antes de realizar operaciones.' })
         }
 
         return false
@@ -146,14 +145,14 @@ export function CashRegisterProvider({ children }: CashRegisterProviderProps) {
         setCurrentBranchId(branchId)
 
         if (showToast) {
-          toast.warning('No hay caja abierta. Debe abrir la caja antes de realizar operaciones.')
+          sileo.warning({ title: 'No hay caja abierta. Debe abrir la caja antes de realizar operaciones.' })
         }
 
         return false
       }
       
       if (showToast) {
-        toast.error('Error al verificar el estado de la caja')
+        sileo.error({ title: 'Error al verificar el estado de la caja' })
       }
       return false
     } finally {
@@ -163,14 +162,14 @@ export function CashRegisterProvider({ children }: CashRegisterProviderProps) {
 
   const validateCashRegisterForOperation = useCallback(async (operationName: string = 'esta operación'): Promise<boolean> => {
     if (!currentBranchId) {
-      toast.error('No se ha seleccionado una sucursal')
+      sileo.error({ title: 'No se ha seleccionado una sucursal' })
       return false
     }
 
     const isOpen = await checkCashRegisterStatus(currentBranchId, false)
     
     if (!isOpen) {
-      toast.error(`No se puede realizar ${operationName}. Debe abrir la caja primero.`, {
+      sileo.error({ title: `No se puede realizar ${operationName}. Debe abrir la caja primero.`,
         action: {
           label: 'Abrir Caja',
           onClick: () => {

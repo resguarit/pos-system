@@ -48,7 +48,7 @@ import {
     GraduationCap,
     type LucideIcon
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 
 // Available icons for categories
@@ -181,13 +181,13 @@ export function NewCategoryDialog({ open, onOpenChange, onSuccess, parentCategor
             });
 
             if (response?.success) {
-                toast.success('Categoría creada correctamente');
+                sileo.success({ title: 'Categoría creada correctamente' });
                 onOpenChange(false);
                 onSuccess();
             }
         } catch (error: any) {
             console.error('Error creating category:', error);
-            toast.error(error?.response?.data?.message || 'Error al crear la categoría');
+            sileo.error({ title: error?.response?.data?.message || 'Error al crear la categoría' });
         } finally {
             setLoading(false);
         }

@@ -15,7 +15,7 @@ class BranchController extends Controller
         $this->branchService = $branchService;
     }
 
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         // Verificar permiso de ver sucursales
         $user = auth()->user();
@@ -32,7 +32,9 @@ class BranchController extends Controller
             ], 403);
         }
 
-        $branches = $this->branchService->getAllBranches();
+        $withTrashed = $request->query('with_trashed', false) == '1';
+        $branches = $this->branchService->getAllBranches($withTrashed);
+
         return response()->json([
             'status' => 200,
             'success' => true,

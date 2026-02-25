@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import useApi from './useApi';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import type { SaleHeader } from '@/types/sale';
 import { useArcaContext } from "@/context/ArcaContext";
 import { useBranch } from "@/context/BranchContext";
@@ -126,13 +126,13 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
     setIsAuthorizing(true);
     setError(null);
 
-    const toastId = toast.loading('Solicitando autorización a ARCA...');
+    const toastId = sileo.info({ title: 'Solicitando autorización a ARCA...' });
 
     try {
       // Validar antes de autorizar
       const validation = canAuthorize(sale);
       if (!validation.can) {
-        toast.error('No se puede autorizar', {
+        sileo.error({ title: 'No se puede autorizar',
           id: toastId,
           description: validation.reason,
         });
@@ -146,7 +146,7 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
       });
 
       if (response.success && response.data) {
-        toast.success('Venta autorizada con ARCA', {
+        sileo.success({ title: 'Venta autorizada con ARCA',
           id: toastId,
           description: `CAE: ${response.data.cae || 'N/A'}`,
         });
@@ -154,7 +154,7 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
         return response.data as ArcaAuthorizationResult;
       } else {
         const errorMessage = response.message || 'Error al autorizar con ARCA';
-        toast.error('Error al autorizar', {
+        sileo.error({ title: 'Error al autorizar',
           id: toastId,
           description: errorMessage,
         });
@@ -170,7 +170,7 @@ export function useArcaAuthorization(): UseArcaAuthorizationReturn {
         description += ` (Código ARCA: ${afipCode})`;
       }
 
-      toast.error('Error al autorizar con ARCA', {
+      sileo.error({ title: 'Error al autorizar con ARCA',
         id: toastId,
         description,
       });

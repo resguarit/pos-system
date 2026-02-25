@@ -11,8 +11,7 @@ import {
 import { Building, ChevronDown, Check, MapPin } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-
+import { sileo } from "sileo"
 export function UserBranchSwitcher() {
   const { 
     user, 
@@ -45,7 +44,7 @@ export function UserBranchSwitcher() {
     if (branch && branch.id !== currentBranch?.id) {
       changeBranch(branch);
       setIsOpen(false);
-      toast.success('Sucursal cambiada', {
+      sileo.success({ title: 'Sucursal cambiada',
         description: `Ahora trabajas en ${branch.description}`
       });
     }

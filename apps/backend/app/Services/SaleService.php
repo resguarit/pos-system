@@ -60,6 +60,40 @@ class SaleService implements SaleServiceInterface
         52 => 'RECIBO M',
     ];
 
+    private function getCreditNoteAfipCode(?int $originalAfipCode, ?string $receiptTypeName = null): ?int
+    {
+        // Si el afip_code es null o 0, es probable que sea un Remito "X" o interno
+        if (!$originalAfipCode) {
+            // Buscamos si es una Factura X o Ticket X para devolver con Nota de Crédito X
+            if (stripos($receiptTypeName ?? '', 'X') !== false) {
+                // Return a non-AFIP internal code we know we use for NC X, or null if handled differently
+                // Usually internal receipts don't have afip_code but might need an internal NC.
+                // Let's return 0 to indicate it's an internal credit note, but wait, the caller searches by afip_code = 0.
+            }
+        }
+
+        return match ($originalAfipCode) {
+            1 => 3, // Factura A -> NC A
+            4 => 3, // Recibo A -> NC A
+            5 => 3, // Nota de Venta al Contado A -> NC A
+
+            6 => 8, // Factura B -> NC B
+            9 => 8, // Recibo B -> NC B
+            10 => 8, // Nota de Venta al Contado B -> NC B
+
+            11 => 13, // Factura C -> NC C
+            15 => 13, // Recibo C -> NC C
+
+            51 => 53, // Factura M -> NC M (AFIP code for NC M is 53)
+
+            // X Receipts (Non-fiscal) usually have afip_code = null or 0. 
+            // In Resguar IT, "Nota de Crédito X" exists? Let's assume afip_code = null or 0 for now.
+
+            // Handle debit notes if necessary, but usually DEVOLUTIONS are against INVOICES
+            default => null,
+        };
+    }
+
     /** Máximo de intentos al generar número de comprobante único ante colisión */
     private const RECEIPT_NUMBER_MAX_ATTEMPTS = 10;
 
@@ -497,6 +531,149 @@ class SaleService implements SaleServiceInterface
     }
 
     /**
+     * Emite una nota de crédito (devolución exprés) a partir de una venta original
+     */
+    public function emitCreditNote(int $originalSaleId, float $amount, string $reason, int $userId, ?int $cashRegisterId): SaleHeader
+    {
+        return DB::transaction(function () use ($originalSaleId, $amount, $reason, $userId, $cashRegisterId) {
+            $originalSale = SaleHeader::with(['items', 'saleIvas', 'branch', 'customer', 'receiptType'])->findOrFail($originalSaleId);
+
+            if ($amount <= 0 || $amount > $originalSale->total) {
+                throw new \Exception('Monto inválido para nota de crédito. Debe ser mayor a 0 y menor o igual al total de la venta original.');
+            }
+
+            // Validar que la original no esté anulada
+            if ($originalSale->status === 'annulled') {
+                throw new \Exception('No se puede emitir una nota de crédito para una venta anulada.');
+            }
+
+            // Validar que tenga un tipo de comprobante que soporte NC
+            $originalAfipCode = $originalSale->receiptType->afip_code ?? null;
+            $ncAfipCode = $this->getCreditNoteAfipCode((int) $originalAfipCode, $originalSale->receiptType->name ?? null);
+
+            // Si es un comprobante no fiscal especial (ej. remito X) sin código AFIP
+            if ($ncAfipCode === null && (!$originalAfipCode || $originalAfipCode == 0)) {
+                // Buscamos si existe la "Nota de Crédito X" o similar 
+                $ncReceiptType = ReceiptType::where('name', 'like', '%Nota de Crédito X%')
+                    ->orWhere('name', 'like', '%Devolución%')
+                    ->first();
+
+                if (!$ncReceiptType) {
+                    throw new \Exception("No se encontró un tipo de comprobante válido para anular un remito interno (NC X).");
+                }
+            } else if ($ncAfipCode) {
+                // Fiscal
+                $ncReceiptType = ReceiptType::where('afip_code', $ncAfipCode)->first();
+            } else {
+                throw new \Exception("Esta venta ('" . ($originalSale->receiptType->name ?? 'N/A') . "') no soporta devolución exprés / nota de crédito.");
+            }
+
+            if (!isset($ncReceiptType) || !$ncReceiptType) {
+                throw new \Exception("El sistema no tiene configurado el tipo de comprobante de devolución necesario.");
+            }
+
+            $ratio = $amount / $originalSale->total;
+
+            // 1) Crear la Cabecera
+            $ncSale = new SaleHeader();
+            $ncSale->date = now();
+            $ncSale->receipt_type_id = $ncReceiptType->id;
+            $ncSale->branch_id = $originalSale->branch_id;
+            $ncSale->customer_id = $originalSale->customer_id;
+            $ncSale->original_sale_id = $originalSale->id;
+            $ncSale->sale_fiscal_condition_id = $originalSale->sale_fiscal_condition_id;
+            $ncSale->sale_document_type_id = $originalSale->sale_document_type_id;
+            $ncSale->sale_document_number = $originalSale->sale_document_number;
+            $ncSale->subtotal = (string) round($originalSale->subtotal * $ratio, 3);
+            $ncSale->total_iva_amount = (string) round(($originalSale->total_iva_amount ?? 0) * $ratio, 3);
+            $ncSale->discount_amount = (string) round($originalSale->discount_amount * $ratio, 3);
+            $ncSale->iibb = (string) round($originalSale->iibb * $ratio, 3);
+            $ncSale->internal_tax = (string) round($originalSale->internal_tax * $ratio, 3);
+            $ncSale->total = (string) round($amount, 3);
+            $ncSale->status = 'active';
+            $ncSale->numbering_scope = SaleNumberingScope::SALE;
+            $ncSale->user_id = $userId;
+            $ncSale->receipt_number = $this->getNextReceiptNumberForBranch($ncSale->branch_id, $ncSale->receipt_type_id);
+            $ncSale->save();
+
+            // 2) Copiar / Escalar Ítems y Devolver Stock
+            $stockService = app(\App\Services\StockService::class);
+            foreach ($originalSale->items as $item) {
+                $itemQuantity = $item->quantity * $ratio;
+                $ncSale->items()->create([
+                    'product_id' => $item->product_id,
+                    'quantity' => round($itemQuantity, 3),
+                    'unit_price' => $item->unit_price,
+                    'discount_type' => $item->discount_type,
+                    'discount_value' => $item->discount_value,
+                    'allow_discount' => $item->allow_discount,
+                    'iva_rate' => $item->iva_rate,
+                    'iva_id' => $item->iva_id,
+                    'item_subtotal' => round($item->item_subtotal * $ratio, 2),
+                    'item_iva' => round($item->item_iva * $ratio, 2),
+                    'item_total' => round($item->item_total * $ratio, 2),
+                ]);
+
+                // Devolver stock
+                $stockService->increaseStockByProductAndBranch(
+                    $item->product_id,
+                    $originalSale->branch_id,
+                    $itemQuantity,
+                    'sale_return',
+                    $ncSale->id,
+                    "Nota de Crédito/Devolución de la venta #" . ($originalSale->receipt_number ?? $originalSale->id)
+                );
+            }
+
+            // 3) Copiar / Escalar IVAs
+            foreach ($originalSale->saleIvas as $iva) {
+                $ncSale->saleIvas()->create([
+                    'iva_id' => $iva->iva_id,
+                    'iva_rate' => $iva->iva_rate,
+                    'base_amount' => round($iva->base_amount * $ratio, 2),
+                    'iva_amount' => round($iva->iva_amount * $ratio, 2),
+                ]);
+            }
+
+            // 4) Crear Movimiento de Caja (Salida)
+            if ($cashRegisterId) {
+                $cashMovementService = app(\App\Services\CashMovementService::class);
+
+                // Buscar tipo de movimiento de anulación/devolución
+                $ncMovementType = \App\Models\MovementType::firstOrCreate(
+                    ['name' => 'Devolución de Venta', 'operation_type' => 'salida'],
+                    [
+                        'description' => 'Salida de dinero por Nota de Crédito / Devolución',
+                        'is_cash_movement' => true,
+                        'is_current_account_movement' => false,
+                        'active' => true,
+                    ]
+                );
+
+                // Asumimos efecitvo o vemos metodos originales? Como es rápido, se usa un tipo de movimiento general y en teoría vuelve en efectivo.
+                // En un sistema completo el modal preguntaría "Forma de devolución", pero acá simplificamos al primer método de pago o efectivo:
+                $mainPaymentMethod = current($originalSale->salePayments()->pluck('payment_method_id')->toArray());
+
+                $cashMovementService->createMovement([
+                    'cash_register_id' => $cashRegisterId,
+                    'movement_type_id' => $ncMovementType->id,
+                    'payment_method_id' => $mainPaymentMethod ?? 1, // Fallback a 1 (generalmente efectivo)
+                    'reference_type' => 'sale',
+                    'reference_id' => $ncSale->id,
+                    'amount' => $amount,
+                    'description' => "Devolución s/ Factura " . ($originalSale->receipt_number ?? $originalSale->id) . " - Razón: {$reason}",
+                    'user_id' => $userId,
+                ]);
+            }
+
+            // 5) Generar CAE automáticamente con AFIP (La función verify/try lo hace silencioso o tira excepción)
+            $this->tryAuthorizeWithAfip($ncSale, $ncReceiptType, 'EmitCreditNote');
+
+            return $ncSale->fresh(['items', 'saleIvas', 'receiptType']);
+        });
+    }
+
+    /**
      * Registra el movimiento de caja basándose en los pagos de la venta
      */
     public function registerSaleMovementFromPayments(SaleHeader $sale, ?int $cashRegisterId = null): void
@@ -796,6 +973,8 @@ class SaleService implements SaleServiceInterface
             'saleIvas',
             'convertedFromBudget',
             'convertedToSale',
+            'originalSale',
+            'creditNotes',
         ]);
 
         // Manejar filtro por sucursales (array o valor único)
@@ -890,6 +1069,14 @@ class SaleService implements SaleServiceInterface
                 'items' => $items,
                 'converted_from_budget_id' => $sale->converted_from_budget_id,
                 'converted_from_budget_receipt' => $sale->convertedFromBudget ? $sale->convertedFromBudget->receipt_number : null,
+                'original_sale_id' => $sale->original_sale_id,
+                'original_sale_receipt' => $sale->originalSale ? $sale->originalSale->receipt_number : null,
+                'credit_notes' => $sale->creditNotes ? $sale->creditNotes->map(function ($cn) {
+                    return [
+                        'id' => $cn->id,
+                        'receipt_number' => $cn->receipt_number
+                    ];
+                })->toArray() : [],
             ];
         });
     }
@@ -1369,6 +1556,8 @@ class SaleService implements SaleServiceInterface
             'items',
             'convertedToSale',
             'convertedFromBudget',
+            'originalSale',
+            'creditNotes',
         ]);
 
         // Detectar si la búsqueda es principalmente por número de venta
@@ -1495,6 +1684,14 @@ class SaleService implements SaleServiceInterface
                 'converted_to_sale_id' => $sale->converted_to_sale_id,
                 'converted_to_sale_receipt' => $sale->convertedToSale ? $sale->convertedToSale->receipt_number : null,
                 'converted_at' => $sale->converted_at ? Carbon::parse($sale->converted_at)->format('Y-m-d H:i:s') : null,
+                'original_sale_id' => $sale->original_sale_id,
+                'original_sale_receipt' => $sale->originalSale ? $sale->originalSale->receipt_number : null,
+                'credit_notes' => $sale->creditNotes ? $sale->creditNotes->map(function ($cn) {
+                    return [
+                        'id' => $cn->id,
+                        'receipt_number' => $cn->receipt_number
+                    ];
+                })->toArray() : [],
             ];
         });
 
@@ -1874,7 +2071,7 @@ class SaleService implements SaleServiceInterface
             Log::info("{$context}: AFIP: Venta autorizada exitosamente", [
                 'sale_id' => $sale->id,
                 'cae' => $sale->cae,
-                'cae_expiration_date' => $sale->cae_expiration_date?->format('Y-m-d'),
+                'cae_expiration_date' => $sale->cae_expiration_date ? $sale->cae_expiration_date->toDateString() : null,
             ]);
 
             return [
@@ -2473,6 +2670,34 @@ class SaleService implements SaleServiceInterface
         $payload['ivaTotal'] = round($ivaTotal, 2);
         $payload['ivaItems'] = $ivaItems;
 
+        // Agregar el Comprobante Asociado si es Nota de Crédito o Débito
+        if (in_array($invoiceType, [2, 3, 7, 8, 12, 13], true)) {
+            $originalSale = $sale->originalSale;
+
+            if ($originalSale) {
+                $origPos = 1;
+                if ($originalSale->branch && !empty($originalSale->branch->point_of_sale)) {
+                    $origPos = (int) $originalSale->branch->point_of_sale;
+                }
+
+                $origNumber = 0;
+                if (!empty($originalSale->receipt_number)) {
+                    $origNumber = (int) preg_replace('/[^0-9]/', '', $originalSale->receipt_number);
+                }
+
+                $payload['associatedReceipt'] = [
+                    'type' => $this->mapReceiptTypeToAfipType($originalSale->receiptType),
+                    'pointOfSale' => $origPos,
+                    'number' => $origNumber,
+                ];
+            } else {
+                Log::warning('prepareInvoiceDataForAfip: Emitiendo Nota de Crédito/Débito sin una venta original asociada.', [
+                    'sale_id' => $sale->id,
+                    'invoice_type' => $invoiceType
+                ]);
+            }
+        }
+
         return $payload;
     }
 
@@ -2852,6 +3077,18 @@ class SaleService implements SaleServiceInterface
             $invoice['footer_logo_src'] = str_starts_with($footerLogo, 'http') ? $footerLogo : rtrim(config('app.url', ''), '/') . '/' . ltrim($footerLogo, '/');
         } elseif (is_array($footerLogo) && !empty($footerLogo['url'])) {
             $invoice['footer_logo_src'] = (string) $footerLogo['url'];
+        }
+
+        // Si es Nota de Crédito/Débito y tiene comprobante original asociado
+        if ($sale->original_sale_id && $sale->originalSale) {
+            $originalSale = $sale->originalSale;
+            $origInvoiceType = $this->mapReceiptTypeToAfipType($originalSale->receiptType);
+
+            $invoice['associatedReceipt'] = [
+                'type' => $origInvoiceType,
+                'pointOfSale' => (int) $originalSale->sale_point,
+                'number' => (int) $originalSale->receipt_number,
+            ];
         }
 
         return $invoice;

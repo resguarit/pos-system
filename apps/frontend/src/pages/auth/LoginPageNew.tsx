@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { useAuth } from '@/context/AuthContext';
 import api from '@/lib/api';
 import { Lock, User } from 'lucide-react';
@@ -28,15 +28,15 @@ export default function LoginPage() {
 
       if (response.data.access_token) {
         login(response.data.access_token);
-        toast.success('Inicio de sesión exitoso');
+        sileo.success({ title: 'Inicio de sesión exitoso' });
         navigate('/dashboard');
       }
     } catch (error: any) {
       console.error('Login error:', error);
       if (error.response?.status === 401) {
-        toast.error('Credenciales incorrectas');
+        sileo.error({ title: 'Credenciales incorrectas' });
       } else {
-        toast.error('Error al iniciar sesión. Inténtalo de nuevo.');
+        sileo.error({ title: 'Error al iniciar sesión. Inténtalo de nuevo.' });
       }
     } finally {
       setIsLoading(false);

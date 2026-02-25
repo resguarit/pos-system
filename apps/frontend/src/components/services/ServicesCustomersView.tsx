@@ -27,7 +27,7 @@ import Pagination from "@/components/ui/pagination"
 import api from "@/lib/api"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 import { calculateMonthlyCost } from "@/utils/serviceUtils"
 import { getServicePaymentStatus } from "@/utils/servicePaymentStatus"
@@ -305,7 +305,7 @@ export default function ServicesCustomersView() {
             setServicePayments(response.data || [])
         } catch (error) {
             console.error("Error fetching service payments:", error)
-            toast.error("Error al cargar el historial de pagos")
+            sileo.error({ title: "Error al cargar el historial de pagos" })
         } finally {
             setServicePaymentsLoading(false)
         }
@@ -442,7 +442,7 @@ export default function ServicesCustomersView() {
             const response = await api.put(`/client-services/${selectedService.id}`, payload)
             const updatedServiceFromServer = response.data as Service
 
-            toast.success("Servicio actualizado correctamente")
+            sileo.success({ title: "Servicio actualizado correctamente" })
             setServiceEditMode(false)
             setServiceDetailOpen(false)
 
@@ -472,7 +472,7 @@ export default function ServicesCustomersView() {
             fetchCustomers()
         } catch (error) {
             console.error("Error updating service:", error)
-            toast.error("Error al actualizar el servicio")
+            sileo.error({ title: "Error al actualizar el servicio" })
         } finally {
             setServiceEditLoading(false)
         }
@@ -489,12 +489,12 @@ export default function ServicesCustomersView() {
         try {
             setServiceEditLoading(true)
             await api.delete(`/client-services/${selectedService.id}`)
-            toast.success("Servicio eliminado correctamente")
+            sileo.success({ title: "Servicio eliminado correctamente" })
             setServiceDetailOpen(false)
             fetchCustomers()
         } catch (error) {
             console.error("Error deleting service:", error)
-            toast.error("Error al eliminar el servicio")
+            sileo.error({ title: "Error al eliminar el servicio" })
         } finally {
             setServiceEditLoading(false)
         }
@@ -520,7 +520,7 @@ export default function ServicesCustomersView() {
 
         try {
             await api.delete(`/client-services/${service.id}`)
-            toast.success(`Servicio "${service.name}" desvinculado correctamente`)
+            sileo.success({ title: `Servicio "${service.name}" desvinculado correctamente` })
 
             // Actualizar el estado local inmediatamente
             const updatedServices = selectedCustomer.client_services.filter(s => s.id !== service.id)
@@ -543,7 +543,7 @@ export default function ServicesCustomersView() {
             fetchCustomers()
         } catch (error) {
             console.error("Error unlinking service:", error)
-            toast.error("Error al desvincular el servicio")
+            sileo.error({ title: "Error al desvincular el servicio" })
         } finally {
             setUnlinkConfirmId(null)
         }
@@ -616,13 +616,13 @@ export default function ServicesCustomersView() {
 
     const handleRegisterPayment = async () => {
         if (!paymentForm.service_id || !paymentForm.amount) {
-            toast.error("Selecciona un servicio y monto")
+            sileo.error({ title: "Selecciona un servicio y monto" })
             return
         }
 
         // Validar sucursal si hay más de una
         if (userBranches.length > 1 && !paymentForm.branch_id) {
-            toast.error("Selecciona una sucursal")
+            sileo.error({ title: "Selecciona una sucursal" })
             return
         }
 
@@ -639,7 +639,7 @@ export default function ServicesCustomersView() {
                 payment_method_id: paymentForm.payment_method_id ? parseInt(paymentForm.payment_method_id) : undefined,
             })
 
-            toast.success("Pago registrado exitosamente")
+            sileo.success({ title: "Pago registrado exitosamente" })
             setPaymentDialogOpen(false)
 
             // Update local state immediately with the returned service
@@ -677,7 +677,7 @@ export default function ServicesCustomersView() {
             fetchCustomers()
         } catch (error) {
             console.error("Error registering payment:", error)
-            toast.error("Error al registrar el pago")
+            sileo.error({ title: "Error al registrar el pago" })
         } finally {
             setPaymentLoading(false)
         }

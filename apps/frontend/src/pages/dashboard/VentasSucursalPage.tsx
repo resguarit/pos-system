@@ -16,10 +16,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-chart"
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
+import EmitCreditNoteDialog from "@/components/sales/EmitCreditNoteDialog"
 import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge"
 import { useAuth } from "@/context/AuthContext"
 import Pagination from "@/components/ui/pagination"
@@ -40,7 +41,7 @@ interface Branch {
 }
 
 // Iconos
-import { ArrowLeft, Download, Search, Filter, Eye, FileText, /*Receipt,*/ BarChart, Users, Loader2 } from "lucide-react"
+import { ArrowLeft, Download, Search, Filter, Eye, FileText, /*Receipt,*/ BarChart, Users, Loader2, Undo2 } from "lucide-react"
 
 // Tamaño de página para paginación
 const PAGE_SIZE = 10;
@@ -61,6 +62,8 @@ export default function BranchSalesPage() {
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)
+  const [isDevolutionDialogOpen, setIsDevolutionDialogOpen] = useState(false)
+  const [saleToDevolve, setSaleToDevolve] = useState<SaleHeader | null>(null)
   const [stats, setStats] = useState({
     total_sales: 0,
     total_amount: 0,
@@ -128,7 +131,7 @@ export default function BranchSalesPage() {
 
     } catch (error) {
       if (!axios.isCancel(error)) {
-        toast.error("Error al cargar los datos de la sucursal.");
+        sileo.error({ title: "Error al cargar los datos de la sucursal." });
       }
     }
   }, [request]);
@@ -173,14 +176,13 @@ export default function BranchSalesPage() {
   const getItemsCount = (sale: SaleHeader) => sale.items_count || 0
 
   const getReceiptType = (sale: SaleHeader): { displayName: string; filterKey: string; arcaCode: string } => {
-    // Match logic used in VentasPage to avoid runtime errors
     if (sale.receipt_type && typeof sale.receipt_type === 'object') {
       const upperDescription = (sale.receipt_type.description || "").toUpperCase();
       const arcaCode = sale.receipt_type.afip_code || "N/A";
       return {
         displayName: upperDescription,
         filterKey: upperDescription,
-        arcaCode: arcaCode,
+        arcaCode: String(arcaCode),
       };
     }
     const actualReceiptType = (sale as any).receipt_type as any;
@@ -196,6 +198,25 @@ export default function BranchSalesPage() {
       };
     }
     return { displayName: "N/A", filterKey: "N/A", arcaCode: "N/A" };
+  };
+
+  const canIssueCreditNote = (sale: SaleHeader): boolean => {
+    const receiptType = getReceiptType(sale).displayName;
+    const afipCode = getReceiptType(sale).arcaCode;
+
+    // Si es un comprobante que debería ir a ARCA pero no tiene CAE, no permitir emitir NC
+    const isInternal = afipCode === '016' || afipCode === '017' || receiptType.includes('PRESUPUESTO') || receiptType.includes(' X');
+    if (!isInternal && !sale.cae) {
+      return false;
+    }
+
+    return !(
+      receiptType.includes('NOTA DE CRÉDITO') ||
+      receiptType.includes('DEVOLUCIÓN') ||
+      receiptType.includes('PRESUPUESTO') ||
+      receiptType.includes(' X') ||
+      (sale.credit_notes && sale.credit_notes.length > 0)
+    );
   };
 
   // Memoizar ventas filtradas para evitar recálculos innecesarios
@@ -276,9 +297,9 @@ export default function BranchSalesPage() {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "VentasSucursal");
       XLSX.writeFile(workbook, `ventas_sucursal_${params.id}.xlsx`);
-      toast.success("Exportación completada");
+      sileo.success({ title: "Exportación completada" });
     } catch {
-      toast.error("Error al exportar datos");
+      sileo.error({ title: "Error al exportar datos" });
     } finally {
       setIsExporting(false);
     }
@@ -291,7 +312,7 @@ export default function BranchSalesPage() {
       setSelectedSale(fullSaleData);
       setIsDetailOpen(true);
     } catch {
-      toast.error("Error al cargar el detalle de la venta");
+      sileo.error({ title: "Error al cargar el detalle de la venta" });
       setSelectedSale(sale);
       setIsDetailOpen(true);
     }
@@ -346,7 +367,7 @@ export default function BranchSalesPage() {
       setSelectedSale(fullSaleData);
       setIsReceiptOpen(true);
     } catch (error) {
-      toast.error("Error al cargar el comprobante");
+      sileo.error({ title: "Error al cargar el comprobante" });
       setSelectedSale(sale);
       setIsReceiptOpen(true);
     }
@@ -371,9 +392,10 @@ export default function BranchSalesPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+      const rawDesc = typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante';
+      const receiptTypeDesc = rawDesc.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '_');
       const receiptNumber = sale.receipt_number || sale.id;
-      const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+      const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '');
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
@@ -527,23 +549,59 @@ export default function BranchSalesPage() {
                       <Badge className={badgeClassName}>
                         {receiptTypeInfo.displayName}
                       </Badge>
-                      <ArcaStatusBadge sale={sale} showConfigWarning />
+                      <div className="flex flex-col gap-1 items-start">
+                        <ArcaStatusBadge sale={sale} showConfigWarning />
+                        {sale.original_sale_receipt && (
+                          <Badge variant="outline" className="border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 font-normal text-xs" title="Revierte la venta original">
+                            ANULA: {sale.original_sale_receipt}
+                          </Badge>
+                        )}
+                        {sale.credit_notes && sale.credit_notes.length > 0 && (
+                          <>
+                            {sale.credit_notes.map(cn => (
+                              <Badge key={cn.id} variant="outline" className="border-fuchsia-300 text-fuchsia-700 bg-fuchsia-50 hover:bg-fuchsia-100 font-normal text-xs" title="Venta con Nota de Crédito/Devolución emitida">
+                                NC EMITIDA: {cn.receipt_number || cn.id}
+                              </Badge>
+                            ))}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">{formatDate(sale.date)}</TableCell>
                   <TableCell className="hidden md:table-cell text-center">{getItemsCount(sale)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(sale.total)}</TableCell>
+                  <TableCell className="text-right">{NumberFormatter.formatCurrency(sale.total)}</TableCell>
                   <TableCell className="text-center">
-                    {hasPermission('ver_ventas') && (
-                      <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer" onClick={() => handleViewDetail(sale)} title="Ver Detalle" disabled={loading}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {hasPermission('reimprimir_comprobantes') && (
-                      <Button variant="ghost" size="icon" className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 cursor-pointer" onClick={() => handleDownloadPdf(sale)} title="Descargar PDF">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <div className="flex justify-center gap-2">
+                      {hasPermission('ver_ventas') && (
+                        <Button variant="ghost" size="icon" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 cursor-pointer" onClick={() => handleViewDetail(sale)} title="Ver Detalle" disabled={loading}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {/* Emitir N/C - Accion Rapida */}
+                      {hasPermission('emitir_notas_credito') && (sale.status === 'active' || sale.status === 'completed') && canIssueCreditNote(sale) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-orange-700 hover:text-orange-800 hover:bg-orange-100 cursor-pointer"
+                          onClick={() => {
+                            setSaleToDevolve(sale);
+                            setIsDevolutionDialogOpen(true);
+                          }}
+                          title="Emitir Nota de Crédito / Devolución"
+                          disabled={loading}
+                        >
+                          <Undo2 className="h-4 w-4" />
+                        </Button>
+                      )}
+
+                      {hasPermission('reimprimir_comprobantes') && (
+                        <Button variant="ghost" size="icon" className="text-amber-700 hover:text-amber-800 hover:bg-amber-100 cursor-pointer" onClick={() => handleDownloadPdf(sale)} title="Descargar PDF">
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -553,106 +611,130 @@ export default function BranchSalesPage() {
       </div>
 
       {/* Paginación */}
-      {!loading && filteredSales.length > 0 && (
-        <Pagination
-          currentPage={currentPage}
-          lastPage={paginationData.totalPages}
-          total={paginationData.totalItems}
-          itemName="ventas"
-          onPageChange={goToPage}
-          disabled={loading}
-          className="mt-4"
-        />
-      )}
+      {
+        !loading && filteredSales.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            lastPage={paginationData.totalPages}
+            total={paginationData.totalItems}
+            itemName="ventas"
+            onPageChange={goToPage}
+            disabled={loading}
+            className="mt-4"
+          />
+        )
+      }
 
-      {selectedSale && (<ViewSaleDialog open={isDetailOpen} onOpenChange={setIsDetailOpen} sale={selectedSale} getCustomerName={getCustomerName} formatDate={formatDate} getReceiptType={getReceiptType} onDownloadPdf={async (sale) => {
-        if (!sale || !sale.id) {
-          alert("No se puede descargar el PDF: ID de venta faltante.");
-          return;
-        }
-        try {
-          const response = await request({
-            method: 'GET',
-            url: `/pos/sales/${sale.id}/pdf`,
-            responseType: 'blob'
-          });
-          if (!response || !(response instanceof Blob)) {
-            throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+      {
+        selectedSale && (<ViewSaleDialog open={isDetailOpen} onOpenChange={setIsDetailOpen} sale={selectedSale} getCustomerName={getCustomerName} formatDate={formatDate} getReceiptType={getReceiptType} onDownloadPdf={async (sale) => {
+          if (!sale || !sale.id) {
+            alert("No se puede descargar el PDF: ID de venta faltante.");
+            return;
           }
-          const blob = new Blob([response], { type: 'application/pdf' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-          const receiptNumber = sale.receipt_number || sale.id;
-          const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-          a.download = fileName;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
-        } catch (error) {
-          console.error("Error downloading PDF:", error);
-          alert("Error al descargar PDF");
-        }
-      }}
-        onSaleUpdated={handleSaleUpdated}
-        onPrintPdf={async (sale) => {
           try {
-            const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
-            const fullSale = (response as any)?.data?.data || (response as any)?.data || response
-            setSelectedSale(fullSale)
-            setIsReceiptOpen(true)
+            const response = await request({
+              method: 'GET',
+              url: `/pos/sales/${sale.id}/pdf`,
+              responseType: 'blob'
+            });
+            if (!response || !(response instanceof Blob)) {
+              throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+            }
+            const blob = new Blob([response], { type: 'application/pdf' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+            const receiptNumber = sale.receipt_number || sale.id;
+            const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
           } catch (error) {
-            console.error('Error fetching sale details for receipt:', error)
-            toast.error('No se pudo cargar el detalle del comprobante')
-            setSelectedSale(sale)
-            setIsReceiptOpen(true)
+            console.error("Error downloading PDF:", error);
+            alert("Error al descargar PDF");
           }
         }}
-      />)}
-      {selectedSale && branch && (
-        <SaleReceiptPreviewDialog
-          open={isReceiptOpen}
-          onOpenChange={setIsReceiptOpen}
-          sale={selectedSale}
-          customerName={getCustomerName(selectedSale)}
-          customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
-          formatDate={formatDate}
-          formatCurrency={formatCurrency}
-          onDownloadPdf={async (sale: SaleHeader) => {
-            if (!sale || !sale.id) {
-              alert("No se puede descargar el PDF: ID de venta faltante.");
-              return;
-            }
+          onSaleUpdated={handleSaleUpdated}
+          onPrintPdf={async (sale) => {
             try {
-              const response = await request({
-                method: 'GET',
-                url: `/pos/sales/${sale.id}/pdf`,
-                responseType: 'blob'
-              });
-              if (!response || !(response instanceof Blob)) {
-                throw new Error("La respuesta del servidor no es un archivo PDF válido.");
-              }
-              const blob = new Blob([response], { type: 'application/pdf' });
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
-              const receiptNumber = sale.receipt_number || sale.id;
-              const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
-              a.download = fileName;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              window.URL.revokeObjectURL(url);
+              const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
+              const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+              setSelectedSale(fullSale)
+              setIsReceiptOpen(true)
             } catch (error) {
-              console.error("Error downloading PDF:", error);
-              alert("Error al descargar PDF");
+              console.error('Error fetching sale details for receipt:', error)
+              sileo.error({ title: 'No se pudo cargar el detalle del comprobante' })
+              setSelectedSale(sale)
+              setIsReceiptOpen(true)
             }
           }}
-        />
-      )}
-    </div>
+        />)
+      }
+
+      {/* Emit Credit Note Dialog */}
+      {
+        saleToDevolve && (
+          <EmitCreditNoteDialog
+            isOpen={isDevolutionDialogOpen}
+            onClose={() => setIsDevolutionDialogOpen(false)}
+            sale={saleToDevolve}
+            onSuccess={() => {
+              const controller = new AbortController();
+              if (params.id) {
+                fetchBranchAndSales(params.id, dateRange?.from, dateRange?.to, controller.signal);
+              }
+            }}
+          />
+        )
+      }
+
+      {
+        selectedSale && branch && (
+          <SaleReceiptPreviewDialog
+            open={isReceiptOpen}
+            onOpenChange={setIsReceiptOpen}
+            sale={selectedSale}
+            customerName={getCustomerName(selectedSale)}
+            customerCuit={(selectedSale as any)?.customer?.person?.cuit || (selectedSale as any)?.customer?.cuit}
+            formatDate={formatDate}
+            formatCurrency={formatCurrency}
+            onDownloadPdf={async (sale: SaleHeader) => {
+              if (!sale || !sale.id) {
+                alert("No se puede descargar el PDF: ID de venta faltante.");
+                return;
+              }
+              try {
+                const response = await request({
+                  method: 'GET',
+                  url: `/pos/sales/${sale.id}/pdf`,
+                  responseType: 'blob'
+                });
+                if (!response || !(response instanceof Blob)) {
+                  throw new Error("La respuesta del servidor no es un archivo PDF válido.");
+                }
+                const blob = new Blob([response], { type: 'application/pdf' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                const receiptTypeDesc = (typeof sale.receipt_type === 'string' ? sale.receipt_type : sale.receipt_type?.description || 'comprobante').replace(/\s+/g, '_');
+                const receiptNumber = sale.receipt_number || sale.id;
+                const fileName = `${receiptTypeDesc}_${receiptNumber}.pdf`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+              } catch (error) {
+                console.error("Error downloading PDF:", error);
+                alert("Error al descargar PDF");
+              }
+            }}
+          />
+        )
+      }
+    </div >
   );
 }

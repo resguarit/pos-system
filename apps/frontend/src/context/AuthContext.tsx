@@ -1,7 +1,7 @@
 import React, { createContext, useState, useEffect, useContext, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import api from '@/lib/api';
 import { getAuthToken, saveAuthToken } from '@/lib/auth';
 import type { User } from '@/types/user';
@@ -183,7 +183,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const rolesUpdated = localStorage.getItem('roles_updated');
       if (rolesUpdated) {
         // Mostrar mensaje y recargar página completa para actualizar sidebar y layout
-        toast.success('Permisos actualizados', {
+        sileo.success({ title: 'Permisos actualizados',
           description: 'Recargando la página para aplicar los cambios...'
         });
 
@@ -243,7 +243,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const logoutWithReason = (reason: string) => {
-      toast.warning('Turno finalizado', {
+      sileo.warning({ title: 'Turno finalizado',
         description: reason,
         duration: 5000,
       });

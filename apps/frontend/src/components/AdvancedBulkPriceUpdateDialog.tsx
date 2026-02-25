@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calculator, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { bulkPriceService } from '@/lib/api/bulkPriceService';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface AdvancedBulkPriceUpdateDialogProps {
@@ -38,10 +38,10 @@ export const AdvancedBulkPriceUpdateDialog: React.FC<AdvancedBulkPriceUpdateDial
       try {
         await bulkPriceService.searchProducts({ page: 1, per_page: 10 });
         setTestResults(prev => ({ ...prev, search: true }));
-        toast.success('✅ Endpoint de búsqueda funciona correctamente');
+        sileo.success({ title: '✅ Endpoint de búsqueda funciona correctamente' });
       } catch (error: any) {
         setTestResults(prev => ({ ...prev, search: false }));
-        toast.error(`❌ Error en endpoint de búsqueda: ${error.message || 'Error desconocido'}`);
+        sileo.error({ title: `❌ Error en endpoint de búsqueda: ${error.message || 'Error desconocido'}` });
         console.error('Search error:', error);
       }
 
@@ -49,16 +49,16 @@ export const AdvancedBulkPriceUpdateDialog: React.FC<AdvancedBulkPriceUpdateDial
       try {
         await bulkPriceService.getStats({});
         setTestResults(prev => ({ ...prev, stats: true }));
-        toast.success('✅ Endpoint de estadísticas funciona correctamente');
+        sileo.success({ title: '✅ Endpoint de estadísticas funciona correctamente' });
       } catch (error: any) {
         setTestResults(prev => ({ ...prev, stats: false }));
-        toast.error(`❌ Error en endpoint de estadísticas: ${error.message || 'Error desconocido'}`);
+        sileo.error({ title: `❌ Error en endpoint de estadísticas: ${error.message || 'Error desconocido'}` });
         console.error('Stats error:', error);
       }
 
     } catch (error: any) {
       console.error('Error general en testEndpoints:', error);
-      toast.error('❌ Error general al probar endpoints');
+      sileo.error({ title: '❌ Error general al probar endpoints' });
     } finally {
       setLoading(false);
     }

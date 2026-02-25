@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import SelectBranchPlaceholder from '@/components/ui/select-branch-placeholder';
 import Pagination from '@/components/ui/pagination';
 import { DatePickerWithRange, DateRange } from '@/components/ui/date-range-picker';
@@ -178,12 +178,12 @@ export default function ShipmentsPage() {
     if (originalBranchSelection.length > 1) {
       setSelectedBranchIds([...originalBranchSelection])
       setOriginalBranchSelection([])
-      toast.success('Volviendo a la vista de múltiples sucursales')
+      sileo.success({ title: 'Volviendo a la vista de múltiples sucursales' })
     } else {
       const allBranchIds = branches.map(branch => branch.id.toString())
       setSelectedBranchIds(allBranchIds)
       setOriginalBranchSelection([])
-      toast.success('Mostrando todas las sucursales')
+      sileo.success({ title: 'Mostrando todas las sucursales' })
     }
   }
 
@@ -377,11 +377,11 @@ export default function ShipmentsPage() {
     try {
       const shipment = shipments.find(s => s.id === shipmentId) || allShipments.find(s => s.id === shipmentId);
       if (!shipment) {
-        toast.error('Envío no encontrado');
+        sileo.error({ title: 'Envío no encontrado' });
         return;
       }
 
-      toast.success(`Generando etiqueta para envío ${shipment.reference || shipmentId}...`);
+      sileo.success({ title: `Generando etiqueta para envío ${shipment.reference || shipmentId}...` });
 
       // Descargar el PDF con autenticación usando request (incluye token)
       const response = await request({
@@ -420,7 +420,7 @@ export default function ShipmentsPage() {
             iframe.contentWindow?.focus();
             iframe.contentWindow?.print();
           } catch {
-            toast.error("No se pudo abrir el diálogo de impresión.");
+            sileo.error({ title: "No se pudo abrir el diálogo de impresión." });
           }
 
           // Limpiar después de un tiempo
@@ -442,7 +442,7 @@ export default function ShipmentsPage() {
       }, 30000);
 
     } catch (error) {
-      toast.error('Error al imprimir etiqueta');
+      sileo.error({ title: 'Error al imprimir etiqueta' });
       console.error('Print error:', error);
     }
   };
@@ -451,11 +451,11 @@ export default function ShipmentsPage() {
     try {
       const shipment = shipments.find(s => s.id === shipmentId) || allShipments.find(s => s.id === shipmentId);
       if (!shipment) {
-        toast.error('Envío no encontrado');
+        sileo.error({ title: 'Envío no encontrado' });
         return;
       }
 
-      toast.success(`Descargando etiqueta para envío ${shipment.reference || shipmentId}...`);
+      sileo.success({ title: `Descargando etiqueta para envío ${shipment.reference || shipmentId}...` });
 
       // Descargar el PDF con autenticación usando request (incluye token)
       const response = await request({
@@ -485,9 +485,9 @@ export default function ShipmentsPage() {
       // Limpiar el blob URL
       window.URL.revokeObjectURL(blobUrl);
 
-      toast.success('Etiqueta descargada correctamente');
+      sileo.success({ title: 'Etiqueta descargada correctamente' });
     } catch (error) {
-      toast.error('Error al descargar etiqueta');
+      sileo.error({ title: 'Error al descargar etiqueta' });
       console.error('Download error:', error);
     }
   };
@@ -496,9 +496,9 @@ export default function ShipmentsPage() {
     setLoading(true);
     try {
       await fetchData(currentPage);
-      toast.success('Datos actualizados');
+      sileo.success({ title: 'Datos actualizados' });
     } catch {
-      toast.error('Error al actualizar datos');
+      sileo.error({ title: 'Error al actualizar datos' });
     } finally {
       setLoading(false);
     }

@@ -31,7 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { DollarSign, CreditCard, Loader2, RefreshCw } from 'lucide-react';
 import {
   PendingSale,
@@ -106,7 +106,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
       setPaymentMethods(filteredMethods);
     } catch (error) {
       console.error('Error loading payment methods:', error);
-      toast.error('Error al cargar métodos de pago');
+      sileo.error({ title: 'Error al cargar métodos de pago' });
     } finally {
       setLoadingMethods(false);
     }
@@ -140,7 +140,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
       });
     } catch (error) {
       console.error('Error loading pending sales:', error);
-      toast.error('Error al cargar ventas pendientes');
+      sileo.error({ title: 'Error al cargar ventas pendientes' });
     } finally {
       setLoadingSales(false);
     }
@@ -228,7 +228,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
         if (uniqueBranchIds.length > 0 && !uniqueBranchIds.includes(sale.branch_id)) {
           const branchName = branches.find(b => b.id === sale.branch_id.toString())?.description || 'otra sucursal';
           const currentBranchName = branches.find(b => b.id === uniqueBranchIds[0].toString())?.description || 'la sucursal seleccionada';
-          toast.error(`No puedes seleccionar ventas de distintas sucursales. Esta venta es de ${branchName}, pero ya tienes seleccionadas ventas de ${currentBranchName}.`);
+          sileo.error({ title: `No puedes seleccionar ventas de distintas sucursales. Esta venta es de ${branchName}, pero ya tienes seleccionadas ventas de ${currentBranchName}.` });
           return;
         }
       }
@@ -251,7 +251,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
       const maxAmount = sale.pending_amount;
 
       if (numAmount > maxAmount) {
-        toast.warning(`El monto no puede exceder el pendiente de $${maxAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`);
+        sileo.warning({ title: `El monto no puede exceder el pendiente de $${maxAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` });
         setSalePayments(prev => ({
           ...prev,
           [saleId]: {
@@ -282,9 +282,9 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
         const difference = Math.abs(result.difference || 0);
 
         if (difference < 0.01) {
-          toast.info('Los precios ya están actualizados. No hay cambios.');
+          sileo.info({ title: 'Los precios ya están actualizados. No hay cambios.' });
         } else {
-          toast.success('Precio actualizado exitosamente');
+          sileo.success({ title: 'Precio actualizado exitosamente' });
         }
 
         // Recargar ventas para reflejar el nuevo monto
@@ -294,11 +294,11 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
           onDataRefresh();
         }
       } else {
-        toast.error(result.message || 'Error al actualizar precio');
+        sileo.error({ title: result.message || 'Error al actualizar precio' });
       }
     } catch (error: any) {
       console.error('Error updating sale price:', error);
-      toast.error(error?.response?.data?.message || 'Error al actualizar precio');
+      sileo.error({ title: error?.response?.data?.message || 'Error al actualizar precio' });
     } finally {
       setUpdatingSaleId(null);
     }
@@ -325,7 +325,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
     e.preventDefault();
 
     if (!selectedPaymentMethod) {
-      toast.error('Selecciona un método de pago');
+      sileo.error({ title: 'Selecciona un método de pago' });
       return;
     }
 
@@ -345,7 +345,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
 
     // Validar que haya al menos una venta seleccionada
     if (selectedSales.length === 0) {
-      toast.error('Selecciona al menos una venta para pagar');
+      sileo.error({ title: 'Selecciona al menos una venta para pagar' });
       return;
     }
 
@@ -353,17 +353,17 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
     for (const salePayment of selectedSales) {
       const sale = pendingSales.find(s => s.id === salePayment.sale_id);
       if (!sale) {
-        toast.error(`Venta #${salePayment.sale_id} no encontrada`);
+        sileo.error({ title: `Venta #${salePayment.sale_id} no encontrada` });
         return;
       }
 
       if (salePayment.amount <= 0) {
-        toast.error(`El monto debe ser mayor a 0 para la venta #${sale.receipt_number}`);
+        sileo.error({ title: `El monto debe ser mayor a 0 para la venta #${sale.receipt_number}` });
         return;
       }
 
       if (salePayment.amount > sale.pending_amount) {
-        toast.error(`El pago de $${salePayment.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} excede el monto pendiente de $${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} para la venta #${sale.receipt_number}`);
+        sileo.error({ title: `El pago de $${salePayment.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} excede el monto pendiente de $${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} para la venta #${sale.receipt_number}` });
         return;
       }
     }
@@ -372,7 +372,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
     const selectedBranchIdFromSales = getSelectedBranchId();
 
     if (!selectedBranchIdFromSales) {
-      toast.error('Error: No se pudo determinar la sucursal de las ventas seleccionadas');
+      sileo.error({ title: 'Error: No se pudo determinar la sucursal de las ventas seleccionadas' });
       return;
     }
 
@@ -390,14 +390,14 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
 
       await CurrentAccountService.processPaymentBySale(accountId, paymentData);
 
-      toast.success('Pago procesado exitosamente');
+      sileo.success({ title: 'Pago procesado exitosamente' });
       onSuccess();
       onOpenChange(false);
     } catch (error) {
       console.error('Error processing payment:', error);
       const err = error as { response?: { data?: { message?: string } }; message?: string };
       const message = err?.response?.data?.message || err?.message || 'Error al procesar el pago';
-      toast.error(message);
+      sileo.error({ title: message });
     } finally {
       setLoading(false);
     }
@@ -503,7 +503,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
                                       if (value && numValue > sale.pending_amount) {
                                         // Limitar automáticamente al máximo permitido
                                         handleAmountChange(sale.id, sale.pending_amount.toFixed(2));
-                                        toast.warning(`El monto máximo para esta venta es $${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}`);
+                                        sileo.warning({ title: `El monto máximo para esta venta es $${sale.pending_amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}` });
                                       } else {
                                         handleAmountChange(sale.id, value);
                                       }

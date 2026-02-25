@@ -1,4 +1,4 @@
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -229,7 +229,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
         setMaxStock(savedData.maxStock || "0");
         setIsManualPrice(savedData.isManualPrice || false);
         
-        toast.info("Datos restaurados automáticamente", {
+        sileo.info({ title: "Datos restaurados automáticamente",
           description: "Se han cargado los datos que tenías anteriormente"
         });
       } else {
@@ -311,7 +311,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       }
     } catch (err) {
       console.error("Error loading catalogs:", err);
-      toast.error("Error al cargar datos necesarios.");
+      sileo.error({ title: "Error al cargar datos necesarios." });
     }
   };
 
@@ -343,7 +343,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       
       if (response.exists) {
         setCodeError("Este código ya está en uso");
-        toast.error("Este código ya está en uso", {
+        sileo.error({ title: "Este código ya está en uso",
           description: "Por favor, elige un código diferente para el producto."
         });
       } else {
@@ -373,7 +373,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       
       if (response.exists) {
         setDescriptionError("Esta descripción ya está en uso");
-        toast.error("Esta descripción ya está en uso", {
+        sileo.error({ title: "Esta descripción ya está en uso",
           description: "Por favor, elige una descripción diferente para el producto."
         });
       } else {
@@ -550,13 +550,13 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
     
     // Validar código duplicado
     if (codeError) {
-      toast.error('El código del producto ya está en uso');
+      sileo.error({ title: 'El código del producto ya está en uso' });
       return;
     }
     
     // Validar descripción duplicada
     if (descriptionError) {
-      toast.error('La descripción del producto ya está en uso');
+      sileo.error({ title: 'La descripción del producto ya está en uso' });
       return;
     }
     
@@ -569,7 +569,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
         });
         
         if (response.exists) {
-          toast.error('El código del producto ya está en uso');
+          sileo.error({ title: 'El código del producto ya está en uso' });
           return;
         }
       } catch (error) {
@@ -586,7 +586,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
         });
         
         if (response.exists) {
-          toast.error('La descripción del producto ya está en uso');
+          sileo.error({ title: 'La descripción del producto ya está en uso' });
           return;
         }
       } catch (error) {
@@ -599,17 +599,17 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
     const max = Number(maxStock);
     
     if (min < 0) {
-      toast.error('El stock mínimo debe ser 0 o mayor');
+      sileo.error({ title: 'El stock mínimo debe ser 0 o mayor' });
       return;
     }
     
     if (max <= 0) {
-      toast.error('El stock máximo debe ser mayor que 0');
+      sileo.error({ title: 'El stock máximo debe ser mayor que 0' });
       return;
     }
     
     if (max <= min) {
-      toast.error('El stock máximo debe ser mayor que el stock mínimo');
+      sileo.error({ title: 'El stock máximo debe ser mayor que el stock mínimo' });
       return;
     }
 
@@ -618,13 +618,13 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       .map(([, label]) => label);
 
     if (missingFields.length > 0) {
-      toast.error(`Faltan campos obligatorios: ${missingFields.join(', ')}`);
+      sileo.error({ title: `Faltan campos obligatorios: ${missingFields.join(', ')}` });
       return;
     }
 
     // Validar precios
     if (!validatePricing()) {
-      toast.error("Error en los parámetros de precios. Verifique que los valores sean válidos.");
+      sileo.error({ title: "Error en los parámetros de precios. Verifique que los valores sean válidos." });
       return;
     }
 
@@ -658,7 +658,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
         }
       });
 
-      toast.success("Producto creado correctamente", {
+      sileo.success({ title: "Producto creado correctamente",
         description: selectedBranches.length > 0 
           ? `Stock inicial creado en ${selectedBranches.length} sucursal${selectedBranches.length > 1 ? 'es' : ''}`
           : "Stock inicial creado en todas las sucursales activas"
@@ -676,10 +676,10 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       if (error.response?.data?.errors) {
         const errors = error.response.data.errors;
         Object.values(errors).flat().forEach((errorMsg: any) => {
-          toast.error(errorMsg);
+          sileo.error({ title: errorMsg });
         });
       } else {
-        toast.error("Error al crear producto", {
+        sileo.error({ title: "Error al crear producto",
           description: error?.response?.data?.message || "Ocurrió un error.",
         });
       }
@@ -1022,7 +1022,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
                 size="sm"
                 onClick={() => {
                   clearStorage();
-                  toast.info("Datos guardados eliminados");
+                  sileo.info({ title: "Datos guardados eliminados" });
                   // Recargar el diálogo
                   onOpenChange(false);
                   setTimeout(() => onOpenChange(true), 100);

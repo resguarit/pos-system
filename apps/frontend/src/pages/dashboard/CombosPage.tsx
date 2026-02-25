@@ -17,7 +17,7 @@ import {
   ShoppingCart,
   AlertCircle
 } from "lucide-react";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { ComboManagementDialog } from "@/components/ComboManagementDialog";
 import { ComboDetailsDialog } from "@/components/ComboDetailsDialog";
 import { DeleteComboDialog } from "@/components/DeleteComboDialog";
@@ -66,7 +66,7 @@ export default function CombosPage() {
       setComboPrices(pricesMap);
     } catch (error) {
       console.error("Error loading combos:", error);
-      toast.error("Error al cargar combos");
+      sileo.error({ title: "Error al cargar combos" });
     } finally {
       setLoading(false);
     }

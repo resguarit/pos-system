@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Package, Loader2, Search, FileText, Trash2, Calendar as CalendarIcon, DollarSign, User as UserIcon } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
 import { ShipmentStage, User, Customer } from '@/types/shipment';
@@ -150,12 +150,12 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
   const handleCreateShipment = async () => {
     if (selectedSales.length === 0) {
-      toast.error('Selecciona al menos una venta');
+      sileo.error({ title: 'Selecciona al menos una venta' });
       return;
     }
 
     if (!newShipmentForm.shipping_address) {
-      toast.error('La dirección es obligatoria');
+      sileo.error({ title: 'La dirección es obligatoria' });
       return;
     }
 
@@ -199,7 +199,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
       await shipmentService.createShipment(shipmentData);
 
-      toast.success('Envío creado exitosamente');
+      sileo.success({ title: 'Envío creado exitosamente' });
       onOpenChange(false);
 
       setNewShipmentForm({
@@ -232,10 +232,10 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
         const validationErrors = err.response.data.errors;
         const firstField = Object.keys(validationErrors)[0];
         const firstErrorMsg = validationErrors[firstField]?.[0];
-        toast.error(firstErrorMsg || 'Hay errores de validación. Por favor revise el formulario.');
+        sileo.error({ title: firstErrorMsg || 'Hay errores de validación. Por favor revise el formulario.' });
       } else {
         // @ts-expect-error - request hook error handling
-        toast.error(err.response?.data?.message || 'Error al crear el envío');
+        sileo.error({ title: err.response?.data?.message || 'Error al crear el envío' });
       }
     } finally {
       setLoading(false);
@@ -457,7 +457,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                             if (!selectedSales.find(s => s.id === sale.id)) {
                               setSelectedSales(prev => [...prev, sale]);
                             } else {
-                              toast.error('Este pedido ya ha sido agregado.');
+                              sileo.error({ title: 'Este pedido ya ha sido agregado.' });
                             }
                             setSearchSaleTerm('');
                             setShowSalesOptions(false);

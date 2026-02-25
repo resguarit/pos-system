@@ -6,7 +6,7 @@ import { getBranchColor } from '@/utils/branchColor';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Pagination from '@/components/ui/pagination';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import {
   ArrowLeft,
   CreditCard,
@@ -89,7 +89,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       setAccount(accountData);
     } catch (error) {
       console.error('Error loading account:', error);
-      toast.error('Error al cargar los detalles de la cuenta');
+      sileo.error({ title: 'Error al cargar los detalles de la cuenta' });
     } finally {
       setLoading(false);
     }
@@ -108,7 +108,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       setTotalMovements(response.total);
     } catch (error) {
       console.error('Error loading movements:', error);
-      toast.error('Error al cargar los movimientos');
+      sileo.error({ title: 'Error al cargar los movimientos' });
     } finally {
       setLoadingMovements(false);
     }
@@ -149,7 +149,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       setPendingSales(sales);
     } catch (error) {
       console.error('Error loading pending sales:', error);
-      toast.error('Error al cargar ventas pendientes');
+      sileo.error({ title: 'Error al cargar ventas pendientes' });
     }
   }, [accountId]);
 
@@ -173,7 +173,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
       );
     } catch (error) {
       console.error('Error loading filters:', error);
-      toast.error('Error al cargar filtros');
+      sileo.error({ title: 'Error al cargar filtros' });
     }
   }, [accountId]);
 

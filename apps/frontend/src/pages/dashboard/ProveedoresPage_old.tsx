@@ -19,7 +19,7 @@ import { getSupplierById } from "@/lib/api/supplierService"
 import { getPurchaseOrders, finalizePurchaseOrder, cancelPurchaseOrder, getPurchaseSummaryByCurrency } from "@/lib/api/purchaseOrderService"
 import type { Supplier as SupplierType } from "@/types"
 import type { PurchaseOrder as APIPurchaseOrder } from "@/lib/api/purchaseOrderService"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import type { DateRange } from "@/components/ui/date-range-picker"
 import { format } from "date-fns"
@@ -133,7 +133,7 @@ export default function ProveedoresPage() {
           setSummary(summaryData.totals)
           setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
         } catch (error) {
-          toast.error("Error al cargar el resumen de compras por moneda.")
+          sileo.error({ title: "Error al cargar el resumen de compras por moneda." })
           setSummary({})
           setSummaryPeriod(null)
         }
@@ -188,7 +188,7 @@ export default function ProveedoresPage() {
       }
       
     } catch (error) {
-      toast.error("Error al cargar proveedores")
+      sileo.error({ title: "Error al cargar proveedores" })
       setSuppliers([])
       setTotalItems(0)
       setTotalPages(1)
@@ -213,7 +213,7 @@ export default function ProveedoresPage() {
       setTotalPOPages(Math.ceil(orders.length / PO_PAGE_SIZE));
     } catch (error) {
       console.error('Error loading purchase orders:', error);
-      toast.error("Error al cargar órdenes de compra");
+      sileo.error({ title: "Error al cargar órdenes de compra" });
       setPurchaseOrders([]);
       setTotalPOItems(0);
       setTotalPOPages(1);
@@ -248,7 +248,7 @@ export default function ProveedoresPage() {
       setViewDialogOpen(true)
     } catch (error) {
       console.error('Error al obtener detalles del proveedor:', error)
-      toast.error("Error al cargar los detalles del proveedor")
+      sileo.error({ title: "Error al cargar los detalles del proveedor" })
     } finally {
       setLoading(false)
     }
@@ -306,26 +306,26 @@ export default function ProveedoresPage() {
 
   const handleCompletePurchaseOrder = async (orderId: number) => {
     if (!isCashRegisterOpen || !cashRegisterStatus?.cash_register?.id) {
-      toast.error("No hay caja abierta en la sucursal seleccionada. Debe abrir la caja antes de finalizar la orden.");
+      sileo.error({ title: "No hay caja abierta en la sucursal seleccionada. Debe abrir la caja antes de finalizar la orden." });
       return;
     }
     try {
       const cashRegisterId = cashRegisterStatus.cash_register.id;
       await finalizePurchaseOrder(orderId, cashRegisterId);
-      toast.success("Orden de compra finalizada exitosamente");
+      sileo.success({ title: "Orden de compra finalizada exitosamente" });
       await refreshCards();
     } catch (error) {
-      toast.error("Error al finalizar la orden de compra");
+      sileo.error({ title: "Error al finalizar la orden de compra" });
     }
   }
 
   const handleCancelPurchaseOrder = async (orderId: number) => {
     try {
       await cancelPurchaseOrder(orderId)
-      toast.success("Orden de compra cancelada")
+      sileo.success({ title: "Orden de compra cancelada" })
       await refreshCards()
     } catch (error) {
-      toast.error("Error al cancelar la orden de compra")
+      sileo.error({ title: "Error al cancelar la orden de compra" })
     }
   }
 

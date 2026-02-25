@@ -3,8 +3,7 @@
 import { type ComponentType, useEffect, useState } from 'react'
 import { useEntityContext, type EntityState } from '@/context/EntityContext'
 import useApi from '@/hooks/useApi'
-import { toast } from 'sonner'
-
+import { sileo } from "sileo"
 /**
  * HOC que agrega capacidad de caché de entidades a cualquier componente de formulario
  * 
@@ -65,7 +64,7 @@ export function withEntityCache<P extends object>(
             setEntityData(entity)
           }
         } catch (error) {
-          toast.error('Error', {
+          sileo.error({ title: 'Error',
             description: `No se pudo cargar la información del ${entityType}`
           })
         } finally {

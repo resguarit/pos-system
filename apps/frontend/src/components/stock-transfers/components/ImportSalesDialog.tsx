@@ -11,8 +11,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Download, Search, Loader2, FileSpreadsheet, FileText } from 'lucide-react';
-import { toast } from 'sonner';
-
+import { sileo } from "sileo"
 interface ImportSalesDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -41,7 +40,7 @@ export function ImportSalesDialog({ open, onOpenChange, onImport, sourceBranchId
     // Simulate searching
     const handleSearch = () => {
         if (!dateFrom || !dateTo) {
-            toast.error("Seleccione un rango de fechas");
+            sileo.error({ title: "Seleccione un rango de fechas" });
             return;
         }
 
@@ -57,7 +56,7 @@ export function ImportSalesDialog({ open, onOpenChange, onImport, sourceBranchId
 
             setResults(filtered);
             setLoading(false);
-            toast.success(`Se encontraron ${filtered.length} productos vendidos`);
+            sileo.success({ title: `Se encontraron ${filtered.length} productos vendidos` });
         }, 1000); // 1.5s delay
     };
 
@@ -82,7 +81,7 @@ export function ImportSalesDialog({ open, onOpenChange, onImport, sourceBranchId
 
         onImport(itemsToImport);
         onOpenChange(false);
-        toast.success(`${itemsToImport.length} productos agregados a la transferencia`);
+        sileo.success({ title: `${itemsToImport.length} productos agregados a la transferencia` });
 
         // Reset state
         setResults([]);
@@ -91,10 +90,10 @@ export function ImportSalesDialog({ open, onOpenChange, onImport, sourceBranchId
 
     const handleExport = (type: 'pdf' | 'excel') => {
         if (results.length === 0) {
-            toast.error("No hay datos para exportar");
+            sileo.error({ title: "No hay datos para exportar" });
             return;
         }
-        toast.info(`Exportando a ${type.toUpperCase()}... (Simulación)`);
+        sileo.info({ title: `Exportando a ${type.toUpperCase()}... (Simulación)` });
         // Here we would use jspdf or xlsx
     };
 

@@ -136,6 +136,50 @@ class SaleController extends Controller
         return response()->json(['data' => $saleData], 200);
     }
 
+    public function emitCreditNote(Request $request, int $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:0.01',
+            'reason' => 'required|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Datos inválidos para la nota de crédito.',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $userId = auth()->id();
+
+            // Asumimos que si no pasa por caja, es null, pero el middleware 'cash.open' (si está) nos da current_cash_register
+            $currentCashRegister = $request->get('current_cash_register');
+            $cashRegisterId = $currentCashRegister ? $currentCashRegister->id : null;
+
+            $creditNote = $this->saleService->emitCreditNote(
+                $id,
+                $request->input('amount'),
+                $request->input('reason'),
+                $userId,
+                $cashRegisterId
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $creditNote,
+                'message' => 'Nota de Crédito emitida y guardada exitosamente.'
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al emitir Nota de Crédito: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function update(Request $request, int $id): JsonResponse
     {
         $sale = $this->saleService->getSaleById($id);

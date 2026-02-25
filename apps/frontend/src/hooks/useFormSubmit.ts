@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
-import { toast } from 'sonner'
-
+import { sileo } from "sileo"
 interface UseFormSubmitOptions {
   onSuccess?: () => void
   onError?: (error: any) => void
@@ -27,7 +26,7 @@ export function useFormSubmit(options: UseFormSubmitOptions = {}) {
       // Mensaje de éxito
       const successMsg = customOptions?.successMessage || options.successMessage
       if (successMsg) {
-        toast.success(successMsg)
+        sileo.success({ title: successMsg })
       }
       
       // Callback de éxito
@@ -44,7 +43,7 @@ export function useFormSubmit(options: UseFormSubmitOptions = {}) {
       if (customOptions?.onError || options.onError) {
         ;(customOptions?.onError || options.onError)?.(err)
       } else {
-        toast.error(errorMsg)
+        sileo.error({ title: errorMsg })
       }
       
       throw err

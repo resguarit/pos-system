@@ -34,7 +34,7 @@ class CategoryController extends Controller
             // Por defecto, devolver todas las categorías sin paginación
             $categories = $this->categoryService->getAllCategories($search, null, $type);
         }
-        
+
         return response()->json([
             'status' => 200,
             'success' => true,
@@ -68,7 +68,9 @@ class CategoryController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('categories', 'name')->where('category_type', Category::TYPE_PRODUCT),
+                Rule::unique('categories', 'name')
+                    ->where('category_type', Category::TYPE_PRODUCT)
+                    ->whereNull('deleted_at'),
             ],
             'description' => ['nullable', 'string', 'max:500'],
             'parent_id' => [
@@ -107,6 +109,7 @@ class CategoryController extends Controller
                 'max:255',
                 Rule::unique('categories', 'name')
                     ->where('category_type', Category::TYPE_PRODUCT)
+                    ->whereNull('deleted_at')
                     ->ignore($id),
             ],
             'description' => ['nullable', 'string', 'max:500'],
@@ -236,7 +239,7 @@ class CategoryController extends Controller
     {
         try {
             $exists = $this->categoryService->checkNameExists($name, Category::TYPE_PRODUCT);
-            
+
             return response()->json([
                 'exists' => $exists
             ]);

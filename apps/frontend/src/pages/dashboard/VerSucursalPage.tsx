@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom"
 import { BranchesForm } from "@/components/branches/branches-form"
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
-import { toast } from "sonner"; // Corrected toast import
+import { sileo } from "sileo"
 
 // Define the Branch interface to be compatible with BranchesForm
 interface User { // Copied from branches-form.tsx for compatibility context
@@ -76,7 +76,7 @@ export default function ViewBranchPage() {
         if (e.name === 'AbortError') {
         } else {
           setBranch(null)
-          toast.error("Error al cargar los detalles de la sucursal.")
+          sileo.error({ title: "Error al cargar los detalles de la sucursal." })
         }
       } finally {
         setLoading(false)

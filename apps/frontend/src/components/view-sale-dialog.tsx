@@ -188,10 +188,11 @@ const ViewSaleDialog = ({
     // 1. Determinar si el comprobante es un presupuesto basándonos en los datos.
     const receiptType = saleToDisplay.receipt_type as { afip_code?: string; name?: string; description?: string } | string;
     const isBudget = (typeof receiptType !== 'string' && receiptType?.afip_code === '016') || (typeof receiptType !== 'string' && receiptType?.name === 'Presupuesto') || (typeof receiptType === 'string' ? receiptType : receiptType?.description || '').toLowerCase().includes('presupuesto');
+    const isCreditNote = (typeof receiptType === 'string' ? receiptType : receiptType?.description || '').toLowerCase().includes('nota de crédito');
 
     // 2. Definir textos dinámicos basados en si es un presupuesto o una venta.
-    const dialogTitle = isBudget ? "Detalle del Presupuesto" : "Detalle de Venta";
-    const dialogDescription = isBudget ? "Información detallada del presupuesto." : "Información detallada de la venta.";
+    const dialogTitle = isBudget ? "Detalle del Presupuesto" : isCreditNote ? "Detalle de la Nota de Crédito" : "Detalle de Venta";
+    const dialogDescription = isBudget ? "Información detallada del presupuesto." : isCreditNote ? "Información detallada de la nota de crédito." : "Información detallada de la venta.";
 
     // Usar el nombre directo del tipo de comprobante para mayor precisión.
     const receiptName = (typeof receiptType === 'string' ? receiptType : receiptType?.description) || getReceiptType(saleToDisplay).displayName;
@@ -449,7 +450,7 @@ const ViewSaleDialog = ({
                                     )}
                                 </Button>
                             )}
-                            {onPrintPdf && (
+                            {onPrintPdf && !isCreditNote && (
                                 <Button onClick={() => onPrintPdf(saleToDisplay)} size="sm" variant="default">
                                     <Printer className="mr-2 h-4 w-4" /> Imprimir
                                 </Button>

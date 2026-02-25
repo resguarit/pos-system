@@ -9,7 +9,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Loader2, User as UserIcon } from "lucide-react"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { RoleBadge } from "@/components/roles/RoleBadge"
 
 interface Employee {
@@ -56,7 +56,7 @@ export function BranchPersonnelModal({
           setPersonnel(response.data || []);
         } catch (error) {
           console.error("Error fetching personnel:", error);
-          toast.error("Error", {
+          sileo.error({ title: "Error",
             description: "No se pudo cargar el personal de la sucursal.",
           });
           setPersonnel([]); // Limpia en caso de error

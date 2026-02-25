@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import paymentMethodService, { type PaymentMethod } from '@/lib/api/paymentMethodService';
 import { Loader2, CreditCard } from 'lucide-react';
 
@@ -55,7 +55,7 @@ export default function CompleteOrderDialog({
       }
     } catch (error: any) {
       console.error('Error cargando métodos de pago:', error);
-      toast.error("Error al cargar métodos de pago", {
+      sileo.error({ title: "Error al cargar métodos de pago",
         description: error.message || "No se pudieron cargar los métodos de pago disponibles"
       });
     } finally {
@@ -65,7 +65,7 @@ export default function CompleteOrderDialog({
 
   const handleComplete = async () => {
     if (!selectedPaymentMethod) {
-      toast.error("Selecciona un método de pago", {
+      sileo.error({ title: "Selecciona un método de pago",
         description: "Debes seleccionar un método de pago para completar la orden"
       });
       return;
@@ -78,7 +78,7 @@ export default function CompleteOrderDialog({
       setSelectedPaymentMethod(null);
     } catch (error: any) {
       console.error('Error completando orden:', error);
-      toast.error("Error al completar la orden", {
+      sileo.error({ title: "Error al completar la orden",
         description: error.message || "No se pudo completar la orden de compra"
       });
     } finally {

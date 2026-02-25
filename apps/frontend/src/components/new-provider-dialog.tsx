@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { useState } from 'react';
 import { createSupplier } from '@/lib/api/supplierService';
 import useApi from "@/hooks/useApi";
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { Loader2 } from 'lucide-react';
 
 export interface NewProviderDialogProps {
@@ -50,7 +50,7 @@ export const NewProviderDialog = ({ open, onOpenChange, onSaved }: NewProviderDi
       
       if (response.exists) {
         setNameError("Este nombre ya está en uso");
-        toast.error("Este nombre ya está en uso", {
+        sileo.error({ title: "Este nombre ya está en uso",
           description: "Por favor, elige un nombre diferente para el proveedor."
         });
       } else {

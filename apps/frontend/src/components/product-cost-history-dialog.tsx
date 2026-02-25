@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2, TrendingUp, TrendingDown, Minus, AlertCircle } from "lucide-react"
 import { useState, useEffect, useCallback } from "react"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { useAuth } from "@/hooks/useAuth"
@@ -71,7 +71,7 @@ export function ProductCostHistoryDialog({ open, onOpenChange, product }: Produc
     } catch (error: any) {
       const errorMessage = error?.response?.data?.message || error?.message || 'Error desconocido al cargar el historial'
       setError(errorMessage)
-      toast.error('Error al cargar el historial de costos', {
+      sileo.error({ title: 'Error al cargar el historial de costos',
         description: errorMessage
       })
     }

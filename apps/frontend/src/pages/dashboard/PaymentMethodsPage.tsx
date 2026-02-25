@@ -27,7 +27,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import type { PaymentMethod } from "@/types/sale"
@@ -150,7 +150,7 @@ export default function PaymentMethodsPage() {
         if (!methodToDelete) return
 
         if (!hasPermission('eliminar_metodos_pago')) {
-            toast.error("Sin permisos", {
+            sileo.error({ title: "Sin permisos",
                 description: "No tienes permisos para eliminar métodos de pago",
             })
             return
@@ -164,12 +164,12 @@ export default function PaymentMethodsPage() {
 
             await fetchPaymentMethods(1)
 
-            toast.success("Método de pago eliminado", {
+            sileo.success({ title: "Método de pago eliminado",
                 description: "El método de pago ha sido eliminado correctamente",
             })
         } catch (error: any) {
             const errorMsg = error.response?.data?.message || "No se pudo eliminar el método de pago"
-            toast.error("Error", {
+            sileo.error({ title: "Error",
                 description: errorMsg,
             })
         } finally {
@@ -205,14 +205,14 @@ export default function PaymentMethodsPage() {
 
     const handleSubmit = async () => {
         if (!formData.name.trim()) {
-            toast.error("Error", {
+            sileo.error({ title: "Error",
                 description: "El nombre es requerido",
             })
             return
         }
 
         if ((formData.discount_percentage ?? 0) < 0 || (formData.discount_percentage ?? 0) > 100) {
-            toast.error("Error", {
+            sileo.error({ title: "Error",
                 description: "El descuento debe estar entre 0 y 100",
             })
             return
@@ -233,7 +233,7 @@ export default function PaymentMethodsPage() {
                     url: `/payment-methods/${formData.id}`,
                     data
                 })
-                toast.success("Método de pago actualizado", {
+                sileo.success({ title: "Método de pago actualizado",
                     description: "El método de pago ha sido actualizado correctamente",
                 })
             } else {
@@ -242,7 +242,7 @@ export default function PaymentMethodsPage() {
                     url: "/payment-methods",
                     data
                 })
-                toast.success("Método de pago creado", {
+                sileo.success({ title: "Método de pago creado",
                     description: "El método de pago ha sido creado correctamente",
                 })
             }
@@ -253,7 +253,7 @@ export default function PaymentMethodsPage() {
             const errorMsg = error.response?.data?.message ||
                 error.response?.data?.errors?.name?.[0] ||
                 `No se pudo ${isEditMode ? 'actualizar' : 'crear'} el método de pago`
-            toast.error("Error", {
+            sileo.error({ title: "Error",
                 description: errorMsg,
             })
         }

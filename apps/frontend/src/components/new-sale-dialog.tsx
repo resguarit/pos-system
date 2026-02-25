@@ -12,9 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
-
-// Hooks y Contexto
+import { sileo } from "sileo"
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
 
@@ -170,7 +168,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
       } catch (error: any) {
         if (!axios.isCancel(error)) {
           console.error("Error fetching role data:", error);
-          toast.error("Error al cargar datos", { description: "No se pudieron obtener los datos para el formulario de roles." });
+          sileo.error({ title: "Error al cargar datos", description: "No se pudieron obtener los datos para el formulario de roles." });
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -213,7 +211,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      toast.error("Validación fallida", { description: "El nombre del rol es obligatorio." });
+      sileo.error({ title: "Validación fallida", description: "El nombre del rol es obligatorio." });
       return;
     }
     setIsSubmitting(true);
@@ -225,15 +223,15 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
       };
       if (roleId) {
         await request({ method: 'PUT', url: `/roles/${roleId}/permissions`, data: payload });
-        toast.success("Rol actualizado con éxito.");
+        sileo.success({ title: "Rol actualizado con éxito." });
       } else {
         await request({ method: 'POST', url: '/roles', data: payload });
-        toast.success("Rol creado con éxito.");
+        sileo.success({ title: "Rol creado con éxito." });
       }
       navigate('/dashboard/roles');
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || "Ocurrió un error inesperado.";
-      toast.error("Error al guardar", { description: errorMsg });
+      sileo.error({ title: "Error al guardar", description: errorMsg });
     } finally {
       setIsSubmitting(false);
     }

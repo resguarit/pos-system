@@ -5,7 +5,7 @@ import { apiUrl } from "@/lib/api/config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "sonner";
+import { sileo } from "sileo"
 import { Loader2 } from "lucide-react";
 
 interface MeasureFormProps {
@@ -36,9 +36,9 @@ export function MeasureForm({ measure, onSuccess }: MeasureFormProps) {
     setLoading(true);
     try {
       if (measure?.id) {
-        await axios.put(`${apiUrl}/measures/${measure.id}`, data);        toast.success("Unit of measure updated successfully!");
+        await axios.put(`${apiUrl}/measures/${measure.id}`, data);        sileo.success({ title: "Unit of measure updated successfully!" });
       } else {
-        await axios.post(`${apiUrl}/measures`, data);        toast.success("Unit of measure created successfully!");
+        await axios.post(`${apiUrl}/measures`, data);        sileo.success({ title: "Unit of measure created successfully!" });
         reset();
       }
       
@@ -46,7 +46,7 @@ export function MeasureForm({ measure, onSuccess }: MeasureFormProps) {
         onSuccess();
       }
     } catch (error) {
-      console.error("Failed to save unit of measure:", error);      toast.error("Failed to save unit of measure. Please try again.");
+      console.error("Failed to save unit of measure:", error);      sileo.error({ title: "Failed to save unit of measure. Please try again." });
     } finally {
       setLoading(false);
     }

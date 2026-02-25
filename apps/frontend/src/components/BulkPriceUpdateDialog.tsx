@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { Loader2, Calculator, Percent, DollarSign, Package } from 'lucide-react';
 import { bulkPriceService } from '@/lib/api/bulkPriceService';
 import { calculateNewPrice } from '@/utils/priceCalculations';
@@ -79,7 +79,7 @@ export const BulkPriceUpdateDialog: React.FC<BulkPriceUpdateDialogProps> = ({
       }
     } catch (error) {
       console.error('Error cargando datos:', error);
-      toast.error('Error al cargar productos y categorías');
+      sileo.error({ title: 'Error al cargar productos y categorías' });
     } finally {
       setIsLoading(false);
     }
@@ -139,19 +139,19 @@ export const BulkPriceUpdateDialog: React.FC<BulkPriceUpdateDialogProps> = ({
 
   const handleUpdate = async () => {
     if (!updateValue || isNaN(Number(updateValue))) {
-      toast.error('Por favor ingresa un valor válido');
+      sileo.error({ title: 'Por favor ingresa un valor válido' });
       return;
     }
 
     const productsToUpdate = getSelectedProductsForUpdate();
     if (productsToUpdate.length === 0) {
-      toast.error('Selecciona al menos un producto para actualizar');
+      sileo.error({ title: 'Selecciona al menos un producto para actualizar' });
       return;
     }
 
     const value = Number(updateValue);
     if (updateType === 'percentage' && (value < -100 || value > 1000)) {
-      toast.error('El porcentaje debe estar entre -100% y 1000%');
+      sileo.error({ title: 'El porcentaje debe estar entre -100% y 1000%' });
       return;
     }
 
@@ -165,12 +165,12 @@ export const BulkPriceUpdateDialog: React.FC<BulkPriceUpdateDialogProps> = ({
       const result = await bulkPriceService.bulkUpdatePrices({ updates });
       
       if (result.success) {
-        toast.success(result.message);
+        sileo.success({ title: result.message });
         if (result.failed_updates && result.failed_updates.length > 0) {
-          toast.warning(`${result.failed_updates.length} productos no se pudieron actualizar`);
+          sileo.warning({ title: `${result.failed_updates.length} productos no se pudieron actualizar` });
         }
       } else {
-        toast.error(result.message || 'Error al actualizar precios');
+        sileo.error({ title: result.message || 'Error al actualizar precios' });
       }
       
       handleClose();
@@ -178,7 +178,7 @@ export const BulkPriceUpdateDialog: React.FC<BulkPriceUpdateDialogProps> = ({
     } catch (error: unknown) {
       console.error('Error actualizando precios:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error al actualizar precios';
-      toast.error(errorMessage);
+      sileo.error({ title: errorMessage });
     } finally {
       setIsUpdating(false);
     }

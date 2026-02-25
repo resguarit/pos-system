@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { getAllCombos, calculateComboPrice, checkComboAvailability } from '@/lib/api/comboService';
 import type { Combo, ComboPriceCalculation, ComboAvailability } from '@/types/combo';
 
@@ -24,7 +24,7 @@ export const useCombosInPOS = () => {
       return combos.filter(combo => combo.is_active === true);
     } catch (error) {
       console.error('Error fetching available combos:', error);
-      toast.error('Error al cargar combos disponibles');
+      sileo.error({ title: 'Error al cargar combos disponibles' });
       return [];
     } finally {
       setLoading(false);
@@ -43,7 +43,7 @@ export const useCombosInPOS = () => {
       return priceDetails;
     } catch (error) {
       console.error('Error getting combo price details:', error);
-      toast.error('Error al obtener precio del combo');
+      sileo.error({ title: 'Error al obtener precio del combo' });
       throw error;
     }
   }, []);
@@ -65,7 +65,7 @@ export const useCombosInPOS = () => {
       return availability;
     } catch (error) {
       console.error('Error checking combo stock:', error);
-      toast.error('Error al verificar disponibilidad del combo');
+      sileo.error({ title: 'Error al verificar disponibilidad del combo' });
       
       // Retornar estado de error consistente con el tipo ComboAvailability
       return {

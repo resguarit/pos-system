@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Loader2, Package, Calendar, Hash, User, MapPin, Building2, FileText, Phone, Mail, CreditCard, DollarSign, CheckCircle, XCircle, Clock, Wallet } from 'lucide-react';
 import { PaymentShipmentDialog } from './PaymentShipmentDialog';
 import { parseShippingCost, getShipmentPaymentSummary } from '@/utils/shipmentUtils';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { useAuth } from '@/context/AuthContext';
 
 interface ShipmentDetailProps {
@@ -28,7 +28,7 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
     // Refetch shipment data to show updated payment status
     if (shipmentId) {
       shipmentService.getShipment(shipmentId).then(setShipment).catch(() => {
-        toast.error('Error al actualizar datos del envío');
+        sileo.error({ title: 'Error al actualizar datos del envío' });
       });
     }
     setShowPaymentDialog(false);

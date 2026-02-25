@@ -3,9 +3,11 @@ import type { Branch } from '@/types/branch'
 
 export type { Branch }
 
-export const getBranches = async (): Promise<Branch[]> => {
+export const getBranches = async (withTrashed: boolean = false): Promise<Branch[]> => {
   try {
-    const response = await api.get('/branches');
+    const response = await api.get('/branches', {
+      params: { with_trashed: withTrashed ? '1' : '0' }
+    });
     // Always return an array
     if (Array.isArray(response.data)) {
       return response.data as Branch[];

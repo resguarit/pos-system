@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { SaleHeader } from '@/types/sale';
 import { Loader2, Trash2, Search, Package, DollarSign, Calendar as CalendarIcon, User as UserIcon, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
 import { Shipment, ShipmentStage, User, Customer, Sale } from '@/types/shipment';
@@ -149,7 +149,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       }
     } catch (error) {
       console.error('Error fetching shipment:', error);
-      toast.error('Error al cargar los datos del envío');
+      sileo.error({ title: 'Error al cargar los datos del envío' });
     } finally {
       setLoadingData(false);
     }
@@ -287,7 +287,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 
       await shipmentService.updateShipment(shipmentId, shipmentData);
 
-      toast.success('Envío actualizado exitosamente');
+      sileo.success({ title: 'Envío actualizado exitosamente' });
       onOpenChange(false);
       onSuccess();
     } catch (err: unknown) {
@@ -298,10 +298,10 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
         const validationErrors = err.response.data.errors;
         const firstField = Object.keys(validationErrors)[0];
         const firstErrorMsg = validationErrors[firstField]?.[0];
-        toast.error(firstErrorMsg || 'Hay errores de validación. Por favor revise el formulario.');
+        sileo.error({ title: firstErrorMsg || 'Hay errores de validación. Por favor revise el formulario.' });
       } else {
         // @ts-expect-error - request hook error handling
-        toast.error(err.response?.data?.message || 'Error al actualizar el envío');
+        sileo.error({ title: err.response?.data?.message || 'Error al actualizar el envío' });
       }
     } finally {
       setLoading(false);
@@ -312,20 +312,20 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     if (!shipmentId) return;
 
     if (!hasPermission('cancelar_envio')) {
-      toast.error('No tienes permisos para cancelar envíos');
+      sileo.error({ title: 'No tienes permisos para cancelar envíos' });
       return;
     }
 
     try {
       setLoading(true);
       await shipmentService.deleteShipment(shipmentId);
-      toast.success('Envío cancelado exitosamente');
+      sileo.success({ title: 'Envío cancelado exitosamente' });
       onOpenChange(false);
       onSuccess();
     } catch (err: unknown) {
       console.error('Error cancelling shipment:', err);
       // @ts-expect-error - request hook error handling
-      toast.error(err.response?.data?.message || 'Error al cancelar el envío');
+      sileo.error({ title: err.response?.data?.message || 'Error al cancelar el envío' });
     } finally {
       setLoading(false);
       setShowCancelConfirm(false);

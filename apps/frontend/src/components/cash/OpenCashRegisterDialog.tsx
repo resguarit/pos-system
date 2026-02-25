@@ -13,9 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
-
-// ============================================================================
+import { sileo } from "sileo"
 // Types
 // ============================================================================
 
@@ -128,7 +126,7 @@ export const OpenCashRegisterDialog = ({
         : 'Error desconocido al cargar el último cierre'
 
       if (!errorMessage.includes('422') && !errorMessage.includes('404')) {
-        toast.error('No se pudo cargar el último cierre. Por favor, ingresa el saldo manualmente.')
+        sileo.error({ title: 'No se pudo cargar el último cierre. Por favor, ingresa el saldo manualmente.' })
       }
     } finally {
       setLoadingLastClosure(false)

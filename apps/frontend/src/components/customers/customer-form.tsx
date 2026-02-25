@@ -14,7 +14,7 @@ import { ArrowLeft, Loader2, Save, Plus, Trash2, ChevronDown } from "lucide-reac
 import useApi from "@/hooks/useApi"
 import { useFiscalConditions, type FiscalCondition } from "@/hooks/useFiscalConditions"
 import { Link } from "react-router-dom"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -151,7 +151,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         dispatch({ type: 'SET_ENTITY', entityType: 'customers', id, entity: customer });
         populateFormWithCustomerData(customer);
       } else {
-        toast.error("No se pudo cargar el cliente", {
+        sileo.error({
+          title: "No se pudo cargar el cliente",
           description: "Verificá tu conexión e intentá de nuevo.",
         })
       }
@@ -160,7 +161,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         // Abort/Canceled: ocurre al cerrar el formulario; no mostrar toast de error
         return;
       }
-      toast.error("Error de conexión", {
+      sileo.error({
+        title: "Error de conexión",
         description: "No se pudo cargar el cliente. Revisá tu conexión a internet.",
       })
     } finally {
@@ -242,7 +244,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         (firstName !== (customerData?.person?.first_name || '') ||
           lastName !== (customerData?.person?.last_name || ''))) {
         setNameError("Esta combinación de nombre y apellido ya existe");
-        toast.error("Cliente duplicado", {
+        sileo.error({
+          title: "Cliente duplicado",
           description: "Ya existe un cliente con este nombre y apellido."
         });
       } else {
@@ -355,7 +358,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
 
 
     if (errors.length > 0) {
-      toast.error("Completá los campos requeridos", {
+      sileo.error({
+        title: "Completá los campos requeridos",
         description: errors.join(". ")
       })
       return
@@ -420,7 +424,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           });
         }
 
-        toast.success(customerId ? "¡Cliente actualizado!" : "¡Cliente creado!", {
+        sileo.success({
+          title: customerId ? "¡Cliente actualizado!" : "¡Cliente creado!",
           description: customerId
             ? `Los cambios de "${formData.first_name}" fueron guardados.`
             : `"${formData.first_name}" fue agregado a tu lista de clientes.`,
@@ -437,7 +442,8 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
         }
       } else {
         const errorMessage = response?.message || "Ocurrió un problema al guardar los datos."
-        toast.error("No se pudo guardar", {
+        sileo.error({
+          title: "No se pudo guardar",
           description: errorMessage,
         })
       }
@@ -471,12 +477,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           .map((fieldErrors: unknown) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
           .join('. ');
 
-        toast.error("Verificá los datos ingresados", {
+        sileo.error({
+          title: "Verificá los datos ingresados",
           description: errorMessages,
         })
       } else {
         const errorMessage = (err as { response?: { data?: { message?: string } } })?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
-        toast.error("No se pudo guardar el cliente", {
+        sileo.error({
+          title: "No se pudo guardar el cliente",
           description: errorMessage,
         })
       }

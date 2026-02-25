@@ -12,7 +12,7 @@ import { ArrowLeft, Loader2, Save, Plus, Trash2, ChevronDown } from "lucide-reac
 import useApi from "@/hooks/useApi"
 import { useFiscalConditions } from "@/hooks/useFiscalConditions"
 import { Link } from "react-router-dom"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -76,7 +76,7 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
       }
     } catch (error) {
       console.error("Error loading supplier:", error)
-      toast.error("Error al cargar los datos del proveedor")
+      sileo.error({ title: "Error al cargar los datos del proveedor" })
     } finally {
       setIsLoading(false)
     }
@@ -144,7 +144,8 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
 
       if (response.exists && name !== (supplierData?.name || '')) {
         setNameError("Un proveedor con este nombre ya existe")
-        toast.error("Proveedor duplicado", {
+        sileo.error({
+          title: "Proveedor duplicado",
           description: "Ya existe un proveedor con este nombre."
         })
       } else {
@@ -226,7 +227,8 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
     }
 
     if (errors.length > 0) {
-      toast.error("Completá los campos requeridos", {
+      sileo.error({
+        title: "Completá los campos requeridos",
         description: errors.join(". ")
       })
       return
@@ -236,7 +238,7 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
 
     try {
       const defaultTaxIdentity = taxIdentities.find(ti => ti.is_default) || taxIdentities[0]
-      
+
       const supplierPayload = {
         name: formData.name,
         contact_name: formData.contact_name,
@@ -244,8 +246,8 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
         phone: formData.phone,
         address: formData.address,
         cuit: defaultTaxIdentity?.cuit || formData.cuit,
-        fiscal_condition_id: defaultTaxIdentity?.fiscal_condition_id 
-          ? parseInt(defaultTaxIdentity.fiscal_condition_id as string, 10) 
+        fiscal_condition_id: defaultTaxIdentity?.fiscal_condition_id
+          ? parseInt(defaultTaxIdentity.fiscal_condition_id as string, 10)
           : 1,
         person_type_id: formData.person_type_id ? parseInt(formData.person_type_id, 10) : 1,
         status: formData.status,
@@ -278,7 +280,8 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
           })
         }
 
-        toast.success(supplierId ? "¡Proveedor actualizado!" : "¡Proveedor creado!", {
+        sileo.success({
+          title: supplierId ? "¡Proveedor actualizado!" : "¡Proveedor creado!",
           description: supplierId
             ? `Los cambios de "${formData.name}" fueron guardados.`
             : `"${formData.name}" fue agregado a tu lista de proveedores.`,
@@ -293,7 +296,8 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
         }
       } else {
         const errorMessage = response?.message || "Ocurrió un problema al guardar los datos."
-        toast.error("No se pudo guardar", {
+        sileo.error({
+          title: "No se pudo guardar",
           description: errorMessage,
         })
       }
@@ -307,12 +311,14 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
           .map((fieldErrors: unknown) => Array.isArray(fieldErrors) ? fieldErrors[0] : fieldErrors)
           .join('. ')
 
-        toast.error("Verificá los datos ingresados", {
+        sileo.error({
+          title: "Verificá los datos ingresados",
           description: errorMessages,
         })
       } else {
         const errorMessage = error?.response?.data?.message || "Verificá tu conexión e intentá de nuevo."
-        toast.error("No se pudo guardar el proveedor", {
+        sileo.error({
+          title: "No se pudo guardar el proveedor",
           description: errorMessage,
         })
       }
@@ -512,9 +518,9 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-semibold">Identidades Fiscales (CUITs)</h4>
                           {!viewOnly && (
-                            <Button 
-                              type="button" 
-                              variant="outline" 
+                            <Button
+                              type="button"
+                              variant="outline"
                               size="sm"
                               onClick={addTaxIdentity}
                               disabled={isLoading}
@@ -531,9 +537,9 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
                               No hay identidades fiscales registradas.
                             </p>
                             {!viewOnly && (
-                              <Button 
-                                type="button" 
-                                variant="outline" 
+                              <Button
+                                type="button"
+                                variant="outline"
                                 size="sm"
                                 onClick={addTaxIdentity}
                                 disabled={isLoading}
@@ -616,7 +622,7 @@ export default function SupplierForm({ supplierId, viewOnly = false, supplierDat
                                       )}
                                     </div>
                                   </div>
-                                  
+
                                   {/* Expandable bank account section */}
                                   <CollapsibleContent>
                                     <div className="border-t px-4 py-4 bg-muted/30">

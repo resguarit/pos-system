@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
 import { parseShippingCost } from '@/utils/shipmentUtils';
@@ -49,7 +49,7 @@ export const PaymentShipmentDialog: React.FC<PaymentShipmentDialogProps> = ({
       }
     } catch (error) {
       console.error('Error fetching payment methods:', error);
-      toast.error('Error al cargar métodos de pago');
+      sileo.error({ title: 'Error al cargar métodos de pago' });
     }
   }, [request]);
 
@@ -65,7 +65,7 @@ export const PaymentShipmentDialog: React.FC<PaymentShipmentDialogProps> = ({
   const handlePay = async () => {
     if (!shipmentId) return;
     if (!selectedPaymentMethod) {
-      toast.error('Selecciona un método de pago');
+      sileo.error({ title: 'Selecciona un método de pago' });
       return;
     }
 
@@ -76,13 +76,13 @@ export const PaymentShipmentDialog: React.FC<PaymentShipmentDialogProps> = ({
         notes: notes || undefined,
       });
 
-      toast.success('Pago registrado exitosamente');
+      sileo.success({ title: 'Pago registrado exitosamente' });
       onOpenChange(false);
       onSuccess();
     } catch (err: unknown) {
       console.error('Error paying shipment:', err);
       // @ts-expect-error - request hook error handling
-      toast.error(err.response?.data?.error?.message || 'Error al registrar el pago');
+      sileo.error({ title: err.response?.data?.error?.message || 'Error al registrar el pago' });
     } finally {
       setLoading(false);
     }

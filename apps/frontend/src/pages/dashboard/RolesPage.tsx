@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute"
@@ -121,7 +121,7 @@ export default function RolesPage() {
         dispatch({ type: 'SET_ENTITIES', entityType: 'roles', entities: rolesData });
       }
     } catch (error) {
-      toast.error("Error", {
+      sileo.error({ title: "Error",
         description: "No se pudieron cargar los roles",
       })
     }
@@ -153,11 +153,11 @@ export default function RolesPage() {
       await request({ method: "DELETE", url: `/roles/${roleToDelete}`})
       setRoles(roles.filter((role) => role.id !== roleToDelete))
       dispatch({ type: 'REMOVE_ENTITY', entityType: 'roles', id: roleToDelete });
-      toast.success("Rol eliminado", {
+      sileo.success({ title: "Rol eliminado",
         description: "El rol ha sido eliminado correctamente",
       })
     } catch (error) {
-      toast.error("Error", {
+      sileo.error({ title: "Error",
         description: "No se pudo eliminar el rol",
       })
     } finally {

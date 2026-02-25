@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, Plus, Search, Barcode, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { createCombo, updateCombo } from '@/lib/api/comboService';
 import type { Combo, ComboItemForm } from '@/types/combo';
@@ -180,14 +180,14 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
 
   const addItemToTarget = () => {
     if (!selectedProduct) {
-      toast.error('Selecciona un producto');
+      sileo.error({ title: 'Selecciona un producto' });
       return;
     }
 
     if (addTarget === 'fixed') {
       const existingItem = items.find(item => item.product_id === selectedProduct.id);
       if (existingItem) {
-        toast.error('Este producto ya está en el combo');
+        sileo.error({ title: 'Este producto ya está en el combo' });
         return;
       }
 
@@ -203,7 +203,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
 
       const existingOption = group.options.find(opt => opt.product_id === selectedProduct.id);
       if (existingOption) {
-        toast.error('Esta opción ya está en el grupo');
+        sileo.error({ title: 'Esta opción ya está en el grupo' });
         return;
       }
 
@@ -226,7 +226,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     // Limpiar el buscador después de agregar
     handleClearSearch();
 
-    toast.success('Producto agregado');
+    sileo.success({ title: 'Producto agregado' });
   };
 
   const addGroup = () => {
@@ -267,19 +267,19 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error('El nombre del combo es requerido');
+      sileo.error({ title: 'El nombre del combo es requerido' });
       return;
     }
 
     if (items.length === 0 && groups.length === 0) {
-      toast.error('Debe agregar al menos un producto o grupo de opciones al combo');
+      sileo.error({ title: 'Debe agregar al menos un producto o grupo de opciones al combo' });
       return;
     }
 
     // validate groups
     const emptyGrps = groups.filter(g => !g.name.trim() || g.options.length === 0);
     if (emptyGrps.length > 0) {
-      toast.error('Todos los grupos deben tener un nombre y al menos una opción.');
+      sileo.error({ title: 'Todos los grupos deben tener un nombre y al menos una opción.' });
       return;
     }
 
@@ -303,17 +303,17 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
 
       if (isEditing && combo) {
         await updateCombo(combo.id, { ...comboData, id: combo.id });
-        toast.success('Combo actualizado exitosamente');
+        sileo.success({ title: 'Combo actualizado exitosamente' });
       } else {
         await createCombo(comboData);
-        toast.success('Combo creado exitosamente');
+        sileo.success({ title: 'Combo creado exitosamente' });
       }
 
       onSaved();
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error saving combo:', error);
-      toast.error(error.message || 'Error al guardar combo');
+      sileo.error({ title: error.message || 'Error al guardar combo' });
     } finally {
       setLoading(false);
     }

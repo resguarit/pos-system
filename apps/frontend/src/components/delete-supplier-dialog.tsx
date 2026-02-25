@@ -12,8 +12,7 @@ import {
 import { Trash2, AlertTriangle } from "lucide-react"
 import { deleteSupplier } from "@/lib/api/supplierService"
 import type { Supplier } from "@/types/product"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 interface DeleteSupplierDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -32,12 +31,12 @@ export function DeleteSupplierDialog({ open, onOpenChange, supplier, onDelete }:
       setIsDeleting(false)
       onOpenChange(false)
       onDelete()
-      toast.success("Proveedor eliminado correctamente", {
+      sileo.success({ title: "Proveedor eliminado correctamente",
         description: `El proveedor "${supplier.name}" fue eliminado.`,
       })
     } catch (err) {
       setIsDeleting(false)
-      toast.error("Error al eliminar proveedor", {
+      sileo.error({ title: "Error al eliminar proveedor",
         description: "Ocurrió un error al eliminar el proveedor.",
       })
     }

@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Plus, RefreshCw, Pencil, Trash2, Calendar, Loader2, Clock } from "lucide-react"
 import useApi from "@/hooks/useApi"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import {
     Dialog,
     DialogContent,
@@ -89,7 +89,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
             }
         } catch (error) {
             console.error("Error fetching services:", error)
-            toast.error("Error al cargar servicios")
+            sileo.error({ title: "Error al cargar servicios" })
         } finally {
             setIsLoading(false)
         }
@@ -109,7 +109,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
             }
         } catch (error) {
             console.error("Error loading history:", error)
-            toast.error("Error al cargar historial")
+            sileo.error({ title: "Error al cargar historial" })
         } finally {
             setLoadingHistory(false)
         }
@@ -153,11 +153,11 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                 method: "DELETE",
                 url: `/client-services/${id}`
             });
-            toast.success("Servicio eliminado");
+            sileo.success({ title: "Servicio eliminado" });
             fetchServices();
         } catch (error) {
             console.error("Error deleting service:", error)
-            toast.error("Error al eliminar");
+            sileo.error({ title: "Error al eliminar" });
         }
     }
 
@@ -167,7 +167,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                 method: "POST",
                 url: `/client-services/${id}/renew`
             });
-            toast.success("Servicio renovado");
+            sileo.success({ title: "Servicio renovado" });
             fetchServices();
         } catch (error: unknown) {
             let message = "Error al renovar";
@@ -175,7 +175,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 message = (error as any).response?.data?.message || message;
             }
-            toast.error(message);
+            sileo.error({ title: message });
         }
     }
 
@@ -183,12 +183,12 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
         e.preventDefault()
         try {
             if (formData.date_mode === "start_date" && !formData.start_date) {
-                toast.error("Ingresa la fecha de inicio")
+                sileo.error({ title: "Ingresa la fecha de inicio" })
                 return
             }
 
             if (formData.date_mode === "next_due_date" && !formData.next_due_date) {
-                toast.error("Ingresa la fecha de vencimiento")
+                sileo.error({ title: "Ingresa la fecha de vencimiento" })
                 return
             }
 
@@ -212,20 +212,20 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                     url: `/client-services/${editingService.id}`,
                     data: payload
                 })
-                toast.success("Servicio actualizado")
+                sileo.success({ title: "Servicio actualizado" })
             } else {
                 await request({
                     method: "POST",
                     url: `/customers/${customerId}/services`,
                     data: payload
                 })
-                toast.success("Servicio creado")
+                sileo.success({ title: "Servicio creado" })
             }
             setDialogOpen(false)
             fetchServices()
         } catch (error) {
             console.error(error)
-            toast.error("Error al guardar servicio")
+            sileo.error({ title: "Error al guardar servicio" })
         }
     }
 

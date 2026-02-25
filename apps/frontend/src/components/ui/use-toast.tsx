@@ -1,9 +1,9 @@
-import { toast as sonnerToast } from "sonner"
+import { sileo } from "sileo"
 
-export const toast = sonnerToast
+export const toast = sileo
 
 export function useToast() {
   return {
-    toast: sonnerToast,
+    toast: sileo,
   }
 }

@@ -10,9 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "sonner"
-
-// Hooks
+import { sileo } from "sileo"
 import useApi from "@/hooks/useApi"
 
 // Iconos
@@ -76,7 +74,7 @@ export default function CategoryForm({
       } catch (error: any) {
         if (!axios.isCancel(error)) {
           console.error("Error fetching category data:", error)
-          toast.error("Error al cargar datos", { 
+          sileo.error({ title: "Error al cargar datos", 
             description: `No se pudieron obtener los datos de la ${entityLabelLower}.` 
           })
           navigate(listPath)
@@ -155,7 +153,7 @@ export default function CategoryForm({
       
       if (response.exists && name !== (categoryId ? formData.name : '')) {
         setNameError("Este nombre ya está en uso");
-        toast.error("Este nombre ya está en uso", {
+        sileo.error({ title: "Este nombre ya está en uso",
           description: `Por favor, elige un nombre diferente para la ${entityLabelLower}.`
         });
       } else {
@@ -207,7 +205,7 @@ export default function CategoryForm({
     }
 
     if (errors.length > 0) {
-      toast.error("Campos obligatorios faltantes", {
+      sileo.error({ title: "Campos obligatorios faltantes",
         description: errors.join(", ")
       })
       return
@@ -227,20 +225,20 @@ export default function CategoryForm({
           url: `${apiBasePath}/${categoryId}`, 
           data: payload 
         })
-        toast.success(`${entityLabel} actualizada con éxito.`)
+        sileo.success({ title: `${entityLabel} actualizada con éxito.` })
       } else {
         await request({ 
           method: 'POST', 
           url: apiBasePath, 
           data: payload 
         })
-        toast.success(`${entityLabel} creada con éxito.`)
+        sileo.success({ title: `${entityLabel} creada con éxito.` })
       }
       
       navigate(listPath)
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || error.response?.data?.details?.name?.[0] || "Ocurrió un error inesperado."
-      toast.error("Error al guardar", { description: errorMsg })
+      sileo.error({ title: "Error al guardar", description: errorMsg })
     } finally {
       setIsSubmitting(false)
     }

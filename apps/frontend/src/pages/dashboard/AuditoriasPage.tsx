@@ -37,7 +37,7 @@ import Pagination from '@/components/ui/pagination';
 import useApi from '@/hooks/useApi';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import type { AuditActivity, AuditFilters, AuditStatistics, AuditFilterOptions } from '@/types/audit';
 import { useAuth } from '@/hooks/useAuth';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
@@ -162,7 +162,7 @@ export default function AuditoriasPage() {
       }
     } catch (error) {
       console.error('Error loading audits:', error);
-      toast.error('Error al cargar las auditorías');
+      sileo.error({ title: 'Error al cargar las auditorías' });
       setAudits([]);
     }
   }, [request, filters, perPage]);

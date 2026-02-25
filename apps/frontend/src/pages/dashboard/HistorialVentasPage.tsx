@@ -15,7 +15,7 @@ import { useState, useCallback } from 'react';
 import useApi from '@/hooks/useApi';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { useAuth } from '@/hooks/useAuth';
 import Pagination from '@/components/ui/pagination';
 import { useMemo, useEffect } from 'react';
@@ -102,7 +102,7 @@ export default function SalesHistoryPage() {
       }
     } catch (error) {
       console.error('Error loading sales:', error);
-      toast.error('Error al cargar las ventas');
+      sileo.error({ title: 'Error al cargar las ventas' });
       setSales([]);
     } finally {
       setLoading(false);
@@ -171,7 +171,7 @@ export default function SalesHistoryPage() {
       setIsDetailOpen(true);
     } catch (error) {
       console.error('Error al cargar el detalle de la venta:', error);
-      toast.error('No se pudo cargar el detalle de la venta');
+      sileo.error({ title: 'No se pudo cargar el detalle de la venta' });
       setSelectedSale(sale);
       setIsDetailOpen(true);
     }
@@ -179,7 +179,7 @@ export default function SalesHistoryPage() {
 
   const handleDownloadPdf = async (sale: SaleHeader) => {
     if (!sale || !sale.id) {
-      toast.error('No se puede descargar el PDF: ID de venta faltante.');
+      sileo.error({ title: 'No se puede descargar el PDF: ID de venta faltante.' });
       return;
     }
     try {
@@ -198,10 +198,10 @@ export default function SalesHistoryPage() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      toast.success('PDF descargado exitosamente');
+      sileo.success({ title: 'PDF descargado exitosamente' });
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      toast.error('Error al descargar el PDF');
+      sileo.error({ title: 'Error al descargar el PDF' });
     }
   };
 
@@ -213,7 +213,7 @@ export default function SalesHistoryPage() {
       setShowReceiptPreview(true)
     } catch (error) {
       console.error('Error fetching sale details for receipt:', error)
-      toast.error('No se pudo cargar el detalle del comprobante')
+      sileo.error({ title: 'No se pudo cargar el detalle del comprobante' })
       setSelectedReceiptSale(sale)
       setShowReceiptPreview(true)
     }

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calculator, AlertTriangle } from 'lucide-react';
 import exchangeRateService from '@/lib/api/exchangeRateService';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { useRefresh } from '@/context/RefreshContext';
 
 interface UpdateExchangeRateDialogProps {
@@ -70,27 +70,27 @@ export function UpdateExchangeRateDialog({
           const updateResult = await exchangeRateService.updateUSDProductPrices(newRate);
           
           if (updateResult.success && updateResult.updatedCount > 0) {
-            toast.success('Precio del dólar y productos actualizados', {
+            sileo.success({ title: 'Precio del dólar y productos actualizados',
               description: `1 USD = $${newRate.toFixed(2)} ARS - ${updateResult.updatedCount} productos actualizados`
             });
           } else if (updateResult.success && updateResult.updatedCount === 0) {
-            toast.success('Precio del dólar actualizado', {
+            sileo.success({ title: 'Precio del dólar actualizado',
               description: `1 USD = $${newRate.toFixed(2)} ARS - No hay productos en USD para actualizar`
             });
           } else {
-            toast.success('Precio del dólar actualizado', {
+            sileo.success({ title: 'Precio del dólar actualizado',
               description: `1 USD = $${newRate.toFixed(2)} ARS`
             });
-            toast.warning('Advertencia', {
+            sileo.warning({ title: 'Advertencia',
               description: 'No se pudieron actualizar algunos precios de productos'
             });
           }
         } catch (productUpdateError) {
           // Si falla la actualización de productos, al menos informar que la tasa se actualizó
-          toast.success('Precio del dólar actualizado', {
+          sileo.success({ title: 'Precio del dólar actualizado',
             description: `1 USD = $${newRate.toFixed(2)} ARS`
           });
-          toast.error('Error', {
+          sileo.error({ title: 'Error',
             description: 'No se pudieron actualizar los precios de productos en USD'
           });
           console.error('Error updating USD product prices:', productUpdateError);

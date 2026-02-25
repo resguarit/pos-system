@@ -9,9 +9,13 @@ use Illuminate\Support\Facades\DB; // import DB facade
 
 class BranchService implements BranchServiceInterface
 {
-    public function getAllBranches(): \Illuminate\Support\Collection
+    public function getAllBranches(bool $withTrashed = false): \Illuminate\Support\Collection
     {
-        $branches = Branch::with('manager.person')->get();
+        $query = Branch::with('manager.person');
+        if ($withTrashed) {
+            $query->withTrashed();
+        }
+        $branches = $query->get();
 
         // Obtener conteo exacto de empleados por sucursal desde la tabla pivote
         $employeeCounts = DB::table('employee_branch')

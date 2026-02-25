@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
+import { sileo } from "sileo"
 import { RefreshCw } from 'lucide-react';
 import type { PendingSale } from '@/types/currentAccount';
 import { CurrentAccountUtils } from '@/lib/services/currentAccountService';
@@ -24,7 +24,7 @@ export function PendingSalesTable({ sales, accountId, onSuccess }: PendingSalesT
     };
 
     const handleSuccess = () => {
-        toast.success('Precio actualizado correctamente');
+        sileo.success({ title: 'Precio actualizado correctamente' });
         setShowUpdateDialog(false);
         setSelectedSaleId(null);
         onSuccess();

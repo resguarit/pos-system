@@ -177,4 +177,12 @@ export interface SaleHeader {
   converted_from_budget_receipt?: string | null
   converted_to_sale_receipt?: string | null
   converted_at?: string | null
+
+  // Notas de crédito vinculadas
+  original_sale_id?: number | null
+  original_sale_receipt?: string | null
+  credit_notes?: Array<{
+    id: number
+    receipt_number: string | null
+  }>
 }

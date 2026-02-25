@@ -13,6 +13,7 @@ interface SaleServiceInterface
     public function getAllSales(Request $request): Collection;
     public function getSaleById(int $id): ?SaleHeader;
     public function createSale(array $data, bool $registerMovement = true): SaleHeader;
+    public function emitCreditNote(int $originalSaleId, float $amount, string $reason, int $userId, ?int $cashRegisterId): SaleHeader;
     public function registerSaleMovementFromPayments(SaleHeader $sale, ?int $cashRegisterId = null): void;
     public function updateSale(int $id, array $data): ?SaleHeader;
     public function deleteSale(int $id): bool;

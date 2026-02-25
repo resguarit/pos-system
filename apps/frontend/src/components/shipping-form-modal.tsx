@@ -13,8 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import api from "@/lib/api"
-import { toast } from "sonner"
-
+import { sileo } from "sileo"
 interface ShipmentFormData {
   client_name: string
   client_phone: string
@@ -101,7 +100,7 @@ export default function ShippingFormModal({ isOpen, onClose, onSave, shipment }:
     
     // Validation
     if (!formData.client_name || !formData.client_phone || !formData.delivery_address) {
-      toast.error("Por favor completa los campos requeridos")
+      sileo.error({ title: "Por favor completa los campos requeridos" })
       return
     }
 

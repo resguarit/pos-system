@@ -56,7 +56,7 @@ class StockTransferService implements StockTransferServiceInterface
 
     public function getAllStockTransfers(Request $request)
     {
-        $query = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product', 'user']);
+        $query = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items', 'user']);
 
         // Filter by user's assigned branches
         $userBranchIds = $this->getUserBranchIds();

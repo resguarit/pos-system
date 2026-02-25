@@ -30,7 +30,7 @@ import { useMultipleBranchesCash } from "@/hooks/useMultipleBranchesCash"
 import { useCashCalculations } from "@/hooks/useCashCalculations"
 import { useCashRegistersHistory } from "@/hooks/useCashRegistersHistory"
 import { useMultiBranchFilters } from "@/hooks/useMultiBranchFilters"
-import { toast } from "sonner"
+import { sileo } from "sileo"
 import ViewSaleDialog from "@/components/view-sale-dialog"
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import { ViewPurchaseOrderDialog } from "@/components/view-purchase-order-dialog"
@@ -394,7 +394,7 @@ export default function CajaPage() {
 
       } catch (error) {
         console.error('Error loading initial data:', error)
-        toast.error('Error al cargar los datos de caja')
+        sileo.error({ title: 'Error al cargar los datos de caja' })
       } finally {
         setIsPageLoading(false)
       }
@@ -530,22 +530,22 @@ export default function CajaPage() {
   // Handlers para abrir/cerrar caja
   const handleOpenCashRegister = async (formData: { opening_balance: string; notes: string }) => {
     if (!canOpenCloseCashRegister) {
-      toast.error('No tienes permisos para abrir la caja')
+      sileo.error({ title: 'No tienes permisos para abrir la caja' })
       return
     }
 
     const branchIdToUse = selectedBranchForAction || currentBranchId
 
     if (!branchIdToUse || !Number.isFinite(branchIdToUse)) {
-      toast.error('Seleccioná una sucursal para abrir la caja')
+      sileo.error({ title: 'Seleccioná una sucursal para abrir la caja' })
       return
     }
     if (formData.opening_balance === '' || formData.opening_balance === null || formData.opening_balance === undefined || parseFloat(formData.opening_balance) < 0 || isNaN(parseFloat(formData.opening_balance))) {
-      toast.error('Por favor ingresa un saldo inicial válido')
+      sileo.error({ title: 'Por favor ingresa un saldo inicial válido' })
       return
     }
     if (!user?.id) {
-      toast.error('No se pudo obtener el usuario actual')
+      sileo.error({ title: 'No se pudo obtener el usuario actual' })
       return
     }
 
@@ -561,7 +561,7 @@ export default function CajaPage() {
       setOpenCashRegisterDialog(false)
       setSelectedBranchForAction(null)
 
-      toast.success('Caja abierta exitosamente')
+      sileo.success({ title: 'Caja abierta exitosamente' })
 
       // Recargar datos según el contexto
       if (selectedBranchIdsArray.length > 1) {
@@ -589,7 +589,7 @@ export default function CajaPage() {
 
   const handleCloseCashRegister = async (formData: { closing_balance: string; notes: string }) => {
     if (!canOpenCloseCashRegister) {
-      toast.error('No tienes permisos para cerrar la caja')
+      sileo.error({ title: 'No tienes permisos para cerrar la caja' })
       return
     }
 
@@ -604,7 +604,7 @@ export default function CajaPage() {
     if (!cashRegisterToClose) return
 
     if (formData.closing_balance === '' || formData.closing_balance === null || formData.closing_balance === undefined || parseFloat(formData.closing_balance) < 0 || isNaN(parseFloat(formData.closing_balance))) {
-      toast.error('Por favor ingresa un saldo de cierre válido')
+      sileo.error({ title: 'Por favor ingresa un saldo de cierre válido' })
       return
     }
 
@@ -642,7 +642,7 @@ export default function CajaPage() {
         setStatusRefreshKey(prev => prev + 1)
       }
 
-      toast.success('Caja cerrada exitosamente')
+      sileo.success({ title: 'Caja cerrada exitosamente' })
     } catch (error) {
       // El error ya se maneja en el hook
     }
@@ -651,7 +651,7 @@ export default function CajaPage() {
   // Funciones para abrir/cerrar cajas desde la vista de múltiples sucursales
   const handleOpenCashRegisterForBranch = (branchId: number) => {
     if (!canOpenCloseCashRegister) {
-      toast.error('No tienes permisos para abrir la caja')
+      sileo.error({ title: 'No tienes permisos para abrir la caja' })
       return
     }
 
@@ -661,7 +661,7 @@ export default function CajaPage() {
 
   const handleCloseCashRegisterForBranch = (_cashRegisterId: number, branchId: number) => {
     if (!canOpenCloseCashRegister) {
-      toast.error('No tienes permisos para cerrar la caja')
+      sileo.error({ title: 'No tienes permisos para cerrar la caja' })
       return
     }
 
@@ -672,7 +672,7 @@ export default function CajaPage() {
   // Función para ver detalles de una sucursal específica
   const handleViewBranchDetails = (branchId: number) => {
     if (!branchId || isNaN(branchId)) {
-      toast.error('Error: ID de sucursal inválido')
+      sileo.error({ title: 'Error: ID de sucursal inválido' })
       return
     }
 
@@ -686,20 +686,20 @@ export default function CajaPage() {
     try {
       setSelectedBranchIds(newSelection)
     } catch (error) {
-      toast.error('Error al cambiar la selección de sucursales')
+      sileo.error({ title: 'Error al cambiar la selección de sucursales' })
       return
     }
 
     const branchInfo = getBranchInfo(branchId)
 
     if (!branchInfo) {
-      toast.error(`Error: No se encontró información de la sucursal ${branchId}`)
+      sileo.error({ title: `Error: No se encontró información de la sucursal ${branchId}` })
       return
     }
 
     const branchName = branchInfo?.description || `Sucursal ${branchId}`
 
-    toast.success(`Viendo detalles de ${branchName}`)
+    sileo.success({ title: `Viendo detalles de ${branchName}` })
   }
 
   // Función para volver a la vista de múltiples sucursales
@@ -707,37 +707,37 @@ export default function CajaPage() {
     if (originalBranchSelection.length > 1) {
       setSelectedBranchIds([...originalBranchSelection])
       setOriginalBranchSelection([])
-      toast.success('Volviendo a la vista de múltiples sucursales')
+      sileo.success({ title: 'Volviendo a la vista de múltiples sucursales' })
     } else {
       const allBranchIds = branches.map(branch => branch.id.toString())
       setSelectedBranchIds(allBranchIds)
       setOriginalBranchSelection([])
-      toast.success('Mostrando todas las sucursales')
+      sileo.success({ title: 'Mostrando todas las sucursales' })
     }
   }
 
   const handleAddMovement = async (formData: { movement_type_id: string; payment_method_id: string; amount: string; description: string }) => {
     if (!canCreateMovements) {
-      toast.error('No tienes permisos para crear movimientos de caja')
+      sileo.error({ title: 'No tienes permisos para crear movimientos de caja' })
       return
     }
 
     if (!currentRegister) {
-      toast.error('No hay una caja abierta')
+      sileo.error({ title: 'No hay una caja abierta' })
       return
     }
 
     if (!formData.movement_type_id || !formData.payment_method_id || !formData.amount || !formData.description) {
-      toast.error('Por favor completa todos los campos requeridos')
+      sileo.error({ title: 'Por favor completa todos los campos requeridos' })
       return
     }
 
     if (parseFloat(formData.amount) <= 0) {
-      toast.error('El monto debe ser mayor a 0')
+      sileo.error({ title: 'El monto debe ser mayor a 0' })
       return
     }
     if (!user?.id) {
-      toast.error('No se pudo obtener el usuario current')
+      sileo.error({ title: 'No se pudo obtener el usuario current' })
       return
     }
 
@@ -763,7 +763,7 @@ export default function CajaPage() {
 
       setOpenNewMovementDialog(false)
 
-      toast.success('Movimiento agregado y saldos actualizados.')
+      sileo.success({ title: 'Movimiento agregado y saldos actualizados.' })
     } catch (error) {
       // El error ya se maneja en el hook
     } finally {
@@ -780,27 +780,27 @@ export default function CajaPage() {
     description: string
   }) => {
     if (!canCreateMovements) {
-      toast.error('No tienes permisos para crear movimientos de caja')
+      sileo.error({ title: 'No tienes permisos para crear movimientos de caja' })
       return
     }
 
     const targetCashRegister = multipleCashRegisters[formData.branch_id]
     if (!targetCashRegister) {
-      toast.error('No hay una caja abierta en la sucursal seleccionada')
+      sileo.error({ title: 'No hay una caja abierta en la sucursal seleccionada' })
       return
     }
 
     if (!formData.movement_type_id || !formData.payment_method_id || !formData.amount || !formData.description) {
-      toast.error('Por favor completa todos los campos requeridos')
+      sileo.error({ title: 'Por favor completa todos los campos requeridos' })
       return
     }
 
     if (parseFloat(formData.amount) <= 0) {
-      toast.error('El monto debe ser mayor a 0')
+      sileo.error({ title: 'El monto debe ser mayor a 0' })
       return
     }
     if (!user?.id) {
-      toast.error('No se pudo obtener el usuario actual')
+      sileo.error({ title: 'No se pudo obtener el usuario actual' })
       return
     }
 
@@ -832,10 +832,10 @@ export default function CajaPage() {
       }
       await loadMultipleBranchesData(backendFilters)
 
-      toast.success(`Movimiento agregado en ${getBranchInfo(formData.branch_id)?.description || `Sucursal ${formData.branch_id}`}`)
+      sileo.success({ title: `Movimiento agregado en ${getBranchInfo(formData.branch_id)?.description || `Sucursal ${formData.branch_id}`}` })
     } catch (error: any) {
       console.error('Error creating movement:', error)
-      toast.error(error?.response?.data?.message || 'Error al crear el movimiento')
+      sileo.error({ title: error?.response?.data?.message || 'Error al crear el movimiento' })
     } finally {
       setIsPageLoading(false)
     }
@@ -849,7 +849,7 @@ export default function CajaPage() {
       setShowReceiptPreview(true)
     } catch (error) {
       console.error('Error fetching sale details for receipt:', error)
-      toast.error('No se pudo cargar el detalle del comprobante')
+      sileo.error({ title: 'No se pudo cargar el detalle del comprobante' })
       setSelectedReceiptSale(sale)
       setShowReceiptPreview(true)
     }
@@ -857,7 +857,7 @@ export default function CajaPage() {
 
   const handleDeleteMovement = async (movementId: number) => {
     if (!canDeleteMovements) {
-      toast.error('No tienes permisos para eliminar movimientos de caja')
+      sileo.error({ title: 'No tienes permisos para eliminar movimientos de caja' })
       return
     }
 
@@ -882,7 +882,7 @@ export default function CajaPage() {
     }
 
     if (!saleId) {
-      toast.info('Este movimiento no está vinculado a una venta')
+      sileo.info({ title: 'Este movimiento no está vinculado a una venta' })
       return
     }
 
@@ -894,7 +894,7 @@ export default function CajaPage() {
       setSaleDialogOpen(true)
     } catch (e: any) {
       console.error('Error al cargar venta:', e)
-      toast.error(e?.response?.data?.message || 'No se pudo cargar el detalle de la venta')
+      sileo.error({ title: e?.response?.data?.message || 'No se pudo cargar el detalle de la venta' })
     }
   }
 
@@ -953,10 +953,10 @@ export default function CajaPage() {
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
 
-      toast.success(`Reporte exportado como ${filename}`)
+      sileo.success({ title: `Reporte exportado como ${filename}` })
     } catch (error: any) {
       console.error('Error exporting data:', error)
-      toast.error(error?.response?.data?.message || 'Error al exportar los datos')
+      sileo.error({ title: error?.response?.data?.message || 'Error al exportar los datos' })
     } finally {
       setIsPageLoading(false)
     }
@@ -1056,7 +1056,7 @@ export default function CajaPage() {
     setIsPageLoading(true)
     const loadingTimeout = setTimeout(() => {
       setIsPageLoading(false)
-      toast.error('La actualización de caja tardó demasiado, intenta de nuevo.')
+      sileo.error({ title: 'La actualización de caja tardó demasiado, intenta de nuevo.' })
     }, 10000)
     try {
       refetchOptimized()
@@ -1101,7 +1101,7 @@ export default function CajaPage() {
         await loadCashRegisterForBranch(selectedBranchIdsArray[0])
       }
 
-      toast.success(`Datos de caja actualizados para ${selectedBranchIdsArray.length} sucursal${selectedBranchIdsArray.length > 1 ? 'es' : ''}`)
+      sileo.success({ title: `Datos de caja actualizados para ${selectedBranchIdsArray.length} sucursal${selectedBranchIdsArray.length > 1 ? 'es' : ''}` })
     } catch (error) {
       // Los errores ya se notifican dentro de los hooks
     } finally {
