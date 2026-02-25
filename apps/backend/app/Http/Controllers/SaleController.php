@@ -425,7 +425,7 @@ class SaleController extends Controller
                     'point_of_sale' => $result['point_of_sale'] ?? null,
                     'invoice_type' => $result['invoice_type'] ?? null,
                 ],
-                'message' => "{$receiptName} autorizada con AFIP exitosamente"
+                'message' => "{$receiptName} autorizada con ARCA exitosamente"
             ]);
 
         } catch (\Resguar\AfipSdk\Exceptions\AfipValidationException $e) {
