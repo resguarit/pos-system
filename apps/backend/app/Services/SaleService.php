@@ -2877,21 +2877,69 @@ class SaleService implements SaleServiceInterface
     /** Mapea al equivalente en familia A (1-5) */
     private function mapToFamilyA(int $tipo): int
     {
-        $map = [1 => 1, 2 => 2, 3 => 3, 4 => 4, 5 => 5, 6 => 1, 7 => 2, 8 => 3, 9 => 4, 10 => 5, 11 => 1, 12 => 2, 13 => 3, 15 => 4];
+        // 1:Factura A, 2:ND A, 3:NC A
+        // 6:Factura B, 7:ND B, 8:NC B
+        // 11:Factura C, 12:ND C, 13:NC C
+        $map = [
+            1 => 1,
+            2 => 2,
+            3 => 3,
+            4 => 4,
+            5 => 5,
+            6 => 1,
+            7 => 2,
+            8 => 3,
+            9 => 4,
+            10 => 5,
+            11 => 1,
+            12 => 2,
+            13 => 3,
+            15 => 4
+        ];
         return $map[$tipo] ?? AfipConstants::COMPROBANTE_FACTURA_A;
     }
 
     /** Mapea al equivalente en familia B (6-10) */
     private function mapToFamilyB(int $tipo): int
     {
-        $map = [1 => 6, 2 => 7, 3 => 8, 4 => 9, 5 => 10, 6 => 6, 7 => 7, 8 => 8, 9 => 9, 10 => 10, 11 => 6, 12 => 7, 13 => 8, 15 => 9];
+        $map = [
+            1 => 6,
+            2 => 7,
+            3 => 8,
+            4 => 9,
+            5 => 10,
+            6 => 6,
+            7 => 7,
+            8 => 8,
+            9 => 9,
+            10 => 10,
+            11 => 6,
+            12 => 7,
+            13 => 8,
+            15 => 9
+        ];
         return $map[$tipo] ?? AfipConstants::COMPROBANTE_FACTURA_B;
     }
 
     /** Mapea al equivalente en familia C (11-15) */
     private function mapToFamilyC(int $tipo): int
     {
-        $map = [1 => 11, 2 => 12, 3 => 13, 4 => 15, 5 => 11, 6 => 11, 7 => 12, 8 => 13, 9 => 15, 10 => 11, 11 => 11, 12 => 12, 13 => 13, 15 => 15];
+        $map = [
+            1 => 11,
+            2 => 12,
+            3 => 13,
+            4 => 15,
+            5 => 11,
+            6 => 11,
+            7 => 12,
+            8 => 13,
+            9 => 15,
+            10 => 11,
+            11 => 11,
+            12 => 12,
+            13 => 13,
+            15 => 15
+        ];
         return $map[$tipo] ?? AfipConstants::COMPROBANTE_FACTURA_C;
     }
 
