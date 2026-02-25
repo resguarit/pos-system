@@ -51,7 +51,7 @@ class AddEmitirNotasCreditoPermission extends Command
         }
 
         // 2. Assign to Admin and Dueño
-        $rolesToUpdate = ['Administrador', 'Dueño', 'Developer'];
+        $rolesToUpdate = ['Admin', 'Administrador', 'Dueño', 'Developer'];
         foreach ($rolesToUpdate as $roleName) {
             $roleData = \Illuminate\Support\Facades\DB::table('roles')->where('name', $roleName)->first();
             if ($roleData) {
@@ -71,7 +71,7 @@ class AddEmitirNotasCreditoPermission extends Command
                     $this->warn("Role {$roleName} already has the permission.");
                 }
             } else {
-                $this->error("Role {$roleName} not found in database.");
+                $this->warn("Role {$roleName} not found in database.");
             }
         }
 
