@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import ExpensesDashboard from "./expenses/ExpensesDashboard";
 import ExpensesList from "./expenses/ExpensesList";
 import EmployeesManagement from "./expenses/EmployeesManagement";
 import ExpenseCategories from "./expenses/ExpenseCategories";
+import ExpenseCalendar from "./expenses/ExpenseCalendar";
 
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -63,7 +63,8 @@ export default function ExpensesPage() {
                     <ExpensesDashboard />
                 </TabsContent>
 
-                <TabsContent value="list" className="space-y-4">
+                <TabsContent value="list" className="space-y-6">
+                    <ExpenseCalendar />
                     <Card>
                         <CardHeader>
                             <CardTitle>Gastos Registrados</CardTitle>

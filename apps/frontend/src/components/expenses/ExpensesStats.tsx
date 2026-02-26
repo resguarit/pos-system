@@ -24,14 +24,14 @@ interface ExpensesStatsProps {
 export function ExpensesStats({ stats, loading }: ExpensesStatsProps) {
     if (loading) {
         return (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-                <Card className="col-span-4 h-[200px] flex items-center justify-center">
+            <>
+                <Card className="col-span-1 xl:col-span-5 h-[280px] flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </Card>
-                <Card className="col-span-3 h-[200px] flex items-center justify-center">
+                <Card className="col-span-1 xl:col-span-4 h-[280px] flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </Card>
-            </div>
+            </>
         );
     }
 
@@ -41,8 +41,8 @@ export function ExpensesStats({ stats, loading }: ExpensesStatsProps) {
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
     return (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mb-6">
-            <Card className="col-span-4">
+        <>
+            <Card className="col-span-1 xl:col-span-5 h-full">
                 <CardHeader>
                     <CardTitle>Evolución Mensual</CardTitle>
                 </CardHeader>
@@ -80,7 +80,7 @@ export function ExpensesStats({ stats, loading }: ExpensesStatsProps) {
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-2 mt-2">
-                                                    {payload.map((entry: any, index: number) => {
+                                                    {payload.map((entry: { name: string; value: number; color?: string }, index: number) => {
                                                         if (entry.value === 0) return null;
                                                         const name = entry.name === 'projected' ? 'Proyección' : 'Total';
                                                         return (
@@ -117,7 +117,7 @@ export function ExpensesStats({ stats, loading }: ExpensesStatsProps) {
                     </div>
                 </CardContent>
             </Card>
-            <Card className="col-span-3">
+            <Card className="col-span-1 xl:col-span-4 h-full">
                 <CardHeader>
                     <CardTitle>Por Categoría</CardTitle>
                 </CardHeader>
@@ -135,7 +135,7 @@ export function ExpensesStats({ stats, loading }: ExpensesStatsProps) {
                                         paddingAngle={2}
                                         dataKey="value"
                                     >
-                                        {stats.by_category.map((entry, index) => (
+                                        {stats.by_category.map((_, index) => (
                                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                         ))}
                                     </Pie>
@@ -154,6 +154,6 @@ export function ExpensesStats({ stats, loading }: ExpensesStatsProps) {
                     </div>
                 </CardContent>
             </Card>
-        </div>
+        </>
     );
 }

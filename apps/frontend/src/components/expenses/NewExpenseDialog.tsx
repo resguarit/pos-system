@@ -121,6 +121,7 @@ interface NewExpenseDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
+    defaultDate?: string;
 }
 
 interface ExpenseFormData {
@@ -153,7 +154,7 @@ const initialFormData: ExpenseFormData = {
     notes: '',
 };
 
-export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDialogProps) {
+export function NewExpenseDialog({ open, onOpenChange, onSuccess, defaultDate }: NewExpenseDialogProps) {
     const { request } = useApi(); // Use useApi hook
     const { selectedBranchIds, branches } = useBranch();
     const { config } = useSystemConfigContext();
@@ -180,11 +181,14 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
             if (selectedBranchIds.length === 1) {
                 setFormData(prev => ({ ...prev, branch_id: selectedBranchIds[0] }));
             }
+            if (defaultDate) {
+                setFormData(prev => ({ ...prev, date: defaultDate }));
+            }
         } else {
             resetForm();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, selectedBranchIds]);
+    }, [open, selectedBranchIds, defaultDate]);
 
     const resetForm = () => {
         setFormData(initialFormData);
@@ -237,7 +241,7 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess }: NewExpenseDi
             setCategoriesTree(normalizeToArray<ExpenseCategory>(tree));
             setRecentExpenses(normalizeToArray<Expense>(recent));
             // Excluir Cuenta Corriente: los gastos no se pueden pagar con cuenta corriente
-            setPaymentMethods(normalizeToArray(pms).filter((pm: { name: string }) => pm.name !== 'Cuenta Corriente'));
+            setPaymentMethods(normalizeToArray<{ id: number, name: string }>(pms).filter(pm => pm.name !== 'Cuenta Corriente'));
         } catch (error) {
             console.error("Error loading data", error);
         }

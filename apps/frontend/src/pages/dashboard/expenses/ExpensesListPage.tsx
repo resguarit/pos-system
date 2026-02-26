@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -24,6 +24,7 @@ import {
 
 import { NewExpenseDialog, EditExpenseDialog } from "@/components/expenses"
 import { ExpensesStats } from "@/components/expenses/ExpensesStats"
+import ExpenseCalendar from "./ExpenseCalendar"
 import { useSystemConfigContext } from "@/context/SystemConfigContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
@@ -349,6 +350,10 @@ export default function ExpensesListPage() {
         });
     };
 
+    const handleCalendarDateSelect = (date: Date) => {
+        setDateRange({ from: date, to: date });
+    };
+
     const getStatusBadge = (expense: Expense) => {
         const isOverdue = expense.status === 'pending' && expense.due_date && new Date(expense.due_date) < new Date();
 
@@ -399,8 +404,16 @@ export default function ExpensesListPage() {
                 </div>
             </div>
 
-            {/* Stats Dashboard */}
-            <ExpensesStats stats={stats} loading={statsLoading} />
+            {/* Stats and Calendar Row */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch mb-6">
+                {/* Stats Dashboard */}
+                <ExpensesStats stats={stats} loading={statsLoading} />
+
+                {/* Calendar Widget */}
+                <div className="col-span-1 xl:col-span-3 h-full">
+                    <ExpenseCalendar onDateSelect={handleCalendarDateSelect} filters={filters} />
+                </div>
+            </div>
 
             {/* Filters Section */}
             <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">

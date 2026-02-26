@@ -21,7 +21,7 @@ import {
 import { Combobox } from '@/components/ui/combobox';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Pencil } from 'lucide-react';
-import { sileo } from "sileo"
+import { sileo } from "sileo";
 import useApi from '@/hooks/useApi';
 import { useBranch } from '@/context/BranchContext';
 
@@ -195,9 +195,10 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSuccess }: Ed
                 onOpenChange(false);
                 onSuccess();
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error updating expense:', error);
-            sileo.error({ title: error?.response?.data?.message || 'Error al actualizar el gasto' });
+            const err = error as { response?: { data?: { message?: string } } };
+            sileo.error({ title: err?.response?.data?.message || 'Error al actualizar el gasto' });
         } finally {
             setLoading(false);
         }
