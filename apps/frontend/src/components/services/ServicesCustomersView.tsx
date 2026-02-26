@@ -50,6 +50,7 @@ interface Service {
     base_price?: string | null
     discount_percentage?: string | null
     discount_notes?: string | null
+    description?: string | null
     start_date?: string
     last_payment?: {
         id: number
@@ -102,7 +103,7 @@ const getServiceIcon = (name: string) => {
 }
 
 // Obtiene el badge de estado del servicio con colores
-const getServiceStatusBadge = (status: string, service?: Service) => {
+const getServiceStatusBadge = (status: string) => {
     switch (status) {
         case "expired":
             return { label: "Vencido", className: "bg-red-100 text-red-700 border-red-200" }
@@ -186,6 +187,7 @@ export default function ServicesCustomersView() {
         billing_cycle: "",
         status: "",
         next_due_date: "",
+        description: "",
     })
     const [serviceEditLoading, setServiceEditLoading] = useState(false)
 
@@ -323,6 +325,7 @@ export default function ServicesCustomersView() {
             billing_cycle: selectedService.billing_cycle,
             status: selectedService.status === "suspended" ? "cancelled" : selectedService.status,
             next_due_date: selectedService.next_due_date || "",
+            description: selectedService.description || "",
         })
         setServiceEditMode(true)
     }
@@ -435,6 +438,7 @@ export default function ServicesCustomersView() {
                 billing_cycle: serviceEditForm.billing_cycle,
                 status: serviceEditForm.status,
                 next_due_date: finalNextDueDate,
+                description: serviceEditForm.description || null,
             }
 
             console.log("Sending Service Update Payload:", payload)
@@ -586,7 +590,7 @@ export default function ServicesCustomersView() {
 
         // Determine which service to preselect
         let selectedService: Service | undefined
-        
+
         if (preselectedServiceId) {
             // Use the explicitly preselected service
             selectedService = customer.client_services.find(s => s.id === preselectedServiceId)
@@ -829,10 +833,12 @@ export default function ServicesCustomersView() {
                                                     // const displayService = assignedService ? (assignedService.service_type?.name || assignedService.name) : serviceType.name
                                                     // No, mejor usamos el serviceType.name del loop para el título del icono, ya que estamos iterando los tipos.
 
-                                                    const status = assignedService
-                                                        ? (getServicePaymentStatus(assignedService) === 'active' ? 'paid' :
-                                                            getServicePaymentStatus(assignedService) === 'due_soon' ? 'due_soon' : 'unpaid')
-                                                        : "not_assigned"
+                                                    const paymentStatus = assignedService ? getServicePaymentStatus(assignedService) : null
+
+                                                    const status = paymentStatus === 'active' ? 'paid' :
+                                                        paymentStatus === 'due_soon' ? 'due_soon' :
+                                                            paymentStatus === 'inactive' ? 'inactive' :
+                                                                paymentStatus === 'expired' ? 'unpaid' : "not_assigned"
 
                                                     let statusClass = "bg-gray-100 text-gray-400" // Gris - No asignado
 
@@ -840,6 +846,8 @@ export default function ServicesCustomersView() {
                                                         statusClass = "bg-green-100 text-green-600" // Verde - Pagado
                                                     } else if (status === "due_soon") {
                                                         statusClass = "bg-yellow-100 text-yellow-600" // Amarillo - Por vencer
+                                                    } else if (status === "inactive") {
+                                                        statusClass = "bg-gray-200 text-gray-600" // Gris más oscuro - Inactivo
                                                     } else if (status === "unpaid") {
                                                         statusClass = "bg-red-100 text-red-600" // Rojo - Con deuda
                                                     }
@@ -1001,7 +1009,7 @@ export default function ServicesCustomersView() {
                                     <div className="space-y-3">
                                         {selectedCustomer.client_services.map((service) => {
                                             const paymentStatus = getServicePaymentStatus(service)
-                                            const statusBadge = getServiceStatusBadge(paymentStatus, service)
+                                            const statusBadge = getServiceStatusBadge(paymentStatus)
                                             const hasDiscount = service.discount_percentage && parseFloat(service.discount_percentage) > 0
 
                                             return (
@@ -1280,6 +1288,18 @@ export default function ServicesCustomersView() {
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-4">
+                                            {/* Description */}
+                                            <div className="col-span-2 space-y-1.5">
+                                                <Label className="text-xs">Descripción del Servicio</Label>
+                                                <Textarea
+                                                    placeholder="Ej: Detalle adicional del servicio..."
+                                                    value={serviceEditForm.description}
+                                                    onChange={(e) => setServiceEditForm(prev => ({ ...prev, description: e.target.value }))}
+                                                    rows={2}
+                                                    className="resize-none"
+                                                />
+                                            </div>
+
                                             {/* Base Price */}
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs">Precio Base</Label>
@@ -1445,8 +1465,8 @@ export default function ServicesCustomersView() {
                                                         </p>
                                                     )}
                                                     <div className="flex items-center gap-2 mt-1">
-                                                        <Badge className={getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).className}>
-                                                            {getServiceStatusBadge(getServicePaymentStatus(selectedService), selectedService).label}
+                                                        <Badge className={getServiceStatusBadge(getServicePaymentStatus(selectedService)).className}>
+                                                            {getServiceStatusBadge(getServicePaymentStatus(selectedService)).label}
                                                         </Badge>
                                                         <span className="text-xs text-gray-500">
                                                             {selectedService.billing_cycle === 'monthly' ? 'Mensual' :
