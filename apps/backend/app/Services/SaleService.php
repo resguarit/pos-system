@@ -2566,8 +2566,9 @@ class SaleService implements SaleServiceInterface
 
         // Preparar items
         $items = [];
-        $netAmount = 0.0;
-        $ivaItems = [];
+        $netAmountPreDiscount = 0.0;
+        $ivaItemsPreDiscount = [];
+        $ivaTotalPreDiscount = 0.0;
 
         foreach ($sale->items as $item) {
             $product = $item->product;
@@ -2601,7 +2602,35 @@ class SaleService implements SaleServiceInterface
                 'taxRate' => $ivaRate,
             ];
 
-            $netAmount += $itemSubtotal;
+            $netAmountPreDiscount += $itemSubtotal;
+        }
+
+        // Preparar tributos (IIBB e Impuestos Internos)
+        $tributos = [];
+        $totalTributos = 0.0;
+
+        $iibb = (float) ($sale->iibb ?? 0);
+        if ($iibb > 0) {
+            $tributos[] = [
+                'id' => 7, // IIBB
+                'descripcion' => 'Ingresos Brutos',
+                'baseImponible' => round($netAmountPreDiscount, 2),
+                'alicuota' => 0.0, // Opcional si el importe es fijo o ya calculado
+                'importe' => round($iibb, 2),
+            ];
+            $totalTributos += round($iibb, 2);
+        }
+
+        $internalTax = (float) ($sale->internal_tax ?? 0);
+        if ($internalTax > 0) {
+            $tributos[] = [
+                'id' => 4, // Impuestos Internos
+                'descripcion' => 'Impuestos Internos',
+                'baseImponible' => round($netAmountPreDiscount, 2),
+                'alicuota' => 0.0,
+                'importe' => round($internalTax, 2),
+            ];
+            $totalTributos += round($internalTax, 2);
         }
 
         // Preparar IVA items (AlicIVA). AFIP 10051 exige que importe = base × (porcentaje/100) con 2 decimales.
@@ -2611,12 +2640,11 @@ class SaleService implements SaleServiceInterface
                 $ivaId = $this->mapIvaRateToAfipId((float) $iva->rate);
                 if ($ivaId) {
                     $baseAmount = round((float) ($saleIva->base_amount ?? 0), 2);
-                    // Recalcular importe desde base y alícuota para que coincida con el porcentaje (evita error 10051)
                     $rate = (float) $iva->rate;
                     $taxAmount = round($baseAmount * ($rate / 100.0), 2);
 
                     $existingIndex = null;
-                    foreach ($ivaItems as $index => $ivaItem) {
+                    foreach ($ivaItemsPreDiscount as $index => $ivaItem) {
                         if ($ivaItem['id'] === $ivaId) {
                             $existingIndex = $index;
                             break;
@@ -2624,10 +2652,10 @@ class SaleService implements SaleServiceInterface
                     }
 
                     if ($existingIndex !== null) {
-                        $ivaItems[$existingIndex]['baseAmount'] = round($ivaItems[$existingIndex]['baseAmount'] + $baseAmount, 2);
-                        $ivaItems[$existingIndex]['amount'] = round($ivaItems[$existingIndex]['amount'] + $taxAmount, 2);
+                        $ivaItemsPreDiscount[$existingIndex]['baseAmount'] = round($ivaItemsPreDiscount[$existingIndex]['baseAmount'] + $baseAmount, 2);
+                        $ivaItemsPreDiscount[$existingIndex]['amount'] = round($ivaItemsPreDiscount[$existingIndex]['amount'] + $taxAmount, 2);
                     } else {
-                        $ivaItems[] = [
+                        $ivaItemsPreDiscount[] = [
                             'id' => $ivaId,
                             'baseAmount' => $baseAmount,
                             'amount' => $taxAmount,
@@ -2637,32 +2665,74 @@ class SaleService implements SaleServiceInterface
             }
         }
 
-        // Recalcular cada ivaItem amount desde baseAmount y el porcentaje del id AFIP (garantiza 10051)
+        // Recalcular ivaTotal pre-descuento
+        foreach ($ivaItemsPreDiscount as $item) {
+            $ivaTotalPreDiscount += (float) $item['amount'];
+        }
+        $ivaTotalPreDiscount = round($ivaTotalPreDiscount, 2);
+
+        // Mapeo de IDs de AFIP a tasas numéricas
         $afipIdToRate = [3 => 0.0, 4 => 10.5, 5 => 21.0, 6 => 27.0];
-        foreach ($ivaItems as $idx => $item) {
-            $rate = $afipIdToRate[$item['id']] ?? null;
-            if ($rate !== null) {
-                $ivaItems[$idx]['amount'] = round($item['baseAmount'] * ($rate / 100.0), 2);
-            }
+
+        // --- AJUSTE POR DESCUENTO GLOBAL ---
+        // El total teórico pre-descuento (Neto + IVA) que AFIP vería sin tributos
+        $taxableTotalPreDiscount = round($netAmountPreDiscount + $ivaTotalPreDiscount, 2);
+
+        // El total que queremos reportar a AFIP como "Gravado + IVA" (Total - Tributos)
+        $targetTaxableTotal = round((float) $sale->total - $totalTributos, 2);
+
+        // Si hay una diferencia significativa (descuento global), aplicamos un factor de ajuste
+        $adjustmentFactor = 1.0;
+        if ($taxableTotalPreDiscount > 0 && abs($taxableTotalPreDiscount - $targetTaxableTotal) > 0.01) {
+            $adjustmentFactor = $targetTaxableTotal / $taxableTotalPreDiscount;
+            Log::debug('prepareInvoiceDataForAfip: Aplicando ajuste por descuento global', [
+                'sale_id' => $sale->id,
+                'pre_discount' => $taxableTotalPreDiscount,
+                'target' => $targetTaxableTotal,
+                'factor' => $adjustmentFactor
+            ]);
         }
 
-        if (empty($ivaItems)) {
-            $ivaTotalFromSale = round((float) ($sale->total_iva_amount ?? 0.0), 2);
-            if ($ivaTotalFromSale > 0) {
-                $ivaItems[] = [
-                    'id' => 5,
-                    'baseAmount' => round($netAmount, 2),
-                    'amount' => round($netAmount * 0.21, 2),
-                ];
-            }
-        }
-
-        // IVA total = suma de AlicIVA (debe coincidir con lo que enviamos para evitar 10051)
+        // Aplicar el factor a todos los componentes
+        $netAmount = 0.0;
+        $ivaItems = [];
         $ivaTotal = 0.0;
-        foreach ($ivaItems as $item) {
-            $ivaTotal += (float) $item['amount'];
+
+        foreach ($ivaItemsPreDiscount as $item) {
+            $adjustedBase = round($item['baseAmount'] * $adjustmentFactor, 2);
+            // El importe de IVA DEBE ser exactamente base * tasa (Error 10051)
+            $rate = $afipIdToRate[$item['id']] ?? 21.0;
+            $adjustedAmount = round($adjustedBase * ($rate / 100.0), 2);
+
+            $ivaItems[] = [
+                'id' => $item['id'],
+                'baseAmount' => $adjustedBase,
+                'amount' => $adjustedAmount,
+            ];
+            $netAmount += $adjustedBase;
+            $ivaTotal += $adjustedAmount;
         }
-        $ivaTotal = round($ivaTotal, 2);
+
+        // Ajuste de centavo para que ImpNeto + ImpIVA == targetTaxableTotal (Error 10048)
+        $currentTaxableSum = round($netAmount + $ivaTotal, 2);
+        if ($currentTaxableSum !== $targetTaxableTotal) {
+            $diff = round($targetTaxableTotal - $currentTaxableSum, 2);
+            // Ajustamos el neto del primer item de IVA para cerrar el balance
+            if (!empty($ivaItems)) {
+                $ivaItems[0]['baseAmount'] = round($ivaItems[0]['baseAmount'] + $diff, 2);
+                $netAmount = round($netAmount + $diff, 2);
+            } else {
+                // Caso sin IVA (Exento), el Neto debe ser igual al target
+                $netAmount = $targetTaxableTotal;
+            }
+        }
+
+        // Fallback si no hay items de IVA pero el Neto > 0 (No debería pasar con AlicIVA obligatorio si hay Neto)
+        if (empty($ivaItems) && $netAmount > 0) {
+            // Si es Gravado pero no hay desglose, AFIP rechazará.
+            // Para ventas exentas, ImpNeto debe ser 0 e ImpOpEx debe tener el valor.
+            // Pero en este sistema parece que tratamos casi todo como gravado.
+        }
 
         // Validaciones finales
         if (empty($items)) {
@@ -2699,6 +2769,10 @@ class SaleService implements SaleServiceInterface
         $payload['netAmount'] = round($netAmount, 2);
         $payload['ivaTotal'] = round($ivaTotal, 2);
         $payload['ivaItems'] = $ivaItems;
+        if (!empty($tributos)) {
+            $payload['tributesTotal'] = round($totalTributos, 2);
+            $payload['tributos'] = $tributos;
+        }
 
         // Agregar el Comprobante Asociado si es Nota de Crédito o Débito
         if (in_array($invoiceType, [2, 3, 7, 8, 12, 13], true)) {
