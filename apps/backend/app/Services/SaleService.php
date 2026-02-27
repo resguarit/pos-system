@@ -2418,27 +2418,10 @@ class SaleService implements SaleServiceInterface
         // Obtener tipo de comprobante AFIP
         $invoiceType = $this->mapReceiptTypeToAfipType($sale->receiptType);
 
-        // Obtener el próximo número de comprobante desde AFIP (FECompUltimoAutorizado) para evitar error 10016
-        $invoiceNumber = null;
-        $taxpayerCuit = null;
-        if ($sale->branch && !empty($sale->branch->cuit)) {
-            $taxpayerCuit = preg_replace('/[^0-9]/', '', $sale->branch->cuit);
-            if (strlen($taxpayerCuit) === AfipConstants::CUIT_LENGTH) {
-                try {
-                    $lastAuthorized = \Resguar\AfipSdk\Facades\Afip::getLastAuthorizedInvoice($pointOfSale, $invoiceType, $taxpayerCuit);
-                    $lastCbte = (int) ($lastAuthorized['CbteNro'] ?? 0);
-                    $invoiceNumber = $lastCbte + 1;
-                } catch (\Throwable $e) {
-                    Log::warning('No se pudo obtener último comprobante autorizado de AFIP, se usará el número de la venta', [
-                        'sale_id' => $sale->id,
-                        'point_of_sale' => $pointOfSale,
-                        'invoice_type' => $invoiceType,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
-            }
-        }
-        if ($invoiceNumber === null && !empty($sale->receipt_number)) {
+        // Usar el número de la venta si está disponible.
+        // El SDK (Resguar\AfipSdk) consultará el último autorizado y lo ajustará si es necesario
+        // para evitar el error 10016, por lo que no es necesario consultarlo aquí de nuevo.
+        if (!empty($sale->receipt_number)) {
             $invoiceNumber = (int) preg_replace('/[^0-9]/', '', $sale->receipt_number);
             if ($invoiceNumber < 1) {
                 $invoiceNumber = null;
