@@ -2418,10 +2418,27 @@ class SaleService implements SaleServiceInterface
         // Obtener tipo de comprobante AFIP
         $invoiceType = $this->mapReceiptTypeToAfipType($sale->receiptType);
 
-        // Usar el número de la venta si está disponible.
-        // El SDK (Resguar\AfipSdk) consultará el último autorizado y lo ajustará si es necesario
-        // para evitar el error 10016, por lo que no es necesario consultarlo aquí de nuevo.
-        if (!empty($sale->receipt_number)) {
+        // Obtener el próximo número de comprobante desde AFIP (FECompUltimoAutorizado) para evitar error 10016
+        $invoiceNumber = null;
+        $taxpayerCuit = null;
+        if ($sale->branch && !empty($sale->branch->cuit)) {
+            $taxpayerCuit = preg_replace('/[^0-9]/', '', $sale->branch->cuit);
+            if (strlen($taxpayerCuit) === AfipConstants::CUIT_LENGTH) {
+                try {
+                    $lastAuthorized = \Resguar\AfipSdk\Facades\Afip::getLastAuthorizedInvoice($pointOfSale, $invoiceType, $taxpayerCuit);
+                    $lastCbte = (int) ($lastAuthorized['CbteNro'] ?? 0);
+                    $invoiceNumber = $lastCbte + 1;
+                } catch (\Throwable $e) {
+                    Log::warning('No se pudo obtener último comprobante autorizado de AFIP, se usará el número de la venta', [
+                        'sale_id' => $sale->id,
+                        'point_of_sale' => $pointOfSale,
+                        'invoice_type' => $invoiceType,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+        if ($invoiceNumber === null && !empty($sale->receipt_number)) {
             $invoiceNumber = (int) preg_replace('/[^0-9]/', '', $sale->receipt_number);
             if ($invoiceNumber < 1) {
                 $invoiceNumber = null;
@@ -2700,10 +2717,29 @@ class SaleService implements SaleServiceInterface
         $currentTaxableSum = round($netAmount + $ivaTotal, 2);
         if ($currentTaxableSum !== $targetTaxableTotal) {
             $diff = round($targetTaxableTotal - $currentTaxableSum, 2);
-            // Ajustamos el neto del primer item de IVA para cerrar el balance
             if (!empty($ivaItems)) {
+                // Ajustamos el neto del primer item de IVA para cerrar el balance
                 $ivaItems[0]['baseAmount'] = round($ivaItems[0]['baseAmount'] + $diff, 2);
                 $netAmount = round($netAmount + $diff, 2);
+
+                // IMPORTANTE: Recalcular el amount (IVA) del item ajustado y el total de IVA (Error 10048/10051)
+                $rate = $afipIdToRate[$ivaItems[0]['id']] ?? 21.0;
+                $ivaItems[0]['amount'] = round($ivaItems[0]['baseAmount'] * ($rate / 100.0), 2);
+
+                $ivaTotal = 0.0;
+                foreach ($ivaItems as $vItem) {
+                    $ivaTotal += (float) $vItem['amount'];
+                }
+                $ivaTotal = round($ivaTotal, 2);
+
+                // Si por el redondeo del IVA vuelve a haber una diferencia, ajustamos el neto final
+                // para que la ecuación ImpNeto + ImpIVA == ImpTotal se cumpla exactamente.
+                $finalCheck = round($netAmount + $ivaTotal, 2);
+                if ($finalCheck !== $targetTaxableTotal) {
+                    $finalDiff = round($targetTaxableTotal - $finalCheck, 2);
+                    $netAmount = round($netAmount + $finalDiff, 2);
+                    $ivaItems[0]['baseAmount'] = round($ivaItems[0]['baseAmount'] + $finalDiff, 2);
+                }
             } else {
                 // Caso sin IVA (Exento), el Neto debe ser igual al target
                 $netAmount = $targetTaxableTotal;
