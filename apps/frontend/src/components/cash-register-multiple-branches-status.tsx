@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +13,6 @@ import {
   XCircle,
   RefreshCw,
   Loader2,
-  Info,
   ChevronDown
 } from 'lucide-react'
 import { useBranch } from '@/context/BranchContext'
@@ -35,8 +33,10 @@ interface CashRegisterStatus {
       description: string
     }
     user: {
-      username: string
-    }
+      username?: string | null
+      email?: string | null
+      full_name?: string | null
+    } | null
     opened_at: string
     initial_amount: string
   }>
@@ -62,6 +62,16 @@ export default function MultipleBranchesCashStatus({
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  const showStatusToast = useCallback((statusData: CashRegisterStatus) => {
+    if (statusData.all_open) {
+      sileo.success({ title: 'Todas las sucursales tienen caja abierta' })
+    } else if (statusData.all_closed) {
+      sileo.warning({ title: 'Todas las sucursales tienen caja cerrada' })
+    } else {
+      sileo.info({ title: `Estado mixto: ${statusData.open_count} abiertas, ${statusData.closed_count} cerradas` })
+    }
+  }, [])
+
   const checkMultipleBranchesStatus = useCallback(async (showToast = false) => {
     if (selectedBranchIds.length === 0) {
       setStatus(null)
@@ -79,11 +89,11 @@ export default function MultipleBranchesCashStatus({
       })
 
       setStatus(response.data)
-      
+
       if (showToast) {
         showStatusToast(response.data)
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error checking multiple branches cash status:', error)
       if (showToast) {
         sileo.error({ title: 'Error al verificar el estado de las cajas' })
@@ -91,17 +101,7 @@ export default function MultipleBranchesCashStatus({
     } finally {
       setIsLoading(false)
     }
-  }, [selectedBranchIds, request])
-
-  const showStatusToast = useCallback((statusData: CashRegisterStatus) => {
-    if (statusData.all_open) {
-      sileo.success({ title: 'Todas las sucursales tienen caja abierta' })
-    } else if (statusData.all_closed) {
-      sileo.warning({ title: 'Todas las sucursales tienen caja cerrada' })
-    } else {
-      sileo.info({ title: `Estado mixto: ${statusData.open_count} abiertas, ${statusData.closed_count} cerradas` })
-    }
-  }, [])
+  }, [selectedBranchIds, request, showStatusToast])
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true)
@@ -113,6 +113,10 @@ export default function MultipleBranchesCashStatus({
     const branch = branches.find(b => b.id === branchId)
     return branch?.description || `Sucursal ${branchId}`
   }, [branches])
+
+  const getOperatorName = useCallback((register: CashRegisterStatus['open_registers'][number]) => {
+    return register.user?.full_name || register.user?.username || register.user?.email || 'Sin operador'
+  }, [])
 
   const statusBadge = useMemo(() => {
     if (!status) return null
@@ -140,18 +144,6 @@ export default function MultipleBranchesCashStatus({
       )
     }
   }, [status, compact])
-
-  const statusMessage = useMemo(() => {
-    if (!status) return ''
-    
-    if (status.all_open) {
-      return 'Todas las sucursales seleccionadas tienen caja abierta y están disponibles para operaciones.'
-    } else if (status.all_closed) {
-      return 'Todas las sucursales seleccionadas tienen caja cerrada. Debe abrir al menos una caja para realizar operaciones.'
-    } else {
-      return `Estado mixto: ${status.open_count} sucursales con caja abierta, ${status.closed_count} cerradas.`
-    }
-  }, [status])
 
   // Verificar estado cuando cambien las sucursales seleccionadas
   useEffect(() => {
@@ -223,7 +215,7 @@ export default function MultipleBranchesCashStatus({
                             {getBranchName(register.branch_id)}
                           </span>
                           <div className="text-xs text-green-600">
-                            Operador: {register.user.username}
+                            Operador: {getOperatorName(register)}
                           </div>
                         </div>
                         <div className="text-sm font-medium text-green-700">
