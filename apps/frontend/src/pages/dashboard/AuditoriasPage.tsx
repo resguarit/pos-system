@@ -14,7 +14,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
@@ -46,7 +45,7 @@ import { usePersistentState } from '@/hooks/usePersistentState';
 
 export default function AuditoriasPage() {
   const { request, loading } = useApi();
-  const { hasPermission } = useAuth();
+  useAuth();
   const [audits, setAudits] = useState<AuditActivity[]>([]);
   const [statistics, setStatistics] = useState<AuditStatistics | null>(null);
   const [filterOptions, setFilterOptions] = useState<AuditFilterOptions | null>(null);
@@ -89,6 +88,10 @@ export default function AuditoriasPage() {
     date_to: undefined,
   });
 
+  const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  };
+
 
   // Cargar opciones de filtros
   const loadFilterOptions = useCallback(async () => {
@@ -113,7 +116,7 @@ export default function AuditoriasPage() {
   // Cargar estadísticas
   const loadStatistics = useCallback(async () => {
     try {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (filters.date_from) params.date_from = filters.date_from;
       if (filters.date_to) params.date_to = filters.date_to;
 
@@ -134,7 +137,7 @@ export default function AuditoriasPage() {
   // Cargar auditorías
   const loadAudits = useCallback(async (page = 1) => {
     try {
-      const params: any = {
+      const params: Record<string, string | number> = {
         page,
         per_page: perPage,
       };
@@ -166,7 +169,7 @@ export default function AuditoriasPage() {
       sileo.error({ title: 'Error al cargar las auditorías' });
       setAudits([]);
     }
-  }, [request, filters, perPage]);
+  }, [request, filters, perPage, setCurrentPage]);
 
   useEffect(() => {
     loadFilterOptions();
@@ -180,7 +183,7 @@ export default function AuditoriasPage() {
     loadAudits(1);
   }, [loadAudits]);
 
-  const handleFilterChange = (key: keyof AuditFilters, value: any) => {
+  const handleFilterChange = (key: keyof AuditFilters, value: AuditFilters[keyof AuditFilters] | '' | 'all') => {
     setFilters((prev) => {
       let processedValue = value === '' || value === 'all' ? undefined : value;
       
@@ -434,7 +437,7 @@ export default function AuditoriasPage() {
     return fieldLabels[fieldName] || fieldName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
-  const formatFieldValue = (value: any): string => {
+  const formatFieldValue = (value: unknown): string => {
     if (value === null || value === undefined) return '—';
     if (typeof value === 'boolean') return value ? 'Sí' : 'No';
     if (typeof value === 'number') {
@@ -460,18 +463,18 @@ export default function AuditoriasPage() {
       }
       return value;
     }
-    if (typeof value === 'object') {
+    if (isRecord(value)) {
       return JSON.stringify(value);
     }
     return String(value);
   };
 
-  const renderPropertiesList = (properties: Record<string, any>, title: string) => {
+  const renderPropertiesList = (properties: Record<string, unknown>, title: string) => {
     if (!properties || Object.keys(properties).length === 0) return null;
 
-    const renderValue = (value: any, level: number = 0): React.ReactNode => {
+    const renderValue = (value: unknown): React.ReactNode => {
       // Si es un objeto anidado, renderizar sus propiedades
-      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      if (isRecord(value)) {
         const entries = Object.entries(value).filter(([k]) => 
           !['ip_address', 'user_agent', 'url', 'method'].includes(k)
         );
@@ -482,7 +485,7 @@ export default function AuditoriasPage() {
           <div className="space-y-1.5">
             {entries.map(([nestedKey, nestedValue]) => {
               // Si el valor anidado es también un objeto, renderizarlo recursivamente
-              if (typeof nestedValue === 'object' && nestedValue !== null && !Array.isArray(nestedValue)) {
+              if (isRecord(nestedValue)) {
                 const nestedEntries = Object.entries(nestedValue);
                 if (nestedEntries.length === 0) return null;
 

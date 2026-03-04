@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
@@ -72,9 +72,9 @@ export default function RolesPage() {
   const PAGE_SIZE = 10
 
 
-  const fetchRoles = async (page = 1) => {
+  const fetchRoles = useCallback(async (page = 1) => {
     try {
-      const params: any = {
+      const params: Record<string, string | number> = {
         page: page,
         limit: PAGE_SIZE
       };
@@ -105,9 +105,9 @@ export default function RolesPage() {
           setTotalPages(response.last_page || response.data?.last_page || Math.ceil((response.total || rolesData.length) / PAGE_SIZE))
         } else {
           // Fallback: usar paginación del cliente
-          const allRolesData = rolesData.map((role: any) => ({
+          const allRolesData = rolesData.map((role: { id: string | number; name?: string; description?: string; permissions_count?: number; is_system?: boolean }) => ({
             id: String(role.id),
-            name: role.name,
+            name: role.name || '',
             description: role.description || "",
             permissions_count: role.permissions_count || 0,
             isSystem: !!role.is_system,
@@ -121,21 +121,16 @@ export default function RolesPage() {
         
         dispatch({ type: 'SET_ENTITIES', entityType: 'roles', entities: rolesData });
       }
-    } catch (error) {
+    } catch {
       sileo.error({ title: "Error",
         description: "No se pudieron cargar los roles",
       })
     }
-  }
+  }, [dispatch, request, search, setCurrentPage])
 
   useEffect(() => {
     fetchRoles(1)
-  }, [])
-
-  // Efecto para recargar cuando cambie la búsqueda
-  useEffect(() => {
-    fetchRoles(1)
-  }, [search])
+  }, [fetchRoles])
 
   const handleDeleteClick = (roleId: string) => {
     setRoleToDelete(roleId)
@@ -157,7 +152,7 @@ export default function RolesPage() {
       sileo.success({ title: "Rol eliminado",
         description: "El rol ha sido eliminado correctamente",
       })
-    } catch (error) {
+    } catch {
       sileo.error({ title: "Error",
         description: "No se pudo eliminar el rol",
       })
@@ -169,6 +164,9 @@ export default function RolesPage() {
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
     setSearch(value);
   };
 
@@ -179,11 +177,6 @@ export default function RolesPage() {
       fetchRoles(pageNumber);
     }
   };
-
-  // Resetear página cuando cambie la búsqueda
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search]);
 
   return (
     <ProtectedRoute permissions={['ver_roles']} requireAny={true}>

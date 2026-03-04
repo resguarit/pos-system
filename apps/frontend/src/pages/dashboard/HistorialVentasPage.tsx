@@ -44,6 +44,23 @@ export default function SalesHistoryPage() {
   const { hasPermission } = useAuth();
   const branches = state.branches ? Object.values(state.branches) as Branch[] : [];
 
+  const isRecord = (value: unknown): value is Record<string, unknown> => {
+    return typeof value === 'object' && value !== null;
+  };
+
+  const extractSaleFromResponse = (response: unknown): SaleHeader => {
+    if (!isRecord(response)) {
+      return response as SaleHeader;
+    }
+
+    const data = response.data;
+    if (isRecord(data) && data.data) {
+      return data.data as SaleHeader;
+    }
+
+    return (data as SaleHeader) ?? (response as SaleHeader);
+  };
+
   const handleShowChart = () => {
     if (selectedBranchId) {
       setShowChart(true);
@@ -72,10 +89,14 @@ export default function SalesHistoryPage() {
         params: { branch_id: branchId, per_page: 1000 } // Fetch ample products for selection
       });
       if (response && response.success) {
-        const productOptions: Option[] = (response.data?.data || []).map((p: any) => ({
-          label: `${p.code} - ${p.name}`,
-          value: p.id.toString()
-        }));
+        const productsData = Array.isArray(response.data?.data) ? response.data.data : [];
+        const productOptions: Option[] = productsData.map((product) => {
+          const item = product as { id: number | string; code?: string; name?: string };
+          return {
+            label: `${item.code ?? ''} - ${item.name ?? ''}`,
+            value: String(item.id),
+          };
+        });
         setProducts(productOptions);
       }
     } catch (error) {
@@ -87,7 +108,7 @@ export default function SalesHistoryPage() {
     setLoading(true);
     try {
       // Para obtener las ventas individuales
-      const params: any = { branch_id: branchId, per_page: 1000 };
+      const params: Record<string, number | number[]> = { branch_id: branchId, per_page: 1000 };
       if (productIds.length > 0) {
         params.product_ids = productIds.map(id => parseInt(id, 10));
       }
@@ -135,8 +156,8 @@ export default function SalesHistoryPage() {
         arcaCode: arcaCode,
       };
     }
-    const actualReceiptType = (sale as any).receipt_type as any;
-    const actualArcaCode = (sale as any).receipt_type_code as any;
+    const actualReceiptType = sale.receipt_type;
+    const actualArcaCode = sale.receipt_type_code;
 
     if (typeof actualReceiptType === 'string' && actualReceiptType.trim() !== '') {
       const upperDescription = actualReceiptType.toUpperCase();
@@ -167,7 +188,7 @@ export default function SalesHistoryPage() {
   const handleViewDetail = async (sale: SaleHeader) => {
     try {
       const response = await request({ method: 'GET', url: `/sales/${sale.id}` });
-      const fullSale = (response as any)?.data?.data ?? (response as any)?.data ?? response;
+      const fullSale = extractSaleFromResponse(response);
       setSelectedSale(fullSale);
       setIsDetailOpen(true);
     } catch (error) {
@@ -209,7 +230,7 @@ export default function SalesHistoryPage() {
   const handlePrintReceipt = async (sale: SaleHeader) => {
     try {
       const response = await request({ method: 'GET', url: `/sales/${sale.id}` })
-      const fullSale = (response as any)?.data?.data || (response as any)?.data || response
+      const fullSale = extractSaleFromResponse(response)
       setSelectedReceiptSale(fullSale)
       setShowReceiptPreview(true)
     } catch (error) {

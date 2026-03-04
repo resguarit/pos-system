@@ -92,7 +92,7 @@ export default function UsuariosPage() {
 
   const fetchUsers = useCallback(async (page = 1, signal?: AbortSignal) => {
     try {
-      const params: any = {
+      const params: Record<string, string | number> = {
         page: page,
         limit: PAGE_SIZE
       };
@@ -129,8 +129,10 @@ export default function UsuariosPage() {
         setCurrentPage(1)
         setTotalPages(1)
       }
-    } catch (error: any) {
-      if (error.name === 'AbortError' || error.name === 'CanceledError') {
+    } catch (error: unknown) {
+      const err = error as { name?: string }
+      if (err.name === 'AbortError' || err.name === 'CanceledError') {
+        return
       } else if (!signal?.aborted) {
         console.error("Error fetching users:", error)
         setUsers([])
@@ -138,7 +140,7 @@ export default function UsuariosPage() {
         setTotalPages(1)
       }
     }
-  }, [request, PAGE_SIZE, searchText, selectedRole, selectedStatus]);
+  }, [request, PAGE_SIZE, searchText, selectedRole, selectedStatus, setCurrentPage]);
 
   const fetchRoles = useCallback(async (signal?: AbortSignal) => { // Added signal and useCallback
     try {
@@ -146,8 +148,10 @@ export default function UsuariosPage() {
       if (!signal?.aborted) {
         setRoles(Array.isArray(response) ? response : response?.data ? response.data : []);
       }
-    } catch (error: any) {
-      if (error.name === 'AbortError' || error.name === 'CanceledError') {
+    } catch (error: unknown) {
+      const err = error as { name?: string }
+      if (err.name === 'AbortError' || err.name === 'CanceledError') {
+        return
       } else if (!signal?.aborted) {
         setRoles([]);
         // sileo.error({ title: "Error al cargar roles" });
@@ -203,7 +207,7 @@ export default function UsuariosPage() {
       sileo.success({ title: "Usuario eliminado",
         description: "El usuario ha sido eliminado correctamente",
       })
-    } catch (error) {
+    } catch {
       sileo.error({ title: "Error",
         description: "No se pudo eliminar el usuario",
       })

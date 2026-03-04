@@ -104,8 +104,9 @@ export default function SucursalesPage() {
         }
       }
 
-    } catch (error: any) {
-      if (error?.name === 'AbortError') return;
+    } catch (error: unknown) {
+      const err = error as { name?: string };
+      if (err?.name === 'AbortError') return;
       // Toast de error removido para evitar notificaciones falsas
       setBranches([]); // Limpiamos por si había datos previos
     } finally {
@@ -135,9 +136,10 @@ export default function SucursalesPage() {
       });
       setBranches((prev) => prev.filter((branch) => branch.id !== branchToDelete));
       sileo.success({ title: "Sucursal eliminada" });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
       sileo.error({ title: "Error al eliminar",
-        description: error?.response?.data?.message || "No se pudo eliminar la sucursal.",
+        description: err?.response?.data?.message || "No se pudo eliminar la sucursal.",
       });
     } finally {
       setDeleteDialogOpen(false);
@@ -165,10 +167,12 @@ export default function SucursalesPage() {
     setCurrentPage(newPage);
   };
 
-  // Reset page when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
+  const handleSearchChange = (value: string) => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+    setSearchTerm(value);
+  };
 
   const filteredBranchesToDisplay = paginatedBranches;
 
@@ -208,7 +212,7 @@ export default function SucursalesPage() {
             placeholder="Buscar por ID, nombre o dirección..."
             className="w-full pl-8"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
 

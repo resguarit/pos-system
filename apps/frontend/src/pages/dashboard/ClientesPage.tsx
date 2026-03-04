@@ -105,7 +105,7 @@ export default function ClientesPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchTerm]);
+  }, [searchTerm, setCurrentPage]);
 
   const fetchCustomers = useCallback(async (page = 1, signal?: AbortSignal) => {
     try {

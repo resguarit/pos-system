@@ -50,7 +50,7 @@ export default function CurrentAccountsPage() {
       // Limpiar el parámetro de la URL después de aplicarlo
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, setSearchTerm]);
 
   React.useEffect(() => {
     loadStatistics();

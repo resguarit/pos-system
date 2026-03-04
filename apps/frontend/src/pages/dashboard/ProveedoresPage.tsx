@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -56,24 +56,9 @@ export default function ProveedoresPage() {
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const PAGE_SIZE = 8
+  const isFirstSearchEffect = useRef(true)
 
-  // Fetch suppliers from backend
-  useEffect(() => {
-    loadSuppliers(1)
-  }, [])
-
-  // Refetch cuando cambie el término de búsqueda
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setCurrentPage(1);
-      loadSuppliers(1);
-    }, 300); // Debounce de 300ms
-
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm])
-
-  const loadSuppliers = async (page = 1) => {
+  const loadSuppliers = useCallback(async (page = 1) => {
     setLoading(true)
     try {
       const params: Record<string, unknown> = {
@@ -118,7 +103,7 @@ export default function ProveedoresPage() {
         }
       }
 
-    } catch (_error: unknown) {
+    } catch {
       sileo.error({ title: "Error al cargar proveedores" })
       setSuppliers([])
       setTotalItems(0)
@@ -126,7 +111,27 @@ export default function ProveedoresPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [request, searchTerm, setCurrentPage])
+
+  // Fetch suppliers from backend
+  useEffect(() => {
+    loadSuppliers(1)
+  }, [loadSuppliers])
+
+  // Refetch cuando cambie el término de búsqueda
+  useEffect(() => {
+    if (isFirstSearchEffect.current) {
+      isFirstSearchEffect.current = false
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      loadSuppliers(1);
+    }, 300); // Debounce de 300ms
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, loadSuppliers, setCurrentPage])
 
   const handleEditProvider = (provider: SupplierType) => {
     navigate(`/dashboard/proveedores/${provider.id}/editar`)

@@ -121,8 +121,10 @@ export default function PaymentMethodsPage() {
             setTotalItems(totalCount)
             setTotalPages(totalPagesCalculated)
             setCurrentPage(page)
-        } catch (error: any) {
-            if (error.name === 'AbortError' || error.name === 'CanceledError') {
+        } catch (error: unknown) {
+            const err = error as { name?: string }
+            if (err.name === 'AbortError' || err.name === 'CanceledError') {
+                return
             } else if (!signal?.aborted) {
                 console.error("Error fetching payment methods:", error)
                 setPaymentMethods([])
@@ -131,7 +133,7 @@ export default function PaymentMethodsPage() {
                 setTotalPages(1)
             }
         }
-    }, [request, searchText, pageSize])
+    }, [request, searchText, pageSize, setCurrentPage])
 
     useEffect(() => {
         const controller = new AbortController()
@@ -168,8 +170,9 @@ export default function PaymentMethodsPage() {
             sileo.success({ title: "Método de pago eliminado",
                 description: "El método de pago ha sido eliminado correctamente",
             })
-        } catch (error: any) {
-            const errorMsg = error.response?.data?.message || "No se pudo eliminar el método de pago"
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { message?: string } } }
+            const errorMsg = err.response?.data?.message || "No se pudo eliminar el método de pago"
             sileo.error({ title: "Error",
                 description: errorMsg,
             })
@@ -250,9 +253,10 @@ export default function PaymentMethodsPage() {
 
             setEditDialogOpen(false)
             await fetchPaymentMethods(1)
-        } catch (error: any) {
-            const errorMsg = error.response?.data?.message ||
-                error.response?.data?.errors?.name?.[0] ||
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { message?: string; errors?: { name?: string[] } } } }
+            const errorMsg = err.response?.data?.message ||
+                err.response?.data?.errors?.name?.[0] ||
                 `No se pudo ${isEditMode ? 'actualizar' : 'crear'} el método de pago`
             sileo.error({ title: "Error",
                 description: errorMsg,

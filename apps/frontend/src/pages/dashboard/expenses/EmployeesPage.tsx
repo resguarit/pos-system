@@ -95,11 +95,11 @@ export default function EmployeesPage() {
             setCurrentPage(1);
         }, 300);
         return () => clearTimeout(timer);
-    }, [searchTerm]);
+    }, [searchTerm, setCurrentPage]);
 
     const fetchEmployees = useCallback(async (page = 1) => {
         try {
-            const params: any = { page, limit: PAGE_SIZE };
+            const params: Record<string, string | number> = { page, limit: PAGE_SIZE };
             if (debouncedSearchTerm.trim()) {
                 params.search = debouncedSearchTerm.trim();
             }
@@ -120,7 +120,7 @@ export default function EmployeesPage() {
             console.error("Error fetching employees:", error);
             sileo.error({ title: "Error al cargar empleados" });
         }
-    }, [request, debouncedSearchTerm]);
+    }, [request, debouncedSearchTerm, setCurrentPage]);
 
     useEffect(() => {
         fetchEmployees(currentPage);
@@ -152,8 +152,9 @@ export default function EmployeesPage() {
             fetchEmployees(currentPage);
             setDeleteDialogOpen(false)
             setEmployeeToDelete(null)
-        } catch (error: any) {
-            sileo.error({ title: error?.message || 'Error al eliminar el empleado' })
+        } catch (error: unknown) {
+            const err = error as { message?: string }
+            sileo.error({ title: err?.message || 'Error al eliminar el empleado' })
         }
     }
 

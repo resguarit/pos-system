@@ -145,11 +145,21 @@ export default function VentasPage() {
   }, [branchFilterIds, branches]);
 
   const toggleBranchFilter = (value: string) => {
+    setProductOptions([]);
+    setProductHasMore(false);
+    setProductPage(1);
     if (branchFilterIds.includes(value)) {
       setBranchFilterIds(branchFilterIds.filter((v) => v !== value));
     } else {
       setBranchFilterIds([...branchFilterIds, value]);
     }
+  };
+
+  const handleSearchTermChange = (value: string) => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+    setSearchTerm(value);
   };
 
   const {
@@ -278,13 +288,12 @@ export default function VentasPage() {
     if (valid.length !== branchFilterIds.length) {
       setBranchFilterIds(valid);
     }
-  }, [branchFilterIds, selectedBranchIds]);
+  }, [branchFilterIds, selectedBranchIds, setBranchFilterIds]);
 
   // Refetch cuando cambie el término de búsqueda
   useEffect(() => {
     const timer = setTimeout(() => {
       setPageLoading(true);
-      setCurrentPage(1);
       setAllSales([]);
       fetchSales(dateRange?.from, dateRange?.to, 1, searchTerm).finally(() => {
         setPageLoading(false);
@@ -294,13 +303,6 @@ export default function VentasPage() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
-
-  // Cargar productos para el filtro
-  useEffect(() => {
-    setProductOptions([]);
-    setProductHasMore(false);
-    setProductPage(1);
-  }, [debouncedProductQuery, selectionChangeToken, selectedBranchIds]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -1333,7 +1335,7 @@ export default function VentasPage() {
                           type="text"
                           placeholder="Buscar por cliente, teléfono o comprobante..."
                           value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
+                          onChange={(e) => handleSearchTermChange(e.target.value)}
                           className="px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background w-full"
                         />
                       </div>
@@ -1418,6 +1420,9 @@ export default function VentasPage() {
                             selected={selectedProductIds}
                             onChange={setSelectedProductIds}
                             onSearch={(query) => {
+                              setProductOptions([]);
+                              setProductHasMore(false);
+                              setProductPage(1);
                               setDebouncedProductQuery(query);
                             }}
                             loading={productLoading}
