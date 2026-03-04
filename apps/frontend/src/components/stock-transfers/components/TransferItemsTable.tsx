@@ -16,6 +16,7 @@ interface TransferItemsTableProps {
   onRemoveItem: (index: number) => void;
   onUpdateQuantity?: (index: number, quantity: number) => void;
   disabled?: boolean;
+  allowZeroQuantity?: boolean;
 }
 
 export function TransferItemsTable({
@@ -23,6 +24,7 @@ export function TransferItemsTable({
   onRemoveItem,
   onUpdateQuantity,
   disabled = false,
+  allowZeroQuantity = false,
 }: TransferItemsTableProps) {
   if (items.length === 0) {
     return (
@@ -68,11 +70,12 @@ export function TransferItemsTable({
                     value={item.quantity}
                     onChange={(e) => {
                       const qty = parseInt(e.target.value) || 0;
-                      if (qty > 0 && onUpdateQuantity) {
+                      const isValidQty = allowZeroQuantity ? qty >= 0 : qty > 0;
+                      if (isValidQty && onUpdateQuantity) {
                         onUpdateQuantity(index, qty);
                       }
                     }}
-                    min="1"
+                    min={allowZeroQuantity ? "0" : "1"}
                     disabled={disabled}
                     className={cn(
                       "w-20 text-right h-8",
