@@ -11,6 +11,12 @@ export const transferItemSchema = z.object({
   quantity: z.number().int().positive('La cantidad debe ser mayor a 0'),
 });
 
+// Schema for a single transfer item in edit mode (allows 0 as "not received")
+export const transferItemEditSchema = z.object({
+  product_id: z.number().positive('El ID del producto debe ser positivo'),
+  quantity: z.number().int().min(0, 'La cantidad no puede ser negativa'),
+});
+
 // Schema for creating a stock transfer
 export const createTransferSchema = z.object({
   source_branch_id: z
@@ -47,6 +53,13 @@ export const updateTransferSchema = z.object({
   items: z.array(transferItemSchema).min(1).optional(),
 });
 
+// Schema for validating full payload in edit mode
+export const editTransferSchema = createTransferSchema.extend({
+  items: z
+    .array(transferItemEditSchema)
+    .min(1, 'Debe agregar al menos un producto'),
+});
+
 // Schema for adding a new item
 export const newItemSchema = z.object({
   product_id: z.string().min(1, 'Seleccione un producto'),
@@ -57,6 +70,7 @@ export const newItemSchema = z.object({
 export type CreateTransferInput = z.infer<typeof createTransferSchema>;
 export type UpdateTransferInput = z.infer<typeof updateTransferSchema>;
 export type TransferItemInput = z.infer<typeof transferItemSchema>;
+export type TransferItemEditInput = z.infer<typeof transferItemEditSchema>;
 export type NewItemInput = z.infer<typeof newItemSchema>;
 
 // Validation helper

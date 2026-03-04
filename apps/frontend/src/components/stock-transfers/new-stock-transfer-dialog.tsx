@@ -247,6 +247,7 @@ export function StockTransferDialog({
                   onRemoveItem={removeItem}
                   onUpdateQuantity={updateItemQuantity}
                   disabled={loading}
+                  allowZeroQuantity={isEditMode}
                 />
               </div>
             </div>

@@ -55,7 +55,7 @@ class UpdateStockTransferRequest extends FormRequest
             'items.*.quantity' => [
                 'required_with:items',
                 'integer',
-                'min:1',
+                'min:0',
             ],
         ];
     }
@@ -76,7 +76,7 @@ class UpdateStockTransferRequest extends FormRequest
             'items.*.product_id.required_with' => 'El producto es obligatorio',
             'items.*.product_id.exists' => 'El producto no existe',
             'items.*.quantity.required_with' => 'La cantidad es obligatoria',
-            'items.*.quantity.min' => 'La cantidad debe ser mayor a 0',
+            'items.*.quantity.min' => 'La cantidad no puede ser negativa',
         ];
     }
 }

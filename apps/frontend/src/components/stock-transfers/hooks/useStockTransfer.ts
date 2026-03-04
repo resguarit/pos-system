@@ -12,7 +12,7 @@ import { getBranches } from '@/lib/api/branchService';
 import { getProductById } from '@/lib/api/productService';
 import { getStockByProductAndBranch } from '@/lib/api/stockService';
 import type { Branch, Product, TransferItem, TransferFormData, CreateTransferPayload } from '../types';
-import { createTransferSchema, getValidationErrors } from '../schemas';
+import { createTransferSchema, editTransferSchema, getValidationErrors } from '../schemas';
 import { useAuth } from '@/hooks/useAuth';
 
 interface UseStockTransferOptions {
@@ -214,7 +214,16 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
 
       // Set items with product info directly from the transfer object
       if (transfer.items && Array.isArray(transfer.items)) {
-        const transferItems: TransferItem[] = transfer.items.map((item: any) => ({
+        const transferItems: TransferItem[] = transfer.items.map((item: {
+          product_id: number;
+          quantity: number;
+          product?: {
+            id: number | string;
+            description: string;
+            code?: string | null;
+            barcode?: string | null;
+          };
+        }) => ({
           product_id: item.product_id,
           quantity: item.quantity,
           availableStock: 0, // Will be updated by the useEffect if needed, or we can leave it as 0 for initial load
@@ -439,7 +448,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
   }, []);
 
   const updateItemQuantity = useCallback((index: number, quantity: number) => {
-    if (quantity <= 0) return;
+    if (quantity < 0 || (!isEditMode && quantity === 0)) return;
 
     setItems(prev => {
       const updated = [...prev];
@@ -448,7 +457,7 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       }
       return updated;
     });
-  }, []);
+  }, [isEditMode]);
 
   const reset = useCallback(() => {
     setForm(initialFormState(preselectedSourceBranchId));
@@ -470,14 +479,15 @@ export function useStockTransfer(options: UseStockTransferOptions = {}): UseStoc
       })),
     };
 
-    const result = createTransferSchema.safeParse(payload);
+    const schema = isEditMode ? editTransferSchema : createTransferSchema;
+    const result = schema.safeParse(payload);
 
     if (result.success) {
       return { valid: true, errors: {} };
     }
 
     return { valid: false, errors: getValidationErrors(result.error) };
-  }, [form, items]);
+  }, [form, items, isEditMode]);
 
   const submit = useCallback(async (): Promise<boolean> => {
     const validation = validateForm();
