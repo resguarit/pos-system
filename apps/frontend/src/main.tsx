@@ -13,6 +13,7 @@ import { ExchangeRateProvider } from "@/context/ExchangeRateContext"
 import { CashRegisterProvider } from "@/context/CashRegisterContext"
 import { SystemConfigProvider } from "@/context/SystemConfigContext"
 import { ArcaProvider } from "@/context/ArcaContext"
+import { SalesHistoryDateProvider } from "@/context/SalesHistoryDateContext"
 import EnterSubmitProvider from "@/components/enter-submit-provider"
 import { CartProvider } from "@/context/CartContext"
 import { NewPurchaseOrderProvider } from "@/contexts/new-purchase-order-context"
@@ -30,15 +31,17 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                   <ExchangeRateProvider>
                     <CashRegisterProvider>
                       <SystemConfigProvider>
-                        <CartProvider>
-                          <NewPurchaseOrderProvider>
-                            <ErrorBoundary>
-                              <App />
-                            </ErrorBoundary>
-                            <Toaster position="top-right" options={{ fill: "#171717", styles: { title: "text-white!", description: "text-white/75!" } }} />
-                            <EnterSubmitProvider />
-                          </NewPurchaseOrderProvider>
-                        </CartProvider>
+                        <SalesHistoryDateProvider>
+                          <CartProvider>
+                            <NewPurchaseOrderProvider>
+                              <ErrorBoundary>
+                                <App />
+                              </ErrorBoundary>
+                              <Toaster position="top-right" options={{ fill: "#171717", styles: { title: "text-white!", description: "text-white/75!" } }} />
+                              <EnterSubmitProvider />
+                            </NewPurchaseOrderProvider>
+                          </CartProvider>
+                        </SalesHistoryDateProvider>
                       </SystemConfigProvider>
                     </CashRegisterProvider>
                   </ExchangeRateProvider>

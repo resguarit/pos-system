@@ -32,7 +32,7 @@ import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-c
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
 import type { DateRange } from "@/components/ui/date-range-picker";
 import Pagination from "@/components/ui/pagination";
-import { format, startOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useState, useEffect, useRef, useMemo } from "react";
 import useApi from "@/hooks/useApi";
@@ -45,6 +45,7 @@ import CashRegisterStatusBadge from "@/components/cash-register-status-badge";
 import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status";
 import { useLocation } from "react-router-dom";
 import { useBranch } from "@/context/BranchContext";
+import { useSalesHistoryDate } from "@/context/SalesHistoryDateContext";
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
@@ -67,6 +68,7 @@ const PAGE_SIZE = 20; // Tamaño óptimo para producción
 export default function VentasPage() {
   const { request } = useApi();
   const { hasPermission } = useAuth();
+  const { dateRange, setDateRange, resetDateRange } = useSalesHistoryDate();
 
   const { selectionChangeToken, selectedBranch, selectedBranchIds, branches } = useBranch();
   const [sales, setSales] = useState<SaleHeader[]>([]);
@@ -81,10 +83,6 @@ export default function VentasPage() {
   });
   const [usingServerPagination, setUsingServerPagination] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: startOfMonth(new Date()),
-    to: new Date(),
-  });
   const [showChart, setShowChart] = useState(false);
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -337,13 +335,14 @@ export default function VentasPage() {
           responseData ??
           [];
 
-        const items = Array.isArray(rawProducts) ? rawProducts : [];
-        const options: Option[] = items.map((p: any) => {
+        const items = (Array.isArray(rawProducts) ? rawProducts : []) as Array<Record<string, unknown>>;
+        const options: Option[] = items.map((p) => {
           const code = p.code ?? p.sku ?? p.barcode ?? p.id;
           const name = p.name ?? p.description ?? "Sin nombre";
+          const id = p.id ?? code;
           return {
             label: `${code} - ${name}`,
-            value: p.id.toString()
+            value: String(id)
           };
         });
 
@@ -834,7 +833,7 @@ export default function VentasPage() {
 
   // Función para limpiar el filtro de fechas y volver al mes actual
   const clearDateRange = () => {
-    setDateRange(undefined);
+    resetDateRange();
   };
 
   const formatDate = (dateString: string | null | undefined) => {
