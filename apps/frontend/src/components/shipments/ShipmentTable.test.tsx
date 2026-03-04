@@ -7,6 +7,13 @@ vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ hasPermission: () => true }),
 }));
 
+vi.mock('@/context/BranchContext', () => ({
+  useBranch: () => ({
+    branches: [],
+    allBranches: [],
+  }),
+}));
+
 vi.mock('@/components/ui/tooltip', () => ({
   TooltipProvider: ({ children }: { children: unknown }) => children,
   Tooltip: ({ children }: { children: unknown }) => children,

@@ -42,6 +42,7 @@ import type { AuditActivity, AuditFilters, AuditStatistics, AuditFilterOptions }
 import { useAuth } from '@/hooks/useAuth';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader } from '@/components/ui/resizable-table-header';
+import { usePersistentState } from '@/hooks/usePersistentState';
 
 export default function AuditoriasPage() {
   const { request, loading } = useApi();
@@ -51,10 +52,10 @@ export default function AuditoriasPage() {
   const [filterOptions, setFilterOptions] = useState<AuditFilterOptions | null>(null);
   const [selectedAudit, setSelectedAudit] = useState<AuditActivity | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistentState('currentPage', 1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [perPage, setPerPage] = useState(50);
+  const [perPage, setPerPage] = usePersistentState('perPage', 50);
 
   // Configuración de columnas redimensionables
   const columnConfig = [
@@ -78,7 +79,7 @@ export default function AuditoriasPage() {
   });
 
   // Filtros
-  const [filters, setFilters] = useState<AuditFilters>({
+  const [filters, setFilters] = usePersistentState<AuditFilters>('filters', {
     user_id: undefined,
     subject_type: undefined,
     log_name: undefined,

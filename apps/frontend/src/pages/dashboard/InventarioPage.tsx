@@ -27,6 +27,7 @@ import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { useAuth } from '@/hooks/useAuth';
 import { useBranch } from '@/context/BranchContext';
+import { usePersistentState } from '@/hooks/usePersistentState';
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { matchesWildcard } from "@/utils/searchUtils";
 
@@ -52,19 +53,19 @@ export default function InventarioPage() {
   const [categories, setCategories] = useState<ProductCategoryType[]>([])
   const [parentCategories, setParentCategories] = useState<ProductCategoryType[]>([])
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [selectedStockStatuses, setSelectedStockStatuses] = useState<string[]>([])
-  const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([])
-  const [selectedProductStatus, setSelectedProductStatus] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState<string>("")
+  const [selectedCategories, setSelectedCategories] = usePersistentState<string[]>('selectedCategories', [])
+  const [selectedStockStatuses, setSelectedStockStatuses] = usePersistentState<string[]>('selectedStockStatuses', [])
+  const [selectedSuppliers, setSelectedSuppliers] = usePersistentState<string[]>('selectedSuppliers', [])
+  const [selectedProductStatus, setSelectedProductStatus] = usePersistentState<string>('selectedProductStatus', 'all')
+  const [searchQuery, setSearchQuery] = usePersistentState<string>('searchQuery', "")
   const { request, loading, error } = useApi()
   const { dispatch } = useEntityContext()
   const [initialDataLoaded, setInitialDataLoaded] = useState(false)
   const [suppliers, setSuppliers] = useState<{ id: number; name: string }[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
-  const [perBranchView, setPerBranchView] = useState(false)
-  const [page, setPage] = useState<number>(1)
-  const [perPage, setPerPage] = useState<number>(10)
+  const [perBranchView, setPerBranchView] = usePersistentState('perBranchView', false)
+  const [page, setPage] = usePersistentState<number>('page', 1)
+  const [perPage, setPerPage] = usePersistentState<number>('perPage', 10)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [advancedBulkUpdateDialogOpen, setAdvancedBulkUpdateDialogOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -166,7 +167,6 @@ export default function InventarioPage() {
 
           // 1. Client-side Search
           if (searchQuery) {
-            const lowerQuery = searchQuery.toLowerCase();
             filteredData = filteredData.filter((p: Product) => {
               const q = p as Product & { barcode?: string };
               // Use matchesWildcard for all searchable fields
@@ -350,14 +350,13 @@ export default function InventarioPage() {
 
     const loadInitialData = async () => {
       // Fetch branches and capture the returned data
-      const [branchesData] = await Promise.all([fetchBranches(signal), fetchCategories(signal), fetchSuppliers(signal)])
+      await Promise.all([fetchBranches(signal), fetchCategories(signal), fetchSuppliers(signal)])
 
-      const branchParams = searchParams.getAll('branch')
       const stockParam = searchParams.get('stock')
       const catParam = searchParams.getAll('category')
       const viewParam = searchParams.get('view')
-      const pageParam = parseInt(searchParams.get('page') || '1', 10)
-      const perPageParam = parseInt(searchParams.get('per_page') || '10', 10)
+      const rawPageParam = searchParams.get('page')
+      const rawPerPageParam = searchParams.get('per_page')
 
       // Las sucursales ahora se manejan desde el contexto global, no desde URL params locales
 
@@ -368,9 +367,20 @@ export default function InventarioPage() {
       if (catParam && catParam.length) {
         setSelectedCategories(catParam)
       }
-      setPerBranchView(viewParam === 'per-branch')
-      setPage(Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1)
-      setPerPage(Number.isFinite(perPageParam) && perPageParam > 0 ? perPageParam : 10)
+      if (viewParam !== null) {
+        setPerBranchView(viewParam === 'per-branch')
+      }
+
+      if (rawPageParam !== null) {
+        const pageParam = parseInt(rawPageParam, 10)
+        setPage(Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1)
+      }
+
+      if (rawPerPageParam !== null) {
+        const perPageParam = parseInt(rawPerPageParam, 10)
+        setPerPage(Number.isFinite(perPageParam) && perPageParam > 0 ? perPageParam : 10)
+      }
+
       setInitialDataLoaded(true)
     }
 

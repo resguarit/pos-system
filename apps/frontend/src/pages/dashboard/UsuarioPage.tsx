@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, RotateCw, Search, Eye, Pencil, Trash2, BarChart3 } from "lucide-react"
 import { useEffect, useState, useCallback } from "react"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { useAuth } from "@/hooks/useAuth"
 import { Link, useSearchParams } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
@@ -76,15 +77,15 @@ export default function UsuariosPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [searchParams] = useSearchParams();
   const initialFilter = searchParams.get('filter') || '';
-  const [searchText, setSearchText] = useState(initialFilter);
-  const [selectedRole, setSelectedRole] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [searchText, setSearchText] = usePersistentState("searchText", initialFilter);
+  const [selectedRole, setSelectedRole] = usePersistentState<string>("selectedRole", "all");
+  const [selectedStatus, setSelectedStatus] = usePersistentState<string>("selectedStatus", "all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [userToDelete, setUserToDelete] = useState<string | null>(null)
 
 
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const PAGE_SIZE = 10

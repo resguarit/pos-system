@@ -18,10 +18,11 @@ import { format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowLeft, Download, TrendingUp, BarChart3, DollarSign, Award, RefreshCw } from 'lucide-react';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
-import type { DateRange } from '@/components/ui/date-range-picker';
 import * as XLSX from 'xlsx';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
+import { usePersistentState } from '@/hooks/usePersistentState';
+import { usePersistentDateRange } from '@/hooks/usePersistentDateRange';
 
 interface User {
   id: number;
@@ -131,17 +132,17 @@ export default function UserPerformancePage() {
   const [loadingUser, setLoadingUser] = useState(true);
 
   // Estados de filtros
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  const [dateRange, setDateRange] = usePersistentDateRange('dateRange', {
     from: startOfMonth(new Date()),
     to: new Date(),
   });
-  const [branchFilter, setBranchFilter] = useState<string>('all');
+  const [branchFilter, setBranchFilter] = usePersistentState<string>('branchFilter', 'all');
   const [branches, setBranches] = useState<Array<{ id: number; description: string }>>([]);
   const [commissionPercentage, setCommissionPercentage] = useState<number>(5); // Porcentaje de comisión por defecto
 
 
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistentState('currentPage', 1);
   const [totalPages, setTotalPages] = useState(1);
 
 

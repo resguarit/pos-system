@@ -25,6 +25,7 @@ import Pagination from '@/components/ui/pagination';
 import { DatePickerWithRange, DateRange } from '@/components/ui/date-range-picker';
 import { Autocomplete } from '@/components/ui/autocomplete';
 import { useTransporters } from '@/hooks/useTransporters';
+import { usePersistentState } from '@/hooks/usePersistentState';
 /**
  * Clasificación de Estados de Envío basada en el campo 'order' del stage:
  * - order = 1: Pendiente (Pendiente)
@@ -58,20 +59,20 @@ export default function ShipmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedShipment, setSelectedShipment] = useState<number | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = usePersistentState<boolean>('showFilters', false);
   const [showNewShipment, setShowNewShipment] = useState(false);
   const [showEditShipment, setShowEditShipment] = useState(false);
   const [editingShipmentId, setEditingShipmentId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = usePersistentState<string>('searchTerm', '');
 
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistentState<number>('currentPage', 1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [perPage] = useState(10);
 
   // Estados para búsqueda de clientes y transportistas
-  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = usePersistentState<string>('customerSearch', '');
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const { transporters, loading: loadingTransporters } = useTransporters();
 
@@ -83,7 +84,7 @@ export default function ShipmentsPage() {
     clear: clearCustomers,
   } = useDebouncedSearch<Customer>({ endpoint: '/customers' });
 
-  const [filters, setFilters] = useState<ShipmentFilters>({
+  const [filters, setFilters] = usePersistentState<ShipmentFilters>('filters', {
     stage_id: [],
     reference: '',
     created_from: '',
@@ -174,7 +175,7 @@ export default function ShipmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedBranchIds, filters, loadMultipleBranchesShipments, perPage]);
+  }, [selectedBranchIds, filters, loadMultipleBranchesShipments, perPage, setCurrentPage]);
 
   useEffect(() => {
     if (!authLoading) {
@@ -187,9 +188,9 @@ export default function ShipmentsPage() {
   // Efecto separado para fetchData que depende de selección de sucursales y filtros
   useEffect(() => {
     if (!authLoading && hasPermission('ver_envios')) {
-      fetchData();
+      fetchData(currentPage);
     }
-  }, [authLoading, hasPermission, fetchData]);
+  }, [authLoading, hasPermission, fetchData, currentPage]);
 
 
 

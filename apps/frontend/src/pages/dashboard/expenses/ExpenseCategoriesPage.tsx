@@ -8,6 +8,7 @@ import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resiza
 import { Search, Pencil, Trash2, RotateCw, Plus, ChevronRight, ChevronDown, FolderPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import Pagination from "@/components/ui/pagination"
 import { sileo } from "sileo"
 import {
@@ -36,7 +37,7 @@ export default function ExpenseCategoriesPage() {
     const { request, loading } = useApi();
     const { hasPermission } = useAuth();
     const [categories, setCategories] = useState<ExpenseCategory[]>([])
-    const [searchTerm, setSearchTerm] = useState("")
+    const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
 
     // Dialog states
@@ -50,7 +51,7 @@ export default function ExpenseCategoriesPage() {
     // Expanded categories state (for showing subcategories)
     const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set())
 
-    const [currentPage, setCurrentPage] = useState(1)
+    const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
     const [totalItems, setTotalItems] = useState(0)
     const [totalPages, setTotalPages] = useState(1)
     const PAGE_SIZE = 50 // Increase to show all categories for tree view

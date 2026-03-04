@@ -11,7 +11,8 @@ import { es } from "date-fns/locale"
 import useApi from "@/hooks/useApi"
 import { sileo } from "sileo"
 import { useAuth } from "@/hooks/useAuth"
-import type { DateRange } from "react-day-picker"
+import { usePersistentState } from "@/hooks/usePersistentState"
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
 
 interface FinancialSummary {
   period: {
@@ -88,16 +89,14 @@ export default function ReportesFinancierosPage() {
   const { request, loading } = useApi()
   const { branches, hasPermission } = useAuth()
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-    const today = new Date()
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-    return {
-      from: firstDayOfMonth,
-      to: today
-    }
+  const today = new Date()
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+  const [dateRange, setDateRange] = usePersistentDateRange("dateRange", {
+    from: firstDayOfMonth,
+    to: today,
   })
 
-  const [selectedBranch, setSelectedBranch] = useState<string>("all")
+  const [selectedBranch, setSelectedBranch] = usePersistentState<string>("selectedBranch", "all")
   const [summary, setSummary] = useState<FinancialSummary | null>(null)
   const [movementsDetail, setMovementsDetail] = useState<MovementsDetail | null>(null)
   const [showIncomeDetail, setShowIncomeDetail] = useState(false)

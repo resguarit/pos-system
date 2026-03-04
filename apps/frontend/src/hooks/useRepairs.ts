@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import useApi from "@/hooks/useApi";
 import { useBranch } from "@/context/BranchContext";
 import { sileo } from "sileo"
+import { usePersistentState } from "@/hooks/usePersistentState";
 import type {
     Repair,
     RepairFilters,
@@ -109,7 +110,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
     const [kanbanData, setKanbanData] = useState<KanbanColumn[]>([]);
     const [loading, setLoading] = useState(false);
     const [statsLoading, setStatsLoading] = useState(false);
-    const [filters, setFilters] = useState<RepairFilters>({});
+    const [filters, setFilters] = usePersistentState<RepairFilters>("filters", {});
 
     // Refs for stable values
     const filtersRef = useRef(filters);
@@ -518,7 +519,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         if (!autoFetch) return;
 
         const controller = new AbortController();
-        fetchRepairs(controller.signal, filters); // Explicitly pass latest filters to avoid stale closure/ref issues
+        fetchRepairs(controller.signal);
 
         return () => controller.abort();
     }, [

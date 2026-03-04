@@ -64,6 +64,7 @@ import {
   extractSaleIdFromDescription
 } from "@/utils/cash-register-utils"
 import { filterCashMovementTypes } from "@/utils/movementTypeFilters"
+import { usePersistentState } from "@/hooks/usePersistentState"
 
 export default function CajaPage() {
 
@@ -206,12 +207,12 @@ export default function CajaPage() {
   const [openMultiBranchMovementDialog, setOpenMultiBranchMovementDialog] = useState(false)
   const [openExportDialog, setOpenExportDialog] = useState(false)
   const [selectedBranchForAction, setSelectedBranchForAction] = useState<number | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
   const [isPageLoading, setIsPageLoading] = useState(false)
   const [multiBranchTab, setMultiBranchTab] = useState("general")
   const [activeTab, setActiveTab] = useState("current")
-  const [movementTypeFilter, setMovementTypeFilter] = useState("all")
-  const [movementsPage, setMovementsPage] = useState(1)
+  const [movementTypeFilter, setMovementTypeFilter] = usePersistentState("movementTypeFilter", "all")
+  const [movementsPage, setMovementsPage] = usePersistentState("movementsPage", 1)
   const movementsPerPage = 10
 
   // Modal de detalle de venta
@@ -228,7 +229,7 @@ export default function CajaPage() {
   const [statusRefreshKey, setStatusRefreshKey] = useState(0)
 
   // Paginación para el historial de cajas
-  const [registerHistoryPage, setRegisterHistoryPage] = useState(1)
+  const [registerHistoryPage, setRegisterHistoryPage] = usePersistentState("registerHistoryPage", 1)
   const [expandedHistoryRows, setExpandedHistoryRows] = useState<Set<number>>(new Set())
   const registerHistoryPerPage = 5
   const registerHistoryTotalPages = Math.max(1, Math.ceil(registerHistory.length / registerHistoryPerPage))

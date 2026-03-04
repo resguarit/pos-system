@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react"
+import { useMemo, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,6 +19,8 @@ import * as XLSX from "xlsx"
 import { sileo } from "sileo"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Cell } from 'recharts'
 import type { StatisticsFilters, SelectOption } from "@/types/statistics.types"
+import { usePersistentState } from "@/hooks/usePersistentState"
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
 import {
   CHART_COLORS,
   HOURS,
@@ -40,18 +42,18 @@ export default function AnalisisVentasPage() {
 
   // ─── Filter state ────────────────────────────────────────────────────
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  const [dateRange, setDateRange] = usePersistentDateRange("dateRange", {
     from: startOfMonth(new Date()),
     to: endOfMonth(new Date()),
   })
-  const [branchId, setBranchId] = useState("all")
-  const [userId, setUserId] = useState("all")
-  const [categoryId, setCategoryId] = useState("all")
-  const [supplierId, setSupplierId] = useState("all")
-  const [productSearch, setProductSearch] = useState("")
-  const [hourFrom, setHourFrom] = useState("all")
-  const [hourTo, setHourTo] = useState("all")
-  const [activeTab, setActiveTab] = useState("resumen")
+  const [branchId, setBranchId] = usePersistentState("branchId", "all")
+  const [userId, setUserId] = usePersistentState("userId", "all")
+  const [categoryId, setCategoryId] = usePersistentState("categoryId", "all")
+  const [supplierId, setSupplierId] = usePersistentState("supplierId", "all")
+  const [productSearch, setProductSearch] = usePersistentState("productSearch", "")
+  const [hourFrom, setHourFrom] = usePersistentState("hourFrom", "all")
+  const [hourTo, setHourTo] = usePersistentState("hourTo", "all")
+  const [activeTab, setActiveTab] = usePersistentState("activeTab", "resumen")
 
   /** Memoized filters para el hook */
   const filters: StatisticsFilters = useMemo(() => ({
@@ -171,7 +173,7 @@ export default function AnalisisVentasPage() {
     setProductSearch("")
     setHourFrom("all")
     setHourTo("all")
-  }, [])
+  }, [setBranchId, setCategoryId, setDateRange, setHourFrom, setHourTo, setProductSearch, setSupplierId, setUserId])
 
   const activeFilterCount = useMemo(() => [
     branchId !== 'all',

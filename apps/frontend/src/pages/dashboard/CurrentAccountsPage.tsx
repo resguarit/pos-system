@@ -26,6 +26,7 @@ import { CurrentAccountForm } from '@/components/currentAccount/CurrentAccountFo
 import { CurrentAccountDetails } from '@/components/currentAccount/CurrentAccountDetails';
 import { PaymentDialog } from '@/components/currentAccount/PaymentDialog';
 import { usePermissions } from '@/hooks/usePermissions';
+import { usePersistentState } from '@/hooks/usePersistentState';
 
 type ViewMode = 'list' | 'details' | 'form';
 
@@ -36,9 +37,9 @@ export default function CurrentAccountsPage() {
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [statistics, setStatistics] = useState<GeneralStatistics | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [balanceFilter, setBalanceFilter] = useState('');
+  const [searchTerm, setSearchTerm] = usePersistentState('searchTerm', '');
+  const [statusFilter, setStatusFilter] = usePersistentState('statusFilter', '');
+  const [balanceFilter, setBalanceFilter] = usePersistentState('balanceFilter', '');
   const { hasPermission } = usePermissions();
 
   // Manejar filtro inicial desde URL

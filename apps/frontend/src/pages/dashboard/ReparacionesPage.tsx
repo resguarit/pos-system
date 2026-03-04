@@ -33,7 +33,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useResizableColumns } from "@/hooks/useResizableColumns";
 import { ResizableTableHeader, ResizableTableCell } from "@/components/ui/resizable-table-header";
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper";
@@ -45,6 +45,7 @@ import { useRepairs } from "@/hooks/useRepairs";
 import type { Repair, RepairStatus, RepairPriority } from "@/types/repairs";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange";
 
 // Badge color configs
 const STATUS_BADGE_COLORS: Record<RepairStatus, string> = {
@@ -119,7 +120,7 @@ export default function ReparacionesPage() {
     });
 
     // Date filter using DateRangePicker
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [dateRange, setDateRange] = usePersistentDateRange("dateRange");
 
     // Dialog states
     const [createDialogOpen, setCreateDialogOpen] = useState(false);

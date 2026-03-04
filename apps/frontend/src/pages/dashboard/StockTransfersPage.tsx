@@ -28,7 +28,7 @@ import type { StockTransfer } from '@/types/stockTransfer'
 import { sileo } from "sileo"
 import { useBranch } from '@/context/BranchContext'
 import { exportTransferToPDF, exportTransferToExcel } from '@/lib/utils/transferExport'
-import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
+import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,13 +50,15 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createWildcardMatcher } from "@/utils/searchUtils"
+import { usePersistentState } from "@/hooks/usePersistentState"
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
 
 export default function StockTransfersPage() {
   const { hasPermission } = usePermissions()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [branchFilterUI, setBranchFilterUI] = useState<string[]>([])
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
+  const [statusFilter, setStatusFilter] = usePersistentState("statusFilter", "all")
+  const [branchFilterUI, setBranchFilterUI] = usePersistentState<string[]>("branchFilterUI", [])
+  const [dateRange, setDateRange] = usePersistentDateRange("dateRange")
 
   // Permission checks
   const canCreate = hasPermission(PERMISSIONS.CREATE)

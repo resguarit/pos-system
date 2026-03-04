@@ -24,13 +24,14 @@ import { DeleteComboDialog } from "@/components/DeleteComboDialog";
 import { getAllCombos, calculateComboPrice } from "@/lib/api/comboService";
 import type { Combo } from "@/types/combo";
 import { useAuth } from "@/context/AuthContext";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 export default function CombosPage() {
   const { user } = useAuth();
   const [combos, setCombos] = useState<Combo[]>([]);
   const [comboPrices, setComboPrices] = useState<Map<number, number>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);

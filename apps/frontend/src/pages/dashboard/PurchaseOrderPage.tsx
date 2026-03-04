@@ -29,18 +29,20 @@ import { useAuth } from "@/hooks/useAuth"
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper"
 import Pagination from "@/components/ui/pagination"
 import { useBranch } from "@/context/BranchContext"
+import { usePersistentState } from "@/hooks/usePersistentState"
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
 
 export default function PurchaseOrderPage() {
   const { hasPermission, currentBranch } = useAuth();
   const { selectedBranchIds, branches } = useBranch();
   const [searchParams] = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
 
   // Estados para filtros de sucursales desde Caja
   const [filteredBranchIds, setFilteredBranchIds] = useState<number[]>([])
   const [preselectedBranchId, setPreselectedBranchId] = useState<number | undefined>(undefined)
   const [disableBranchSelection, setDisableBranchSelection] = useState(false)
-  const [branchFilter, setBranchFilter] = useState<string>('all')
+  const [branchFilter, setBranchFilter] = usePersistentState<string>('branchFilter', 'all')
 
   // Configuración de columnas redimensionables para órdenes de compra
   const orderColumnConfig = [
@@ -73,18 +75,18 @@ export default function PurchaseOrderPage() {
   const [cancelOrderStatus, setCancelOrderStatus] = useState<string>('')
   const [purchaseOrders, setPurchaseOrders] = useState<APIPurchaseOrder[]>([])
   const [loading, setLoading] = useState(false)
-  const [statusFilter, setStatusFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = usePersistentState("statusFilter", "all")
 
   // Estados de paginación para órdenes de compra
-  const [currentPOPage, setCurrentPOPage] = useState(1)
+  const [currentPOPage, setCurrentPOPage] = usePersistentState("currentPOPage", 1)
   const [totalPOItems, setTotalPOItems] = useState(0)
   const [totalPOPages, setTotalPOPages] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [pageSize, setPageSize] = usePersistentState("pageSize", 10)
 
   // Nuevos estados para el resumen
   const [summary, setSummary] = useState<{ ARS?: number; USD?: number }>({})
   const [summaryPeriod, setSummaryPeriod] = useState<{ from: string; to: string } | null>(null)
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+  const [dateRange, setDateRange] = usePersistentDateRange("dateRange", {
     from: startOfMonth(new Date()),
     to: new Date(),
   })
@@ -170,7 +172,7 @@ export default function PurchaseOrderPage() {
     } finally {
       setLoading(false)
     }
-  }, [filteredBranchIds, pageSize, searchTerm, statusFilter, branchFilter, selectedBranchIds])
+  }, [filteredBranchIds, pageSize, searchTerm, statusFilter, branchFilter, selectedBranchIds, setCurrentPOPage])
 
   // Recargar órdenes cuando cambien los filtros de sucursales, estado o contexto global
   useEffect(() => {

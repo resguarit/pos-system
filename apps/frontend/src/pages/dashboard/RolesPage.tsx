@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { sileo } from "sileo"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { useEntityContext } from "@/context/EntityContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { useAuth } from "@/hooks/useAuth"
@@ -42,7 +43,7 @@ export default function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [roleToDelete, setRoleToDelete] = useState<string | null>(null)
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = usePersistentState("search", "");
   const { dispatch } = useEntityContext();
 
   // Configuración de columnas redimensionables
@@ -65,7 +66,7 @@ export default function RolesPage() {
   });
 
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const PAGE_SIZE = 10

@@ -61,6 +61,7 @@ import { useBudgets } from "@/hooks/useBudgets";
 import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { AsyncMultiSelect, type Option } from "@/components/ui/async-multi-select";
+import { usePersistentState } from "@/hooks/usePersistentState";
 
 // Configuración de paginación
 const PAGE_SIZE = 20; // Tamaño óptimo para producción
@@ -82,7 +83,7 @@ export default function VentasPage() {
     average_sale_amount: 0,
   });
   const [usingServerPagination, setUsingServerPagination] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "");
   const [showChart, setShowChart] = useState(false);
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -93,7 +94,7 @@ export default function VentasPage() {
   const [saleToDevolve, setSaleToDevolve] = useState<SaleHeader | null>(null);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1);
   const [pageLoading, setPageLoading] = useState(true);
   const [allSales, setAllSales] = useState<SaleHeader[]>([]); // Para paginación del cliente
   const [loadingActions, setLoadingActions] = useState<Record<string, boolean>>({});
@@ -101,9 +102,9 @@ export default function VentasPage() {
   // Track handled navigation to avoid repeated detail fetches
   const handledOpenSaleIdRef = useRef<number | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'annulled' | 'budgets'>('all');
-  const [branchFilterIds, setBranchFilterIds] = useState<string[]>([]);
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]); // Estado para productos seleccionados
+  const [statusFilter, setStatusFilter] = usePersistentState<'all' | 'active' | 'annulled' | 'budgets'>("statusFilter", 'all');
+  const [branchFilterIds, setBranchFilterIds] = usePersistentState<string[]>("branchFilterIds", []);
+  const [selectedProductIds, setSelectedProductIds] = usePersistentState<string[]>("selectedProductIds", []); // Estado para productos seleccionados
   const [productOptions, setProductOptions] = useState<Option[]>([]); // Estado para opciones de productos
   const [productLabelMap, setProductLabelMap] = useState<Record<string, string>>({});
   const [debouncedProductQuery, setDebouncedProductQuery] = useState("");
@@ -113,8 +114,8 @@ export default function VentasPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Presupuestos State & Hook
-  const [budgetStatus, setBudgetStatus] = useState<'active' | 'converted' | 'annulled' | 'all'>('active');
-  const [currentBudgetPage, setCurrentBudgetPage] = useState(1);
+  const [budgetStatus, setBudgetStatus] = usePersistentState<'active' | 'converted' | 'annulled' | 'all'>("budgetStatus", 'active');
+  const [currentBudgetPage, setCurrentBudgetPage] = usePersistentState("currentBudgetPage", 1);
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
   // Debounce search for budgets

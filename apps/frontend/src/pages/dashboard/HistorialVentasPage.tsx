@@ -20,11 +20,12 @@ import { useAuth } from '@/hooks/useAuth';
 import Pagination from '@/components/ui/pagination';
 import { useMemo, useEffect } from 'react';
 import { MultiSelectCombobox, Option } from '@/components/ui/multi-select-combobox';
+import { usePersistentState } from '@/hooks/usePersistentState';
 
 export default function SalesHistoryPage() {
-  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
+  const [selectedBranchId, setSelectedBranchId] = usePersistentState<number | null>('selectedBranchId', null);
   const [showChart, setShowChart] = useState(false);
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = usePersistentState<string[]>('selectedProductIds', []);
   const [products, setProducts] = useState<Option[]>([]);
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,7 @@ export default function SalesHistoryPage() {
   const [selectedReceiptSale, setSelectedReceiptSale] = useState<SaleHeader | null>(null);
 
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistentState('currentPage', 1);
   const [perPage] = useState(15);
   const { state } = useEntityContext();
   const { request } = useApi();

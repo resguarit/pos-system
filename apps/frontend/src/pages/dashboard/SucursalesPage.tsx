@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { useEntityContext } from "@/context/EntityContext"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { BranchPersonnelModal } from "@/components/branches/BranchPersonnelModal"
@@ -63,12 +64,12 @@ export default function SucursalesPage() {
     storageKey: 'sucursales-column-widths',
     defaultWidth: 150
   });
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [branchToDelete, setBranchToDelete] = useState<string | null>(null);
 
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1);
   const [perPage] = useState(10);
 
   const [personnelModal, setPersonnelModal] = useState<{ isOpen: boolean; branchId: string | null; branchName: string | null }>({

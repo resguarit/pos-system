@@ -9,6 +9,7 @@ import { Search, Pencil, Trash2, RotateCw, Plus, Link2, Eye, User } from "lucide
 import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import Pagination from "@/components/ui/pagination"
 import { sileo } from "sileo"
 import {
@@ -52,7 +53,7 @@ export default function EmployeesPage() {
     const { request, loading } = useApi();
     const { hasPermission } = useAuth();
     const [employees, setEmployees] = useState<Employee[]>([])
-    const [searchTerm, setSearchTerm] = useState("")
+    const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
 
     // Dialog states
@@ -63,7 +64,7 @@ export default function EmployeesPage() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [employeeToDelete, setEmployeeToDelete] = useState<number | null>(null)
 
-    const [currentPage, setCurrentPage] = useState(1)
+    const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
     const [totalItems, setTotalItems] = useState(0)
     const [totalPages, setTotalPages] = useState(1)
     const PAGE_SIZE = 10

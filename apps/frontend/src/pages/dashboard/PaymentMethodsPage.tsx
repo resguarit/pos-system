@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, RotateCw, Search, Pencil, Trash2, CreditCard, Percent } from "lucide-react"
 import { useEffect, useState, useCallback } from "react"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { useAuth } from "@/hooks/useAuth"
 import Pagination from "@/components/ui/pagination"
 import {
@@ -62,7 +63,7 @@ export default function PaymentMethodsPage() {
     });
 
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
-    const [searchText, setSearchText] = useState("")
+    const [searchText, setSearchText] = usePersistentState("searchText", "")
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
     const [editDialogOpen, setEditDialogOpen] = useState(false)
     const [methodToDelete, setMethodToDelete] = useState<number | null>(null)
@@ -76,10 +77,10 @@ export default function PaymentMethodsPage() {
     const [isEditMode, setIsEditMode] = useState(false)
 
     // Estados de paginación
-    const [currentPage, setCurrentPage] = useState(1)
+    const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
     const [totalItems, setTotalItems] = useState(0)
     const [totalPages, setTotalPages] = useState(1)
-    const [pageSize, setPageSize] = useState(10)
+    const [pageSize, setPageSize] = usePersistentState("pageSize", 10)
     const [allPaymentMethods, setAllPaymentMethods] = useState<PaymentMethod[]>([])
 
     const fetchPaymentMethods = useCallback(async (page = 1, signal?: AbortSignal) => {

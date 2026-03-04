@@ -14,6 +14,7 @@ import type { Supplier as SupplierType } from "@/types"
 import { sileo } from "sileo"
 import { useAuth } from "@/hooks/useAuth"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper"
 import Pagination from "@/components/ui/pagination"
 
@@ -21,7 +22,7 @@ export default function ProveedoresPage() {
   const navigate = useNavigate()
   const { hasPermission } = useAuth();
   const { request } = useApi();
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
 
   // Configuración de columnas redimensionables para proveedores
   const supplierColumnConfig = [
@@ -51,7 +52,7 @@ export default function ProveedoresPage() {
   const [loading, setLoading] = useState(false)
 
   // Estados de paginación para proveedores
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const PAGE_SIZE = 8

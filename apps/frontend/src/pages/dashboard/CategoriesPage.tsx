@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, RotateCw, Search, Eye, Pencil, Trash2, FolderOpen, Folder } from "lucide-react"
 import { useEffect, useState, useCallback } from "react"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { useAuth } from "@/hooks/useAuth"
 import { Link } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
@@ -87,15 +88,15 @@ export default function CategoriesPage({
     defaultWidth: 150
   });
   const [categories, setCategories] = useState<Category[]>([])
-  const [searchText, setSearchText] = useState("")
+  const [searchText, setSearchText] = usePersistentState("searchText", "")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null)
   
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
-  const [pageSize, setPageSize] = useState(5) // Cambiar a 5 por defecto
+  const [pageSize, setPageSize] = usePersistentState("pageSize", 5) // Cambiar a 5 por defecto
   const [allCategories, setAllCategories] = useState<Category[]>([]) // Todas las categorías para paginación frontend
 
   const fetchCategories = useCallback(async (page = 1, signal?: AbortSignal) => {

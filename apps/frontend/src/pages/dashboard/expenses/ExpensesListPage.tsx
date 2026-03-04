@@ -26,8 +26,10 @@ import { NewExpenseDialog, EditExpenseDialog } from "@/components/expenses"
 import { ExpensesStats } from "@/components/expenses/ExpensesStats"
 import ExpenseCalendar from "./ExpenseCalendar"
 import { useSystemConfigContext } from "@/context/SystemConfigContext"
+import { usePersistentState } from "@/hooks/usePersistentState"
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
+import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { format } from "date-fns"
 import { getBillingCycleConfig } from "@/utils/billingCycleUtils"
 import { dispatchExpensesChanged } from "@/utils/expensesEvents"
@@ -136,11 +138,11 @@ export default function ExpensesListPage() {
     const { hasPermission } = useAuth();
     const { config } = useSystemConfigContext();
     const [expenses, setExpenses] = useState<Expense[]>([])
-    const [searchTerm, setSearchTerm] = useState("")
+    const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
 
     // Filters
-    const [filters, setFilters] = useState({
+    const [filters, setFilters] = usePersistentState("filters", {
         branch_id: 'all',
         status: 'all',
         start_date: '',
@@ -151,13 +153,11 @@ export default function ExpensesListPage() {
     const [statsLoading, setStatsLoading] = useState(false);
 
     // Initialize date range with default: first day of current month to today
-    const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
-        const today = new Date();
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        return {
-            from: firstDayOfMonth,
-            to: today
-        };
+    const today = new Date();
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const [dateRange, setDateRange] = usePersistentDateRange("dateRange", {
+        from: firstDayOfMonth,
+        to: today,
     });
 
     // Dialog states
@@ -168,7 +168,7 @@ export default function ExpensesListPage() {
     const [expenseToDelete, setExpenseToDelete] = useState<number | null>(null)
 
     // Pagination state
-    const [currentPage, setCurrentPage] = useState(1)
+    const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
     const [totalItems, setTotalItems] = useState(0)
     const [totalPages, setTotalPages] = useState(1)
     const PAGE_SIZE = 10
@@ -222,7 +222,7 @@ export default function ExpensesListPage() {
                 end_date: ''
             }))
         }
-    }, [dateRange])
+    }, [dateRange, setFilters])
 
     // Debounce search
     useEffect(() => {
@@ -231,7 +231,7 @@ export default function ExpensesListPage() {
             setCurrentPage(1);
         }, 300);
         return () => clearTimeout(timer);
-    }, [searchTerm]);
+    }, [searchTerm, setCurrentPage]);
 
     const fetchExpenses = useCallback(async (page = 1) => {
         try {
@@ -260,7 +260,7 @@ export default function ExpensesListPage() {
             console.error("Error fetching expenses:", error);
             sileo.error({ title: "Error al cargar los gastos" });
         }
-    }, [request, debouncedSearchTerm, filters]);
+    }, [request, debouncedSearchTerm, filters, setCurrentPage]);
 
     const fetchStats = useCallback(async () => {
         setStatsLoading(true);

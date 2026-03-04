@@ -48,6 +48,7 @@ import {
 } from "lucide-react"
 import Pagination from "@/components/ui/pagination"
 import { useResizableColumns } from "@/hooks/useResizableColumns"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import api from "@/lib/api"
 import { sileo } from "sileo"
 import { getBillingCycleLabel, getBillingCycleBadgeStyles } from "@/utils/billingCycleUtils"
@@ -107,8 +108,8 @@ const getLastPage = (payload: unknown) => {
 export default function ServicesConfigView() {
     const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([])
     const [loading, setLoading] = useState(true)
-    const [searchTerm, setSearchTerm] = useState("")
-    const [currentPage, setCurrentPage] = useState(1)
+    const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
+    const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
     const [totalPages, setTotalPages] = useState(1)
 
     // Resizable columns

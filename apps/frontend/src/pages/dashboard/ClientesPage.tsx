@@ -10,6 +10,7 @@ import { Search, Eye, Pencil, Trash2, RotateCw, BarChart2, Wallet } from "lucide
 import { Button } from "@/components/ui/button"
 import { EditCustomerDialog } from "@/components/edit-customer-dialog"
 import useApi from "@/hooks/useApi"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { Link } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
 import { sileo } from "sileo"
@@ -60,13 +61,13 @@ export default function ClientesPage() {
   const { hasPermission } = useAuth();
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [customerToDelete, setCustomerToDelete] = useState<number | null>(null)
 
   // Estados de paginación
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
   const [totalItems, setTotalItems] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

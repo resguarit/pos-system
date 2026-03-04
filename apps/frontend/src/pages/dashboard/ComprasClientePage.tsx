@@ -30,6 +30,8 @@ import {
   getReceiptTypeBadgeText,
   type ReceiptTypeInfo
 } from "@/lib/receiptTypeUtils";
+import { usePersistentState } from "@/hooks/usePersistentState";
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange";
 
 export default function CustomerPurchasesPage() {
   const params = useParams()
@@ -38,10 +40,10 @@ export default function CustomerPurchasesPage() {
   const { selectedBranchIds, branches } = useBranch();
   const [customer, setCustomer] = useState<any>(null)
   const [purchases, setPurchases] = useState<SaleHeader[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [receiptTypeFilter, setReceiptTypeFilter] = useState("all")
-  const [branchFilter, setBranchFilter] = useState("all")
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfMonth(new Date()), to: new Date() })
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
+  const [receiptTypeFilter, setReceiptTypeFilter] = usePersistentState("receiptTypeFilter", "all")
+  const [branchFilter, setBranchFilter] = usePersistentState("branchFilter", "all")
+  const [dateRange, setDateRange] = usePersistentDateRange("dateRange", { from: startOfMonth(new Date()), to: new Date() })
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isReceiptOpen, setIsReceiptOpen] = useState(false)

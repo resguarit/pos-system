@@ -24,10 +24,11 @@ import EmitCreditNoteDialog from "@/components/sales/EmitCreditNoteDialog"
 import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge"
 import { useAuth } from "@/context/AuthContext"
 import Pagination from "@/components/ui/pagination"
+import { usePersistentState } from "@/hooks/usePersistentState"
+import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
 
 // Tipos y Utilidades
 import type { SaleHeader } from "@/types/sale"
-import type { DateRange } from "@/components/ui/date-range-picker"
 import { getReceiptStyle } from "@/lib/receipt-styles"
 import { NumberFormatter } from "@/lib/formatters/numberFormatter"
 
@@ -53,10 +54,10 @@ export default function BranchSalesPage() {
   const { hasPermission } = useAuth();
   const [branch, setBranch] = useState<Branch | null>(null)
   const [sales, setSales] = useState<SaleHeader[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [receiptTypeFilter, setReceiptTypeFilter] = useState("all")
+  const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
+  const [receiptTypeFilter, setReceiptTypeFilter] = usePersistentState("receiptTypeFilter", "all")
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: startOfYear(new Date()), to: new Date() });
+  const [dateRange, setDateRange] = usePersistentDateRange("dateRange", { from: startOfYear(new Date()), to: new Date() });
 
   const [showChart, setShowChart] = useState(false)
   const [selectedSale, setSelectedSale] = useState<SaleHeader | null>(null)
@@ -74,7 +75,7 @@ export default function BranchSalesPage() {
   const [isExporting, setIsExporting] = useState(false)
 
   // Estados para paginación
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = usePersistentState("currentPage", 1)
 
   // Ref para hacer scroll a la tabla al cambiar de página
   const tableRef = useRef<HTMLDivElement>(null)
@@ -235,7 +236,7 @@ export default function BranchSalesPage() {
   // Resetear a página 1 cuando cambien los filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, receiptTypeFilter, dateRange]);
+  }, [searchTerm, receiptTypeFilter, dateRange, setCurrentPage]);
 
   // Memoizar cálculos de paginación
   const paginationData = useMemo(() => {
@@ -254,7 +255,7 @@ export default function BranchSalesPage() {
       // Scroll suave hacia la tabla
       tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [currentPage, paginationData.totalPages]);
+  }, [currentPage, paginationData.totalPages, setCurrentPage]);
 
   // La función ahora espera `DateRange` y no `DateRange | undefined`
   const handleDateRangeChange = (range: DateRange) => {
