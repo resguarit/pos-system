@@ -105,8 +105,19 @@ class Customer extends Model
     {
         // Extract person data
         $personData = [];
-        foreach (['first_name', 'last_name', 'address', 'city', 'state', 'postal_code', 'phone', 'cuit', 
-                 'fiscal_condition_id', 'person_type_id', 'credit_limit'] as $field) {
+        foreach ([
+            'first_name',
+            'last_name',
+            'address',
+            'city',
+            'state',
+            'postal_code',
+            'phone',
+            'cuit',
+            'fiscal_condition_id',
+            'person_type_id',
+            'credit_limit'
+        ] as $field) {
             if (isset($data[$field])) {
                 $personData[$field] = $data[$field];
             }

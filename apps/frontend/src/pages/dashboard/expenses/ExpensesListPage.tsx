@@ -30,6 +30,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DatePickerWithRange, DateRange } from "@/components/ui/date-range-picker"
 import { format } from "date-fns"
 import { getBillingCycleConfig } from "@/utils/billingCycleUtils"
+import { dispatchExpensesChanged } from "@/utils/expensesEvents"
+import { getErrorMessage } from "@/utils/errorUtils"
 
 // Icon mapping from icon ID to component
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?: string }>> = {
@@ -304,12 +306,13 @@ export default function ExpensesListPage() {
         try {
             await request({ method: "DELETE", url: `/expenses/${expenseToDelete}` })
             sileo.success({ title: 'Gasto eliminado correctamente' })
+            dispatchExpensesChanged();
             fetchExpenses(currentPage);
             fetchStats();
             setDeleteDialogOpen(false)
             setExpenseToDelete(null)
         } catch (error: any) {
-            sileo.error({ title: error?.message || 'Error al eliminar el gasto' })
+            sileo.error({ title: getErrorMessage(error, 'Error al eliminar el gasto') })
         }
     }
 
@@ -321,10 +324,11 @@ export default function ExpensesListPage() {
                 data: { status: 'paid' }
             });
             sileo.success({ title: 'Gasto marcado como pagado' });
+            dispatchExpensesChanged();
             fetchExpenses(currentPage);
             fetchStats();
         } catch (error: any) {
-            sileo.error({ title: error?.message || 'Error al pagar el gasto' });
+            sileo.error({ title: getErrorMessage(error, 'Error al pagar el gasto') });
         }
     }
 

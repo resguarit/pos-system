@@ -191,7 +191,7 @@ export default function ReparacionesPage() {
         const refreshed = await getRepair(selectedRepair.id);
         if (refreshed) {
             setSelectedRepair(refreshed);
-            
+
             // Save any staged notes after main update
             if (notes && notes.length > 0) {
                 for (const note of notes) {
@@ -201,7 +201,7 @@ export default function ReparacionesPage() {
                 const finalRefresh = await getRepair(selectedRepair.id);
                 if (finalRefresh) setSelectedRepair(finalRefresh);
             }
-            
+
             setEditMode(false);
             refresh(); // Refresh the list too
         }

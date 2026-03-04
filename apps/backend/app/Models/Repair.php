@@ -133,4 +133,5 @@ class Repair extends Model
     public function cashMovement()
     {
         return $this->belongsTo(CashMovement::class);
-    }}
+    }
+}

@@ -23,6 +23,7 @@
         "laravel/framework": "^11.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.8",
+        "phpoffice/phpspreadsheet": "^5.5",
         "resguar/afip-sdk": "dev-main",
         "spatie/laravel-activitylog": "^4.10"
     },

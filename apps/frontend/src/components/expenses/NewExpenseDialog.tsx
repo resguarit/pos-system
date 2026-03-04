@@ -50,6 +50,8 @@ import { useBranch } from '@/context/BranchContext';
 import { useSystemConfigContext } from '@/context/SystemConfigContext';
 import useApi from '@/hooks/useApi';
 import { expensesService, ExpenseCategory, Expense } from '@/lib/api/expensesService';
+import { dispatchExpensesChanged } from '@/utils/expensesEvents';
+import { getErrorMessage } from '@/utils/errorUtils';
 
 // Icon mapping from icon ID to component
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?: string }>> = {
@@ -281,11 +283,12 @@ export function NewExpenseDialog({ open, onOpenChange, onSuccess, defaultDate }:
 
             await expensesService.createExpense(payload);
             sileo.success({ title: 'Gasto registrado correctamente' });
+            dispatchExpensesChanged();
             onSuccess();
             onOpenChange(false);
         } catch (error: unknown) {
             console.error(error);
-            sileo.error({ title: 'Error al registrar gasto' });
+            sileo.error({ title: getErrorMessage(error, 'Error al registrar el gasto') });
         } finally {
             setLoading(false);
         }

@@ -48,12 +48,28 @@ class ExpenseController extends Controller
             $query->where('status', $request->status);
         }
 
-        if ($request->has('start_date')) {
-            $query->whereDate('date', '>=', $request->start_date);
-        }
+        if ($request->has('start_date') || $request->has('end_date')) {
+            $query->where(function ($q) use ($request) {
+                // Include normal expenses in the date range
+                $q->where(function ($q2) use ($request) {
+                    if ($request->has('start_date')) {
+                        $q2->whereDate('date', '>=', $request->start_date);
+                    }
+                    if ($request->has('end_date')) {
+                        $q2->whereDate('date', '<=', $request->end_date);
+                    }
+                });
 
-        if ($request->has('end_date')) {
-            $query->whereDate('date', '<=', $request->end_date);
+                // OR include recurring expenses that started on or before the end_date 
+                // so the frontend can project them into the selected period
+                $q->orWhere(function ($q3) use ($request) {
+                    $q3->where('is_recurring', true)
+                        ->where('status', '!=', 'cancelled');
+                    if ($request->has('end_date')) {
+                        $q3->whereDate('date', '<=', $request->end_date);
+                    }
+                });
+            });
         }
 
         if ($request->has('is_recurring')) {
@@ -121,7 +137,7 @@ class ExpenseController extends Controller
     public function show($id)
     {
         $expense = Expense::findOrFail($id);
-        
+
         return response()->json([
             'success' => true,
             'data' => $expense->load(['category', 'employee.person', 'branch', 'paymentMethod', 'user', 'cashMovement'])
@@ -131,7 +147,7 @@ class ExpenseController extends Controller
     public function update(UpdateExpenseRequest $request, $id)
     {
         $expense = Expense::findOrFail($id);
-        
+
         if ($expense->status === 'paid' && $expense->cash_movement_id) {
             return response()->json([
                 'success' => false,
@@ -158,7 +174,7 @@ class ExpenseController extends Controller
     public function destroy($id)
     {
         $expense = Expense::findOrFail($id);
-        
+
         try {
             $this->expenseService->deleteExpense($expense);
 

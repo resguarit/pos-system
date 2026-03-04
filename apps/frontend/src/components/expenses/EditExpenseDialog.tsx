@@ -24,6 +24,8 @@ import { Loader2, Pencil } from 'lucide-react';
 import { sileo } from "sileo";
 import useApi from '@/hooks/useApi';
 import { useBranch } from '@/context/BranchContext';
+import { dispatchExpensesChanged } from '@/utils/expensesEvents';
+import { getErrorMessage } from '@/utils/errorUtils';
 
 interface ExpenseCategory {
     id: number;
@@ -192,13 +194,13 @@ export function EditExpenseDialog({ open, onOpenChange, expense, onSuccess }: Ed
 
             if (response?.success) {
                 sileo.success({ title: 'Gasto actualizado correctamente' });
+                dispatchExpensesChanged();
                 onOpenChange(false);
                 onSuccess();
             }
         } catch (error) {
             console.error('Error updating expense:', error);
-            const err = error as { response?: { data?: { message?: string } } };
-            sileo.error({ title: err?.response?.data?.message || 'Error al actualizar el gasto' });
+            sileo.error({ title: getErrorMessage(error, 'Error al actualizar el gasto') });
         } finally {
             setLoading(false);
         }

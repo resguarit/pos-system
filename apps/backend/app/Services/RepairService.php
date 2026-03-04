@@ -234,7 +234,7 @@ class RepairService implements RepairServiceInterface
                 throw new \Exception('Se requieren el método de pago y la sucursal');
             }
 
-            $amount = (float)($data['amount_paid'] ?? $repair->sale_price ?? 0);
+            $amount = (float) ($data['amount_paid'] ?? $repair->sale_price ?? 0);
             if ($amount <= 0) {
                 throw new \Exception('El monto a cobrar debe ser mayor a 0');
             }

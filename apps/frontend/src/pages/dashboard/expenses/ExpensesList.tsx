@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { expensesService, Expense } from "@/lib/api/expensesService";
-import { DataTable } from "@/components/ui/data-table"; // Assuming a generic DataTable exists or I'll use a simple table
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { useBranch } from "@/context/BranchContext";
@@ -18,6 +16,16 @@ export default function ExpensesList() {
         loadExpenses();
     }, []);
 
+    // Listen for custom events to refresh the list
+    useEffect(() => {
+        const handleRefresh = () => {
+            loadExpenses();
+        };
+
+        window.addEventListener('expenses:changed', handleRefresh);
+        return () => window.removeEventListener('expenses:changed', handleRefresh);
+    }, []);
+
     const loadExpenses = async () => {
         try {
             setLoading(true);
@@ -29,48 +37,6 @@ export default function ExpensesList() {
             setLoading(false);
         }
     };
-
-    const columns = [
-        {
-            accessorKey: "date",
-            header: "Fecha",
-            cell: ({ row }: any) => format(new Date(row.original.date), "dd/MM/yyyy"),
-        },
-        {
-            accessorKey: "description",
-            header: "Descripción",
-        },
-        {
-            accessorKey: "category.name",
-            header: "Categoría",
-        },
-        {
-            accessorKey: "amount",
-            header: "Monto",
-            cell: ({ row }: any) => `$${row.original.amount.toFixed(2)}`,
-        },
-        {
-            accessorKey: "status",
-            header: "Estado",
-            cell: ({ row }: any) => (
-                <Badge variant={row.original.status === "paid" ? "default" : "secondary"}>
-                    {row.original.status}
-                </Badge>
-            ),
-        },
-        {
-            id: "actions",
-            cell: ({ row }: any) => (
-                <Button variant="ghost" size="sm">
-                    Ver
-                </Button>
-            ),
-        },
-    ];
-
-    // If DataTable doesn't exist, I'll render a simple table.
-    // For now, I'll assume I need to build a simple table if I don't find DataTable.
-    // I'll check if DataTable exists first.
 
     return (
         <div className="space-y-4">
@@ -100,7 +66,7 @@ export default function ExpensesList() {
                                 <td colSpan={showBranchColumn ? 7 : 6} className="p-4 text-center">No hay gastos registrados.</td>
                             </tr>
                         ) : (
-                            expenses.map((expense) => (
+                            expenses.map((expense: Expense) => (
                                 <tr key={expense.id} className="border-t">
                                     <td className="p-4">{format(new Date(expense.date), "dd/MM/yyyy")}</td>
                                     <td className="p-4">{expense.description}</td>
@@ -138,4 +104,3 @@ export default function ExpensesList() {
         </div>
     );
 }
-

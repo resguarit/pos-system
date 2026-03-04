@@ -65,9 +65,9 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
                 if (filters.branch_id !== 'all' && filters.branch_id != null) {
                     params.branch_id = filters.branch_id;
                 }
-                if (filters.status && filters.status !== 'all') {
-                    params.status = filters.status;
-                }
+                // We ignore the status filter for the calendar fetch to ensure 
+                // we have all recurring expenses available for future projections,
+                // even if they were already paid in the current month.
             }
 
             const data = await expensesService.getExpenses(params);
@@ -81,6 +81,16 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
 
     useEffect(() => {
         loadExpenses();
+    }, [loadExpenses]);
+
+    // Listen for custom events to refresh the calendar
+    useEffect(() => {
+        const handleRefresh = () => {
+            loadExpenses();
+        };
+
+        window.addEventListener('expenses:changed', handleRefresh);
+        return () => window.removeEventListener('expenses:changed', handleRefresh);
     }, [loadExpenses]);
 
     // Generate instances for each day in the current view
@@ -103,8 +113,8 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
                     eventsMap.get(expDateOnly)!.push(exp);
                 }
 
-                // 2. Project future occurrences only for recurring unpaid expenses
-                if (exp.is_recurring && exp.status !== 'paid') {
+                // 2. Project future occurrences for all non-cancelled recurring expenses
+                if (exp.is_recurring && exp.status !== 'cancelled') {
                     if (isAfter(expStartDate, endDate)) return;
 
                     calendarDays.forEach((calDay) => {
@@ -133,7 +143,14 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
                         }
 
                         if (occursOnThisDay) {
-                            eventsMap.get(dateStr)!.push(exp);
+                            // We push a virtual copy of the expense marked as 'pending' 
+                            // for future projected occurrences, even if the source expense is 'paid'
+                            eventsMap.get(dateStr)!.push({
+                                ...exp,
+                                status: 'pending',
+                                date: dateStr, // Reflect the projected date
+                                due_date: undefined // Clear due_date to avoid false "overdue" status on future projections
+                            });
                         }
                     });
                 }
