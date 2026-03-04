@@ -1,10 +1,11 @@
 import { useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { Shipment, ShipmentStage } from '@/types/shipment';
-import { Package, Eye, Edit, Printer, Download, MapPin, CreditCard, User, Clock, Truck } from 'lucide-react';
+import { Package, Eye, Edit, Printer, Download, MapPin, CreditCard, User, Clock, Truck, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import { getStageBadgeStyle, getShipmentPaymentSummary } from '@/utils/shipmentUtils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -26,6 +27,7 @@ type DesktopColumnKey =
   | 'direccion'
   | 'cliente'
   | 'transportista'
+  | 'origen'
   | 'acciones';
 
 const initialDesktopColumnWidths: Record<DesktopColumnKey, number> = {
@@ -36,6 +38,7 @@ const initialDesktopColumnWidths: Record<DesktopColumnKey, number> = {
   direccion: 260,
   cliente: 170,
   transportista: 170,
+  origen: 180,
   acciones: 140,
 };
 
@@ -47,6 +50,7 @@ const minDesktopColumnWidths: Record<DesktopColumnKey, number> = {
   direccion: 200,
   cliente: 130,
   transportista: 130,
+  origen: 140,
   acciones: 110,
 };
 
@@ -60,6 +64,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
   loading = false,
 }) => {
   const { hasPermission } = useAuth();
+  const { branches, allBranches } = useBranch();
   const [desktopColumnWidths, setDesktopColumnWidths] = useState<Record<DesktopColumnKey, number>>(initialDesktopColumnWidths);
   const desktopTableMinWidth = Object.values(desktopColumnWidths).reduce((total, width) => total + width, 0);
 
@@ -124,6 +129,15 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
       ? [transporter.person.first_name, transporter.person.last_name].filter(Boolean).join(' ').trim()
       : transporter.username;
     return name || '-';
+  };
+
+  const getOriginBranchName = (shipment: Shipment) => {
+    const originBranchId = shipment.metadata?.origin_branch_id ?? shipment.branch_id;
+    if (originBranchId === undefined || originBranchId === null || originBranchId === '') return '-';
+
+    const availableBranches = allBranches.length > 0 ? allBranches : branches;
+    const foundBranch = availableBranches.find((branch) => String(branch.id) === String(originBranchId));
+    return foundBranch?.description || `Sucursal ${originBranchId}`;
   };
 
   const formatCurrency = (amount: number): string => {
@@ -209,6 +223,15 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                   </div>
                 </div>
 
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                    <Store className="w-2.5 h-2.5" /> Origen mercadería
+                  </div>
+                  <div className="font-medium truncate text-sm leading-tight" title={getOriginBranchName(shipment)}>
+                    {getOriginBranchName(shipment)}
+                  </div>
+                </div>
+
                 <div className="pt-1.5 border-t space-y-1">
                   <div className="flex items-center gap-1.5">
                     <CreditCard className="w-2.5 h-2.5 text-gray-400" />
@@ -259,6 +282,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
               <col style={{ width: `${desktopColumnWidths.direccion}px` }} />
               <col style={{ width: `${desktopColumnWidths.cliente}px` }} />
               <col style={{ width: `${desktopColumnWidths.transportista}px` }} />
+              <col style={{ width: `${desktopColumnWidths.origen}px` }} />
               <col style={{ width: `${desktopColumnWidths.acciones}px` }} />
             </colgroup>
             <thead className="bg-gray-50">
@@ -270,6 +294,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dirección<div onMouseDown={handleResizeStart('direccion')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
                 <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente<div onMouseDown={handleResizeStart('cliente')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
                 <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transportista<div onMouseDown={handleResizeStart('transportista')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen mercaderia<div onMouseDown={handleResizeStart('origen')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
                 <th className="relative px-4 pr-8 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones<div onMouseDown={handleResizeStart('acciones')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
               </tr>
             </thead>
@@ -342,6 +367,13 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     <td className="px-4 py-3 text-sm text-gray-900">
                       <div className="truncate max-w-[140px]" title={getTransporterName(shipment)}>
                         {getTransporterName(shipment)}
+                      </div>
+                    </td>
+
+                    {/* Origen de mercadería */}
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <div className="truncate max-w-[160px]" title={getOriginBranchName(shipment)}>
+                        {getOriginBranchName(shipment)}
                       </div>
                     </td>
 
