@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, parseISO, isAfter, isBefore, addYears, differenceInCalendarMonths, differenceInCalendarDays, differenceInCalendarYears } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -65,9 +65,7 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
                 if (filters.branch_id !== 'all' && filters.branch_id != null) {
                     params.branch_id = filters.branch_id;
                 }
-                // We ignore the status filter for the calendar fetch to ensure 
-                // we have all recurring expenses available for future projections,
-                // even if they were already paid in the current month.
+                // Keep status behavior aligned with previous UX for calendar highlights.
             }
 
             const data = await expensesService.getExpenses(params);
@@ -93,7 +91,7 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
         return () => window.removeEventListener('expenses:changed', handleRefresh);
     }, [loadExpenses]);
 
-    // Generate instances for each day in the current view
+    // Group real expense records by day in the current view
     const calendarEvents = useMemo(() => {
         const eventsMap = new Map<string, Expense[]>();
 
@@ -105,59 +103,15 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
             .filter(exp => !exp.deleted_at && exp.status !== 'cancelled')
             .forEach(exp => {
                 if (!exp.date) return;
-                const expStartDate = parseISO(exp.date);
                 const expDateOnly = exp.date.split('T')[0];
 
-                // 1. Always show the actual expense record on its original date
                 if (eventsMap.has(expDateOnly)) {
                     eventsMap.get(expDateOnly)!.push(exp);
-                }
-
-                // 2. Project future occurrences for all non-cancelled recurring expenses
-                if (exp.is_recurring && exp.status !== 'cancelled') {
-                    if (isAfter(expStartDate, endDate)) return;
-
-                    calendarDays.forEach((calDay) => {
-                        if (isBefore(calDay, expStartDate) || isSameDay(calDay, expStartDate)) return;
-
-                        const dateStr = format(calDay, 'yyyy-MM-dd');
-                        let occursOnThisDay = false;
-
-                        switch (exp.recurrence_interval) {
-                            case 'daily':
-                                occursOnThisDay = true;
-                                break;
-                            case 'weekly':
-                                occursOnThisDay = differenceInCalendarDays(calDay, expStartDate) % 7 === 0;
-                                break;
-                            case 'monthly': {
-                                const expected = addMonths(expStartDate, differenceInCalendarMonths(calDay, expStartDate));
-                                occursOnThisDay = isSameDay(calDay, expected);
-                                break;
-                            }
-                            case 'yearly': {
-                                const expected = addYears(expStartDate, differenceInCalendarYears(calDay, expStartDate));
-                                occursOnThisDay = isSameDay(calDay, expected);
-                                break;
-                            }
-                        }
-
-                        if (occursOnThisDay) {
-                            // We push a virtual copy of the expense marked as 'pending' 
-                            // for future projected occurrences, even if the source expense is 'paid'
-                            eventsMap.get(dateStr)!.push({
-                                ...exp,
-                                status: 'pending',
-                                date: dateStr, // Reflect the projected date
-                                due_date: undefined // Clear due_date to avoid false "overdue" status on future projections
-                            });
-                        }
-                    });
                 }
             });
 
         return eventsMap;
-    }, [expenses, calendarDays, endDate]);
+    }, [expenses, calendarDays]);
 
     const getDayStatusHighlight = (dayEvents: Expense[]) => {
         if (!dayEvents.length || isLoading) return null;
