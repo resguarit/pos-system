@@ -17,8 +17,12 @@ export const transferItemEditSchema = z.object({
   quantity: z.number().int().min(0, 'La cantidad no puede ser negativa'),
 });
 
-// Schema for creating a stock transfer
-export const createTransferSchema = z.object({
+const transferSchemaRefinement = {
+  message: 'Las sucursales de origen y destino deben ser diferentes',
+  path: ['destination_branch_id'] as const,
+};
+
+const createTransferSchemaBase = z.object({
   source_branch_id: z
     .number()
     .positive('Debe seleccionar la sucursal de origen'),
@@ -36,12 +40,12 @@ export const createTransferSchema = z.object({
   items: z
     .array(transferItemSchema)
     .min(1, 'Debe agregar al menos un producto'),
-}).refine(
+});
+
+// Schema for creating a stock transfer
+export const createTransferSchema = createTransferSchemaBase.refine(
   (data) => data.source_branch_id !== data.destination_branch_id,
-  {
-    message: 'Las sucursales de origen y destino deben ser diferentes',
-    path: ['destination_branch_id'],
-  }
+  transferSchemaRefinement
 );
 
 // Schema for updating a stock transfer
@@ -54,11 +58,12 @@ export const updateTransferSchema = z.object({
 });
 
 // Schema for validating full payload in edit mode
-export const editTransferSchema = createTransferSchema.extend({
-  items: z
-    .array(transferItemEditSchema)
-    .min(1, 'Debe agregar al menos un producto'),
-});
+export const editTransferSchema = createTransferSchemaBase.extend({
+  items: z.array(transferItemEditSchema).min(1, 'Debe agregar al menos un producto'),
+}).refine(
+  (data) => data.source_branch_id !== data.destination_branch_id,
+  transferSchemaRefinement
+);
 
 // Schema for adding a new item
 export const newItemSchema = z.object({
