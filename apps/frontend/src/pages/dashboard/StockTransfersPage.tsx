@@ -186,6 +186,28 @@ export default function StockTransfersPage() {
     }
   }
 
+  const handleExportTransfer = async (transferId: number, format: 'pdf' | 'excel') => {
+    try {
+      const transferDetails = await stockTransferService.getById(transferId)
+
+      const exportPayload = {
+        transfer: transferDetails,
+        getStatusLabel,
+        getBranchName,
+      }
+
+      if (format === 'pdf') {
+        await exportTransferToPDF(exportPayload)
+        return
+      }
+
+      await exportTransferToExcel(exportPayload)
+    } catch (error) {
+      console.error(`Error exporting transfer ${transferId} to ${format}:`, error)
+      sileo.error({ title: `Error al exportar ${format === 'pdf' ? 'PDF' : 'Excel'}` })
+    }
+  }
+
   const isPending = (status?: string) => (status ?? '').toLowerCase() === 'pending'
 
   const getStatusBadgeColor = (status?: string) => {
@@ -502,22 +524,22 @@ export default function StockTransfersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
-                            onClick={() => exportTransferToPDF({
-                              transfer,
-                              getStatusLabel,
-                              getBranchName
-                            })}
+                            onClick={() => {
+                              if (transfer.id) {
+                                void handleExportTransfer(transfer.id, 'pdf')
+                              }
+                            }}
                             className="cursor-pointer"
                           >
                             <FileText className="h-4 w-4 mr-2 text-red-600" />
                             Exportar PDF
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            onClick={() => exportTransferToExcel({
-                              transfer,
-                              getStatusLabel,
-                              getBranchName
-                            })}
+                            onClick={() => {
+                              if (transfer.id) {
+                                void handleExportTransfer(transfer.id, 'excel')
+                              }
+                            }}
                             className="cursor-pointer"
                           >
                             <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" />

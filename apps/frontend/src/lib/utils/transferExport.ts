@@ -16,6 +16,14 @@ interface TransferExportData {
     getBranchName: (transfer: StockTransfer, type: 'source' | 'destination') => string;
 }
 
+const getTransferItemCode = (item: NonNullable<StockTransfer['items']>[number]): string => {
+    return item.product?.code || item.product?.sku || item.product?.barcode || '-';
+}
+
+const getTransferItemDescription = (item: NonNullable<StockTransfer['items']>[number]): string => {
+    return item.product?.description || `Producto #${item.product_id}`;
+}
+
 /**
  * Helper to fetch image from URL and convert to Base64
  */
@@ -118,8 +126,8 @@ export async function exportTransferToPDF({ transfer, getStatusLabel, getBranchN
                 startY: infoY + 30,
                 head: [['Código', 'Producto', 'Cantidad']],
                 body: items.map(item => [
-                    item.product?.sku || item.product?.barcode || '-',
-                    item.product?.description || `Producto #${item.product_id}`,
+                    getTransferItemCode(item),
+                    getTransferItemDescription(item),
                     item.quantity.toString()
                 ]),
                 styles: { fontSize: 9, cellPadding: 3 },
@@ -184,8 +192,8 @@ export async function exportTransferToExcel({ transfer, getStatusLabel, getBranc
         // Add items
         const items = transfer.items || [];
         const itemRows = items.map(item => [
-            item.product?.sku || item.product?.barcode || '-',
-            item.product?.description || `Producto #${item.product_id}`,
+            getTransferItemCode(item),
+            getTransferItemDescription(item),
             item.quantity
         ]);
 

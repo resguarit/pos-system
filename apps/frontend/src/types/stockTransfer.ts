@@ -6,6 +6,7 @@ export interface StockTransferItem {
   product?: {
     id: number;
     description: string;
+    code?: string;
     barcode?: string;
     sku?: string;
   };
