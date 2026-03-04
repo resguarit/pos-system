@@ -16,7 +16,7 @@ import { saleService } from '@/lib/api/saleService';
 
 interface ImportSalesPanelProps {
     onImport: (items: { productId: number; quantity: number; productCode?: string; productName?: string; availableStock?: number }[]) => void;
-    sourceBranchId?: string;
+    destinationBranchId?: string;
 }
 
 interface SoldProduct {
@@ -28,7 +28,7 @@ interface SoldProduct {
     availableStock: number;
 }
 
-export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelProps) {
+export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesPanelProps) {
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
     const [category, setCategory] = useState<string>("all");
     const [loading, setLoading] = useState(false);
@@ -37,8 +37,8 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
 
     // Search sold products from API
     const handleSearch = async () => {
-        if (!sourceBranchId) {
-            sileo.error({ title: "Seleccione una sucursal de origen para buscar ventas" });
+        if (!destinationBranchId) {
+            sileo.error({ title: "Seleccione una sucursal de destino para importar ventas" });
             return;
         }
 
@@ -53,7 +53,7 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
 
         try {
             const soldProducts = await saleService.getSoldProductsForTransfer({
-                source_branch_id: sourceBranchId,
+                destination_branch_id: destinationBranchId,
                 from_date: dateRange.from,
                 to_date: dateRange.to,
                 ...(category !== "all" && { category_id: category }),
@@ -62,9 +62,9 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
             setResults(soldProducts);
 
             if (soldProducts.length === 0) {
-                sileo.info({ title: "No se encontraron productos vendidos en el rango seleccionado" });
+                sileo.info({ title: "No se encontraron ventas en la sucursal destino para el rango seleccionado" });
             } else {
-                sileo.success({ title: `Se encontraron ${soldProducts.length} productos vendidos` });
+                sileo.success({ title: `Se encontraron ${soldProducts.length} productos vendidos en la sucursal destino` });
             }
         } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
             console.error("Error fetching sold products:", error);
@@ -315,7 +315,7 @@ export function ImportSalesPanel({ onImport, sourceBranchId }: ImportSalesPanelP
                             ) : results.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                                        {loading ? "Buscando..." : "Use los filtros para buscar productos vendidos"}
+                                        {loading ? "Buscando..." : "Use los filtros para buscar ventas de la sucursal destino"}
                                     </TableCell>
                                 </TableRow>
                             ) : (

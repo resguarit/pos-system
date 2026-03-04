@@ -650,7 +650,8 @@ class SaleController extends Controller
     public function getSoldProductsForTransfer(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'source_branch_id' => 'required|integer|exists:branches,id',
+            'destination_branch_id' => 'required_without:source_branch_id|integer|exists:branches,id',
+            'source_branch_id' => 'required_without:destination_branch_id|integer|exists:branches,id',
             'from_date' => 'required|date',
             'to_date' => 'required|date|after_or_equal:from_date',
             'category_id' => 'nullable|integer|exists:categories,id',
@@ -664,7 +665,7 @@ class SaleController extends Controller
         }
 
         try {
-            $sourceBranchId = $request->input('source_branch_id');
+            $branchId = $request->input('destination_branch_id') ?? $request->input('source_branch_id');
             $fromDate = $request->input('from_date');
             $toDate = $request->input('to_date');
             $categoryId = $request->input('category_id');
@@ -673,14 +674,14 @@ class SaleController extends Controller
             $query = DB::table('sale_items')
                 ->join('sales_header', 'sale_items.sale_header_id', '=', 'sales_header.id')
                 ->join('products', 'sale_items.product_id', '=', 'products.id')
-                ->leftJoin('stocks', function ($join) use ($sourceBranchId) {
+                ->leftJoin('stocks', function ($join) use ($branchId) {
                     $join->on('sale_items.product_id', '=', 'stocks.product_id')
-                        ->where('stocks.branch_id', '=', $sourceBranchId);
+                        ->where('stocks.branch_id', '=', $branchId);
                 })
-                ->where('sales_header.branch_id', $sourceBranchId)
+                ->where('sales_header.branch_id', $branchId)
                 ->whereDate('sales_header.date', '>=', $fromDate)
                 ->whereDate('sales_header.date', '<=', $toDate)
-                ->where('sales_header.status', 'active') // Only count active sales
+                ->where('sales_header.status', 'active')
                 ->select(
                     'products.id as product_id',
                     'products.code',

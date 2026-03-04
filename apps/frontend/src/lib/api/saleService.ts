@@ -12,7 +12,7 @@ interface SoldProduct {
 }
 
 interface GetSoldProductsParams {
-    source_branch_id: string;
+    destination_branch_id: string;
     from_date: Date;
     to_date: Date;
     category_id?: string;
@@ -26,7 +26,7 @@ export async function getSoldProductsForTransfer(params: GetSoldProductsParams):
         '/sales/sold-products-for-transfer',
         {
             params: {
-                source_branch_id: params.source_branch_id,
+                destination_branch_id: params.destination_branch_id,
                 from_date: format(params.from_date, 'yyyy-MM-dd'),
                 to_date: format(params.to_date, 'yyyy-MM-dd'),
                 ...(params.category_id && { category_id: params.category_id }),

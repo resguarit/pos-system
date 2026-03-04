@@ -60,7 +60,6 @@ export function StockTransferDialog({
     updateItemQuantity,
     getProductStock,
     submit,
-    userBranchIds,
   } = useStockTransfer({
     transferId,
     preselectedSourceBranchId,
@@ -235,7 +234,7 @@ export function StockTransferDialog({
                     <ImportSalesPanel
                       key={importPanelKey}
                       onImport={addItems}
-                      sourceBranchId={form.source_branch_id}
+                      destinationBranchId={form.destination_branch_id}
                     />
                   </div>
                 </TabsContent>
