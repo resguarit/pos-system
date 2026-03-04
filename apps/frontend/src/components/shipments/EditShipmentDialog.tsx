@@ -11,10 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
-import { Shipment, ShipmentStage, User, Customer, Sale } from '@/types/shipment';
+import { Shipment, ShipmentStage, Customer, Sale } from '@/types/shipment';
 import { useAuth } from '@/context/AuthContext';
 import { Autocomplete } from '@/components/ui/autocomplete';
 import { useTransporters } from '@/hooks/useTransporters';
+import { useBranch } from '@/context/BranchContext';
 
 interface EditShipmentDialogProps {
   open: boolean;
@@ -37,6 +38,7 @@ interface EditShipmentForm {
   transportista_id?: number;
   cliente_id?: number;
   stage_id?: number;
+  origin_branch_id?: number;
 }
 
 export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
@@ -48,6 +50,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
 }) => {
   const { request } = useApi();
   const { hasPermission } = useAuth();
+  const { branches, allBranches } = useBranch();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [shipment, setShipment] = useState<Shipment | null>(null);
@@ -87,7 +90,10 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     transportista_id: undefined,
     cliente_id: undefined,
     stage_id: undefined,
+    origin_branch_id: undefined,
   });
+
+  const availableOriginBranches = allBranches.length > 0 ? allBranches : branches;
 
 
 
@@ -121,6 +127,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           transportista_id: shipmentData.metadata?.transportista_id,
           cliente_id: customerId,
           stage_id: shipmentData.current_stage_id,
+          origin_branch_id: shipmentData.metadata?.origin_branch_id ?? shipmentData.branch_id,
         });
 
         // Inicializar ventas seleccionadas
@@ -266,7 +273,8 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
         estimated_delivery_date: editForm.estimated_delivery_date || null,
         notes: editForm.notes || null,
         transportista_id: editForm.transportista_id || null,
-        cliente_id: editForm.cliente_id || null
+        cliente_id: editForm.cliente_id || null,
+        origin_branch_id: editForm.origin_branch_id || null,
       };
 
       const shipmentData = {
@@ -416,6 +424,26 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
               placeholder={loadingTransporters ? "Cargando..." : "Seleccionar transportista"}
               emptyText="No se encontró transportista."
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Sucursal origen (informativo)</label>
+            <Select
+              value={editForm.origin_branch_id?.toString() || 'none'}
+              onValueChange={(value) => setEditForm(prev => ({ ...prev, origin_branch_id: value === 'none' ? undefined : parseInt(value, 10) }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar sucursal origen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sin especificar</SelectItem>
+                {availableOriginBranches.map((branch) => (
+                  <SelectItem key={branch.id} value={String(branch.id)}>
+                    {branch.description || `Sucursal ${branch.id}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

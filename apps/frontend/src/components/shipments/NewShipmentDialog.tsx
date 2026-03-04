@@ -9,7 +9,7 @@ import { Plus, Package, Loader2, Search, FileText, Trash2, Calendar as CalendarI
 import { sileo } from "sileo"
 import useApi from '@/hooks/useApi';
 import { shipmentService } from '@/services/shipmentService';
-import { ShipmentStage, User, Customer } from '@/types/shipment';
+import { ShipmentStage, Customer } from '@/types/shipment';
 import { useBranch } from '@/context/BranchContext';
 import { SaleHeader } from '@/types/sale';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,6 +38,7 @@ interface NewShipmentForm {
   cliente_id?: number;
   stage_id?: number;
   branch_id?: number;
+  origin_branch_id?: number;
 }
 
 export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
@@ -47,7 +48,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   onSuccess,
 }) => {
   const { request } = useApi();
-  const { selectedBranchIds, branches } = useBranch();
+  const { selectedBranchIds, branches, allBranches } = useBranch();
 
   const [newShipmentForm, setNewShipmentForm] = useState<NewShipmentForm>({
     sale_ids: [],
@@ -64,7 +65,10 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
     cliente_id: undefined,
     stage_id: undefined,
     branch_id: undefined,
+    origin_branch_id: undefined,
   });
+
+  const availableOriginBranches = allBranches.length > 0 ? allBranches : branches;
 
   const [searchSaleTerm, setSearchSaleTerm] = useState('');
   const [loadingSales, setLoadingSales] = useState(false);
@@ -119,8 +123,16 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   useEffect(() => {
     if (open) {
       const initialStage = stages.find(s => s.order === 1);
+      const singleSelectedBranchId = selectedBranchIds.length === 1
+        ? parseInt(selectedBranchIds[0], 10)
+        : undefined;
+
       if (initialStage) {
-        setNewShipmentForm(prev => ({ ...prev, stage_id: initialStage.id }));
+        setNewShipmentForm(prev => ({
+          ...prev,
+          stage_id: initialStage.id,
+          origin_branch_id: prev.origin_branch_id ?? singleSelectedBranchId,
+        }));
       }
     } else {
       setCustomerSearch('');
@@ -177,6 +189,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       if (newShipmentForm.cliente_id) {
         metadata.cliente_id = newShipmentForm.cliente_id;
       }
+      if (newShipmentForm.origin_branch_id) {
+        metadata.origin_branch_id = newShipmentForm.origin_branch_id;
+      }
 
       const branchId = selectedBranchIds.length === 1
         ? parseInt(selectedBranchIds[0], 10)
@@ -217,6 +232,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
         cliente_id: undefined,
         stage_id: undefined,
         branch_id: undefined,
+        origin_branch_id: undefined,
       });
 
       setSearchSaleTerm('');
@@ -544,7 +560,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t pt-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Estado del Envío *</label>
               <Select
@@ -581,6 +597,26 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                   <SelectItem value="normal">Normal</SelectItem>
                   <SelectItem value="high">Alta</SelectItem>
                   <SelectItem value="urgent">Urgente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Sucursal origen (informativo)</label>
+              <Select
+                value={newShipmentForm.origin_branch_id?.toString() || 'none'}
+                onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, origin_branch_id: value === 'none' ? undefined : parseInt(value, 10) }))}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Seleccionar sucursal origen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin especificar</SelectItem>
+                  {availableOriginBranches.map((branch) => (
+                    <SelectItem key={branch.id} value={String(branch.id)}>
+                      {branch.description || `Sucursal ${branch.id}`}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
