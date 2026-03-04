@@ -20,6 +20,7 @@ class ExpenseController extends Controller
     public function index(Request $request)
     {
         $query = Expense::with(['category.parent', 'employee.person', 'branch', 'paymentMethod', 'user']);
+        $includeRecurringProjectionSources = $request->boolean('include_recurring_projection_sources', false);
 
         // Search functionality
         if ($request->has('search') && $request->search) {
@@ -49,7 +50,7 @@ class ExpenseController extends Controller
         }
 
         if ($request->has('start_date') || $request->has('end_date')) {
-            $query->where(function ($q) use ($request) {
+            $query->where(function ($q) use ($request, $includeRecurringProjectionSources) {
                 // Include normal expenses in the date range
                 $q->where(function ($q2) use ($request) {
                     if ($request->has('start_date')) {
@@ -60,15 +61,17 @@ class ExpenseController extends Controller
                     }
                 });
 
-                // OR include recurring expenses that started on or before the end_date 
-                // so the frontend can project them into the selected period
-                $q->orWhere(function ($q3) use ($request) {
-                    $q3->where('is_recurring', true)
-                        ->where('status', '!=', 'cancelled');
-                    if ($request->has('end_date')) {
-                        $q3->whereDate('date', '<=', $request->end_date);
-                    }
-                });
+                if ($includeRecurringProjectionSources) {
+                    // Optionally include recurring templates that started before the selected end date.
+                    // This is used by the calendar to project future occurrences.
+                    $q->orWhere(function ($q3) use ($request) {
+                        $q3->where('is_recurring', true)
+                            ->where('status', '!=', 'cancelled');
+                        if ($request->has('end_date')) {
+                            $q3->whereDate('date', '<=', $request->end_date);
+                        }
+                    });
+                }
             });
         }
 

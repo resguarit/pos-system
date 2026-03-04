@@ -6,6 +6,7 @@ use App\Models\Expense;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\MovementType;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -139,16 +140,19 @@ class ExpenseService
     }
     public function getExpenseStats(array $filters): array
     {
+        $startDate = isset($filters['start_date']) ? Carbon::parse($filters['start_date'])->startOfDay() : null;
+        $endDate = isset($filters['end_date']) ? Carbon::parse($filters['end_date'])->endOfDay() : null;
+
         $query = Expense::query();
 
         if (isset($filters['branch_id'])) {
             $query->where('branch_id', $filters['branch_id']);
         }
-        if (isset($filters['start_date'])) {
-            $query->whereDate('date', '>=', $filters['start_date']);
+        if ($startDate) {
+            $query->whereDate('date', '>=', $startDate->toDateString());
         }
-        if (isset($filters['end_date'])) {
-            $query->whereDate('date', '<=', $filters['end_date']);
+        if ($endDate) {
+            $query->whereDate('date', '<=', $endDate->toDateString());
         }
         if (isset($filters['status'])) {
             $query->where('status', $filters['status']);
@@ -168,87 +172,215 @@ class ExpenseService
                 ];
             });
 
+        $byCategoryMap = [];
+        foreach ($byCategory as $item) {
+            $byCategoryMap[$item['name']] = ($byCategoryMap[$item['name']] ?? 0) + $item['value'];
+        }
+
         // Por mes (últimos 6 meses si no hay filtro de fecha) - solo gastos pagados
         $monthlyQuery = (clone $query)->where('status', 'paid');
-        if (!isset($filters['start_date'])) {
+        if (!$startDate) {
             $monthlyQuery->whereDate('date', '>=', now()->subMonths(6));
         }
-        $monthlyStats = $monthlyQuery
+        $monthlyStatsMap = $monthlyQuery
             ->select(DB::raw("DATE_FORMAT(date, '%Y-%m') as month"), DB::raw('sum(amount) as total'))
             ->groupBy('month')
             ->orderBy('month')
             ->get()
+            ->mapWithKeys(function ($item) {
+                return [
+                    $item->month => [
+                        'month' => $item->month,
+                        'total' => (float) $item->total,
+                        'projected' => 0,
+                    ],
+                ];
+            })
+            ->toArray();
+
+        if ($startDate && $endDate) {
+            $projection = $this->calculateRecurringProjectionForRange($filters, $startDate, $endDate);
+
+            foreach ($projection['by_month'] as $month => $projectedValue) {
+                if (!isset($monthlyStatsMap[$month])) {
+                    $monthlyStatsMap[$month] = [
+                        'month' => $month,
+                        'total' => 0,
+                        'projected' => 0,
+                    ];
+                }
+
+                $monthlyStatsMap[$month]['projected'] = round(
+                    $monthlyStatsMap[$month]['projected'] + $projectedValue,
+                    2
+                );
+            }
+
+            foreach ($projection['by_category'] as $categoryName => $projectedValue) {
+                $byCategoryMap[$categoryName] = round(($byCategoryMap[$categoryName] ?? 0) + $projectedValue, 2);
+            }
+
+            $this->ensureMonthlyRangeEntries($monthlyStatsMap, $startDate, $endDate);
+        }
+
+        $monthlyStats = collect($monthlyStatsMap)
+            ->sortBy('month')
             ->map(function ($item) {
                 return [
-                    'month' => $item->month,
-                    'total' => (float) $item->total,
-                    'projected' => 0
+                    'month' => $item['month'],
+                    'total' => (float) $item['total'],
+                    'projected' => (float) ($item['projected'] ?? 0),
                 ];
             });
 
-        // Calculate projection for the next month
-        try {
-            $lastMonthDate = $monthlyStats->isNotEmpty()
-                ? \Carbon\Carbon::createFromFormat('Y-m', $monthlyStats->last()['month'])
-                : now()->subMonth();
+        if (!$startDate && !$endDate) {
+            // Calculate projection for the next month when there is no explicit date range.
+            try {
+                $lastMonthDate = $monthlyStats->isNotEmpty()
+                    ? Carbon::createFromFormat('Y-m', $monthlyStats->last()['month'])
+                    : now()->subMonth();
 
-            $nextMonth = $lastMonthDate->copy()->addMonth();
-            $nextMonthStr = $nextMonth->format('Y-m');
+                $nextMonth = $lastMonthDate->copy()->addMonth();
+                $nextMonthStr = $nextMonth->format('Y-m');
 
-            // 1. Historical Average (Last 3 months)
-            $average = 0;
-            if ($monthlyStats->isNotEmpty()) {
-                $lastMonths = $monthlyStats->sortByDesc('month')->take(3);
-                $average = $lastMonths->avg('total');
-            }
+                // 1. Historical Average (Last 3 months)
+                $average = 0;
+                if ($monthlyStats->isNotEmpty()) {
+                    $lastMonths = $monthlyStats->sortByDesc('month')->take(3);
+                    $average = $lastMonths->avg('total');
+                }
 
-            // Create a fresh query for projection to avoid date filter conflicts
-            $projectionQuery = Expense::query();
-            if (isset($filters['branch_id'])) {
-                $projectionQuery->where('branch_id', $filters['branch_id']);
-            }
-            // We intentionally ignore status filters for projection to show all obligations
+                // Create a fresh query for projection to avoid date filter conflicts
+                $projectionQuery = Expense::query();
+                if (isset($filters['branch_id'])) {
+                    $projectionQuery->where('branch_id', $filters['branch_id']);
+                }
+                // We intentionally ignore status filters for projection to show all obligations
 
-            // 2. Upcoming Actual Expenses (Already entered for next month)
-            $upcomingTotal = (clone $projectionQuery)->whereBetween('date', [
-                $nextMonth->copy()->startOfMonth(),
-                $nextMonth->copy()->endOfMonth()
-            ])->sum('amount');
-
-            // 3. Recurring Expenses (From last month)
-            // We assume expenses marked as recurring in the last month will repeat
-            $recurringTotal = (clone $projectionQuery)->where('is_recurring', true)
-                ->whereBetween('date', [
-                    $lastMonthDate->copy()->startOfMonth(),
-                    $lastMonthDate->copy()->endOfMonth()
+                // 2. Upcoming Actual Expenses (Already entered for next month)
+                $upcomingTotal = (clone $projectionQuery)->whereBetween('date', [
+                    $nextMonth->copy()->startOfMonth(),
+                    $nextMonth->copy()->endOfMonth()
                 ])->sum('amount');
 
-            // Final Projection Logic:
-            // If we have explicit recurring expenses, we trust that value more than the historical average
-            // (which might include one-off expenses).
-            // If we don't have recurring expenses marked, we fall back to the average.
-            // We always ensure the projection is at least as high as what's already entered for next month (upcomingTotal).
+                // 3. Recurring Expenses (From last month)
+                // We assume expenses marked as recurring in the last month will repeat
+                $recurringTotal = (clone $projectionQuery)->where('is_recurring', true)
+                    ->whereBetween('date', [
+                        $lastMonthDate->copy()->startOfMonth(),
+                        $lastMonthDate->copy()->endOfMonth()
+                    ])->sum('amount');
 
-            $baseProjection = ($recurringTotal > 0) ? $recurringTotal : $average;
-            $projection = max($baseProjection, $upcomingTotal);
+                $baseProjection = ($recurringTotal > 0) ? $recurringTotal : $average;
+                $projection = max($baseProjection, $upcomingTotal);
 
-            // Add projection entry
-            $monthlyStats->push([
-                'month' => $nextMonthStr,
-                'total' => 0,
-                'projected' => round($projection, 2)
-            ]);
+                // Add projection entry
+                $monthlyStats->push([
+                    'month' => $nextMonthStr,
+                    'total' => 0,
+                    'projected' => round($projection, 2)
+                ]);
 
-        } catch (\Exception $e) {
-            Log::error('Error calculating expense projection: ' . $e->getMessage());
-            // Continue without projection
+            } catch (\Exception $e) {
+                Log::error('Error calculating expense projection: ' . $e->getMessage());
+                // Continue without projection
+            }
         }
 
         $byMonth = $monthlyStats->values();
+        $byCategory = collect($byCategoryMap)
+            ->map(function ($value, $name) {
+                return [
+                    'name' => $name,
+                    'value' => (float) round($value, 2),
+                ];
+            })
+            ->sortByDesc('value')
+            ->values();
 
         return [
             'by_category' => $byCategory,
             'by_month' => $byMonth
         ];
+    }
+
+    private function calculateRecurringProjectionForRange(array $filters, Carbon $startDate, Carbon $endDate): array
+    {
+        $query = Expense::with('category:id,name')
+            ->where('is_recurring', true)
+            ->where('status', '!=', 'cancelled')
+            ->whereDate('date', '<=', $endDate->toDateString());
+
+        if (isset($filters['branch_id'])) {
+            $query->where('branch_id', $filters['branch_id']);
+        }
+
+        $recurringTemplates = $query->get();
+        $projectedByMonth = [];
+        $projectedByCategory = [];
+
+        foreach ($recurringTemplates as $expense) {
+            $currentDate = Carbon::parse($expense->date)->startOfDay();
+            if ($currentDate->gt($endDate)) {
+                continue;
+            }
+
+            $iterations = 0;
+            while ($currentDate->lte($endDate) && $iterations < 1000) {
+                if ($currentDate->gte($startDate)) {
+                    $monthKey = $currentDate->format('Y-m');
+                    $categoryName = $expense->category ? $expense->category->name : 'Sin categoría';
+                    $amount = (float) $expense->amount;
+
+                    $projectedByMonth[$monthKey] = ($projectedByMonth[$monthKey] ?? 0) + $amount;
+                    $projectedByCategory[$categoryName] = ($projectedByCategory[$categoryName] ?? 0) + $amount;
+                }
+
+                $nextDate = $this->getNextRecurringOccurrence($currentDate, $expense->recurrence_interval);
+                if (!$nextDate || $nextDate->lte($currentDate)) {
+                    break;
+                }
+
+                $currentDate = $nextDate;
+                $iterations++;
+            }
+        }
+
+        return [
+            'by_month' => $projectedByMonth,
+            'by_category' => $projectedByCategory,
+        ];
+    }
+
+    private function getNextRecurringOccurrence(Carbon $currentDate, ?string $interval): ?Carbon
+    {
+        $normalizedInterval = strtolower((string) ($interval ?? 'monthly'));
+
+        return match ($normalizedInterval) {
+            'daily' => $currentDate->copy()->addDay(),
+            'weekly' => $currentDate->copy()->addWeek(),
+            'monthly' => $currentDate->copy()->addMonth(),
+            'yearly', 'annual' => $currentDate->copy()->addYear(),
+            default => $currentDate->copy()->addMonth(),
+        };
+    }
+
+    private function ensureMonthlyRangeEntries(array &$monthlyStatsMap, Carbon $startDate, Carbon $endDate): void
+    {
+        $cursor = $startDate->copy()->startOfMonth();
+        $lastMonth = $endDate->copy()->startOfMonth();
+
+        while ($cursor->lte($lastMonth)) {
+            $monthKey = $cursor->format('Y-m');
+            if (!isset($monthlyStatsMap[$monthKey])) {
+                $monthlyStatsMap[$monthKey] = [
+                    'month' => $monthKey,
+                    'total' => 0,
+                    'projected' => 0,
+                ];
+            }
+
+            $cursor->addMonth();
+        }
     }
 }

@@ -345,13 +345,8 @@ export default function ExpensesListPage() {
             end_date: ''
         });
         setSearchTerm('');
-
-        const today = new Date();
-        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        setDateRange({
-            from: firstDayOfMonth,
-            to: today
-        });
+        setDateRange(undefined);
+        setCurrentPage(1);
     };
 
     const handleCalendarDateSelect = (date: Date) => {
@@ -466,7 +461,7 @@ export default function ExpensesListPage() {
                             side="top"
                         />
                     </div>
-                    {(filters.branch_id !== 'all' || filters.status !== 'all' || filters.start_date || searchTerm) && (
+                    {(filters.branch_id !== 'all' || filters.status !== 'all' || filters.start_date || filters.end_date || searchTerm) && (
                         <Button variant="ghost" size="icon" onClick={clearFilters} title="Limpiar filtros" className="shrink-0">
                             <X className="h-4 w-4" />
                         </Button>
