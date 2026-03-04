@@ -42,6 +42,26 @@ const createTransferSchemaBase = z.object({
     .min(1, 'Debe agregar al menos un producto'),
 });
 
+const editTransferSchemaBase = z.object({
+  source_branch_id: z
+    .number()
+    .positive('Debe seleccionar la sucursal de origen'),
+  destination_branch_id: z
+    .number()
+    .positive('Debe seleccionar la sucursal de destino'),
+  transfer_date: z.date({
+    required_error: 'La fecha es requerida',
+  }),
+  notes: z
+    .string()
+    .max(1000, 'Las notas no pueden exceder 1000 caracteres')
+    .optional()
+    .nullable(),
+  items: z
+    .array(transferItemEditSchema)
+    .min(1, 'Debe agregar al menos un producto'),
+});
+
 // Schema for creating a stock transfer
 export const createTransferSchema = createTransferSchemaBase.refine(
   (data) => data.source_branch_id !== data.destination_branch_id,
@@ -58,9 +78,7 @@ export const updateTransferSchema = z.object({
 });
 
 // Schema for validating full payload in edit mode
-export const editTransferSchema = createTransferSchemaBase.extend({
-  items: z.array(transferItemEditSchema).min(1, 'Debe agregar al menos un producto'),
-}).refine(
+export const editTransferSchema = editTransferSchemaBase.refine(
   (data) => data.source_branch_id !== data.destination_branch_id,
   transferSchemaRefinement
 );

@@ -32,6 +32,14 @@ import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import type { SaleHeader } from '@/types/sale'
 
 const SMALL_CATALOG_THRESHOLD = 300
+const SERVER_SEARCH_DEBOUNCE_MS = 400
+const SERVER_SEARCH_MIN_LENGTH = 2
+
+const isAbortError = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false
+  const maybeError = error as { name?: string; code?: string }
+  return maybeError.name === 'AbortError' || maybeError.name === 'CanceledError' || maybeError.code === 'ERR_CANCELED'
+}
 
 
 export default function POSPage() {
@@ -141,6 +149,8 @@ export default function POSPage() {
 
   // Ref para almacenar la función fetchProducts
   const fetchProductsRef = useRef<(() => Promise<void>) | null>(null);
+  const searchControllerRef = useRef<AbortController | null>(null)
+  const searchRequestIdRef = useRef(0)
 
   // Estado para controlar el Sheet del carrito
   const [cartSheetOpen, setCartSheetOpen] = useState(false)
@@ -226,11 +236,12 @@ export default function POSPage() {
     }
   }, [request, selectedBranch?.id, fetchProducts])
 
-  const findProductOnServer = useCallback(async (query: string) => {
+  const findProductOnServer = useCallback(async (query: string, signal?: AbortSignal) => {
     const response = await request({
       method: 'GET',
       url: '/pos/products',
-      params: { query, limit: 20 }
+      params: { query },
+      signal
     })
 
     const data = Array.isArray(response)
@@ -397,36 +408,52 @@ export default function POSPage() {
   // catálogos grandes usan búsqueda bajo demanda para performance.
 
   // ── Búsqueda server-side con debounce (modo server-on-demand) ──
-  const debouncedSearchTerm = useDebouncedValue(productCodeInput, 400)
+  const debouncedSearchTerm = useDebouncedValue(productCodeInput, SERVER_SEARCH_DEBOUNCE_MS)
 
   useEffect(() => {
     if (productSearchMode !== 'server-on-demand') return
     const trimmed = debouncedSearchTerm.trim()
 
     // Si el usuario borró el campo de búsqueda, limpiar la grilla
-    if (!trimmed || trimmed.length < 2) {
+    if (!trimmed || trimmed.length < SERVER_SEARCH_MIN_LENGTH) {
+      searchControllerRef.current?.abort()
+      searchControllerRef.current = null
       setProducts([])
+      setIsSearchingProduct(false)
       return
     }
 
-    let cancelled = false
+    searchControllerRef.current?.abort()
+    const controller = new AbortController()
+    searchControllerRef.current = controller
+    const currentRequestId = ++searchRequestIdRef.current
 
     const fetchServerResults = async () => {
       setIsSearchingProduct(true)
       try {
-        const serverResults = await findProductOnServer(trimmed)
-        if (cancelled) return
+        const serverResults = await findProductOnServer(trimmed, controller.signal)
+        if (controller.signal.aborted || currentRequestId !== searchRequestIdRef.current) return
         // Reemplazar productos — solo mostrar los que coinciden con la búsqueda actual
         setProducts(serverResults)
-      } catch {
-        // silently fail — user can retry
+      } catch (error) {
+        if (!isAbortError(error)) {
+          console.error('Error buscando productos en POS:', error)
+          setProducts([])
+        }
       } finally {
-        if (!cancelled) setIsSearchingProduct(false)
+        if (!controller.signal.aborted && currentRequestId === searchRequestIdRef.current) {
+          setIsSearchingProduct(false)
+        }
       }
     }
 
     void fetchServerResults()
-    return () => { cancelled = true }
+    return () => {
+      controller.abort()
+      if (searchControllerRef.current === controller) {
+        searchControllerRef.current = null
+      }
+    }
   }, [debouncedSearchTerm, productSearchMode, findProductOnServer])
 
 
@@ -502,7 +529,7 @@ export default function POSPage() {
   }
 
   // Actualizar para respetar la cantidad por click
-  const addToCart = (product: CartItem, qty?: number) => {
+  const addToCart = useCallback((product: CartItem, qty?: number) => {
     const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1)
 
     setCart((prevCart) => {
@@ -535,7 +562,7 @@ export default function POSPage() {
         return [...prevCart, cartItem]
       }
     })
-  }
+  }, [addQtyPerClick])
 
   type CustomSelectionsType = Map<number, { option: import("@/types/combo").ComboGroupOption, quantity: number }[]>;
 

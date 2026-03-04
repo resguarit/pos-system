@@ -30,7 +30,7 @@ class PosController extends Controller
     public function searchProducts(Request $request)
     {
         $query = trim((string) $request->input('query', ''));
-        $limit = min(max((int) $request->input('limit', 20), 1), 50);
+        $likeTerm = '%' . addcslashes($query, '\\%_') . '%';
 
         if (empty($query)) {
             return response()->json([]);
@@ -38,13 +38,12 @@ class PosController extends Controller
 
         $products = Product::with(['iva', 'category'])
             ->where('status', true)
-            ->where(function ($q) use ($query) {
+            ->where(function ($q) use ($query, $likeTerm) {
                 $q->where('code', '=', $query)
-                    ->orWhere('description', 'LIKE', "%{$query}%");
+                    ->orWhere('description', 'LIKE', $likeTerm);
             })
             ->orderByRaw('CASE WHEN code = ? THEN 0 ELSE 1 END', [$query])
             ->orderBy('description')
-            ->take($limit)
             ->get();
 
         return response()->json($products);
