@@ -7,7 +7,7 @@ interface UseMultipleBranchesShipmentsProps {
 }
 
 interface ShipmentFilters {
-  stage_id?: string
+  stage_id?: string | string[]
   reference?: string
   created_from?: string
   created_to?: string
@@ -19,13 +19,20 @@ interface ShipmentFilters {
   page?: number
 }
 
+interface ConsolidatedShipmentStats {
+  total?: number
+  total_pending?: number
+  total_in_transit?: number
+  total_delivered?: number
+}
+
 export const useMultipleBranchesShipments = ({ selectedBranchIdsArray }: UseMultipleBranchesShipmentsProps) => {
   const { request } = useApi()
   
   // Estados para múltiples sucursales
   const [allShipments, setAllShipments] = useState<Shipment[]>([])
   const [allShipmentsLoading, setAllShipmentsLoading] = useState(false)
-  const [consolidatedStats, setConsolidatedStats] = useState<any>({})
+  const [consolidatedStats, setConsolidatedStats] = useState<ConsolidatedShipmentStats>({})
 
   // Función para cargar datos consolidados de múltiples sucursales
   const loadMultipleBranchesShipments = useCallback(async (filters?: ShipmentFilters) => {
@@ -36,7 +43,7 @@ export const useMultipleBranchesShipments = ({ selectedBranchIdsArray }: UseMult
     try {
       setAllShipmentsLoading(true)
       
-      const requestParams: any = {
+      const requestParams: Record<string, unknown> = {
         branch_ids: selectedBranchIdsArray,
         per_page: filters?.per_page || 15,
         page: filters?.page || 1
@@ -44,7 +51,11 @@ export const useMultipleBranchesShipments = ({ selectedBranchIdsArray }: UseMult
       
       // Agregar filtros si existen
       if (filters) {
-        if (filters.stage_id) requestParams.stage_id = filters.stage_id
+        if (Array.isArray(filters.stage_id) && filters.stage_id.length > 0) {
+          requestParams.stage_id = filters.stage_id
+        } else if (filters.stage_id) {
+          requestParams.stage_id = filters.stage_id
+        }
         if (filters.reference) requestParams.reference = filters.reference
         if (filters.created_from) requestParams.created_from = filters.created_from
         if (filters.created_to) requestParams.created_to = filters.created_to

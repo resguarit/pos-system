@@ -98,7 +98,15 @@ class ShipmentService implements ShipmentServiceInterface
 
         // Apply filters
         if (isset($filters['stage_id'])) {
-            $query->where('current_stage_id', $filters['stage_id']);
+            $stageIds = is_array($filters['stage_id'])
+                ? array_values(array_filter(array_map('intval', $filters['stage_id']), fn ($id) => $id > 0))
+                : [intval($filters['stage_id'])];
+
+            if (count($stageIds) > 1) {
+                $query->whereIn('current_stage_id', $stageIds);
+            } elseif (!empty($stageIds[0])) {
+                $query->where('current_stage_id', $stageIds[0]);
+            }
         }
 
         if (isset($filters['reference'])) {

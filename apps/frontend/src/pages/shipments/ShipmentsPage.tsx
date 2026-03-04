@@ -15,8 +15,10 @@ import { useMultipleBranchesShipments } from '@/hooks/useMultipleBranchesShipmen
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft, Loader2 } from 'lucide-react';
+import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft, Loader2, ChevronDown } from 'lucide-react';
 import { sileo } from "sileo"
 import SelectBranchPlaceholder from '@/components/ui/select-branch-placeholder';
 import Pagination from '@/components/ui/pagination';
@@ -31,6 +33,18 @@ import { useTransporters } from '@/hooks/useTransporters';
  * - order = 4: Completado (Entregado)
  * - Estados finales: Cancelado, Fallido, Devuelto, Anulado
  */
+
+interface ShipmentFilters {
+  stage_id: string[];
+  reference: string;
+  created_from: string;
+  created_to: string;
+  priority: string;
+  customer: string;
+  transporter: string;
+  branch: string;
+}
+
 export default function ShipmentsPage() {
   const navigate = useNavigate();
   const { hasPermission, isLoading: authLoading } = useAuth();
@@ -69,8 +83,8 @@ export default function ShipmentsPage() {
     clear: clearCustomers,
   } = useDebouncedSearch<Customer>({ endpoint: '/customers' });
 
-  const [filters, setFilters] = useState({
-    stage_id: '',
+  const [filters, setFilters] = useState<ShipmentFilters>({
+    stage_id: [],
     reference: '',
     created_from: '',
     created_to: '',
@@ -79,6 +93,14 @@ export default function ShipmentsPage() {
     transporter: '',
     branch: '',
   });
+
+  const selectedStagesSummary = useMemo(() => {
+    if (filters.stage_id.length === 0) return 'Todos';
+    if (filters.stage_id.length === 1) {
+      return stages.find((stage) => stage.id.toString() === filters.stage_id[0])?.name || '1 seleccionado';
+    }
+    return `${filters.stage_id.length} seleccionados`;
+  }, [filters.stage_id, stages]);
 
   // Derivar branches seleccionadas desde el contexto
   const selectedBranchIdsArray = useMemo(() =>
@@ -203,6 +225,13 @@ export default function ShipmentsPage() {
       filtered = filtered.filter(s => s.priority === filters.priority);
     }
 
+    // Filtrar por múltiples estados
+    if (filters.stage_id.length > 0) {
+      filtered = filtered.filter((s) =>
+        s.current_stage_id ? filters.stage_id.includes(s.current_stage_id.toString()) : false
+      );
+    }
+
     // Filtrar por cliente
     if (filters.customer) {
       filtered = filtered.filter(s => {
@@ -276,7 +305,7 @@ export default function ShipmentsPage() {
 
   const handleClearFilters = () => {
     setFilters({
-      stage_id: '',
+      stage_id: [],
       reference: '',
       created_from: '',
       created_to: '',
@@ -319,8 +348,32 @@ export default function ShipmentsPage() {
     return <SelectBranchPlaceholder />
   }
 
-  const handleFilterChange = (key: string, value: string) => {
+  const handleFilterChange = (key: Exclude<keyof ShipmentFilters, 'stage_id'>, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleToggleStageFilter = (stageId: string) => {
+    setFilters((prev) => {
+      const exists = prev.stage_id.includes(stageId);
+      return {
+        ...prev,
+        stage_id: exists ? prev.stage_id.filter((id) => id !== stageId) : [...prev.stage_id, stageId],
+      };
+    });
+  };
+
+  const handleSelectAllStages = () => {
+    setFilters((prev) => ({
+      ...prev,
+      stage_id: stages.map((stage) => stage.id.toString()),
+    }));
+  };
+
+  const handleClearStages = () => {
+    setFilters((prev) => ({
+      ...prev,
+      stage_id: [],
+    }));
   };
 
   const handleApplyDatePreset = (preset: string) => {
@@ -666,22 +719,49 @@ export default function ShipmentsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">Estado</label>
-                <Select
-                  value={filters.stage_id || 'all'}
-                  onValueChange={(value) => handleFilterChange('stage_id', value === 'all' ? '' : value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {stages.map((stage) => (
-                      <SelectItem key={stage.id} value={stage.id.toString()}>
-                        {stage.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between">
+                      <span className="truncate">{selectedStagesSummary}</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[280px] p-3" align="start">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-muted-foreground">Selecciona uno o más estados</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={handleSelectAllStages}
+                        >
+                          Todos
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:underline"
+                          onClick={handleClearStages}
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                    </div>
+                    <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                      {stages.map((stage) => {
+                        const checked = filters.stage_id.includes(stage.id.toString());
+                        return (
+                          <label key={stage.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={() => handleToggleStageFilter(stage.id.toString())}
+                            />
+                            <span className="truncate">{stage.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Filtro por sucursal - Solo mostrar si hay múltiples sucursales */}

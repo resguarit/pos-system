@@ -129,7 +129,7 @@ class ShipmentController extends Controller
         $validator = \Illuminate\Support\Facades\Validator::make($request->all(), [
             'branch_ids' => 'required|array',
             'branch_ids.*' => 'integer|exists:branches,id',
-            'stage_id' => 'nullable|integer',
+            'stage_id' => 'nullable',
             'reference' => 'nullable|string',
             'created_from' => 'nullable|date',
             'created_to' => 'nullable|date',
@@ -154,7 +154,15 @@ class ShipmentController extends Controller
 
             // Aplicar filtros de stage_id
             if (!empty($filters['stage_id'])) {
-                $query->where('current_stage_id', $filters['stage_id']);
+                $stageIds = is_array($filters['stage_id'])
+                    ? array_values(array_filter(array_map('intval', $filters['stage_id']), fn ($id) => $id > 0))
+                    : [intval($filters['stage_id'])];
+
+                if (count($stageIds) > 1) {
+                    $query->whereIn('current_stage_id', $stageIds);
+                } elseif (!empty($stageIds[0])) {
+                    $query->where('current_stage_id', $stageIds[0]);
+                }
             }
 
             // Aplicar filtros de referencia
