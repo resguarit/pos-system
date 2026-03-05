@@ -795,8 +795,8 @@ export default function POSPage() {
   // Calcular totales usando hook personalizado (sin descuento global en POS)
   const { totalItemDiscount, globalDiscountAmount, subtotalNet, totalIva, total } = useSaleTotals(cart, { type: '', value: '' })
 
-  // Componente del contenido del carrito (reutilizable para desktop y mobile)
-  const CartContent = () => (
+  // Render del contenido del carrito (reutilizable para desktop y mobile)
+  const renderCartContent = () => (
     <>
       {/* Header del carrito - Fijo */}
       <div className="flex items-center justify-between border-b p-2 sm:p-3 lg:p-4 flex-shrink-0">
@@ -842,51 +842,49 @@ export default function POSPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableBody>
-                  {cart.map((item, index) => {
-                    return (
-                      <TableRow key={`${item.id}-${index}`}>
-                        <TableCell className="font-medium py-1 sm:py-2">
-                          <div className="text-xs sm:text-sm truncate">{item.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatCurrency(item.sale_price)} c/u
-                            {item.discount_type && (item.discount_value ?? 0) > 0 && (
-                              <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
-                            )}
-                            {item.is_from_combo && (
-                              <div className="text-xs text-blue-600 mt-1">
-                                <Package className="h-3 w-3 inline mr-1" />
-                                De combo: {item.combo_name}
-                                {item.combo_discount_applied && item.combo_discount_applied > 0 && (
-                                  <span className="ml-1 text-green-600">
-                                    (Descuento: {formatCurrency(item.combo_discount_applied)})
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-1 sm:py-2">
-                          <div className="flex items-center justify-center">
-                            <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
-                              <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
-                            </Button>
-                            <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
-                              <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price * item.quantity)}</TableCell>
-                        <TableCell className="py-1 sm:py-2">
-                          <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
-                            <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                {cart.map((item) => {
+                  return (
+                    <TableRow key={`${item.id}-${item.is_from_combo ? 'combo' : 'product'}`}>
+                      <TableCell className="font-medium py-1 sm:py-2">
+                        <div className="text-xs sm:text-sm truncate">{item.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatCurrency(item.sale_price)} c/u
+                          {item.discount_type && (item.discount_value ?? 0) > 0 && (
+                            <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
+                          )}
+                          {item.is_from_combo && (
+                            <div className="text-xs text-blue-600 mt-1">
+                              <Package className="h-3 w-3 inline mr-1" />
+                              De combo: {item.combo_name}
+                              {item.combo_discount_applied && item.combo_discount_applied > 0 && (
+                                <span className="ml-1 text-green-600">
+                                  (Descuento: {formatCurrency(item.combo_discount_applied)})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1 sm:py-2">
+                        <div className="flex items-center justify-center">
+                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                            <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
+                          <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
+                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                            <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price * item.quantity)}</TableCell>
+                      <TableCell className="py-1 sm:py-2">
+                        <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -1173,7 +1171,7 @@ export default function POSPage() {
         {/* Carrito en desktop - Panel lateral */}
         {!isMobile && (
           <div className="hidden lg:flex w-full lg:w-[400px] xl:w-[500px] border-t lg:border-l lg:border-t-0 h-full flex flex-col">
-            <CartContent />
+            {renderCartContent()}
           </div>
         )}
 
@@ -1189,7 +1187,7 @@ export default function POSPage() {
             <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
               {/* @ts-expect-error - UI component props mismatch */}
               <SheetContent side="bottom" className="h-[90vh] flex flex-col p-0 [&>button]:hidden">
-                <CartContent />
+                {renderCartContent()}
               </SheetContent>
             </Sheet>
           </>
