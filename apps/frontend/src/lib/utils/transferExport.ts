@@ -108,6 +108,11 @@ export async function exportTransferToPDF({ transfer, getStatusLabel, getBranchN
         doc.setFont(undefined, 'normal');
         doc.text(transfer.user?.name || transfer.user?.username || '-', col1X + 30, infoY + 14);
 
+        doc.setFont(undefined, 'bold');
+        doc.text('Aceptado por:', col1X, infoY + 21);
+        doc.setFont(undefined, 'normal');
+        doc.text(transfer.accepted_by?.name || transfer.accepted_by?.username || '-', col1X + 30, infoY + 21);
+
         // Right column
         doc.setFont(undefined, 'bold');
         doc.text('Sucursal Origen:', col2X, infoY);
@@ -184,6 +189,7 @@ export async function exportTransferToExcel({ transfer, getStatusLabel, getBranc
             ['Sucursal Origen:', getBranchName(transfer, 'source')],
             ['Sucursal Destino:', getBranchName(transfer, 'destination')],
             ['Creado por:', transfer.user?.name || transfer.user?.username || '-'],
+            ['Aceptado por:', transfer.accepted_by?.name || transfer.accepted_by?.username || '-'],
             [],
             ['PRODUCTOS'],
             ['Código', 'Producto', 'Cantidad']

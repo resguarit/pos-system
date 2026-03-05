@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { stockTransferService } from "@/lib/api/stockTransferService"
+import type { StockTransfer } from "@/types/stockTransfer"
 import { ArrowRight, Package, Calendar, FileText, User as UserIcon } from "lucide-react"
 
 interface ViewStockTransferDialogProps {
@@ -29,16 +30,10 @@ export function ViewStockTransferDialog({
   onOpenChange,
   transferId,
 }: ViewStockTransferDialogProps) {
-  const [transfer, setTransfer] = useState<any | null>(null)
+  const [transfer, setTransfer] = useState<StockTransfer | null>(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    if (open && transferId) {
-      loadTransfer()
-    }
-  }, [open, transferId])
-
-  const loadTransfer = async () => {
+  const loadTransfer = useCallback(async () => {
     if (!transferId) return
     try {
       setLoading(true)
@@ -49,7 +44,13 @@ export function ViewStockTransferDialog({
     } finally {
       setLoading(false)
     }
-  }
+  }, [transferId])
+
+  useEffect(() => {
+    if (open && transferId) {
+      loadTransfer()
+    }
+  }, [open, transferId, loadTransfer])
 
   const getStatusBadge = (status?: string) => {
     const s = (status ?? "").toLowerCase()
@@ -135,14 +136,26 @@ export function ViewStockTransferDialog({
               </div>
             </div>
 
-            {/* Requested by */}
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider">Solicitada por</p>
-              <div className="flex items-center gap-2">
-                <UserIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">
-                  {transfer?.user?.name || transfer?.user?.username || 'N/A'}
-                </span>
+            {/* Users */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Solicitada por</p>
+                <div className="flex items-center gap-2">
+                  <UserIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">
+                    {transfer?.user?.name || transfer?.user?.username || 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Aceptada por</p>
+                <div className="flex items-center gap-2">
+                  <UserIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">
+                    {transfer?.accepted_by?.name || transfer?.accepted_by?.username || '-'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -181,7 +194,7 @@ export function ViewStockTransferDialog({
                   </TableHeader>
                   <TableBody>
                     {transfer.items?.length > 0 ? (
-                      transfer.items.map((item: any) => (
+                      transfer.items.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell className="font-mono text-sm">
                             {item.product?.code || item.product?.barcode || "-"}

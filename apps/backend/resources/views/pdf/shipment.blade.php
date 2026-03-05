@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            font-size: 12px;
+            font-size: 14px;
             margin: 20px;
         }
 
@@ -36,12 +36,12 @@
         }
 
         .company-data {
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .company-name {
             font-weight: bold;
-            font-size: 14px;
+            font-size: 16px;
             margin-bottom: 5px;
         }
 
@@ -58,7 +58,7 @@
 
         .info-table td {
             padding: 5px 8px;
-            font-size: 14px;
+            font-size: 16px;
         }
 
         .items-table th,
@@ -66,7 +66,7 @@
             border: 1px solid #333;
             padding: 8px;
             text-align: left;
-            font-size: 14px;
+            font-size: 16px;
         }
 
         .items-table th {

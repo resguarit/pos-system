@@ -29,6 +29,13 @@ export interface StockTransfer {
     username?: string;
     email?: string;
   };
+  accepted_by_id?: number | null;
+  accepted_by?: {
+    id: number;
+    name?: string;
+    username?: string;
+    email?: string;
+  };
   sourceBranch?: {
     id: number;
     name: string;

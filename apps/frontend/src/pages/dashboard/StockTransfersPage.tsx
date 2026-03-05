@@ -73,6 +73,7 @@ export default function StockTransfersPage() {
     { id: 'destination', minWidth: 120, maxWidth: 250, defaultWidth: 180 },
     { id: 'items', minWidth: 60, maxWidth: 120, defaultWidth: 80 },
     { id: 'user', minWidth: 140, maxWidth: 220, defaultWidth: 170 },
+    { id: 'accepted_by', minWidth: 140, maxWidth: 220, defaultWidth: 170 },
     { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
     { id: 'actions', minWidth: 200, maxWidth: 300, defaultWidth: 240 }
   ]
@@ -463,6 +464,7 @@ export default function StockTransfersPage() {
                 <ResizableTableHeader columnId="destination" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Destino</ResizableTableHeader>
                 <ResizableTableHeader columnId="items" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Items</ResizableTableHeader>
                 <ResizableTableHeader columnId="user" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Solicitada por</ResizableTableHeader>
+                <ResizableTableHeader columnId="accepted_by" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Aceptada por</ResizableTableHeader>
                 <ResizableTableHeader columnId="status" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Estado</ResizableTableHeader>
                 <ResizableTableHeader columnId="actions" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className="text-center">Acciones</ResizableTableHeader>
               </TableRow>
@@ -487,6 +489,9 @@ export default function StockTransfersPage() {
                   <ResizableTableCell columnId="items" getColumnCellProps={getColumnCellProps}>{transfer.items?.length || 0}</ResizableTableCell>
                   <ResizableTableCell columnId="user" getColumnCellProps={getColumnCellProps}>
                     {transfer.user?.name || transfer.user?.username || 'N/A'}
+                  </ResizableTableCell>
+                  <ResizableTableCell columnId="accepted_by" getColumnCellProps={getColumnCellProps}>
+                    {transfer.accepted_by?.name || transfer.accepted_by?.username || '-'}
                   </ResizableTableCell>
                   <ResizableTableCell columnId="status" getColumnCellProps={getColumnCellProps}>
                     <Badge variant="outline" className={getStatusBadgeColor(transfer.status)}>{getStatusLabel(transfer.status)}</Badge>

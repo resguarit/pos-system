@@ -56,7 +56,7 @@ class StockTransferService implements StockTransferServiceInterface
 
     public function getAllStockTransfers(Request $request)
     {
-        $query = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items', 'user']);
+        $query = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items', 'user', 'acceptedBy']);
 
         // Filter by user's assigned branches
         $userBranchIds = $this->getUserBranchIds();
@@ -96,7 +96,7 @@ class StockTransferService implements StockTransferServiceInterface
 
     public function getStockTransferById($id)
     {
-        $transfer = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product', 'user'])->findOrFail($id);
+        $transfer = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items.product', 'user', 'acceptedBy'])->findOrFail($id);
 
         // Verify user has access to this transfer (through source or destination branch)
         if (!$this->hasAccessToTransfer($transfer)) {
@@ -154,7 +154,7 @@ class StockTransferService implements StockTransferServiceInterface
 
             DB::commit();
 
-            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product', 'user']);
+            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product', 'user', 'acceptedBy']);
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Error creando la transferencia de stock: " . $e->getMessage());
@@ -249,7 +249,7 @@ class StockTransferService implements StockTransferServiceInterface
             }
 
             DB::commit();
-            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product', 'user']);
+            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product', 'user', 'acceptedBy']);
         } catch (Exception $e) {
             DB::rollBack();
             throw $e;
@@ -316,11 +316,14 @@ class StockTransferService implements StockTransferServiceInterface
                 Log::info("Transferido producto {$item->product_id}: -{$item->quantity} de sucursal {$stockTransfer->source_branch_id}, +{$item->quantity} a sucursal {$stockTransfer->destination_branch_id}");
             }
 
-            $stockTransfer->update(['status' => 'completed']);
+            $stockTransfer->update([
+                'status' => 'completed',
+                'accepted_by_id' => auth()->id()
+            ]);
 
             DB::commit();
 
-            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product']);
+            return $stockTransfer->fresh(['sourceBranch', 'destinationBranch', 'items.product', 'user', 'acceptedBy']);
         } catch (Exception $e) {
             DB::rollBack();
             Log::error("Error completando transferencia de stock: " . $e->getMessage());

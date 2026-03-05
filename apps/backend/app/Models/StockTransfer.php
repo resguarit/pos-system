@@ -20,6 +20,7 @@ class StockTransfer extends Model
         'status',
         'notes',
         'user_id',
+        'accepted_by_id',
     ];
 
     protected $casts = [
@@ -42,6 +43,11 @@ class StockTransfer extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function acceptedBy()
+    {
+        return $this->belongsTo(User::class, 'accepted_by_id');
     }
 
     public function destinationBranch()
