@@ -103,4 +103,6 @@ export interface SelectOption {
     id: number
     name?: string
     description?: string
+    person?: { first_name: string; last_name: string }
+    username?: string
 }

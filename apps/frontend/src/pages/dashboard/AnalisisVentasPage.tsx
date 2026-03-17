@@ -362,13 +362,20 @@ function FilterSelect({ label, value, onChange, placeholder, options, allLabel }
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger><SelectValue placeholder={placeholder} /></SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-[300px] overflow-y-auto">
           <SelectItem value="all">{allLabel}</SelectItem>
-          {options.map((o) => (
-            <SelectItem key={o.id} value={String(o.id)}>
-              {o.name || o.description || `${label} ${o.id}`}
-            </SelectItem>
-          ))}
+          {options.map((o) => {
+            const displayName = o.name ||
+              o.description ||
+              (o.person ? `${o.person.first_name} ${o.person.last_name}`.trim() : null) ||
+              o.username ||
+              `${label} ${o.id}`
+            return (
+              <SelectItem key={o.id} value={String(o.id)}>
+                {displayName}
+              </SelectItem>
+            )
+          })}
         </SelectContent>
       </Select>
     </div>
