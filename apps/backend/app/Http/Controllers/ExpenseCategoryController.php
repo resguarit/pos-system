@@ -118,7 +118,7 @@ class ExpenseCategoryController extends Controller
         if ($expenseCategory->expenses()->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Cannot delete category with existing expenses.'
+                'message' => 'No se puede eliminar la categoría porque tiene gastos asociados.'
             ], 422);
         }
 

@@ -80,7 +80,7 @@ export default function ExpenseCategoriesPage() {
             setCurrentPage(1);
         }, 300);
         return () => clearTimeout(timer);
-    }, [searchTerm]);
+    }, [searchTerm, setCurrentPage]);
 
     const fetchCategories = useCallback(async (page = 1) => {
         try {
@@ -105,7 +105,7 @@ export default function ExpenseCategoriesPage() {
             console.error("Error fetching categories:", error);
             sileo.error({ title: "Error al cargar categorías" });
         }
-    }, [request, debouncedSearchTerm]);
+    }, [request, debouncedSearchTerm, setCurrentPage]);
 
     useEffect(() => {
         fetchCategories(currentPage);
@@ -114,19 +114,19 @@ export default function ExpenseCategoriesPage() {
     // Filter categories based on search term (client-side filtering for subcategories)
     const filterCategories = useCallback((cats: ExpenseCategory[], search: string): ExpenseCategory[] => {
         if (!search.trim()) return cats;
-        
+
         const searchLower = search.toLowerCase().trim();
-        
+
         return cats.reduce((acc: ExpenseCategory[], category) => {
             const nameMatches = category.name.toLowerCase().includes(searchLower);
             const descMatches = category.description?.toLowerCase().includes(searchLower);
-            
+
             // Filter children that match
-            const matchingChildren = category.children?.filter(child => 
+            const matchingChildren = category.children?.filter(child =>
                 child.name.toLowerCase().includes(searchLower) ||
                 child.description?.toLowerCase().includes(searchLower)
             ) || [];
-            
+
             // Include category if it matches OR if any children match
             if (nameMatches || descMatches || matchingChildren.length > 0) {
                 acc.push({
@@ -135,7 +135,7 @@ export default function ExpenseCategoriesPage() {
                     children: (nameMatches || descMatches) ? category.children : matchingChildren
                 });
             }
-            
+
             return acc;
         }, []);
     }, []);
@@ -196,7 +196,8 @@ export default function ExpenseCategoriesPage() {
             setDeleteDialogOpen(false)
             setCategoryToDelete(null)
         } catch (error: unknown) {
-            const errMsg = error instanceof Error ? error.message : 'Error al eliminar la categoría';
+            const err = error as { response?: { data?: { message?: string } }; message?: string };
+            const errMsg = err.response?.data?.message || err.message || 'Error al eliminar la categoría';
             sileo.error({ title: errMsg })
         }
     }
@@ -217,7 +218,7 @@ export default function ExpenseCategoriesPage() {
     const renderCategoryRow = (category: ExpenseCategory, level: number = 0) => {
         const hasChildren = category.children && category.children.length > 0;
         const isExpanded = expandedCategories.has(category.id);
-        
+
         return (
             <React.Fragment key={category.id}>
                 <TableRow className={level > 0 ? "bg-muted/30" : ""}>
@@ -263,10 +264,10 @@ export default function ExpenseCategoriesPage() {
                         <div className="flex justify-end gap-1">
                             {/* Only show "Add Subcategory" for top-level categories */}
                             {level === 0 && hasPermission('crear_categorias_gastos') && (
-                                <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    title="Agregar subcategoría" 
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    title="Agregar subcategoría"
                                     onClick={() => handleAddSubcategory(category)}
                                 >
                                     <FolderPlus className="h-4 w-4 text-blue-500" />
