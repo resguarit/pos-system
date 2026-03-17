@@ -66,6 +66,7 @@ export default function EmitCreditNoteDialog({
             sileo.success({ description: "Nota de Crédito emitida correctamente." });
             onSuccess();
             onClose();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             console.error("Error al emitir Nota de Crédito:", error);
             const msg = error.response?.data?.message || "Ocurrió un error al emitir la Nota de Crédito.";
@@ -87,6 +88,11 @@ export default function EmitCreditNoteDialog({
                     </DialogTitle>
                     <DialogDescription>
                         Estás a punto de emitir una Nota de Crédito / Devolución para la venta original <b>#{sale.receipt_number || sale.id}</b>.
+                        {sale.status === 'annulled' && (
+                            <div className="mt-2 p-3 bg-amber-50 text-amber-800 border border-amber-200 rounded-md text-xs sm:text-sm">
+                                <b>Atención:</b> Esta venta ya fue anulada internamente. Se emitirá el comprobante fiscal en AFIP pero <b>no se devolverá el stock ni se registrará salida de caja</b> ya que esto se realizó durante la anulación.
+                            </div>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
 

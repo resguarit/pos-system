@@ -1717,7 +1717,7 @@ export default function VentasPage() {
                                         )}
                                       </Button>
                                     )}
-                                    {(sale.status === 'active' || sale.status === 'completed') && (
+                                    {(sale.status === 'active' || sale.status === 'completed' || sale.status === 'annulled') && (
                                       <>
                                         {hasPermission('emitir_notas_credito') && canIssueCreditNote(sale) && (
                                           <Button

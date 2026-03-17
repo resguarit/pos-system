@@ -542,10 +542,7 @@ class SaleService implements SaleServiceInterface
                 throw new \Exception('Monto inválido para nota de crédito. Debe ser mayor a 0 y menor o igual al total de la venta original.');
             }
 
-            // Validar que la original no esté anulada
-            if ($originalSale->status === 'annulled') {
-                throw new \Exception('No se puede emitir una nota de crédito para una venta anulada.');
-            }
+            $isAlreadyAnnulled = $originalSale->status === 'annulled';
 
             // Validar que tenga un tipo de comprobante que soporte NC
             $originalAfipCode = $originalSale->receiptType->afip_code ?? null;
@@ -614,15 +611,17 @@ class SaleService implements SaleServiceInterface
                     'item_total' => round($item->item_total * $ratio, 2),
                 ]);
 
-                // Devolver stock
-                $stockService->increaseStockByProductAndBranch(
-                    $item->product_id,
-                    $originalSale->branch_id,
-                    $itemQuantity,
-                    'sale_return',
-                    $ncSale->id,
-                    "Nota de Crédito/Devolución de la venta #" . ($originalSale->receipt_number ?? $originalSale->id)
-                );
+                // Devolver stock (Solo si no fue anulada previamente)
+                if (!$isAlreadyAnnulled) {
+                    $stockService->increaseStockByProductAndBranch(
+                        $item->product_id,
+                        $originalSale->branch_id,
+                        $itemQuantity,
+                        'sale_return',
+                        $ncSale->id,
+                        "Nota de Crédito/Devolución de la venta #" . ($originalSale->receipt_number ?? $originalSale->id)
+                    );
+                }
             }
 
             // 3) Copiar / Escalar IVAs
@@ -636,7 +635,8 @@ class SaleService implements SaleServiceInterface
             }
 
             // 4) Crear Movimiento de Caja (Salida)
-            if ($cashRegisterId) {
+            // Solo si no fue anulada previamente, ya que la anulación ya revierte la caja
+            if ($cashRegisterId && !$isAlreadyAnnulled) {
                 $cashMovementService = app(\App\Services\CashMovementService::class);
 
                 // Buscar tipo de movimiento de anulación/devolución
