@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { sileo } from "sileo"
-import { Search, Loader2, DollarSign, Percent, TrendingUp, AlertCircle } from 'lucide-react';
+import { Search, Loader2, TrendingUp, AlertCircle } from 'lucide-react';
 import { getProducts, type Product } from '@/lib/api/productService';
 import { bulkPriceService } from '@/lib/api/bulkPriceService';
 import { UpdateTypeSelector } from './UpdateTypeSelector';
@@ -32,6 +30,8 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
   const [updateValue, setUpdateValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const normalizeProductId = (id: string | number): string => String(id);
 
   // Cargar productos
   useEffect(() => {
@@ -80,7 +80,7 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
       return null;
     }
 
-    const selectedProductsList = products.filter((p) => selectedProducts.has(p.id));
+    const selectedProductsList = products.filter((p) => selectedProducts.has(normalizeProductId(p.id)));
     
     const previews = selectedProductsList.map((product) => {
       const rawPrice = product.unit_price;
@@ -121,7 +121,7 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
   };
 
   const selectAll = () => {
-    setSelectedProducts(new Set(filteredProducts.map((p) => p.id)));
+    setSelectedProducts(new Set(filteredProducts.map((p) => normalizeProductId(p.id))));
   };
 
   const clearSelection = () => {
@@ -153,17 +153,25 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
     setIsUpdating(true);
     try {
       const updates = Array.from(selectedProducts).map((productId) => {
-        const product = products.find((p) => p.id === productId);
+        const product = products.find((p) => normalizeProductId(p.id) === productId);
         if (!product) return null;
+
+        const numericId = Number(product.id);
+        if (!Number.isFinite(numericId)) return null;
 
         const currentPrice = Number(product.unit_price ?? 0);
         const newPrice = strategy.calculateNewPrice(currentPrice);
 
         return {
-          id: Number(productId),
+          id: numericId,
           unit_price: newPrice,
         };
       }).filter(Boolean) as Array<{ id: number; unit_price: number }>;
+
+      if (updates.length === 0) {
+        sileo.error({ title: 'No se pudieron resolver los productos seleccionados' });
+        return;
+      }
 
       const result = await bulkPriceService.bulkUpdatePrices({ updates });
 
@@ -254,11 +262,20 @@ export const UpdateByProduct: React.FC<UpdateByProductProps> = ({ onSuccess, onC
                   <div
                     key={product.id}
                     className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                    onClick={() => toggleProduct(product.id)}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => toggleProduct(normalizeProductId(product.id))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleProduct(normalizeProductId(product.id));
+                      }
+                    }}
                   >
                     <Checkbox
-                      checked={selectedProducts.has(product.id)}
-                      onCheckedChange={() => toggleProduct(product.id)}
+                      checked={selectedProducts.has(normalizeProductId(product.id))}
+                      onClick={(e) => e.stopPropagation()}
+                      onCheckedChange={() => toggleProduct(normalizeProductId(product.id))}
                     />
                     <div className="flex-1">
                       <p className="font-medium">{product.description || product.name}</p>

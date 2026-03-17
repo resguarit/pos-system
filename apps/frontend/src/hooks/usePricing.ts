@@ -31,7 +31,7 @@ export function usePricing({
   initialSalePrice = 0
 }: UsePricingProps = {}) {
   const { rate: exchangeRate } = useExchangeRate({ fromCurrency: 'USD', toCurrency: 'ARS' });
-  
+
   const [pricing, setPricing] = useState<PricingCalculation>({
     unitPrice,
     currency,
@@ -69,18 +69,18 @@ export function usePricing({
   ): number => {
     // 1. Convertir costo a ARS si es necesario
     const costInArs = currency === 'USD' ? convertUsdToArs(unitPrice, currency) : unitPrice;
-    
+
     // 2. Aplicar IVA primero
     const costWithIva = costInArs * (1 + ivaRate);
-    
+
     // 3. Aplicar markup después
     const priceWithMarkup = costWithIva * (1 + markup);
-    
+
     // 4. Redondear de manera inteligente
-    const finalPrice = priceWithMarkup < 1000 
+    const finalPrice = priceWithMarkup < 1000
       ? Math.round(priceWithMarkup / 10) * 10  // Para precios pequeños, múltiplos de 10
       : Math.round(priceWithMarkup / 100) * 100; // Para precios grandes, múltiplos de 100
-    
+
     return finalPrice;
   }, [convertUsdToArs]);
 
@@ -99,32 +99,32 @@ export function usePricing({
     if (!unitPrice || unitPrice <= 0 || !salePrice || salePrice <= 0) {
       return 0;
     }
-    
+
     // 1. Convertir costo a ARS
     const costInArs = currency === 'USD' ? convertUsdToArs(unitPrice, currency) : unitPrice;
-    
+
     // Validar que el costo sea válido
     if (!costInArs || costInArs <= 0 || !isFinite(costInArs)) {
       return 0;
     }
-    
+
     // 2. Remover IVA del precio de venta
     const priceWithoutIva = salePrice / (1 + ivaRate);
-    
+
     // Validar que el precio sin IVA sea válido
     if (!priceWithoutIva || priceWithoutIva <= 0 || !isFinite(priceWithoutIva)) {
       return 0;
     }
-    
+
     // 3. Calcular markup
     const markup = (priceWithoutIva / costInArs) - 1;
-    
+
     // 4. Asegurar que el markup nunca sea negativo (mínimo 0%)
     const safeMarkup = markup < 0 ? 0 : markup;
-    
+
     // 5. Redondear a 4 decimales
     const finalMarkup = Math.round(safeMarkup * 10000) / 10000;
-    
+
     return finalMarkup;
   }, [convertUsdToArs]);
 
@@ -235,20 +235,20 @@ export function usePricing({
   useEffect(() => {
     // No sobrescribir si el usuario ya ha hecho cambios manuales
     if (pricing.hasChanged) return;
-    
+
     // Si hay un precio inicial (precio manual guardado), respetarlo
     // Solo calcular automáticamente si initialSalePrice es 0 o no existe
-    const finalSalePrice = initialSalePrice && initialSalePrice > 0 
-      ? initialSalePrice 
+    const finalSalePrice = initialSalePrice && initialSalePrice > 0
+      ? initialSalePrice
       : calculateSalePrice(unitPrice, currency, markup, ivaRate);
-    
+
     // Si hay un precio de venta inicial (precio manual) y tenemos tasa de cambio válida,
     // recalcular el markup basándose en ese precio para que refleje el margen real actual
     let finalMarkup = markup;
     if (initialSalePrice && initialSalePrice > 0 && exchangeRate && exchangeRate > 0) {
       finalMarkup = calculateMarkup(unitPrice, currency, initialSalePrice, ivaRate);
     }
-    
+
     setPricing(prev => ({
       ...prev,
       unitPrice,

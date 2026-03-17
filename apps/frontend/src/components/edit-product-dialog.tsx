@@ -160,8 +160,27 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
   useEffect(() => {
     if (open && product) {
+      editingFieldRef.current = null;
+      prevSalePriceRef.current = null;
+
       const controller = new AbortController();
       fetchCatalogs(controller.signal);
+
+      const initialMarkupDecimal = typeof product.markup === 'string'
+        ? parseFloat(product.markup)
+        : typeof product.markup === 'number'
+          ? product.markup
+          : 0;
+      const initialSalePrice = typeof product.sale_price === 'string'
+        ? parseFloat(product.sale_price)
+        : typeof product.sale_price === 'number'
+          ? product.sale_price
+          : 0;
+
+      prevPricingRef.current = {
+        markup: initialMarkupDecimal,
+        salePrice: initialSalePrice,
+      };
 
       const initialData: ProductFormData = {
         description: product.description || '',
@@ -187,6 +206,8 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         controller.abort();
       }
     } else {
+      editingFieldRef.current = null;
+      prevSalePriceRef.current = null;
       setFormData(null);
     }
   }, [open, product, formatMarkup, fetchCatalogs]);
@@ -222,7 +243,8 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
       if (response.exists && code !== product.code) {
         setCodeError("Este código ya está en uso");
-        sileo.error({ title: "Este código ya está en uso",
+        sileo.error({
+          title: "Este código ya está en uso",
           description: "Por favor, elige un código diferente para el producto."
         });
       } else {
@@ -251,7 +273,8 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
       if (response.exists && description !== product.description) {
         setDescriptionError("Esta descripción ya está en uso");
-        sileo.error({ title: "Esta descripción ya está en uso",
+        sileo.error({
+          title: "Esta descripción ya está en uso",
           description: "Por favor, elige una descripción diferente para el producto."
         });
       } else {

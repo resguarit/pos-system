@@ -451,6 +451,13 @@ export default function InventarioPage() {
     }
   }
 
+  const handleEditDialogOpenChange = (open: boolean) => {
+    setEditDialogOpen(open)
+    if (!open) {
+      setSelectedProduct(null)
+    }
+  }
+
   const getProductStock = (product: Product) => {
     if (!product.stocks || !Array.isArray(product.stocks) || product.stocks.length === 0) {
       return { current: 0, min: 0, max: 0 }
@@ -1478,8 +1485,9 @@ export default function InventarioPage() {
           {
             selectedProduct && (
               <EditProductDialog
+                key={String(selectedProduct.id)}
                 open={editDialogOpen}
-                onOpenChange={setEditDialogOpen}
+                onOpenChange={handleEditDialogOpenChange}
                 product={selectedProduct}
                 onProductUpdated={refreshData}
               />
