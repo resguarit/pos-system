@@ -42,7 +42,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }, [])
 
     const addToCart = useCallback((product: CartItem, qty?: number) => {
-        const quantityToAdd = Math.max(1, Number(qty) || 1);
+        const quantityToAdd = Math.max(1, Math.round(Number(qty) || 1));
 
         setCartState((prevCart) => {
             const existingItem = prevCart.find((item) => item.id === product.id);
@@ -59,11 +59,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const updateQuantity = useCallback((productId: string, newQuantity: number) => {
-        if (newQuantity < 1) return;
+        const roundedQuantity = Math.round(newQuantity);
+        if (roundedQuantity < 1) return;
         setCartState((prevCart) =>
             prevCart.map((item) =>
                 item.id === productId
-                    ? { ...item, quantity: newQuantity }
+                    ? { ...item, quantity: roundedQuantity }
                     : item
             )
         );

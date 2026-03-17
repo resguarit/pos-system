@@ -34,21 +34,20 @@ import type { SaleHeader } from '@/types/sale'
 const SMALL_CATALOG_THRESHOLD = 300
 const SERVER_SEARCH_DEBOUNCE_MS = 400
 const SERVER_SEARCH_MIN_LENGTH = 2
-const MIN_SALE_QUANTITY = 0.001
-const QUANTITY_DECIMAL_STEP = 0.001
-const CART_QUANTITY_ADJUST_STEP = 0.1
+const MIN_SALE_QUANTITY = 1
+const QUANTITY_DECIMAL_STEP = 1
+const CART_QUANTITY_ADJUST_STEP = 1
 
 const normalizeQuantity = (value: number, fallback = 1) => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return fallback
   const safe = Math.max(MIN_SALE_QUANTITY, parsed)
-  return Math.round((safe + Number.EPSILON) * 1000) / 1000
+  return Math.round(safe)
 }
 
 const formatQuantity = (value: number) => {
   const normalized = normalizeQuantity(value)
-  if (Number.isInteger(normalized)) return String(normalized)
-  return normalized.toFixed(3).replace(/\.?0+$/, '')
+  return String(normalized)
 }
 
 const isAbortError = (error: unknown) => {
@@ -1053,7 +1052,7 @@ export default function POSPage() {
                   </PopoverTrigger>
                   <PopoverContent className="w-56 p-3" style={{ maxHeight: 300, overflowY: 'auto' }}>
                     <div className="space-y-2">
-                      <Label className="text-xs">Cantidad (permite decimales)</Label>
+                      <Label className="text-xs">Cantidad</Label>
                       <Input
                         type="number"
                         min={MIN_SALE_QUANTITY}
@@ -1068,7 +1067,7 @@ export default function POSPage() {
                         }}
                       />
                       <div className="grid grid-cols-3 gap-2 pt-1">
-                        {[0.25, 0.5, 1, 1.5, 2, 5].map((n) => (
+                        {[1, 2, 3, 4, 5, 10].map((n) => (
                           <Button
                             key={n}
                             type="button"
