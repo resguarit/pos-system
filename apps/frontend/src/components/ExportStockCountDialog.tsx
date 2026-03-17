@@ -41,6 +41,14 @@ interface SupplierOption {
   status?: string;
 }
 
+const isInactiveSupplier = (status?: string) => {
+  if (!status) {
+    return false;
+  }
+
+  return ['inactive', 'inactivo', '0', 'false'].includes(status.toLowerCase());
+};
+
 export const ExportStockCountDialog: React.FC<ExportStockCountDialogProps> = ({
   open,
   onOpenChange,
@@ -302,7 +310,12 @@ export const ExportStockCountDialog: React.FC<ExportStockCountDialogProps> = ({
                       onClick={() => toggleSelection(String(supplier.id), selectedSupplierIds, setSelectedSupplierIds)}
                     >
                       <Checkbox checked={selectedSupplierIds.includes(String(supplier.id))} className="border-2 border-slate-600" />
-                      <span className="text-sm truncate">{supplier.name}</span>
+                      <span className="text-sm truncate">
+                        {supplier.name}
+                        {isInactiveSupplier(supplier.status) && (
+                          <span className="ml-2 text-xs text-muted-foreground">(inactivo)</span>
+                        )}
+                      </span>
                     </button>
                   ))}
                 </div>

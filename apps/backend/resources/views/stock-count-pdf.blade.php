@@ -92,8 +92,8 @@
         </div>
         <div class="document-title">Planilla de Conteo de Stock</div>
         <div class="document-info">
-            Fecha: {{ $exportDate }} | Sucursales: {{ empty($branchIds) ? 'Todas' : 'Seleccionadas' }} | Proveedores:
-            {{ empty($supplierIds) ? 'Todos' : 'Seleccionados' }}
+            Fecha: {{ $exportDate }} | Sucursales: {{ $branchSummary ?? (empty($branchIds) ? 'Todas' : 'Seleccionadas') }} |
+            Proveedores: {{ $supplierSummary ?? (empty($supplierIds) ? 'Todos' : 'Seleccionados') }}
         </div>
     </div>
 

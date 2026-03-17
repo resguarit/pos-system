@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Product;
+use App\Models\Branch;
+use App\Models\Supplier;
 
 class ProductController extends Controller
 {
@@ -414,10 +416,30 @@ class ProductController extends Controller
                 ->orderBy('description')
                 ->get();
 
+            $selectedBranchNames = empty($branchIds)
+                ? []
+                : Branch::whereIn('id', $branchIds)
+                    ->get(['id', 'description'])
+                    ->map(function ($branch) {
+                        return $branch->description ?: ('Sucursal ' . $branch->id);
+                    })
+                    ->values()
+                    ->toArray();
+
+            $selectedSupplierNames = empty($supplierIds)
+                ? []
+                : Supplier::whereIn('id', $supplierIds)
+                    ->pluck('name')
+                    ->filter()
+                    ->values()
+                    ->toArray();
+
             $pdf = Pdf::loadView('stock-count-pdf', [
                 'products' => $products,
                 'branchIds' => $branchIds,
                 'supplierIds' => $supplierIds,
+                'branchSummary' => empty($selectedBranchNames) ? 'Todas' : implode(', ', $selectedBranchNames),
+                'supplierSummary' => empty($selectedSupplierNames) ? 'Todos' : implode(', ', $selectedSupplierNames),
                 'exportDate' => now()->format('d/m/Y H:i'),
             ])->setPaper('a4', 'portrait');
 
