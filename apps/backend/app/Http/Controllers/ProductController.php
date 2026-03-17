@@ -11,6 +11,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Product;
 use App\Models\Branch;
 use App\Models\Supplier;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class ProductController extends Controller
 {
@@ -382,6 +384,7 @@ class ProductController extends Controller
             $supplierIds = $normalizeIds($request->query('supplier_ids', []));
             $includeInactive = filter_var($request->query('include_inactive', false), FILTER_VALIDATE_BOOLEAN);
             $includeOutOfStock = filter_var($request->query('include_out_of_stock', false), FILTER_VALIDATE_BOOLEAN);
+            $format = strtolower((string) $request->query('format', 'pdf'));
 
             $query = Product::with(['category', 'supplier', 'stocks']);
 
@@ -433,6 +436,54 @@ class ProductController extends Controller
                     ->filter()
                     ->values()
                     ->toArray();
+
+            if (in_array($format, ['xlsx', 'excel'], true)) {
+                $spreadsheet = new Spreadsheet();
+                $sheet = $spreadsheet->getActiveSheet();
+
+                $sheet->setTitle('Conteo Stock');
+                $sheet->fromArray([
+                    'Codigo',
+                    'Descripcion',
+                    'Categoria',
+                    'Proveedor',
+                    'Stock Actual',
+                    'Conteo Fisico',
+                    'Diferencia',
+                ], null, 'A1');
+
+                $row = 2;
+                foreach ($products as $product) {
+                    $stockTotal = !empty($branchIds)
+                        ? $product->stocks->whereIn('branch_id', $branchIds)->sum('current_stock')
+                        : $product->stocks->sum('current_stock');
+
+                    $sheet->fromArray([
+                        $product->code ?: '-',
+                        $product->description,
+                        $product->category ? $product->category->name : '-',
+                        $product->supplier ? $product->supplier->name : '-',
+                        (int) $stockTotal,
+                        '',
+                        '',
+                    ], null, 'A' . $row);
+
+                    $row++;
+                }
+
+                foreach (range('A', 'G') as $column) {
+                    $sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+
+                $filename = 'planilla-conteo-' . now()->format('Y-m-d') . '.xlsx';
+                $writer = new Xlsx($spreadsheet);
+
+                return response()->streamDownload(function () use ($writer) {
+                    $writer->save('php://output');
+                }, $filename, [
+                    'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                ]);
+            }
 
             $pdf = Pdf::loadView('stock-count-pdf', [
                 'products' => $products,

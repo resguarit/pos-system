@@ -9,6 +9,7 @@ export interface PriceListExportOptions {
 
 export interface StockCountExportOptions extends PriceListExportOptions {
   supplierIds?: number[];
+  format?: 'pdf' | 'xlsx';
 }
 
 export const priceListService = {
@@ -89,20 +90,27 @@ export const priceListService = {
         params.append('include_out_of_stock', '1');
       }
 
+      params.append('format', options.format || 'pdf');
+
       const apiUrl = `/products/export/stock-count?${params.toString()}`;
 
       const response = await api.get(apiUrl, {
         responseType: 'blob',
       });
 
+      const outputFormat = options.format || 'pdf';
+      const mimeType = outputFormat === 'xlsx'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'application/pdf';
+
       // Crear blob y descargar
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const blob = new Blob([response.data], { type: mimeType });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
 
       const date = new Date().toISOString().split('T')[0];
-      a.download = `planilla-conteo-${date}.pdf`;
+      a.download = `planilla-conteo-${date}.${outputFormat}`;
 
       document.body.appendChild(a);
       a.click();

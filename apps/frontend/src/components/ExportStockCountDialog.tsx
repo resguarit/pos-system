@@ -56,6 +56,7 @@ export const ExportStockCountDialog: React.FC<ExportStockCountDialogProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [includeInactiveProducts, setIncludeInactiveProducts] = useState(false);
   const [includeOutOfStockProducts, setIncludeOutOfStockProducts] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'xlsx'>('pdf');
 
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
@@ -161,6 +162,7 @@ export const ExportStockCountDialog: React.FC<ExportStockCountDialogProps> = ({
       const options: StockCountExportOptions = {
         includeInactiveProducts,
         includeOutOfStockProducts,
+        format: exportFormat,
       };
 
       if (selectedCategoryIds.length > 0) {
@@ -179,7 +181,7 @@ export const ExportStockCountDialog: React.FC<ExportStockCountDialogProps> = ({
 
       sileo.success({
         title: 'Planilla de conteo exportada',
-        description: 'El PDF se descargo correctamente.',
+        description: `El archivo ${exportFormat.toUpperCase()} se descargo correctamente.`,
       });
 
       onOpenChange(false);
@@ -251,6 +253,19 @@ export const ExportStockCountDialog: React.FC<ExportStockCountDialogProps> = ({
                 </div>
               </PopoverContent>
             </Popover>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Formato de exportacion</Label>
+            <Select value={exportFormat} onValueChange={(value: 'pdf' | 'xlsx') => setExportFormat(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona formato" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pdf">PDF</SelectItem>
+                <SelectItem value="xlsx">Excel (.xlsx)</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
@@ -352,12 +367,12 @@ export const ExportStockCountDialog: React.FC<ExportStockCountDialogProps> = ({
             {isExporting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Generando PDF...
+                Generando archivo...
               </>
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Exportar PDF
+                Exportar {exportFormat === 'pdf' ? 'PDF' : 'Excel'}
               </>
             )}
           </Button>
