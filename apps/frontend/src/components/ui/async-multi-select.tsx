@@ -22,6 +22,8 @@ export type Option = {
     value: string
 }
 
+const EMPTY_LABEL_MAP: Record<string, string> = {}
+
 interface AsyncMultiSelectProps {
     options: Option[]
     selected: string[]
@@ -37,6 +39,7 @@ interface AsyncMultiSelectProps {
     disabled?: boolean
     // Map to keep track of labels for selected items even if they are not in the current options
     selectedLabelMap?: Record<string, string>
+    minSearchLength?: number
 }
 
 export function AsyncMultiSelect({
@@ -52,10 +55,12 @@ export function AsyncMultiSelect({
     emptyMessage = "No se encontraron resultados.",
     className,
     disabled = false,
-    selectedLabelMap = {},
+    selectedLabelMap = EMPTY_LABEL_MAP,
+    minSearchLength = 2,
 }: AsyncMultiSelectProps) {
     const [open, setOpen] = React.useState(false)
     const [inputValue, setInputValue] = React.useState("")
+    const listboxId = React.useId()
 
     const handleUnselect = (item: string) => {
         onChange(selected.filter((i) => i !== item))
@@ -63,11 +68,13 @@ export function AsyncMultiSelect({
 
     // Effect for debouncing local input state to parent onSearch
     React.useEffect(() => {
+        if (!open) return
+
         const timer = setTimeout(() => {
             onSearch(inputValue)
         }, 300)
         return () => clearTimeout(timer)
-    }, [inputValue, onSearch])
+    }, [inputValue, onSearch, open])
 
     // Effect to reset input when closed
     React.useEffect(() => {
@@ -83,6 +90,18 @@ export function AsyncMultiSelect({
         return selectedLabelMap[value] || `Item ${value}`
     }
 
+    const buildSearchValue = (value: string, label: string) => `${label} ${value}`
+
+    const trimmedInputValue = inputValue.trim()
+
+    const unselectedOptions = React.useMemo(
+        () => options.filter((opt) => !selected.includes(opt.value)),
+        [options, selected]
+    )
+
+    const showMinLengthHint = trimmedInputValue.length > 0 && trimmedInputValue.length < minSearchLength
+    const hasVisibleOptions = selected.length > 0 || unselectedOptions.length > 0
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
@@ -90,6 +109,7 @@ export function AsyncMultiSelect({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
+                    aria-controls={listboxId}
                     className={cn("w-full justify-between hover:bg-background/90 min-h-10 h-auto px-3 py-2", className)}
                     disabled={disabled}
                 >
@@ -112,14 +132,21 @@ export function AsyncMultiSelect({
                         value={inputValue}
                         onValueChange={setInputValue}
                     />
-                    <CommandList className="max-h-64 overflow-y-auto">
-                        <CommandEmpty>
-                            {loading ? (
-                                <div className="flex justify-center p-4"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
-                            ) : (
-                                emptyMessage
-                            )}
-                        </CommandEmpty>
+                    <CommandList id={listboxId} className="max-h-64 overflow-y-auto">
+                        {!hasVisibleOptions && (
+                            <CommandEmpty>
+                                {loading ? (
+                                    <div className="flex items-center justify-center gap-2 p-4 text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <span>Buscando productos...</span>
+                                    </div>
+                                ) : showMinLengthHint ? (
+                                    `Escribi al menos ${minSearchLength} caracteres para buscar.`
+                                ) : (
+                                    emptyMessage
+                                )}
+                            </CommandEmpty>
+                        )}
                         <CommandGroup>
                             {/* Always show selected items at top if they don't match or even if they do */}
                             {selected.map((value) => {
@@ -127,7 +154,7 @@ export function AsyncMultiSelect({
                                 return (
                                     <CommandItem
                                         key={`selected-${value}`}
-                                        value={value}
+                                        value={buildSearchValue(value, label)}
                                         onSelect={() => handleUnselect(value)}
                                         className="font-medium bg-blue-50/50 cursor-pointer"
                                     >
@@ -140,10 +167,10 @@ export function AsyncMultiSelect({
                             })}
 
                             {/* Render options that are NOT selected */}
-                            {options.filter(opt => !selected.includes(opt.value)).map((option) => (
+                            {unselectedOptions.map((option) => (
                                 <CommandItem
                                     key={option.value}
-                                    value={option.value}
+                                    value={buildSearchValue(option.value, option.label)}
                                     onSelect={() => {
                                         onChange([...selected, option.value])
                                     }}

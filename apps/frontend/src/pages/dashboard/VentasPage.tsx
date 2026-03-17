@@ -34,7 +34,7 @@ import type { DateRange } from "@/components/ui/date-range-picker";
 import Pagination from "@/components/ui/pagination";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import useApi from "@/hooks/useApi";
 import { type SaleHeader } from "@/types/sale";
 import { sileo } from "sileo"
@@ -111,6 +111,7 @@ export default function VentasPage() {
   const [productPage, setProductPage] = useState(1);
   const [productHasMore, setProductHasMore] = useState(false);
   const [productLoading, setProductLoading] = useState(false);
+  const productSearchRequestIdRef = useRef(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Presupuestos State & Hook
@@ -143,6 +144,18 @@ export default function VentasPage() {
     if (branchFilterIds.length === 1) return first;
     return `${first} +${branchFilterIds.length - 1}`;
   }, [branchFilterIds, branches]);
+
+  const handleProductSearch = useCallback((query: string) => {
+    const trimmedQuery = query.trim();
+
+    setProductPage(1);
+    setDebouncedProductQuery(trimmedQuery);
+
+    if (trimmedQuery.length < 2) {
+      setProductOptions([]);
+      setProductHasMore(false);
+    }
+  }, []);
 
   const toggleBranchFilter = (value: string) => {
     setProductOptions([]);
@@ -307,11 +320,14 @@ export default function VentasPage() {
   useEffect(() => {
     const fetchProducts = async () => {
       const query = debouncedProductQuery.trim();
+
       if (query.length < 2) {
-        setProductOptions([]);
         setProductHasMore(false);
+        setProductLoading(false);
         return;
       }
+
+      const requestId = ++productSearchRequestIdRef.current;
 
       setProductLoading(true);
       try {
@@ -322,7 +338,7 @@ export default function VentasPage() {
           per_page: 50,
         };
         if (selectedBranchIds.length > 0) {
-          params["branch_ids[]"] = selectedBranchIds.map(id => Number(id));
+          params.branch_ids = selectedBranchIds.map(id => Number(id));
         }
 
         const response = await request({
@@ -349,6 +365,10 @@ export default function VentasPage() {
           };
         });
 
+        if (requestId !== productSearchRequestIdRef.current) {
+          return;
+        }
+
         setProductOptions((prev) => {
           if (productPage === 1) return options;
           const map = new Map(prev.map((opt) => [opt.value, opt]));
@@ -364,11 +384,17 @@ export default function VentasPage() {
           return next;
         });
       } catch (error) {
+        if (requestId !== productSearchRequestIdRef.current) {
+          return;
+        }
+
         console.error("Error fetching products:", error);
         if (productPage === 1) setProductOptions([]);
         setProductHasMore(false);
       } finally {
-        setProductLoading(false);
+        if (requestId === productSearchRequestIdRef.current) {
+          setProductLoading(false);
+        }
       }
     };
 
@@ -1419,12 +1445,7 @@ export default function VentasPage() {
                             options={productOptions}
                             selected={selectedProductIds}
                             onChange={setSelectedProductIds}
-                            onSearch={(query) => {
-                              setProductOptions([]);
-                              setProductHasMore(false);
-                              setProductPage(1);
-                              setDebouncedProductQuery(query);
-                            }}
+                            onSearch={handleProductSearch}
                             loading={productLoading}
                             hasMore={productHasMore}
                             onLoadMore={() => setProductPage(p => p + 1)}
