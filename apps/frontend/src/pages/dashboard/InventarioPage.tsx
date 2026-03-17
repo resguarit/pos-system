@@ -326,7 +326,7 @@ export default function InventarioPage() {
     try {
       const response = await request({
         method: "GET",
-        url: "/suppliers",
+        url: "/suppliers?per_page=10000",
         signal,
       })
       const suppliersData = Array.isArray(response?.data?.data) ? response.data.data :
@@ -612,7 +612,7 @@ export default function InventarioPage() {
     }
 
     return (
-      <div className="grid gap-2">
+      <div className="grid max-h-64 gap-2 overflow-y-auto pr-1">
         {options.map((opt) => (
           <label key={opt.value} className="flex items-center gap-2 text-sm">
             <Checkbox
