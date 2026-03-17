@@ -30,7 +30,7 @@ class PosController extends Controller
     public function searchProducts(Request $request)
     {
         $query = trim((string) $request->input('query', ''));
-        $likeTerm = '%' . addcslashes($query, '\\%_') . '%';
+        $likeTerm = '%' . addcslashes($query, '\\_') . '%';
 
         if (empty($query)) {
             return response()->json([]);

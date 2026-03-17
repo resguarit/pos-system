@@ -34,6 +34,22 @@ import type { SaleHeader } from '@/types/sale'
 const SMALL_CATALOG_THRESHOLD = 300
 const SERVER_SEARCH_DEBOUNCE_MS = 400
 const SERVER_SEARCH_MIN_LENGTH = 2
+const MIN_SALE_QUANTITY = 0.001
+const QUANTITY_DECIMAL_STEP = 0.001
+const CART_QUANTITY_ADJUST_STEP = 0.1
+
+const normalizeQuantity = (value: number, fallback = 1) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  const safe = Math.max(MIN_SALE_QUANTITY, parsed)
+  return Math.round((safe + Number.EPSILON) * 1000) / 1000
+}
+
+const formatQuantity = (value: number) => {
+  const normalized = normalizeQuantity(value)
+  if (Number.isInteger(normalized)) return String(normalized)
+  return normalized.toFixed(3).replace(/\.?0+$/, '')
+}
 
 const isAbortError = (error: unknown) => {
   if (!error || typeof error !== 'object') return false
@@ -530,7 +546,7 @@ export default function POSPage() {
 
   // Actualizar para respetar la cantidad por click
   const addToCart = useCallback((product: CartItem, qty?: number) => {
-    const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1)
+    const quantityToAdd = normalizeQuantity(Number(qty ?? addQtyPerClick) || 1)
 
     setCart((prevCart) => {
       // ✅ Solo buscar productos individuales (no de combos) con el mismo ID
@@ -756,7 +772,7 @@ export default function POSPage() {
         addToCart(foundProduct, addQtyPerClick)
         sileo.success({
           title: "Producto agregado",
-          description: `${foundProduct.description} x${Math.max(1, addQtyPerClick)} se agregó al carrito.`,
+          description: `${foundProduct.description} x${formatQuantity(addQtyPerClick)} se agregó al carrito.`,
         })
         setProductCodeInput("")
       }
@@ -783,8 +799,9 @@ export default function POSPage() {
   }
 
   const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) return
-    setCart((prevCart) => prevCart.map((item) => (item.id === productId ? { ...item, quantity: newQuantity } : item)))
+    if (newQuantity < MIN_SALE_QUANTITY) return
+    const normalizedQuantity = normalizeQuantity(newQuantity)
+    setCart((prevCart) => prevCart.map((item) => (item.id === productId ? { ...item, quantity: normalizedQuantity } : item)))
   }
 
   const clearCart = () => {
@@ -867,11 +884,31 @@ export default function POSPage() {
                       </TableCell>
                       <TableCell className="py-1 sm:py-2">
                         <div className="flex items-center justify-center">
-                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity - 1)}>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6"
+                            onClick={() => updateQuantity(item.id, item.quantity - CART_QUANTITY_ADJUST_STEP)}
+                          >
                             <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
                           </Button>
-                          <span className="w-5 sm:w-6 lg:w-8 text-center text-xs sm:text-sm">{item.quantity}</span>
-                          <Button variant="outline" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => updateQuantity(item.id, item.quantity + 1)}>
+                          <Input
+                            type="number"
+                            min={MIN_SALE_QUANTITY}
+                            step={QUANTITY_DECIMAL_STEP}
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const value = Number(e.target.value)
+                              if (!Number.isNaN(value)) updateQuantity(item.id, value)
+                            }}
+                            className="w-16 sm:w-20 h-7 mx-1 text-center text-xs sm:text-sm"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6"
+                            onClick={() => updateQuantity(item.id, item.quantity + CART_QUANTITY_ADJUST_STEP)}
+                          >
                             <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
                           </Button>
                         </div>
@@ -940,7 +977,6 @@ export default function POSPage() {
               onValueChange={handleBranchChange}
               disabled={!branches || branches.length <= 1}
             >
-              {/* @ts-expect-error - UI component props mismatch */}
               <SelectTrigger className="w-[250px]">
                 <SelectValue placeholder="Seleccionar sucursal" />
               </SelectTrigger>
@@ -1010,31 +1046,29 @@ export default function POSPage() {
               {/* Cantidad por selección (selector único) */}
               <div className="flex items-center gap-2">
                 <Popover open={qtySelectorOpen} onOpenChange={setQtySelectorOpen}>
-                  {/* @ts-expect-error - UI component props mismatch */}
                   <PopoverTrigger asChild>
                     <Button type="button" variant="outline" className="min-w-[110px] justify-between">
-                      Cant. x{Math.max(1, addQtyPerClick)}
+                      Cant. x{formatQuantity(addQtyPerClick)}
                     </Button>
                   </PopoverTrigger>
-                  {/* @ts-expect-error - UI component props mismatch */}
                   <PopoverContent className="w-56 p-3" style={{ maxHeight: 300, overflowY: 'auto' }}>
                     <div className="space-y-2">
-                      <Label className="text-xs">Cantidad</Label>
+                      <Label className="text-xs">Cantidad (permite decimales)</Label>
                       <Input
                         type="number"
-                        min={1}
-                        step={1}
+                        min={MIN_SALE_QUANTITY}
+                        step={QUANTITY_DECIMAL_STEP}
                         value={addQtyPerClick}
                         onChange={(e) => {
-                          const v = Math.floor(Number(e.target.value))
-                          setAddQtyPerClick(isNaN(v) ? 1 : Math.max(1, v))
+                          const v = Number(e.target.value)
+                          setAddQtyPerClick(Number.isNaN(v) ? 1 : normalizeQuantity(v))
                         }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') setQtySelectorOpen(false)
                         }}
                       />
                       <div className="grid grid-cols-3 gap-2 pt-1">
-                        {[1, 2, 3, 5, 10, 20].map((n) => (
+                        {[0.25, 0.5, 1, 1.5, 2, 5].map((n) => (
                           <Button
                             key={n}
                             type="button"
@@ -1043,7 +1077,7 @@ export default function POSPage() {
                             className="w-full"
                             onClick={() => { setAddQtyPerClick(n); setQtySelectorOpen(false) }}
                           >
-                            x{n}
+                            x{formatQuantity(n)}
                           </Button>
                         ))}
                       </div>
@@ -1054,11 +1088,9 @@ export default function POSPage() {
 
               {/* Categoría padre */}
               <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-                {/* @ts-expect-error - UI component props mismatch */}
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
-                {/* @ts-expect-error - UI component props mismatch */}
                 <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
                   <SelectItem value="all">Todas las categorías</SelectItem>
                   {parentCategories.map((cat) => (
@@ -1080,11 +1112,9 @@ export default function POSPage() {
                 onValueChange={setSelectedSubcategoryId}
                 disabled={selectedCategoryId === 'all' || (subcategories.length === 0 && !loadingSubcategories)}
               >
-                {/* @ts-expect-error - UI component props mismatch */}
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder={loadingSubcategories ? 'Cargando...' : 'Subcategoría'} />
                 </SelectTrigger>
-                {/* @ts-expect-error - UI component props mismatch */}
                 <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
                   <SelectItem value="all">Todas las subcategorías</SelectItem>
                   {subcategories.map((sub) => (
@@ -1111,7 +1141,7 @@ export default function POSPage() {
           {/* Sección de Combos */}
           <ComboSection
             branchId={selectedBranch?.id ? Number(selectedBranch.id) : null}
-            addQtyPerClick={addQtyPerClick}
+            addQtyPerClick={Math.max(1, Math.round(addQtyPerClick))}
             formatCurrency={formatCurrency}
             onComboAdded={addComboToCart}
 
@@ -1149,7 +1179,7 @@ export default function POSPage() {
                       className={`w-full h-8 cursor-pointer ${ui.button}`}
                       onClick={(e) => { e.stopPropagation(); addToCart(product, addQtyPerClick); }}
                     >
-                      Agregar x{Math.max(1, addQtyPerClick)}
+                      Agregar x{formatQuantity(addQtyPerClick)}
                     </Button>
                   </CardFooter>
                 </Card>
@@ -1185,7 +1215,6 @@ export default function POSPage() {
 
             {/* Sheet del carrito en móvil */}
             <Sheet open={cartSheetOpen} onOpenChange={setCartSheetOpen}>
-              {/* @ts-expect-error - UI component props mismatch */}
               <SheetContent side="bottom" className="h-[90vh] flex flex-col p-0 [&>button]:hidden">
                 {renderCartContent()}
               </SheetContent>
