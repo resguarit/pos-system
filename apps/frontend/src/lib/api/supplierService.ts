@@ -20,7 +20,11 @@ export type { Supplier };
  */
 export const getSuppliers = async (): Promise<Supplier[]> => {
   try {
-    const response = await api.get('/suppliers');
+    const response = await api.get('/suppliers', {
+      params: {
+        per_page: 10000,
+      },
+    });
     return response.data.data || response.data;
   } catch (error) {
     console.error("Falló la obtención de proveedores:", error);

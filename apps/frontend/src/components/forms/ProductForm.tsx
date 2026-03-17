@@ -214,7 +214,11 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
           axios.get(`${apiUrl}/categories/parents`),
           axios.get(`${apiUrl}/measures`),
           axios.get(`${apiUrl}/ivas`),
-          axios.get(`${apiUrl}/suppliers`)
+          axios.get(`${apiUrl}/suppliers`, {
+            params: {
+              per_page: 10000,
+            },
+          })
         ]);
 
         setParentCategories(parentCategoriesRes.data?.data || []);

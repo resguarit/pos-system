@@ -127,7 +127,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       const [categoriesResponse, measuresResponse, suppliersResponse, ivasResponse, branchesResponse] = await Promise.all([
         request({ method: 'GET', url: '/categories/for-selector', signal }),
         request({ method: 'GET', url: '/measures', signal }),
-        request({ method: 'GET', url: '/suppliers', signal }),
+        request({ method: 'GET', url: '/suppliers?per_page=10000', signal }),
         request({ method: 'GET', url: '/ivas', signal }),
         request({ method: 'GET', url: '/branches', signal })
       ]);
