@@ -343,18 +343,96 @@ class ProductController extends Controller
                 'exportDate' => now()->format('d/m/Y H:i'),
             ])->setPaper('a4', 'portrait');
 
-            $filename = 'lista-precios-' . now()->format('Y-m-d') . '.pdf';
+            $filename = 'planilla-conteo-' . now()->format('Y-m-d') . '.pdf';
 
             return $pdf->stream($filename);
 
         } catch (\Exception $e) {
             try {
-                Log::error('Error generando lista de precios: ' . $e->getMessage());
+                Log::error('Error generando planilla de conteo: ' . $e->getMessage());
             } catch (\Exception $ex) {
                 // Ignore logging error
             }
             return response()->json([
-                'message' => 'Error generando lista de precios',
+                'message' => 'Error generando planilla de conteo',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function exportStockCountList(Request $request)
+    {
+        try {
+            $normalizeIds = static function ($value): array {
+                if (is_string($value)) {
+                    $value = explode(',', $value);
+                }
+
+                if (!is_array($value)) {
+                    return [];
+                }
+
+                return array_values(array_filter(array_map('intval', $value), static fn ($id) => $id > 0));
+            };
+
+            $categoryIds = $normalizeIds($request->query('category_ids', []));
+            $branchIds = $normalizeIds($request->query('branch_ids', []));
+            $supplierIds = $normalizeIds($request->query('supplier_ids', []));
+            $includeInactive = filter_var($request->query('include_inactive', false), FILTER_VALIDATE_BOOLEAN);
+            $includeOutOfStock = filter_var($request->query('include_out_of_stock', false), FILTER_VALIDATE_BOOLEAN);
+
+            $query = Product::with(['category', 'supplier', 'stocks']);
+
+            if (!$includeInactive) {
+                $query->where('status', true);
+            }
+
+            if (!empty($categoryIds)) {
+                $query->whereIn('category_id', $categoryIds);
+            }
+
+            if (!empty($supplierIds)) {
+                $query->whereIn('supplier_id', $supplierIds);
+            }
+
+            if (!empty($branchIds)) {
+                $query->whereHas('stocks', function ($q) use ($branchIds, $includeOutOfStock) {
+                    $q->whereIn('branch_id', $branchIds);
+
+                    if (!$includeOutOfStock) {
+                        $q->where('current_stock', '>', 0);
+                    }
+                });
+            } elseif (!$includeOutOfStock) {
+                $query->whereHas('stocks', function ($q) {
+                    $q->where('current_stock', '>', 0);
+                });
+            }
+
+            $products = $query
+                ->orderBy('category_id')
+                ->orderBy('description')
+                ->get();
+
+            $pdf = Pdf::loadView('stock-count-pdf', [
+                'products' => $products,
+                'branchIds' => $branchIds,
+                'supplierIds' => $supplierIds,
+                'exportDate' => now()->format('d/m/Y H:i'),
+            ])->setPaper('a4', 'portrait');
+
+            $filename = 'planilla-conteo-' . now()->format('Y-m-d') . '.pdf';
+
+            return $pdf->stream($filename);
+        } catch (\Exception $e) {
+            try {
+                Log::error('Error generando planilla de conteo de stock: ' . $e->getMessage());
+            } catch (\Exception $ex) {
+                // Ignore logging error
+            }
+
+            return response()->json([
+                'message' => 'Error generando planilla de conteo de stock',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -149,6 +149,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             Route::get('/{id}/traceability', [\App\Http\Controllers\ProductTraceabilityController::class, 'getHistory'])
                 ->middleware('has_permission:ver_trazabilidad_producto');
             Route::get('/export/price-list', [ProductController::class, 'exportPriceList']);
+            Route::get('/export/stock-count', [ProductController::class, 'exportStockCountList']);
             Route::get('/by-categories', [ProductController::class, 'getProductsByCategories']);
         });
 

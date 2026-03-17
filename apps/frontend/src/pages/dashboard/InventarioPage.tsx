@@ -30,6 +30,45 @@ import { useBranch } from '@/context/BranchContext';
 import { usePersistentState } from '@/hooks/usePersistentState';
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { matchesWildcard } from "@/utils/searchUtils";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import ExportStockCountDialog from "@/components/ExportStockCountDialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+type MultiSelectOption = { value: string; label: string }
+
+const MultiSelectCheckbox = ({
+  options,
+  selected,
+  onChange,
+}: {
+  options: MultiSelectOption[]
+  selected: string[]
+  onChange: (values: string[]) => void
+}) => {
+  const toggle = (value: string) => {
+    if (selected.includes(value)) {
+      const newSelected = selected.filter((v) => v !== value)
+      onChange(newSelected)
+    } else {
+      const newSelected = [...selected, value]
+      onChange(newSelected)
+    }
+  }
+
+  return (
+    <div className="grid max-h-64 gap-2 overflow-y-auto pr-1">
+      {options.map((opt) => (
+        <label key={opt.value} className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={selected.includes(opt.value)}
+            onCheckedChange={() => toggle(opt.value)}
+          />
+          <span>{opt.label}</span>
+        </label>
+      ))}
+    </div>
+  )
+}
 
 export default function InventarioPage() {
   const { hasPermission } = useAuth();
@@ -53,7 +92,8 @@ export default function InventarioPage() {
   const [categories, setCategories] = useState<ProductCategoryType[]>([])
   const [parentCategories, setParentCategories] = useState<ProductCategoryType[]>([])
 
-  const [selectedCategories, setSelectedCategories] = usePersistentState<string[]>('selectedCategories', [])
+  const [selectedCategoryId, setSelectedCategoryId] = usePersistentState<string>('selectedCategoryId', 'all')
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = usePersistentState<string>('selectedSubcategoryId', 'all')
   const [selectedStockStatuses, setSelectedStockStatuses] = usePersistentState<string[]>('selectedStockStatuses', [])
   const [selectedSuppliers, setSelectedSuppliers] = usePersistentState<string[]>('selectedSuppliers', [])
   const [selectedProductStatus, setSelectedProductStatus] = usePersistentState<string>('selectedProductStatus', 'all')
@@ -67,8 +107,11 @@ export default function InventarioPage() {
   const [page, setPage] = usePersistentState<number>('page', 1)
   const [perPage, setPerPage] = usePersistentState<number>('perPage', 10)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [exportStockCountDialogOpen, setExportStockCountDialogOpen] = useState(false)
   const [advancedBulkUpdateDialogOpen, setAdvancedBulkUpdateDialogOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+
+  const availableSubcategories = categories.filter((c) => String(c.parent_id) === selectedCategoryId)
 
   // Configuración de columnas redimensionables
   const showStockColumn = hasPermission('ver_stock_columna');
@@ -115,8 +158,19 @@ export default function InventarioPage() {
         selectedBranchIds.forEach(id => params.append('branch_ids[]', id))
       }
 
-      if (selectedCategories.length > 0) {
-        selectedCategories.forEach(id => params.append('category_ids[]', id))
+      const activeCategoryIds: string[] = []
+      if (selectedSubcategoryId !== 'all') {
+        activeCategoryIds.push(selectedSubcategoryId)
+      } else if (selectedCategoryId !== 'all') {
+        const parentId = Number(selectedCategoryId)
+        const childIds = categories
+          .filter((c) => c.parent_id === parentId)
+          .map((c) => String(c.id))
+        activeCategoryIds.push(selectedCategoryId, ...childIds)
+      }
+
+      if (activeCategoryIds.length > 0) {
+        activeCategoryIds.forEach((id) => params.append('category_ids[]', id))
       }
 
       if (selectedStockStatuses.length > 0) {
@@ -177,8 +231,8 @@ export default function InventarioPage() {
           }
 
           // 2. Client-side Category Filter
-          if (selectedCategories.length > 0) {
-            filteredData = filteredData.filter((p: Product) => selectedCategories.includes(String(p.category_id)));
+          if (activeCategoryIds.length > 0) {
+            filteredData = filteredData.filter((p: Product) => activeCategoryIds.includes(String(p.category_id)));
           }
 
           // 3. Client-side Supplier Filter
@@ -215,7 +269,7 @@ export default function InventarioPage() {
       console.error("Error al cargar productos:", err)
       setProducts([])
     }
-  }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus]);
+  }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, categories, selectedStockStatuses, selectedSuppliers, selectedProductStatus]);
 
   const refreshData = useCallback(() => {
     // If we are on page > 1 and refresh, we might want to stay on page or go to 1. 
@@ -353,7 +407,6 @@ export default function InventarioPage() {
       await Promise.all([fetchBranches(signal), fetchCategories(signal), fetchSuppliers(signal)])
 
       const stockParam = searchParams.get('stock')
-      const catParam = searchParams.getAll('category')
       const viewParam = searchParams.get('view')
       const rawPageParam = searchParams.get('page')
       const rawPerPageParam = searchParams.get('per_page')
@@ -364,9 +417,6 @@ export default function InventarioPage() {
         setSelectedStockStatuses(['low-stock', 'out-of-stock'])
       }
 
-      if (catParam && catParam.length) {
-        setSelectedCategories(catParam)
-      }
       if (viewParam !== null) {
         setPerBranchView(viewParam === 'per-branch')
       }
@@ -419,10 +469,24 @@ export default function InventarioPage() {
 
   // Reset page when filters change (except page itself)
   useEffect(() => {
+    if (selectedCategoryId === 'all') {
+      setSelectedSubcategoryId('all')
+      return
+    }
+
+    if (selectedSubcategoryId === 'all') return
+
+    const stillAvailable = availableSubcategories.some((sub) => String(sub.id) === selectedSubcategoryId)
+    if (!stillAvailable) {
+      setSelectedSubcategoryId('all')
+    }
+  }, [selectedCategoryId, selectedSubcategoryId, availableSubcategories, setSelectedSubcategoryId])
+
+  useEffect(() => {
     if (!initialDataLoaded) return
     setPage(1)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only run when filters change, not on initialDataLoaded
-  }, [selectedBranchIds, selectedCategories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
+  }, [selectedBranchIds, selectedCategoryId, selectedSubcategoryId, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
 
   // Remove client-side applyFilters logic
 
@@ -592,57 +656,8 @@ export default function InventarioPage() {
     }
   }
 
-  const MultiSelectCheckbox = ({
-    options,
-    selected,
-    onChange,
-  }: {
-    options: { value: string; label: string }[]
-    selected: string[]
-    onChange: (values: string[]) => void
-  }) => {
-    const toggle = (value: string) => {
-      if (selected.includes(value)) {
-        const newSelected = selected.filter((v) => v !== value)
-        onChange(newSelected)
-      } else {
-        const newSelected = [...selected, value]
-        onChange(newSelected)
-      }
-    }
-
-    return (
-      <div className="grid max-h-64 gap-2 overflow-y-auto pr-1">
-        {options.map((opt) => (
-          <label key={opt.value} className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={selected.includes(opt.value)}
-              onCheckedChange={() => toggle(opt.value)}
-            />
-            <span>{opt.label}</span>
-          </label>
-        ))}
-      </div>
-    )
-  }
-
   // Usar las sucursales del contexto (solo las asignadas al usuario) para el filtro
   const branchOptions = userBranches.map((b) => ({ value: String(b.id), label: b.description || `Sucursal ${b.id}` }))
-  const categoryOptions = [
-    ...parentCategories.map((parent) => ({
-      value: String(parent.id),
-      label: `${parent.name}`
-    })),
-    ...categories
-      .filter((cat) => cat.parent_id)
-      .map((sub) => {
-        const parent = parentCategories.find(p => p.id === sub.parent_id)
-        return {
-          value: String(sub.id),
-          label: `  └ ${sub.name}${parent ? ` (${parent.name})` : ''}`
-        }
-      })
-  ]
   const statusOptions = [
     { value: 'in-stock', label: 'Disponible' },
     { value: 'low-stock', label: 'Stock bajo' },
@@ -671,7 +686,6 @@ export default function InventarioPage() {
     return `${first} +${selected.length - 1}`
   }
 
-  const catSummary = summarizeSelection(categoryOptions, selectedCategories, 'Todas')
   const branchSummary = summarizeSelection(branchOptions, selectedBranchIds, 'Todas')
   const statusSummary = summarizeSelection(statusOptions, selectedStockStatuses, 'Todos')
   const supplierSummary = summarizeSelection(supplierOptions, selectedSuppliers, 'Todos')
@@ -782,14 +796,26 @@ export default function InventarioPage() {
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 </Button>
                 {hasPermission('exportar_lista_precios') && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setExportDialogOpen(true)}
-                    className="flex gap-2 h-10 px-4 py-2 min-w-[140px]"
-                  >
-                    <Download className="h-4 w-4" />
-                    Exportar Lista
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="flex gap-2 h-10 px-4 py-2 min-w-[170px]"
+                      >
+                        <Download className="h-4 w-4" />
+                        Exportar Lista
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setExportDialogOpen(true)}>
+                        Lista de Precios
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setExportStockCountDialogOpen(true)}>
+                        Planilla de Conteo
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 )}
                 {hasPermission('actualizar_precios_masivo') && (
                   <Button
@@ -855,22 +881,47 @@ export default function InventarioPage() {
             <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
               <CollapsibleContent className="pt-2">
                 <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30">
-                  {/* Categories */}
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className="justify-between min-w-[140px]" title="Seleccionar categorías">
-                        <span className="truncate">Categorías</span>
-                        <span className="ml-2 flex items-center gap-1 text-muted-foreground text-xs">
-                          <span className="truncate max-w-[60px]">{catSummary}</span>
-                          <ChevronDown className="h-3 w-3 opacity-70" />
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
-                      <div className="mb-2 text-xs text-muted-foreground">Selecciona categorías</div>
-                      <MultiSelectCheckbox options={categoryOptions} selected={selectedCategories} onChange={setSelectedCategories} />
-                    </PopoverContent>
-                  </Popover>
+                  <div className="min-w-[170px]">
+                    <Select
+                      value={selectedCategoryId}
+                      onValueChange={(value) => {
+                        setSelectedCategoryId(value)
+                        setSelectedSubcategoryId('all')
+                      }}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Categoría" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72 overflow-y-auto">
+                        <SelectItem value="all">Todas las categorías</SelectItem>
+                        {parentCategories.map((category) => (
+                          <SelectItem key={category.id} value={String(category.id)}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="min-w-[190px]">
+                    <Select
+                      value={selectedSubcategoryId}
+                      onValueChange={setSelectedSubcategoryId}
+                      disabled={selectedCategoryId === 'all'}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Subcategoría" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72 overflow-y-auto">
+                        <SelectItem value="all">Todas las subcategorías</SelectItem>
+                        {availableSubcategories.map((subcategory) => (
+                          <SelectItem key={subcategory.id} value={String(subcategory.id)}>
+                            {subcategory.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {/* Branches */}
                   {branches.length > 1 && (
@@ -1515,6 +1566,10 @@ export default function InventarioPage() {
           <ExportPriceListDialog
             open={exportDialogOpen}
             onOpenChange={setExportDialogOpen}
+          />
+          <ExportStockCountDialog
+            open={exportStockCountDialogOpen}
+            onOpenChange={setExportStockCountDialogOpen}
           />
           <BulkPriceUpdateModal
             open={advancedBulkUpdateDialogOpen}

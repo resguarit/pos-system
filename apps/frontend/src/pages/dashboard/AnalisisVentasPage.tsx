@@ -456,7 +456,7 @@ function HourSelect({ label, value, onChange, suffix }: {
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger><SelectValue placeholder="Cualquier hora" /></SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-h-[300px]">
           <SelectItem value="all">Cualquier hora</SelectItem>
           {HOURS.map((h) => (
             <SelectItem key={h} value={String(h)}>

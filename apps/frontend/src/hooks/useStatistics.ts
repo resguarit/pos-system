@@ -116,9 +116,9 @@ export function useStatisticsFilterOptions() {
             setLoading(true)
             try {
                 const [usersRes, categoriesRes, suppliersRes] = await Promise.all([
-                    api.get('/users').catch(() => ({ data: [] })),
+                    api.get('/users', { params: { limit: 1000 } }).catch(() => ({ data: [] })),
                     api.get('/categories').catch(() => ({ data: [] })),
-                    api.get('/suppliers').catch(() => ({ data: [] })),
+                    api.get('/suppliers', { params: { per_page: 1000 } }).catch(() => ({ data: [] })),
                 ])
 
                 const extract = (res: { data: unknown }) =>
