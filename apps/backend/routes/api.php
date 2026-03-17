@@ -774,26 +774,26 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
     Route::prefix('employees')->group(function () {
         Route::middleware('has_permission:ver_empleados')->group(function () {
             Route::get('/', [EmployeeController::class, 'index']);
-            Route::get('/{id}', [EmployeeController::class, 'show']);
+            Route::get('/{employee}', [EmployeeController::class, 'show']);
             Route::get('/available-users', [EmployeeController::class, 'availableUsers']);
         });
         // Route::get('/available-users', [EmployeeController::class, 'availableUsers']); Moved inside
 
         Route::middleware('has_permission:crear_empleados')->post('/', [EmployeeController::class, 'store']);
-        Route::middleware('has_permission:editar_empleados')->put('/{id}', [EmployeeController::class, 'update']);
-        Route::middleware('has_permission:eliminar_empleados')->delete('/{id}', [EmployeeController::class, 'destroy']);
+        Route::middleware('has_permission:editar_empleados')->put('/{employee}', [EmployeeController::class, 'update']);
+        Route::middleware('has_permission:eliminar_empleados')->delete('/{employee}', [EmployeeController::class, 'destroy']);
     });
 
     Route::prefix('expense-categories')->group(function () {
         Route::middleware('has_permission:ver_categorias_gastos')->group(function () {
             Route::get('/tree', [ExpenseCategoryController::class, 'tree']);
             Route::get('/', [ExpenseCategoryController::class, 'index']);
-            Route::get('/{id}', [ExpenseCategoryController::class, 'show']);
+            Route::get('/{expenseCategory}', [ExpenseCategoryController::class, 'show']);
         });
 
         Route::middleware('has_permission:crear_categorias_gastos')->post('/', [ExpenseCategoryController::class, 'store']);
-        Route::middleware('has_permission:editar_categorias_gastos')->put('/{id}', [ExpenseCategoryController::class, 'update']);
-        Route::middleware('has_permission:eliminar_categorias_gastos')->delete('/{id}', [ExpenseCategoryController::class, 'destroy']);
+        Route::middleware('has_permission:editar_categorias_gastos')->put('/{expenseCategory}', [ExpenseCategoryController::class, 'update']);
+        Route::middleware('has_permission:eliminar_categorias_gastos')->delete('/{expenseCategory}', [ExpenseCategoryController::class, 'destroy']);
     });
 
     // Superadmin Routes
