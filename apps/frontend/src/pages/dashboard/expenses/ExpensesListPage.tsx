@@ -126,6 +126,11 @@ interface Expense {
     is_recurring: boolean;
     recurrence_interval: string | null;
     notes: string | null;
+    user?: {
+        id: number;
+        user_name?: string;
+        username?: string;
+    };
 }
 
 interface Branch {
@@ -177,6 +182,7 @@ export default function ExpensesListPage() {
     const columnConfig = [
         { id: 'category', minWidth: 180, maxWidth: 300, defaultWidth: 220 },
         { id: 'description', minWidth: 180, maxWidth: 400, defaultWidth: 230 },
+        { id: 'createdBy', minWidth: 150, maxWidth: 260, defaultWidth: 190 },
         { id: 'amount', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: 'date', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
@@ -383,6 +389,10 @@ export default function ExpensesListPage() {
         );
     };
 
+    const getExpenseUsername = (expense: Expense) => {
+        return expense.user?.user_name || expense.user?.username || '-';
+    };
+
     return (
         <div className="h-full w-full flex flex-col space-y-4 p-4 md:p-6">
             <div className="flex items-center justify-between">
@@ -482,6 +492,7 @@ export default function ExpensesListPage() {
                                     <TableRow>
                                         <ResizableTableHeader columnId="category" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Categoría</ResizableTableHeader>
                                         <ResizableTableHeader columnId="description" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Descripción</ResizableTableHeader>
+                                        <ResizableTableHeader columnId="createdBy" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Creado por</ResizableTableHeader>
                                         <ResizableTableHeader columnId="amount" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Monto</ResizableTableHeader>
                                         <ResizableTableHeader columnId="date" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Fecha</ResizableTableHeader>
                                         <ResizableTableHeader columnId="status" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Estado</ResizableTableHeader>
@@ -489,8 +500,11 @@ export default function ExpensesListPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {expenses.map((expense) => (
-                                        <TableRow key={expense.id}>
+                                    {expenses.map((expense) => {
+                                        const username = getExpenseUsername(expense);
+
+                                        return (
+                                            <TableRow key={expense.id}>
                                             <ResizableTableCell columnId="category" getColumnCellProps={getColumnCellProps}>
                                                 <div className="flex items-center gap-2">
                                                     <span>
@@ -514,6 +528,11 @@ export default function ExpensesListPage() {
                                                         })()}
                                                     </div>
                                                 )}
+                                            </ResizableTableCell>
+                                            <ResizableTableCell columnId="createdBy" getColumnCellProps={getColumnCellProps}>
+                                                <span className="font-medium text-foreground truncate block" title={username}>
+                                                    {username}
+                                                </span>
                                             </ResizableTableCell>
                                             <ResizableTableCell columnId="amount" getColumnCellProps={getColumnCellProps}>
                                                 ${Number(expense.amount).toLocaleString()}
@@ -550,8 +569,9 @@ export default function ExpensesListPage() {
                                                     )}
                                                 </div>
                                             </ResizableTableCell>
-                                        </TableRow>
-                                    ))}
+                                            </TableRow>
+                                        );
+                                    })}
                                 </TableBody>
                             </Table>
                         </div>

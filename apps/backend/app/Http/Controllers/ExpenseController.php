@@ -19,7 +19,7 @@ class ExpenseController extends Controller
 
     public function index(Request $request)
     {
-        $query = Expense::with(['category.parent', 'employee.person', 'branch', 'paymentMethod', 'user']);
+        $query = Expense::with(['category.parent', 'employee.person', 'branch', 'paymentMethod', 'user.person']);
         $includeRecurringProjectionSources = $request->boolean('include_recurring_projection_sources', false);
 
         // Search functionality
@@ -127,7 +127,7 @@ class ExpenseController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Expense created successfully',
-                'data' => $expense->load(['category', 'employee.person', 'branch'])
+                'data' => $expense->load(['category', 'employee.person', 'branch', 'user.person'])
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
@@ -143,7 +143,7 @@ class ExpenseController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $expense->load(['category', 'employee.person', 'branch', 'paymentMethod', 'user', 'cashMovement'])
+            'data' => $expense->load(['category', 'employee.person', 'branch', 'paymentMethod', 'user.person', 'cashMovement'])
         ]);
     }
 
@@ -164,7 +164,7 @@ class ExpenseController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Expense updated successfully',
-                'data' => $updatedExpense->load(['category', 'employee.person', 'branch'])
+                'data' => $updatedExpense->load(['category', 'employee.person', 'branch', 'user.person'])
             ]);
         } catch (\Exception $e) {
             return response()->json([
