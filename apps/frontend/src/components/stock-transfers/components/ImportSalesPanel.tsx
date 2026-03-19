@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,6 +13,7 @@ import { Calendar as CalendarIcon, Download, Search, Loader2, FileSpreadsheet, F
 import { sileo } from "sileo"
 import type { DateRange } from 'react-day-picker';
 import { saleService } from '@/lib/api/saleService';
+import { getCategories, type Category } from '@/lib/api/categoryService';
 
 interface ImportSalesPanelProps {
     onImport: (items: { productId: number; quantity: number; productCode?: string; productName?: string; availableStock?: number }[]) => void;
@@ -31,9 +32,40 @@ interface SoldProduct {
 export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesPanelProps) {
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
     const [category, setCategory] = useState<string>("all");
+    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(false);
+    const [loadingCategories, setLoadingCategories] = useState(false);
     const [results, setResults] = useState<SoldProduct[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const fetchCategories = async () => {
+            setLoadingCategories(true);
+            try {
+                const data = await getCategories();
+                if (!cancelled) {
+                    setCategories(Array.isArray(data) ? data : []);
+                }
+            } catch {
+                if (!cancelled) {
+                    setCategories([]);
+                    sileo.error({ title: "No se pudieron cargar las categorías" });
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingCategories(false);
+                }
+            }
+        };
+
+        fetchCategories();
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // Search sold products from API
     const handleSearch = async () => {
@@ -56,7 +88,7 @@ export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesP
                 destination_branch_id: destinationBranchId,
                 from_date: dateRange.from,
                 to_date: dateRange.to,
-                ...(category !== "all" && { category_id: category }),
+                ...(category !== "all" && { category_id: Number(category) }),
             });
 
             setResults(soldProducts);
@@ -251,15 +283,16 @@ export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesP
                 <div className="space-y-2 w-[200px]">
                     <Label>Categoría</Label>
                     <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger>
+                        <SelectTrigger disabled={loadingCategories}>
                             <SelectValue placeholder="Todas" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-64 overflow-y-auto">
                             <SelectItem value="all">Todas</SelectItem>
-                            <SelectItem value="Celulares">Celulares</SelectItem>
-                            <SelectItem value="Laptops">Laptops</SelectItem>
-                            <SelectItem value="Accesorios">Accesorios</SelectItem>
-                            <SelectItem value="Audio">Audio</SelectItem>
+                            {categories.map((item) => (
+                                <SelectItem key={item.id} value={String(item.id)}>
+                                    {item.name}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 </div>

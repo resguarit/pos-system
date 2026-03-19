@@ -15,7 +15,7 @@ interface GetSoldProductsParams {
     destination_branch_id: string;
     from_date: Date;
     to_date: Date;
-    category_id?: string;
+    category_id?: number;
 }
 
 /**
