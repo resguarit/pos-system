@@ -36,20 +36,37 @@ class AuditProductPrices extends Command
         $this->line('');
         $this->info('► SECCIÓN 1: product_cost_histories (cambios registrados)');
 
+        // Detectar si la tabla tiene columna user_id (puede faltar en DB sin migraciones pendientes)
+        $hasUserId = DB::getSchemaBuilder()->hasColumn('product_cost_histories', 'user_id');
+
         $query = DB::table('product_cost_histories as pch')
-            ->join('products as p', 'pch.product_id', '=', 'p.id')
-            ->leftJoin('users as u', 'pch.user_id', '=', 'u.id')
-            ->select([
-                'pch.created_at',
-                'u.name as usuario',
-                'p.code as codigo',
-                'p.description as descripcion',
-                'p.category_id',
-                'pch.previous_cost as antes',
-                'pch.new_cost as nuevo',
-                'pch.source_type as origen',
-                'pch.notes as notas',
-            ])
+            ->join('products as p', 'pch.product_id', '=', 'p.id');
+
+        if ($hasUserId) {
+            $query->leftJoin('users as u', 'pch.user_id', '=', 'u.id');
+        }
+
+        $selectFields = [
+            'pch.created_at',
+            'p.code as codigo',
+            'p.description as descripcion',
+            'p.category_id',
+            'pch.previous_cost as antes',
+            'pch.new_cost as nuevo',
+            'pch.source_type as origen',
+            'pch.notes as notas',
+        ];
+
+        if ($hasUserId) {
+            $selectFields[] = 'u.name as usuario';
+            $selectFields[] = 'u.email as email';
+        } else {
+            // fallback: sin usuario
+            $selectFields[] = DB::raw("'Sin datos' as usuario");
+            $selectFields[] = DB::raw("NULL as email");
+        }
+
+        $query->select($selectFields)
             ->whereRaw('pch.new_cost != pch.previous_cost')
             ->whereBetween('pch.created_at', [$from, $until])
             ->orderByDesc('pch.created_at');
@@ -88,10 +105,12 @@ class AuditProductPrices extends Command
         $this->line('');
         $this->info('► SECCIÓN 2: Operaciones masivas (más de 1 producto en el mismo minuto)');
 
-        $sesiones = DB::table('product_cost_histories as pch')
-            ->join('products as p', 'pch.product_id', '=', 'p.id')
-            ->leftJoin('users as u', 'pch.user_id', '=', 'u.id')
-            ->selectRaw("
+        $sesQuery = DB::table('product_cost_histories as pch')
+            ->join('products as p', 'pch.product_id', '=', 'p.id');
+
+        if ($hasUserId) {
+            $sesQuery->leftJoin('users as u', 'pch.user_id', '=', 'u.id');
+            $sesQuery->selectRaw("
                 DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i') as minuto,
                 u.name as usuario,
                 pch.source_type as origen,
@@ -99,9 +118,22 @@ class AuditProductPrices extends Command
                 COUNT(*) as cantidad,
                 GROUP_CONCAT(DISTINCT p.code ORDER BY p.code SEPARATOR ', ') as codigos
             ")
+            ->groupByRaw("DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i'), u.name, pch.source_type, pch.notes");
+        } else {
+            $sesQuery->selectRaw("
+                DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i') as minuto,
+                'Sin datos' as usuario,
+                pch.source_type as origen,
+                pch.notes as operacion,
+                COUNT(*) as cantidad,
+                GROUP_CONCAT(DISTINCT p.code ORDER BY p.code SEPARATOR ', ') as codigos
+            ")
+            ->groupByRaw("DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i'), pch.source_type, pch.notes");
+        }
+
+        $sesiones = $sesQuery
             ->whereRaw('pch.new_cost != pch.previous_cost')
             ->whereBetween('pch.created_at', [$from, $until])
-            ->groupByRaw("DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i'), u.name, pch.source_type, pch.notes")
             ->having('cantidad', '>', 1)
             ->orderByDesc('minuto')
             ->limit(20)
@@ -129,24 +161,32 @@ class AuditProductPrices extends Command
         }
         $productIds = $productQuery->whereBetween('created_at', ['2000-01-01', $until])->pluck('id')->toArray();
 
-        $actQuery = DB::table('activity_log as al')
-            ->leftJoin('users as u', function ($j) {
-                $j->on('al.causer_id', '=', 'u.id')
-                  ->where('al.causer_type', '=', 'App\\Models\\User');
-            })
-            ->leftJoin('products as p', 'al.subject_id', '=', 'p.id')
-            ->select(['al.created_at', 'u.name as usuario', 'u.email', 'p.code', 'al.event', 'al.properties'])
-            ->where('al.subject_type', 'App\\Models\\Product')
-            ->whereBetween('al.created_at', [$from, $until])
-            ->whereIn('al.event', ['updated', 'created'])
-            ->whereRaw("JSON_EXTRACT(al.properties, '$.attributes.unit_price') IS NOT NULL")
-            ->orderByDesc('al.created_at');
+        // Verificar que activity_log existe
+        $hasActivityLog = DB::getSchemaBuilder()->hasTable('activity_log');
 
-        if ($codes && !$this->option('all') && $productIds) {
-            $actQuery->whereIn('al.subject_id', $productIds);
+        if (!$hasActivityLog) {
+            $this->warn('  Tabla activity_log no existe en esta base de datos.');
+            $actLogs = collect();
+        } else {
+            $actQuery = DB::table('activity_log as al')
+                ->leftJoin('users as u', function ($j) {
+                    $j->on('al.causer_id', '=', 'u.id')
+                      ->where('al.causer_type', '=', 'App\\Models\\User');
+                })
+                ->leftJoin('products as p', 'al.subject_id', '=', 'p.id')
+                ->select(['al.created_at', 'u.name as usuario', 'u.email', 'p.code', 'al.event', 'al.properties'])
+                ->where('al.subject_type', 'App\\Models\\Product')
+                ->whereBetween('al.created_at', [$from, $until])
+                ->whereIn('al.event', ['updated', 'created'])
+                ->whereRaw("JSON_EXTRACT(al.properties, '$.attributes.unit_price') IS NOT NULL")
+                ->orderByDesc('al.created_at');
+
+            if ($codes && !$this->option('all') && $productIds) {
+                $actQuery->whereIn('al.subject_id', $productIds);
+            }
+
+            $actLogs = $actQuery->limit(100)->get();
         }
-
-        $actLogs = $actQuery->limit(100)->get();
 
         if ($actLogs->isEmpty()) {
             $this->warn('  Sin registros en activity_log para esos productos y período.');
