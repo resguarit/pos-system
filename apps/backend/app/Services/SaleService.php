@@ -3179,6 +3179,11 @@ class SaleService implements SaleServiceInterface
                 'unitPrice' => $unitPrice,
                 'taxRate' => (string) $ivaRate,
                 'subtotal' => round($subtotal, 2),
+                'discount_amount' => (float) ($item->discount_amount ?? 0),
+                'discount_percent' => (float) ($item->discount_value ?? 0), // discount_value stores the % if type is percent
+                'discount_type' => (string) ($item->discount_type ?? 'amount'),
+                'discount_value' => (float) ($item->discount_value ?? 0),
+                'code' => (string) ($product->code ?? '-'),
             ];
         }
 
@@ -3222,6 +3227,7 @@ class SaleService implements SaleServiceInterface
             'condicion_venta' => $condicionVenta,
             // Agregamos invoiceType para que el renderer sepa si es A o B
             'invoiceType' => $invoiceType,
+            'discount_amount' => (float) ($sale->discount_amount ?? 0),
         ];
 
         // Solo agregar netAmount y totalIva si NO es Factura B

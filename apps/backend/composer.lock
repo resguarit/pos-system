@@ -4886,7 +4886,7 @@
             "source": {
                 "type": "git",
                 "url": "git@github.com-afip-sdk:resguarit/Afip-sdk.git",
-                "reference": "ff84e5f6cd6e0de95b0a198d59d505adfe4bd9ba"
+                "reference": "b62c929275ebfadf022d0d9840dca29c6fe91dd1"
             },
             "require": {
                 "ext-openssl": "*",
@@ -4951,7 +4951,7 @@
                 "laravel",
                 "sdk"
             ],
-            "time": "2026-03-17T12:39:13+00:00"
+            "time": "2026-03-19T17:40:03+00:00"
         },
         {
             "name": "sabberworm/php-css-parser",
