@@ -3227,7 +3227,10 @@ class SaleService implements SaleServiceInterface
             'condicion_venta' => $condicionVenta,
             // Agregamos invoiceType para que el renderer sepa si es A o B
             'invoiceType' => $invoiceType,
-            'discount_amount' => (float) ($sale->discount_amount ?? 0),
+            // discount_amount para el renderer debe ser NETO (sin IVA) para que Neto + IVA = Total.
+            // SaleHeader->discount_amount es la suma de (items pre-iva) + (global post-iva).
+            // Calculamos el componente NETO del descuento global para que el total cierre.
+            'discount_amount' => $this->calculateNetDiscountForInvoice($sale),
         ];
 
         // Solo agregar netAmount y totalIva si NO es Factura B
@@ -3269,6 +3272,32 @@ class SaleService implements SaleServiceInterface
         }
 
         return $invoice;
+    }
+
+    private function calculateNetDiscountForInvoice(SaleHeader $sale): float
+    {
+        $sumItemDiscounts = 0.0;
+        foreach ($sale->items as $item) {
+            $sumItemDiscounts += (float) ($item->discount_amount ?? 0);
+        }
+
+        // El descuento total en la cabecera es sum(items_neto) + global_final
+        $totalDiscount = (float) ($sale->discount_amount ?? 0);
+        $globalDiscountFinal = max(0.0, $totalDiscount - $sumItemDiscounts);
+
+        if ($globalDiscountFinal <= 0) {
+            return round($sumItemDiscounts, 2);
+        }
+
+        // Convertir el descuento global (que es post-tax en SaleService) a neto.
+        // Usamos la tasa de IVA promedio de la venta para "des-iva-zar" el descuento.
+        $subtotalNeto = (float) $sale->subtotal;
+        $totalIva = (float) $sale->total_iva_amount;
+        
+        $avgTaxRate = $subtotalNeto > 0 ? ($totalIva / $subtotalNeto) : 0.21;
+        $globalDiscountNet = $globalDiscountFinal / (1 + $avgTaxRate);
+
+        return round($sumItemDiscounts + $globalDiscountNet, 2);
     }
 
     /**
