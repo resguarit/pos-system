@@ -3233,11 +3233,9 @@ class SaleService implements SaleServiceInterface
             'discount_amount' => $this->calculateNetDiscountForInvoice($sale),
         ];
 
-        // Solo agregar netAmount y totalIva si NO es Factura B
-        if (!$isFacturaB) {
-            $invoice['netAmount'] = round((float) $sale->subtotal, 2);
-            $invoice['totalIva'] = round((float) ($sale->total_iva_amount ?? 0), 2);
-        }
+        // Para Factura A no pasamos totalIva ni netAmount: el renderer los calcula
+        // sobre los ítems con descuento para garantizar consistencia.
+        // Para Factura B no se necesitan tampoco.
 
         // Período facturado y vto. pago (template A4; si no se envían, el SDK usa la fecha del comprobante)
         if ($sale->service_from_date) {
