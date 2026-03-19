@@ -65,7 +65,7 @@ interface AddStockDialogProps {
 }
 
 export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddStockDialogProps) {
-  const { request, loading } = useApi()
+  const { request } = useApi()
 
   // Fallback si no llegan sucursales por props
   const [fallbackBranches, setFallbackBranches] = useState<Branch[]>([])
@@ -87,6 +87,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [productStocks, setProductStocks] = useState<any[]>([])
   const [loadingStock, setLoadingStock] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({}); // Estado para errores
 
   // Cargar productos al abrir el diálogo
@@ -422,6 +423,8 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       return
     }
 
+    setIsSubmitting(true)
+
     try {
       // check if stock exists for product+branch
       const stockResponse = await request({
@@ -496,6 +499,8 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       sileo.error({ title: "Error al agregar stock",
         description: errorMessage,
       });
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -742,8 +747,8 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
             Cancelar
           </Button>
           {/* Deshabilitar si hay errores */}
-          <Button onClick={handleAddStock} disabled={loading || loadingStock || Object.keys(errors).length > 0}>
-            {loading ? (
+          <Button onClick={handleAddStock} disabled={isSubmitting || loadingStock || Object.keys(errors).length > 0}>
+            {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Procesando...
