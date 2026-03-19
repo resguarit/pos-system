@@ -39,11 +39,19 @@ class AuditProductPrices extends Command
         // Detectar si la tabla tiene columna user_id (puede faltar en DB sin migraciones pendientes)
         $hasUserId = DB::getSchemaBuilder()->hasColumn('product_cost_histories', 'user_id');
 
+        // Detectar columnas en la tabla users
+        $usersColumns = DB::getSchemaBuilder()->getColumnListing('users');
+        $userNameColumn = in_array('name', $usersColumns) ? 'u.name' : (in_array('username', $usersColumns) ? 'u.username' : null);
+        $hasPeopleJoin = in_array('person_id', $usersColumns) && DB::getSchemaBuilder()->hasTable('people');
+
         $query = DB::table('product_cost_histories as pch')
             ->join('products as p', 'pch.product_id', '=', 'p.id');
 
         if ($hasUserId) {
             $query->leftJoin('users as u', 'pch.user_id', '=', 'u.id');
+            if ($hasPeopleJoin) {
+                $query->leftJoin('people as pe', 'u.person_id', '=', 'pe.id');
+            }
         }
 
         $selectFields = [
@@ -58,7 +66,13 @@ class AuditProductPrices extends Command
         ];
 
         if ($hasUserId) {
-            $selectFields[] = 'u.name as usuario';
+            if ($hasPeopleJoin) {
+                $selectFields[] = DB::raw("CONCAT(COALESCE(pe.first_name, ''), ' ', COALESCE(pe.last_name, ''), ' (', COALESCE(" . ($userNameColumn ?: 'u.email') . ", 'u'), ')') as usuario");
+            } elseif ($userNameColumn) {
+                $selectFields[] = "{$userNameColumn} as usuario";
+            } else {
+                $selectFields[] = 'u.email as usuario';
+            }
             $selectFields[] = 'u.email as email';
         } else {
             // fallback: sin usuario
@@ -110,15 +124,22 @@ class AuditProductPrices extends Command
 
         if ($hasUserId) {
             $sesQuery->leftJoin('users as u', 'pch.user_id', '=', 'u.id');
+            
+            $userLabel = $userNameColumn ?: 'u.email';
+            if ($hasPeopleJoin) {
+                $sesQuery->leftJoin('people as pe', 'u.person_id', '=', 'pe.id');
+                $userLabel = "CONCAT(COALESCE(pe.first_name, 'U'), ' (', COALESCE(" . ($userNameColumn ?: 'u.email') . ", ''), ')') ";
+            }
+
             $sesQuery->selectRaw("
                 DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i') as minuto,
-                u.name as usuario,
+                " . ($hasPeopleJoin ? $userLabel : $userLabel) . " as usuario,
                 pch.source_type as origen,
                 pch.notes as operacion,
                 COUNT(*) as cantidad,
                 GROUP_CONCAT(DISTINCT p.code ORDER BY p.code SEPARATOR ', ') as codigos
             ")
-            ->groupByRaw("DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i'), u.name, pch.source_type, pch.notes");
+            ->groupByRaw("DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i'), " . ($hasPeopleJoin ? "pe.first_name, " . ($userNameColumn ?: 'u.email') : ($userNameColumn ?: 'u.email')) . ", pch.source_type, pch.notes");
         } else {
             $sesQuery->selectRaw("
                 DATE_FORMAT(pch.created_at, '%Y-%m-%d %H:%i') as minuto,
@@ -172,9 +193,19 @@ class AuditProductPrices extends Command
                 ->leftJoin('users as u', function ($j) {
                     $j->on('al.causer_id', '=', 'u.id')
                       ->where('al.causer_type', '=', 'App\\Models\\User');
-                })
-                ->leftJoin('products as p', 'al.subject_id', '=', 'p.id')
-                ->select(['al.created_at', 'u.name as usuario', 'u.email', 'p.code', 'al.event', 'al.properties'])
+                });
+            
+            if ($hasPeopleJoin) {
+                $actQuery->leftJoin('people as pe', 'u.person_id', '=', 'pe.id');
+            }
+
+            $userSelectStr = $userNameColumn ? "u." . str_replace('u.', '', $userNameColumn) : 'u.email';
+            if ($hasPeopleJoin) {
+                $userSelectStr = "CONCAT(COALESCE(pe.first_name, ''), ' (', COALESCE(" . ($userNameColumn ?: 'u.email') . ", ''), ')')";
+            }
+
+            $actQuery->leftJoin('products as p', 'al.subject_id', '=', 'p.id')
+                ->select(['al.created_at', DB::raw("$userSelectStr as usuario"), 'u.email', 'p.code', 'al.event', 'al.properties'])
                 ->where('al.subject_type', 'App\\Models\\Product')
                 ->whereBetween('al.created_at', [$from, $until])
                 ->whereIn('al.event', ['updated', 'created'])

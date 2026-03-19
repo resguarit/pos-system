@@ -375,28 +375,32 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
     try {
       // Preparar datos para envío
-      // Si el usuario NO tocó el campo sale_price en esta sesión,
-      // aplicamos el calculado al guardar para persistir el nuevo precio.
       const userEditedSalePrice = editingFieldRef.current === 'sale_price';
+      const userEditedMarkup = editingFieldRef.current === 'markup';
+      const userEditedUnitPrice = editingFieldRef.current === 'unit_price';
+
+      // Si el usuario NO tocó el campo sale_price, usamos el calculado
       const salePriceValue = userEditedSalePrice
         ? (parseFloat(formData.sale_price) || 0)
         : Math.round(pricing.salePrice);
 
-      // Detectar si el usuario cambió el precio manualmente
-      // Calculamos qué debería ser el precio automático con los datos actuales
       const unitPrice = parseFloat(formData.unit_price);
 
-      // Usar el markup del hook (que se recalcula automáticamente)
-      const markupDecimal = pricing.markup;
+      // Usar el markup del hook SOLO si el usuario lo editó o si cambió el costo/precio
+      // de lo contrario, preferir el markup original del producto para evitar derivas por redondeo
+      const originalMarkup = typeof product.markup === 'string' ? parseFloat(product.markup) : product.markup;
+      const markupDecimal = (userEditedMarkup || userEditedUnitPrice || userEditedSalePrice)
+        ? pricing.markup
+        : originalMarkup;
 
       const submitData = {
         ...formData,
         unit_price: unitPrice,
-        markup: markupDecimal, // Enviar el markup recalculado por el hook
-        sale_price: salePriceValue, // SIEMPRE enviar el precio del formulario
-        target_manual_price: salePriceValue, // SIEMPRE enviar como precio manual
-        is_manual_price: true, // SIEMPRE marcar como precio manual
-        force_manual_price: true, // Campo adicional para forzar precio manual
+        markup: markupDecimal,
+        sale_price: salePriceValue,
+        target_manual_price: salePriceValue,
+        is_manual_price: true,
+        force_manual_price: true,
         status: formData.status === "1",
         web: formData.web === "1",
         allow_discount: formData.allow_discount === "1",

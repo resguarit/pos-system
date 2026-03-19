@@ -237,27 +237,44 @@ export function usePricing({
     if (pricing.hasChanged) return;
 
     // Si hay un precio inicial (precio manual guardado), respetarlo
-    // Solo calcular automáticamente si initialSalePrice es 0 o no existe
     const finalSalePrice = initialSalePrice && initialSalePrice > 0
       ? initialSalePrice
       : calculateSalePrice(unitPrice, currency, markup, ivaRate);
 
-    // Si hay un precio de venta inicial (precio manual) y tenemos tasa de cambio válida,
-    // recalcular el markup basándose en ese precio para que refleje el margen real actual
+    // Solo recalcular el markup basándose en el precio de venta si:
+    // 1. Es un producto en USD (donde el markup depende de la tasa de cambio para calcular el precio final en ARS)
+    // 2. O si no tenemos un markup inicial válido
+    // 3. Y tenemos una tasa de cambio válida
     let finalMarkup = markup;
-    if (initialSalePrice && initialSalePrice > 0 && exchangeRate && exchangeRate > 0) {
+    const isUsd = currency === 'USD';
+    
+    if (initialSalePrice && initialSalePrice > 0 && isUsd && exchangeRate && exchangeRate > 0) {
       finalMarkup = calculateMarkup(unitPrice, currency, initialSalePrice, ivaRate);
     }
 
-    setPricing(prev => ({
-      ...prev,
-      unitPrice,
-      currency,
-      markup: finalMarkup,
-      ivaRate,
-      salePrice: finalSalePrice,
-      hasChanged: false
-    }));
+    setPricing(prev => {
+      // Evitar actualizaciones de estado si los valores no han cambiado realmente
+      // Esto previene bucles y re-renders innecesarios
+      if (
+        prev.unitPrice === unitPrice &&
+        prev.currency === currency &&
+        prev.markup === finalMarkup &&
+        prev.ivaRate === ivaRate &&
+        prev.salePrice === finalSalePrice
+      ) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        unitPrice,
+        currency,
+        markup: finalMarkup,
+        ivaRate,
+        salePrice: finalSalePrice,
+        hasChanged: false
+      };
+    });
   }, [unitPrice, currency, markup, ivaRate, initialSalePrice, calculateSalePrice, calculateMarkup, exchangeRate, pricing.hasChanged]);
 
   return {

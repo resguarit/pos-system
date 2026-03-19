@@ -325,8 +325,19 @@ class ProductService implements ProductServiceInterface
             $data['markup'] = 0.0;
         }
 
-        // Actualizar los campos del producto
+        // Lista de campos permitidos para asignación directa al modelo
+        $allowedFields = [
+            'code', 'description', 'unit_price', 'markup', 'sale_price',
+            'category_id', 'measure_id', 'supplier_id', 'iva_id',
+            'status', 'web', 'allow_discount', 'observaciones', 'currency'
+        ];
+
+        // Actualizar solo los campos permitidos del producto
         foreach ($data as $key => $value) {
+            if (!in_array($key, $allowedFields)) {
+                continue;
+            }
+
             // Validar markup antes de asignar
             if ($key === 'markup' && $value < 0) {
                 try {
