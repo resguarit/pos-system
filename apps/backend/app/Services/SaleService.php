@@ -3284,7 +3284,7 @@ class SaleService implements SaleServiceInterface
         $globalDiscountFinal = max(0.0, $totalDiscount - $sumItemDiscounts);
 
         if ($globalDiscountFinal <= 0) {
-            return round($sumItemDiscounts, 2);
+            return $sumItemDiscounts;
         }
 
         // Convertir el descuento global (que es post-tax en SaleService) a neto.
@@ -3295,7 +3295,7 @@ class SaleService implements SaleServiceInterface
         $avgTaxRate = $subtotalNeto > 0 ? ($totalIva / $subtotalNeto) : 0.21;
         $globalDiscountNet = $globalDiscountFinal / (1 + $avgTaxRate);
 
-        return round($sumItemDiscounts + $globalDiscountNet, 2);
+        return $sumItemDiscounts + $globalDiscountNet;
     }
 
     /**
