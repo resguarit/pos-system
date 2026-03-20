@@ -693,6 +693,33 @@ class SaleService implements SaleServiceInterface
             return;
         }
 
+        // Si es Nota de Crédito o Nota de Débito, no registrar en cuenta corriente
+        // Ya que son comprobantes que no generan deuda/crédito adicional
+        if ($sale->receiptType) {
+            $receiptName = $sale->receiptType->description ?? $sale->receiptType->name ?? '';
+            $receiptCode = $sale->receiptType->afip_code ?? '';
+        
+            // Códigos AFIP para Notas de Crédito: 3, 8, 13, 53, 203, 208
+            // Códigos AFIP para Notas de Débito: 2, 7, 12, 52, 202, 207
+            $creditNoteAfipCodes = ['003', '008', '013', '053', '203', '208'];
+            $debitNoteAfipCodes = ['002', '007', '012', '052', '202', '207'];
+            $noteCodes = array_merge($creditNoteAfipCodes, $debitNoteAfipCodes);
+        
+            // Chequear por código AFIP
+            if (in_array((string)$receiptCode, $noteCodes)) {
+                return; // No registrar notas de crédito/débito en cuenta corriente
+            }
+        
+            // Chequear por nombre como fallback
+            if (
+                stripos($receiptName, 'Nota de Crédito') !== false ||
+                stripos($receiptName, 'Nota de Débito') !== false ||
+                stripos($receiptName, 'Devolución') !== false
+            ) {
+                return; // No registrar en cuenta corriente
+            }
+        }
+
         // Si la venta tiene cliente, registrar SIEMPRE en cuenta corriente
         if ($sale->customer_id) {
             $this->registerAllSaleMovementsInCurrentAccount($sale);
