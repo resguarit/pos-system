@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -110,6 +110,7 @@ export default function InventarioPage() {
   const [exportStockCountDialogOpen, setExportStockCountDialogOpen] = useState(false)
   const [advancedBulkUpdateDialogOpen, setAdvancedBulkUpdateDialogOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [stockSortDirection, setStockSortDirection] = useState<'asc' | 'desc'>('asc')
 
   const availableSubcategories = categories.filter((c) => String(c.parent_id) === selectedCategoryId)
 
@@ -743,6 +744,34 @@ export default function InventarioPage() {
     return buildFlattenRows()
   }
 
+  const toggleStockSortDirection = () => {
+    setStockSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+  }
+
+  const sortedProducts = useMemo(() => {
+    return [...products].sort((a, b) => {
+      const aStock = getProductStock(a).current
+      const bStock = getProductStock(b).current
+      const diff = stockSortDirection === 'asc' ? aStock - bStock : bStock - aStock
+
+      if (diff !== 0) return diff
+      return (a.description || '').localeCompare(b.description || '', 'es')
+    })
+  }, [products, stockSortDirection, selectedBranchIds])
+
+  const sortedRows = useMemo(() => {
+    return [...getFilteredRows()].sort((a, b) => {
+      const aStock = Number(a.stock.current_stock) || 0
+      const bStock = Number(b.stock.current_stock) || 0
+      const diff = stockSortDirection === 'asc' ? aStock - bStock : bStock - aStock
+
+      if (diff !== 0) return diff
+      return (a.product.description || '').localeCompare(b.product.description || '', 'es')
+    })
+  }, [products, stockSortDirection, selectedBranchIds])
+
+  const stockSortLabel = stockSortDirection === 'asc' ? 'Ordenar stock de mayor a menor' : 'Ordenar stock de menor a mayor'
+
   const togglePerBranchView = () => {
     const next = !perBranchView
     setPerBranchView(next)
@@ -1031,7 +1060,7 @@ export default function InventarioPage() {
             <div className="flex-1 rounded-md border bg-card">
               {perBranchView ? (
                 (() => {
-                  const rows = getFilteredRows()
+                  const rows = sortedRows
                   // Server-side pagination means 'rows' is already the current page View
                   const hasData = rows.length > 0
                   return hasData ? (
@@ -1080,7 +1109,19 @@ export default function InventarioPage() {
                                   getColumnHeaderProps={getColumnHeaderProps}
                                   className="hidden sm:table-cell"
                                 >
-                                  Stock Actual
+                                  <button
+                                    type="button"
+                                    onClick={toggleStockSortDirection}
+                                    className="inline-flex items-center gap-1 hover:underline"
+                                    title={stockSortLabel}
+                                  >
+                                    STOCK ACTUAL
+                                    {stockSortDirection === 'asc' ? (
+                                      <ChevronUp className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    )}
+                                  </button>
                                 </ResizableTableHeader>
                                 <ResizableTableHeader
                                   columnId="stock-min-max"
@@ -1317,7 +1358,19 @@ export default function InventarioPage() {
                               getColumnHeaderProps={getColumnHeaderProps}
                               className="hidden sm:table-cell"
                             >
-                              Stock Actual
+                              <button
+                                type="button"
+                                onClick={toggleStockSortDirection}
+                                className="inline-flex items-center gap-1 hover:underline"
+                                title={stockSortLabel}
+                              >
+                                STOCK ACTUAL
+                                {stockSortDirection === 'asc' ? (
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                ) : (
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                )}
+                              </button>
                             </ResizableTableHeader>
                             <ResizableTableHeader
                               columnId="stock-min-max"
@@ -1366,7 +1419,7 @@ export default function InventarioPage() {
                     <TableBody className="bg-background">
                       {(() => {
                         // products is already the current page
-                        return products.map((product) => {
+                        return sortedProducts.map((product) => {
                           const stockStatus = getStockStatus(product)
                           const stock = getProductStock(product)
                           return (
