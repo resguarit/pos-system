@@ -90,6 +90,32 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
   const [errors, setErrors] = useState<{ [key: string]: string }>({}); // Estado para errores
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const fetchProducts = useCallback(async (query: string) => {
+    try {
+      const response = await request({
+        method: "GET",
+        url: `/products?include=category,supplier&for_admin=true&per_page=20&search=${encodeURIComponent(query)}`,
+      })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data = response as any
+      const fetchedProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.data?.data)
+            ? data.data.data
+            : []
+
+      setFilteredProducts(fetchedProducts)
+      setShowProductsList(fetchedProducts.length > 0)
+    } catch (err) {
+      console.error("Error al cargar productos:", err)
+      setFilteredProducts([])
+      setShowProductsList(false)
+    }
+  }, [request])
+
   // Cargar productos al abrir el diálogo
   useEffect(() => {
     if (open) {
@@ -174,32 +200,6 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
     // limpiar errores residuales al reabrir
     setErrors({})
   }
-
-  const fetchProducts = useCallback(async (query: string) => {
-    try {
-      const response = await request({
-        method: "GET",
-        url: `/products?include=category,supplier&for_admin=true&per_page=20&search=${encodeURIComponent(query)}`,
-      })
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const data = response as any
-      const fetchedProducts = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data?.data?.data)
-            ? data.data.data
-            : []
-
-      setFilteredProducts(fetchedProducts)
-      setShowProductsList(fetchedProducts.length > 0)
-    } catch (err) {
-      console.error("Error al cargar productos:", err)
-      setFilteredProducts([])
-      setShowProductsList(false)
-    }
-  }, [request])
 
   // Cargar todos los stocks del producto seleccionado
   const fetchAllProductStocks = async () => {
