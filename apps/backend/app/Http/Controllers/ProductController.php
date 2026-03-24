@@ -36,6 +36,8 @@ class ProductController extends Controller
             'stock_status' => $request->query('stock_status'),  // array
             'currency' => $request->query('currency'),
             'status' => $request->query('status'),             // active/inactive/all
+            'sort_by' => $request->query('sort_by'),
+            'sort_direction' => $request->query('sort_direction', 'asc'),
         ];
 
         // Handle comma-separated strings if passed that way (common in some frontends)

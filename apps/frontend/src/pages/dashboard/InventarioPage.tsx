@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -188,6 +188,9 @@ export default function InventarioPage() {
         params.set('status', selectedProductStatus)
       }
 
+      params.set('sort_by', 'stock')
+      params.set('sort_direction', stockSortDirection)
+
       // for_admin is no longer strictly needed for pagination but kept if backend uses it for other logic, 
       // primarily we rely on the new pagination structure.
       // params.set('for_admin', 'true') 
@@ -270,7 +273,7 @@ export default function InventarioPage() {
       console.error("Error al cargar productos:", err)
       setProducts([])
     }
-  }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, categories, selectedStockStatuses, selectedSuppliers, selectedProductStatus]);
+  }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, categories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, stockSortDirection]);
 
   const refreshData = useCallback(() => {
     // If we are on page > 1 and refresh, we might want to stay on page or go to 1. 
@@ -746,29 +749,11 @@ export default function InventarioPage() {
 
   const toggleStockSortDirection = () => {
     setStockSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    setPage(1)
+    const sp = new URLSearchParams(searchParams)
+    sp.set('page', '1')
+    setSearchParams(sp, { replace: true })
   }
-
-  const sortedProducts = useMemo(() => {
-    return [...products].sort((a, b) => {
-      const aStock = getProductStock(a).current
-      const bStock = getProductStock(b).current
-      const diff = stockSortDirection === 'asc' ? aStock - bStock : bStock - aStock
-
-      if (diff !== 0) return diff
-      return (a.description || '').localeCompare(b.description || '', 'es')
-    })
-  }, [products, stockSortDirection, selectedBranchIds])
-
-  const sortedRows = useMemo(() => {
-    return [...getFilteredRows()].sort((a, b) => {
-      const aStock = Number(a.stock.current_stock) || 0
-      const bStock = Number(b.stock.current_stock) || 0
-      const diff = stockSortDirection === 'asc' ? aStock - bStock : bStock - aStock
-
-      if (diff !== 0) return diff
-      return (a.product.description || '').localeCompare(b.product.description || '', 'es')
-    })
-  }, [products, stockSortDirection, selectedBranchIds])
 
   const stockSortLabel = stockSortDirection === 'asc' ? 'Ordenar stock de mayor a menor' : 'Ordenar stock de menor a mayor'
 
@@ -1060,7 +1045,7 @@ export default function InventarioPage() {
             <div className="flex-1 rounded-md border bg-card">
               {perBranchView ? (
                 (() => {
-                  const rows = sortedRows
+                  const rows = getFilteredRows()
                   // Server-side pagination means 'rows' is already the current page View
                   const hasData = rows.length > 0
                   return hasData ? (
@@ -1419,7 +1404,7 @@ export default function InventarioPage() {
                     <TableBody className="bg-background">
                       {(() => {
                         // products is already the current page
-                        return sortedProducts.map((product) => {
+                        return products.map((product) => {
                           const stockStatus = getStockStatus(product)
                           const stock = getProductStock(product)
                           return (

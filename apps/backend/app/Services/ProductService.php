@@ -198,7 +198,26 @@ class ProductService implements ProductServiceInterface
             }
 
             // Ordering
-            if (!empty($filters['search'])) {
+            $sortBy = $filters['sort_by'] ?? null;
+            $sortDir = strtolower((string) ($filters['sort_direction'] ?? 'asc'));
+            if (!in_array($sortDir, ['asc', 'desc'], true)) {
+                $sortDir = 'asc';
+            }
+
+            if (in_array($sortBy, ['stock', 'current_stock'], true)) {
+                $validBranchIds = [];
+                if (!empty($branchIds)) {
+                    $rawIds = is_array($branchIds) ? $branchIds : [$branchIds];
+                    $validBranchIds = array_filter(array_map('intval', $rawIds));
+                }
+                $branchCondition = '';
+                if (!empty($validBranchIds)) {
+                    $branchCondition = ' AND branch_id IN (' . implode(',', $validBranchIds) . ')';
+                }
+                $query->orderByRaw(
+                    '(SELECT COALESCE(SUM(current_stock), 0) FROM stocks WHERE stocks.product_id = products.id AND stocks.deleted_at IS NULL' . $branchCondition . ') ' . $sortDir
+                )->orderBy('products.description', 'asc');
+            } elseif (!empty($filters['search'])) {
                 $query->orderBy('description', 'asc');
             } else {
                 $query->orderBy('created_at', 'desc');
