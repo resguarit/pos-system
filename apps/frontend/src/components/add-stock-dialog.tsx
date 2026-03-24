@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -74,7 +74,6 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
   const resolveBranchLabel = (b: Branch) => b.name || b.description || `Sucursal ${String(b.id ?? '')}`
 
   // Estados para el formulario
-  const [products, setProducts] = useState<Product[]>([])
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [selectedBranch, setSelectedBranch] = useState<string>("")
   const [stockToAdd, setStockToAdd] = useState<string>("1")
@@ -89,11 +88,11 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
   const [loadingStock, setLoadingStock] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({}); // Estado para errores
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Cargar productos al abrir el diálogo
   useEffect(() => {
     if (open) {
-      fetchProducts()
       resetForm()
       // Cargar sucursales si no hay
       if (!branches || branches.length === 0) {
@@ -116,22 +115,26 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
 
   // Filtrar productos cuando cambia la búsqueda
   useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredProducts([])
-    } else {
-      const query = searchQuery.toLowerCase()
-      const filtered = products.filter(
-        (product) =>
-          product.description?.toLowerCase().includes(query) || String(product.code).toLowerCase().includes(query),
-      )
-      setFilteredProducts(filtered)
+    if (!open) return
 
-      // Si hay resultados, mostrar la lista
-      if (filtered.length > 0) {
-        setShowProductsList(true)
+    const query = searchQuery.trim()
+    if (query === "") {
+      setFilteredProducts([])
+      setShowProductsList(false)
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current)
+        searchDebounceRef.current = null
       }
+    } else {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current)
+      }
+
+      searchDebounceRef.current = setTimeout(() => {
+        fetchProducts(query)
+      }, 300)
     }
-  }, [searchQuery, products])
+  }, [searchQuery, open, fetchProducts])
 
   // Cargar información de stock cuando se selecciona un producto
   useEffect(() => {
@@ -157,9 +160,9 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProduct, selectedBranch, productStocks, loadingStock]);
 
-  const resetForm = () => {
+  const resetForm = (branchToKeep?: string) => {
     setSelectedProduct(null)
-    setSelectedBranch("")
+    setSelectedBranch(branchToKeep ?? "")
     setStockToAdd("1")
     setMinStock("0")
     setMaxStock("0")
@@ -167,64 +170,36 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
     setSearchQuery("")
     setShowProductsList(false)
     setProductStocks([])
+    setFilteredProducts([])
     // limpiar errores residuales al reabrir
     setErrors({})
   }
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async (query: string) => {
     try {
-      let allProducts: Product[] = []
-      let currentPage = 1
-      let lastPage = 1
-
-      // Fetch first page to get pagination info
-      const firstResp = await request({
+      const response = await request({
         method: "GET",
-        url: `/products?include=category,supplier&for_admin=true&page=${currentPage}`,
+        url: `/products?include=category,supplier&for_admin=true&per_page=20&search=${encodeURIComponent(query)}`,
       })
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const firstData = firstResp as any
-
-      // Extract products from first page
-      const firstPageProducts = Array.isArray(firstData)
-        ? firstData
-        : Array.isArray(firstData?.data)
-          ? firstData.data
-          : Array.isArray(firstData?.data?.data)
-            ? firstData.data.data
+      const data = response as any
+      const fetchedProducts = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.data)
+          ? data.data
+          : Array.isArray(data?.data?.data)
+            ? data.data.data
             : []
 
-      allProducts = [...firstPageProducts]
-
-      // Get pagination info
-      lastPage = firstData?.last_page ?? firstData?.data?.last_page ?? 1
-
-      // Fetch remaining pages if any
-      for (currentPage = 2; currentPage <= lastPage; currentPage++) {
-        const pageResp = await request({
-          method: "GET",
-          url: `/products?include=category,supplier&for_admin=true&page=${currentPage}`,
-        })
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pageData = pageResp as any
-        const pageProducts = Array.isArray(pageData)
-          ? pageData
-          : Array.isArray(pageData?.data)
-            ? pageData.data
-            : Array.isArray(pageData?.data?.data)
-              ? pageData.data.data
-              : []
-
-        allProducts = [...allProducts, ...pageProducts]
-      }
-
-      setProducts(allProducts)
+      setFilteredProducts(fetchedProducts)
+      setShowProductsList(fetchedProducts.length > 0)
     } catch (err) {
       console.error("Error al cargar productos:", err)
+      setFilteredProducts([])
+      setShowProductsList(false)
     }
-  }
+  }, [request])
 
   // Cargar todos los stocks del producto seleccionado
   const fetchAllProductStocks = async () => {
@@ -474,7 +449,7 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       }
 
       onSuccess()
-      onOpenChange(false)
+      resetForm(selectedBranch)
       // Mostrar toast de éxito
       sileo.success({ title: "Stock ajustado exitosamente",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -515,6 +490,14 @@ export function AddStockDialog({ open, onOpenChange, onSuccess, branches }: AddS
       return rest
     })
   }
+
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current)
+      }
+    }
+  }, [])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
