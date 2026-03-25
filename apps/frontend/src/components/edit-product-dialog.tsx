@@ -4,13 +4,25 @@ import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Product } from "@/types/product"
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import useApi from "@/hooks/useApi"
 import { Textarea } from "@/components/ui/textarea"
 import { sileo } from "sileo"
 import { usePricing } from '@/hooks/usePricing';
 import FormattedNumberInput from '@/components/ui/formatted-number-input';
 import { useEntityContext } from "@/context/EntityContext";
+import { SupplierSearchCombobox } from '@/components/suppliers/SupplierSearchCombobox';
+
+function unwrapProductDetail(res: unknown): Product | null {
+  if (res == null || typeof res !== 'object') return null;
+  const o = res as Record<string, unknown>;
+  if (typeof o.id === 'number') return o as Product;
+  const inner = o.data;
+  if (inner && typeof inner === 'object' && typeof (inner as Record<string, unknown>).id === 'number') {
+    return inner as Product;
+  }
+  return null;
+}
 
 interface EditProductDialogProps {
   open: boolean;
@@ -63,8 +75,17 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
   const [categories, setCategories] = useState<Array<{ id: number, name: string, display_name?: string, type?: string, parent_id?: number }>>([]);
   const [measures, setMeasures] = useState<Array<{ id: number, name: string }>>([]);
-  const [suppliers, setSuppliers] = useState<Array<{ id: number, name: string }>>([]);
+  const [suppliers, setSuppliers] = useState<Array<{
+    id: number;
+    name: string;
+    contact_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    cuit?: string | null;
+  }>>([]);
   const [ivas, setIvas] = useState<Array<{ id: number, rate: number }>>([]);
+  /** Product from GET /products/:id with category & supplier relations (prop may be a stock row without them). */
+  const [resolvedProduct, setResolvedProduct] = useState<Product | null>(null);
   const { request, loading } = useApi();
   const { dispatch } = useEntityContext();
 
@@ -143,6 +164,24 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
       const branchList = getArray(branchesResponse);
 
+      let productDetailRaw: unknown = null;
+      if (product?.id) {
+        try {
+          productDetailRaw = await request({ method: 'GET', url: `/products/${product.id}`, signal });
+        } catch (e: unknown) {
+          const err = e as { name?: string; message?: string };
+          if (err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.message?.includes('canceled')) {
+            throw e;
+          }
+          productDetailRaw = null;
+        }
+      }
+
+      if (!open) return;
+
+      const detail = unwrapProductDetail(productDetailRaw);
+      setResolvedProduct(detail && product && detail.id === product.id ? detail : null);
+
       if (branchList.length > 0) {
         const defaultBranchId = branchList[0].id;
         setSelectedBranchId(defaultBranchId);
@@ -156,10 +195,11 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         sileo.error({ title: "Error al cargar datos necesarios para editar." });
       }
     }
-  }, [open, request, fetchStockForBranch]);
+  }, [open, request, fetchStockForBranch, product]);
 
   useEffect(() => {
     if (open && product) {
+      setResolvedProduct(null);
       editingFieldRef.current = null;
       prevSalePriceRef.current = null;
 
@@ -188,9 +228,15 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         markup: typeof product.markup === 'string' ? (parseFloat(product.markup) * 100).toFixed(2) :
           typeof product.markup === 'number' ? (product.markup * 100).toFixed(2) : '0',
         sale_price: product.sale_price?.toString() || '0',
-        category_id: product.category_id?.toString() || '',
+        category_id:
+          product.category_id?.toString() ||
+          product.category?.id?.toString() ||
+          '',
         measure_id: product.measure_id?.toString() || '',
-        supplier_id: product.supplier_id?.toString() || '',
+        supplier_id:
+          product.supplier_id?.toString() ||
+          product.supplier?.id?.toString() ||
+          '',
         iva_id: product.iva_id?.toString() || '',
         observaciones: product.observaciones || "",
         status: product.status ? "1" : "0",
@@ -209,6 +255,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       editingFieldRef.current = null;
       prevSalePriceRef.current = null;
       setFormData(null);
+      setResolvedProduct(null);
     }
   }, [open, product, formatMarkup, fetchCatalogs]);
 
@@ -257,6 +304,100 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       setIsCheckingCode(false);
     }
   }, [product, request]);
+
+  const productForRelations = resolvedProduct ?? product;
+
+  const supplierSearchItems = useMemo(() => {
+    const base = suppliers.map((s) => ({
+      id: s.id,
+      name:
+        s.name ||
+        (s as { business_name?: string }).business_name ||
+        `Proveedor ${s.id}`,
+      contact_name: s.contact_name,
+      phone: s.phone,
+      email: s.email,
+      cuit: s.cuit,
+    }));
+
+    const sidStr = formData?.supplier_id;
+    if (!sidStr) return base;
+    if (base.some((x) => String(x.id) === String(sidStr))) return base;
+
+    const sidNum = parseInt(sidStr, 10);
+    const ps = productForRelations?.supplier;
+    if (ps && String(ps.id) === String(sidStr)) {
+      return [
+        ...base,
+        {
+          id: ps.id,
+          name: ps.name || `Proveedor ${ps.id}`,
+          contact_name: ps.contact_name ?? null,
+          phone: ps.phone ?? null,
+          email: ps.email ?? null,
+          cuit: ps.cuit ?? null,
+        },
+      ];
+    }
+
+    if (!Number.isNaN(sidNum)) {
+      return [
+        ...base,
+        {
+          id: sidNum,
+          name: `Proveedor #${sidNum} (no en listado)`,
+          contact_name: null as string | null,
+          phone: null as string | null,
+          email: null as string | null,
+          cuit: null as string | null,
+        },
+      ];
+    }
+
+    return base;
+  }, [suppliers, formData?.supplier_id, productForRelations?.supplier]);
+
+  const categoriesForSelect = useMemo(() => {
+    const cidStr = formData?.category_id;
+    if (!cidStr) return categories;
+
+    const cidNum = parseInt(cidStr, 10);
+    if (Number.isNaN(cidNum)) return categories;
+    if (categories.some((c) => Number(c.id) === cidNum)) return categories;
+
+    const cat = productForRelations?.category;
+    if (cat && Number(cat.id) === cidNum) {
+      return [
+        ...categories,
+        {
+          id: cidNum,
+          name: cat.name,
+          display_name: (cat as { display_name?: string }).display_name ?? cat.name,
+          type: 'subcategory' as const,
+          parent_id: cat.parent_id ?? undefined,
+        },
+      ];
+    }
+
+    return [
+      ...categories,
+      {
+        id: cidNum,
+        name: `Categoría #${cidNum}`,
+        display_name: `Categoría #${cidNum} (no en listado)`,
+        type: 'parent' as const,
+      },
+    ];
+  }, [categories, formData?.category_id, productForRelations?.category]);
+
+  const supplierLabelFallback = useMemo(() => {
+    const sid = formData?.supplier_id;
+    if (!sid) return undefined;
+    const rel = productForRelations?.supplier;
+    if (rel && String(rel.id) === String(sid)) return rel.name || undefined;
+    const item = supplierSearchItems.find((s) => String(s.id) === String(sid));
+    return item?.name;
+  }, [productForRelations?.supplier, formData?.supplier_id, supplierSearchItems]);
 
   const checkDescriptionExists = useCallback(async (description: string) => {
     if (!description.trim() || !product?.id) {
@@ -480,7 +621,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-visible">
         <DialogHeader>
           <DialogTitle>Editar Producto</DialogTitle>
           <DialogDescription>
@@ -488,6 +629,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
           </DialogDescription>
         </DialogHeader>
 
+        <div className="max-h-[min(85vh,calc(90vh-5rem))] overflow-y-auto overflow-x-hidden pr-1">
         <div className="grid gap-4 py-4">
           {/* Información básica */}
           <div className="grid grid-cols-2 gap-4">
@@ -643,7 +785,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px] overflow-y-auto w-[--radix-select-trigger-width] max-w-full">
-                  {categories.map((category) => (
+                  {categoriesForSelect.map((category) => (
                     <SelectItem key={category.id} value={category.id.toString()} className="max-w-full">
                       <div className="truncate overflow-hidden text-ellipsis">
                         {category.display_name || category.name}
@@ -653,25 +795,14 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="supplier_id">Proveedor</Label>
-              <Select value={formData.supplier_id} onValueChange={(value) => handleInputChange('supplier_id', value)}>
-                <SelectTrigger className="w-full pr-8 overflow-hidden">
-                  <div className="min-w-0 truncate">
-                    <SelectValue placeholder="Seleccionar proveedor" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto w-[--radix-select-trigger-width] max-w-full">
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()} className="max-w-full">
-                      <div className="truncate overflow-hidden text-ellipsis">
-                        {supplier.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <SupplierSearchCombobox
+              id="supplier_id"
+              label="Proveedor"
+              value={formData.supplier_id}
+              onValueChange={(value) => handleInputChange('supplier_id', value)}
+              suppliers={supplierSearchItems}
+              valueLabel={supplierLabelFallback}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -775,6 +906,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
               <Label htmlFor="allow_discount">Permite descuento</Label>
             </div>
           </div>
+        </div>
         </div>
 
         <DialogFooter>

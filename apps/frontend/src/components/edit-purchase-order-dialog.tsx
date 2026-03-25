@@ -27,11 +27,19 @@ import { useExchangeRate } from '@/hooks/useExchangeRate';
 import exchangeRateService from '@/lib/api/exchangeRateService';
 import { formatCurrency } from '@/utils/sale-calculations';
 import { createWildcardMatcher } from '@/utils/searchUtils';
+import { SupplierSearchCombobox } from '@/components/suppliers/SupplierSearchCombobox';
 
 /** Tasa fallback cuando falla la carga de USD→ARS; evita mezclar unidades (1:1 solo para consistencia). */
 const FALLBACK_USD_TO_ARS = 1;
 
-interface Supplier { id: number; name: string; contact_name?: string }
+interface Supplier {
+  id: number;
+  name: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  cuit?: string | null;
+}
 interface Branch { id: number; description: string; color?: string }
 interface Product { id: number; description: string; code: string; unit_price: number; currency?: string }
 
@@ -403,19 +411,22 @@ export default function EditPurchaseOrderDialog({ open, onOpenChange, purchaseOr
           }}
         >
           <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="supplier_id">Proveedor *</Label>
-              <Select value={form.supplier_id} onValueChange={(v) => setForm({ ...form, supplier_id: v })} disabled={isReadOnly}>
-                <SelectTrigger disabled={isReadOnly}>
-                  <SelectValue placeholder="Seleccione un proveedor" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60 overflow-y-auto">
-                  {suppliers.map(s => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <SupplierSearchCombobox
+              id="supplier_id"
+              label="Proveedor *"
+              value={form.supplier_id}
+              onValueChange={(v) => setForm({ ...form, supplier_id: v })}
+              suppliers={suppliers.map((s) => ({
+                id: s.id,
+                name: s.name,
+                contact_name: s.contact_name,
+                phone: s.phone,
+                email: s.email,
+                cuit: s.cuit,
+              }))}
+              disabled={isReadOnly}
+              onInputKeyDown={handleInputKeyDown}
+            />
             <div className="space-y-2">
               <Label htmlFor="branch_id">Sucursal *</Label>
               <Select value={form.branch_id} onValueChange={(v) => setForm({ ...form, branch_id: v })} disabled={isReadOnly}>

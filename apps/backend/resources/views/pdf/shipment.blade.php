@@ -205,6 +205,25 @@
                 <td colspan="3">{{ \Carbon\Carbon::parse($shipment->estimated_delivery_date)->format('d/m/Y') }}</td>
             </tr>
         @endif
+        @php
+            $generatedByLabel = 'N/A';
+            if ($shipment->creator) {
+                $generatedByLabel = $shipment->creator->person
+                    ? trim($shipment->creator->person->first_name . ' ' . $shipment->creator->person->last_name)
+                    : ($shipment->creator->username ?? 'N/A');
+                if (!empty($shipment->creator->username) && $generatedByLabel !== $shipment->creator->username) {
+                    $generatedByLabel .= ' (' . $shipment->creator->username . ')';
+                }
+            }
+        @endphp
+        <tr>
+            <td class="bold">Usuario que generó el envío:</td>
+            <td colspan="3">{{ $generatedByLabel }}</td>
+        </tr>
+        <tr>
+            <td class="bold">Local:</td>
+            <td colspan="3">{{ $shipment->branch?->description ?? 'N/A' }}</td>
+        </tr>
     </table>
 
     @if($shipment->transporter)

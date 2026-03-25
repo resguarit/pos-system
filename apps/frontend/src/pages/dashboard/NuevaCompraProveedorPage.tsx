@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SupplierSearchCombobox } from "@/components/suppliers/SupplierSearchCombobox"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, FilePlus, Minus, PackagePlus, Plus, Trash2 } from "lucide-react"
@@ -156,21 +157,18 @@ export default function NuevaCompraPage() {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="supplier">Proveedor</Label>
-                  <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar proveedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {suppliers.map((supplier) => (
-                        <SelectItem key={supplier.id} value={supplier.id}>
-                          {supplier.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <SupplierSearchCombobox
+                  id="supplier"
+                  label="Proveedor"
+                  value={selectedSupplier}
+                  onValueChange={setSelectedSupplier}
+                  suppliers={suppliers.map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    contact_name: s.contact,
+                    phone: s.phone,
+                  }))}
+                />
                 <div className="space-y-2">
                   <Label htmlFor="expected-date">Fecha Esperada de Entrega</Label>
                   <div className="flex">

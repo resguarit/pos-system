@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -111,6 +111,7 @@ export default function InventarioPage() {
   const [advancedBulkUpdateDialogOpen, setAdvancedBulkUpdateDialogOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [stockSortDirection, setStockSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [supplierFilterQuery, setSupplierFilterQuery] = useState("")
 
   const availableSubcategories = categories.filter((c) => String(c.parent_id) === selectedCategoryId)
 
@@ -670,6 +671,15 @@ export default function InventarioPage() {
 
   // Supplier options
   const supplierOptions = suppliers.map((s) => ({ value: String(s.id), label: s.name || `Proveedor ${s.id}` }))
+  const supplierOptionsFiltered = useMemo(() => {
+    const q = supplierFilterQuery.trim().toLowerCase()
+    if (!q) return supplierOptions
+    return supplierOptions.filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.value.includes(q),
+    )
+  }, [supplierOptions, supplierFilterQuery])
 
   // Product status options (active/inactive)
   const productStatusOptions = [
@@ -977,7 +987,7 @@ export default function InventarioPage() {
 
                   {/* Supplier */}
                   {suppliers.length > 0 && (
-                    <Popover>
+                    <Popover onOpenChange={(open) => { if (!open) setSupplierFilterQuery("") }}>
                       <PopoverTrigger asChild>
                         <Button variant="outline" size="sm" className="justify-between min-w-[140px]" title="Filtrar por proveedor">
                           <span className="truncate">Proveedor</span>
@@ -988,8 +998,18 @@ export default function InventarioPage() {
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-64" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                        <div className="relative mb-2">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            value={supplierFilterQuery}
+                            onChange={(e) => setSupplierFilterQuery(e.target.value)}
+                            placeholder="Buscar proveedor..."
+                            className="pl-8 h-9"
+                            aria-label="Buscar en lista de proveedores"
+                          />
+                        </div>
                         <div className="mb-2 text-xs text-muted-foreground">Selecciona proveedores</div>
-                        <MultiSelectCheckbox options={supplierOptions} selected={selectedSuppliers} onChange={setSelectedSuppliers} />
+                        <MultiSelectCheckbox options={supplierOptionsFiltered} selected={selectedSuppliers} onChange={setSelectedSuppliers} />
                       </PopoverContent>
                     </Popover>
                   )}

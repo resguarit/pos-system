@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import useApi from "@/hooks/useApi"
 import { Textarea } from "@/components/ui/textarea"
 import { usePricing } from '@/hooks/usePricing'
@@ -14,6 +14,7 @@ import FormattedNumberInput from '@/components/ui/formatted-number-input'
 import { useBranch } from '@/context/BranchContext'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Loader2, Info, Trash2 } from 'lucide-react'
+import { SupplierSearchCombobox } from '@/components/suppliers/SupplierSearchCombobox'
 
 interface NewProductDialogProps {
   open: boolean;
@@ -29,8 +30,29 @@ interface Category {
   parent_id?: number;
 }
 interface Measure { id: number; name: string; }
-interface Supplier { id: number; name: string; }
+interface Supplier {
+  id: number;
+  name: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  cuit?: string | null;
+}
 interface Iva { id: number; rate: number; }
+
+function catalogResponseToArray(res: unknown): unknown[] {
+  if (Array.isArray(res)) return res;
+  if (res !== null && typeof res === 'object') {
+    const o = res as Record<string, unknown>;
+    if (Array.isArray(o.data)) return o.data;
+    const nested = o.data;
+    if (nested !== null && typeof nested === 'object' && 'data' in nested) {
+      const inner = (nested as Record<string, unknown>).data;
+      if (Array.isArray(inner)) return inner;
+    }
+  }
+  return [];
+}
 
 type ProductFormData = {
   code: string;
@@ -86,12 +108,44 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
 
   const { request, loading } = useApi();
 
+  const fetchCatalogs = useCallback(async () => {
+    try {
+      const [categoriesRes, measuresRes, suppliersRes, ivasRes] = await Promise.all([
+        request({ method: 'GET', url: '/categories/for-selector' }),
+        request({ method: 'GET', url: '/measures' }),
+        request({ method: 'GET', url: '/suppliers?per_page=10000' }),
+        request({ method: 'GET', url: '/ivas' }),
+      ]);
+
+      const categoriesArr = catalogResponseToArray(categoriesRes) as Category[];
+      const measuresArr = catalogResponseToArray(measuresRes) as Measure[];
+      const suppliersArr = catalogResponseToArray(suppliersRes) as Supplier[];
+      const ivasArray = catalogResponseToArray(ivasRes) as Iva[];
+
+      setCategories(categoriesArr);
+      setMeasures(measuresArr);
+      setSuppliers(suppliersArr);
+      setIvas(ivasArray);
+
+      setFormData((prev) => {
+        if (!prev.iva_id && ivasArray.length > 0) {
+          const zeroIva = ivasArray.find((iva) => iva.rate === 0);
+          if (zeroIva) return { ...prev, iva_id: zeroIva.id.toString() };
+        }
+        return prev;
+      });
+    } catch (err) {
+      console.error("Error loading catalogs:", err);
+      sileo.error({ title: "Error al cargar datos necesarios." });
+    }
+  }, [request]);
+
   // Key para localStorage
   const STORAGE_KEY = 'newProductDialog_formData';
   const { rate: exchangeRate } = useExchangeRate({ fromCurrency: 'USD', toCurrency: 'ARS' });
 
   // Funciones para localStorage
-  const saveToStorage = (data: ProductFormData) => {
+  const saveToStorage = useCallback((data: ProductFormData) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         formData: data,
@@ -104,7 +158,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
     } catch (error) {
       console.warn('Error guardando en localStorage:', error);
     }
-  };
+  }, [selectedBranches, minStock, maxStock, isManualPrice]);
 
   const loadFromStorage = () => {
     try {
@@ -215,64 +269,59 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
   };
 
   useEffect(() => {
-    if (open) {
-      fetchCatalogs();
-      
-      // Intentar cargar datos guardados
-      const savedData = loadFromStorage();
-      
-      if (savedData) {
-        // Restaurar datos guardados
-        setFormData(savedData.formData);
-        setSelectedBranches(savedData.selectedBranches || []);
-        setMinStock(savedData.minStock || "0");
-        setMaxStock(savedData.maxStock || "0");
-        setIsManualPrice(savedData.isManualPrice || false);
-        
-        sileo.info({ title: "Datos restaurados automáticamente",
-          description: "Se han cargado los datos que tenías anteriormente"
-        });
-      } else {
-        // Reset form con valores por defecto
-        setIsManualPrice(false);
-        setFormData({
-          code: "",
-          description: "",
-          unit_price: "",
-          currency: "ARS",
-          markup: "",
-          sale_price: "",
-          category_id: "",
-          measure_id: "none",
-          supplier_id: "",
-          iva_id: "",
-          observaciones: "",
-          status: "1",
-          web: "1",
-          allow_discount: "1"
-        });
-        
-        // Inicializar sucursales seleccionadas
-        // No seleccionar ninguna por defecto para permitir crear stock en todas las sucursales
-        setSelectedBranches([]);
-        
-        // Resetear stock min/max
-        setMinStock("0");
-        setMaxStock("0");
-      }
-      
-      // Resetear validación de código y descripción
-      setCodeError("");
-      setIsCheckingCode(false);
-      setDescriptionError("");
-      setIsCheckingDescription(false);
+    if (!open) return;
+
+    void fetchCatalogs();
+
+    const savedData = loadFromStorage();
+
+    if (savedData) {
+      setFormData(savedData.formData);
+      setSelectedBranches(savedData.selectedBranches || []);
+      setMinStock(savedData.minStock || "0");
+      setMaxStock(savedData.maxStock || "0");
+      setIsManualPrice(savedData.isManualPrice || false);
+
+      sileo.info({ title: "Datos restaurados automáticamente",
+        description: "Se han cargado los datos que tenías anteriormente"
+      });
     } else {
-      // Cuando se cierra el diálogo, limpiar el storage si no hay datos importantes
+      setIsManualPrice(false);
+      setFormData({
+        code: "",
+        description: "",
+        unit_price: "",
+        currency: "ARS",
+        markup: "",
+        sale_price: "",
+        category_id: "",
+        measure_id: "none",
+        supplier_id: "",
+        iva_id: "",
+        observaciones: "",
+        status: "1",
+        web: "1",
+        allow_discount: "1"
+      });
+
+      setSelectedBranches([]);
+      setMinStock("0");
+      setMaxStock("0");
+    }
+
+    setCodeError("");
+    setIsCheckingCode(false);
+    setDescriptionError("");
+    setIsCheckingDescription(false);
+  }, [open, branches, selectedBranch, fetchCatalogs]);
+
+  useEffect(() => {
+    if (!open) {
       if (!formData.description && !formData.code && !formData.unit_price) {
         clearStorage();
       }
     }
-  }, [open, branches, selectedBranch]);
+  }, [open, formData.description, formData.code, formData.unit_price]);
 
   // Guardar automáticamente los datos cuando cambien (solo si el diálogo está abierto)
   useEffect(() => {
@@ -283,37 +332,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
 
       return () => clearTimeout(timeoutId);
     }
-  }, [open, formData, selectedBranches, minStock, maxStock, isManualPrice]);
-
-  const fetchCatalogs = async () => {
-    try {
-      const [categoriesRes, measuresRes, suppliersRes, ivasRes] = await Promise.all([
-        request({ method: 'GET', url: '/categories/for-selector' }),
-        request({ method: 'GET', url: '/measures' }),
-        request({ method: 'GET', url: '/suppliers?per_page=10000' }), // Obtener todos los proveedores
-        request({ method: 'GET', url: '/ivas' })
-      ]);
-      
-      const getArray = (res: any) => Array.isArray(res?.data?.data) ? res.data.data : Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-
-      setCategories(getArray(categoriesRes));
-      setMeasures(getArray(measuresRes));
-      setSuppliers(getArray(suppliersRes));
-      const ivasArray = getArray(ivasRes);
-      setIvas(ivasArray);
-      
-      // Seleccionar automáticamente el IVA de 0% si existe y no hay IVA seleccionado
-      if (!formData.iva_id && ivasArray.length > 0) {
-        const zeroIva = ivasArray.find((iva: Iva) => iva.rate === 0);
-        if (zeroIva) {
-          setFormData(prev => ({ ...prev, iva_id: zeroIva.id.toString() }));
-        }
-      }
-    } catch (err) {
-      console.error("Error loading catalogs:", err);
-      sileo.error({ title: "Error al cargar datos necesarios." });
-    }
-  };
+  }, [open, formData, selectedBranches, minStock, maxStock, isManualPrice, saveToStorage]);
 
   // Limpiar timeouts al desmontar el componente
   useEffect(() => {
@@ -670,17 +689,22 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       onSuccess();
       onOpenChange(false);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error al guardar el producto:", error);
-      
-      if (error.response?.data?.errors) {
-        const errors = error.response.data.errors;
-        Object.values(errors).flat().forEach((errorMsg: any) => {
+
+      const ax = error && typeof error === 'object' && 'response' in error
+        ? (error as { response?: { data?: { errors?: Record<string, string[]>; message?: string } } })
+        : undefined;
+
+      if (ax?.response?.data?.errors) {
+        const errors = ax.response.data.errors;
+        (Object.values(errors).flat() as string[]).forEach((errorMsg) => {
           sileo.error({ title: errorMsg });
         });
       } else {
-        sileo.error({ title: "Error al crear producto",
-          description: error?.response?.data?.message || "Ocurrió un error.",
+        sileo.error({
+          title: "Error al crear producto",
+          description: ax?.response?.data?.message || "Ocurrió un error.",
         });
       }
     }
@@ -688,7 +712,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-visible">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Nuevo Producto</DialogTitle>
@@ -703,6 +727,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           </DialogDescription>
         </DialogHeader>
 
+        <div className="max-h-[min(85vh,calc(90vh-5rem))] overflow-y-auto overflow-x-hidden pr-1">
         <div className="grid gap-4 py-4">
           {/* Información básica */}
           <div className="grid grid-cols-2 gap-4">
@@ -840,25 +865,20 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="supplier_id">Proveedor <span className="text-red-500">*</span></Label>
-              <Select value={formData.supplier_id} onValueChange={(value) => handleInputChange('supplier_id', value)}>
-                <SelectTrigger className="w-full pr-8 overflow-hidden">
-                  <div className="min-w-0 truncate">
-                    <SelectValue placeholder="Seleccionar proveedor" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto w-[--radix-select-trigger-width] max-w-full">
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()} className="max-w-full">
-                      <div className="truncate overflow-hidden text-ellipsis">
-                        {supplier.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <SupplierSearchCombobox
+              id="supplier_id"
+              label={<>Proveedor <span className="text-red-500">*</span></>}
+              value={formData.supplier_id}
+              onValueChange={(value) => handleInputChange('supplier_id', value)}
+              suppliers={suppliers.map((s) => ({
+                id: s.id,
+                name: s.name,
+                contact_name: s.contact_name,
+                phone: s.phone,
+                email: s.email,
+                cuit: s.cuit,
+              }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1012,6 +1032,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
               <Label htmlFor="allow_discount">Permite descuento</Label>
             </div>
           </div>
+        </div>
         </div>
 
         <DialogFooter className="gap-2">

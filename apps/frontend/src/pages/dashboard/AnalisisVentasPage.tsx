@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from "react"
+import { SupplierSearchCombobox } from "@/components/suppliers/SupplierSearchCombobox"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -429,7 +430,24 @@ function FiltersCard({
             options={activeBranches.map(b => ({ id: b.id, name: b.description }))} />
           <FilterSelect label="Usuario" value={userId} onChange={onUserChange} placeholder="Todos" allLabel="Todos los usuarios" options={users} />
           <FilterSelect label="Categoría" value={categoryId} onChange={onCategoryChange} placeholder="Todas" allLabel="Todas las categorías" options={categories} />
-          <FilterSelect label="Proveedor" value={supplierId} onChange={onSupplierChange} placeholder="Todos" allLabel="Todos los proveedores" options={suppliers} />
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Proveedor</Label>
+            <SupplierSearchCombobox
+              value={supplierId}
+              onValueChange={onSupplierChange}
+              suppliers={suppliers.map((s) => ({
+                id: s.id,
+                name:
+                  s.name ||
+                  s.description ||
+                  (s.person ? `${s.person.first_name} ${s.person.last_name}`.trim() : "") ||
+                  `Proveedor ${s.id}`,
+              }))}
+              clearedValue="all"
+              placeholder="Buscar proveedor..."
+              className="w-full"
+            />
+          </div>
 
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Producto (código o descripción)</Label>

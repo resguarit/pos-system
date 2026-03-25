@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { sileo } from "sileo"
-import { Loader2, TrendingUp, AlertCircle, Building2 } from 'lucide-react';
+import { Loader2, TrendingUp, AlertCircle, Building2, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { getSuppliers } from '@/lib/api/supplierService';
 import { bulkPriceService } from '@/lib/api/bulkPriceService';
 import { UpdateTypeSelector } from './UpdateTypeSelector';
@@ -29,6 +30,13 @@ interface UpdateBySupplierProps {
   onClose: () => void;
 }
 
+interface PreviewData {
+  count: number;
+  totalCurrent: number;
+  totalNew: number;
+  totalDifference: number;
+}
+
 export const UpdateBySupplier: React.FC<UpdateBySupplierProps> = ({ onSuccess, onClose }) => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<number>>(new Set());
@@ -36,7 +44,8 @@ export const UpdateBySupplier: React.FC<UpdateBySupplierProps> = ({ onSuccess, o
   const [updateValue, setUpdateValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [previewData, setPreviewData] = useState<any>(null);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState('');
 
   // Cargar proveedores
   useEffect(() => {
@@ -57,16 +66,7 @@ export const UpdateBySupplier: React.FC<UpdateBySupplierProps> = ({ onSuccess, o
     }
   };
 
-  // Obtener preview cuando cambian los parámetros
-  useEffect(() => {
-    if (selectedSuppliers.size > 0 && updateValue) {
-      loadPreview();
-    } else {
-      setPreviewData(null);
-    }
-  }, [selectedSuppliers, updateType, updateValue]);
-
-  const loadPreview = async () => {
+  const loadPreview = useCallback(async () => {
     const value = Number(updateValue);
     if (isNaN(value)) return;
 
@@ -106,7 +106,16 @@ export const UpdateBySupplier: React.FC<UpdateBySupplierProps> = ({ onSuccess, o
     } catch (error) {
       console.error('Error obteniendo preview:', error);
     }
-  };
+  }, [selectedSuppliers, updateType, updateValue]);
+
+  // Obtener preview cuando cambian los parámetros
+  useEffect(() => {
+    if (selectedSuppliers.size > 0 && updateValue) {
+      void loadPreview();
+    } else {
+      setPreviewData(null);
+    }
+  }, [selectedSuppliers, updateType, updateValue, loadPreview]);
 
   const toggleSupplier = (supplierId: number) => {
     setSelectedSuppliers((prev) => {
@@ -119,6 +128,18 @@ export const UpdateBySupplier: React.FC<UpdateBySupplierProps> = ({ onSuccess, o
       return newSet;
     });
   };
+
+  const suppliersFiltered = useMemo(() => {
+    const q = supplierSearch.trim().toLowerCase();
+    if (!q) return suppliers;
+    return suppliers.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.email && s.email.toLowerCase().includes(q)) ||
+        (s.phone && String(s.phone).toLowerCase().includes(q)) ||
+        (s.description && s.description.toLowerCase().includes(q)),
+    );
+  }, [suppliers, supplierSearch]);
 
   const selectAll = () => {
     setSelectedSuppliers(new Set(suppliers.map((s) => s.id)));
@@ -217,6 +238,16 @@ export const UpdateBySupplier: React.FC<UpdateBySupplierProps> = ({ onSuccess, o
           </div>
 
           {/* Lista de proveedores */}
+          <div className="relative mb-2">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={supplierSearch}
+              onChange={(e) => setSupplierSearch(e.target.value)}
+              placeholder="Buscar proveedor por nombre, email o teléfono..."
+              className="pl-8"
+              disabled={isLoading}
+            />
+          </div>
           <ScrollArea className="h-[300px] border rounded-md p-4">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
@@ -227,9 +258,13 @@ export const UpdateBySupplier: React.FC<UpdateBySupplierProps> = ({ onSuccess, o
                 <AlertCircle className="w-8 h-8 mb-2" />
                 <p>No se encontraron proveedores</p>
               </div>
+            ) : suppliersFiltered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center min-h-[120px] text-gray-500 text-sm">
+                Ningún proveedor coincide con la búsqueda
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {suppliers.map((supplier) => (
+                {suppliersFiltered.map((supplier) => (
                   <div
                     key={supplier.id}
                     className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"

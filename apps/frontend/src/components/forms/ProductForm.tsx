@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { sileo } from "sileo"
 import { useAuth } from "@/hooks/useAuth";
+import { SupplierSearchCombobox } from "@/components/suppliers/SupplierSearchCombobox";
 
 interface ProductFormProps {
   product?: Product;
@@ -56,7 +57,8 @@ interface Iva {
 
 interface Supplier {
   id: string;
-  business_name: string;
+  business_name?: string;
+  name?: string;
 }
 
 export function ProductForm({ product, onSuccess }: ProductFormProps) {
@@ -108,6 +110,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
   const markup = watch("markup");
   const currency = watch("currency");
   const ivaId = watch("iva_id");
+  const supplierId = watch("supplier_id");
   const selectedIva = ivas.find((i) => i.id === ivaId);
 
   // Función para cargar subcategorías por categoría padre
@@ -250,7 +253,7 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
     };
 
     fetchData();
-  }, []);
+  }, [product?.category_id]);
 
   // Reset form when product changes (for edit mode)
   useEffect(() => {
@@ -409,22 +412,17 @@ export function ProductForm({ product, onSuccess }: ProductFormProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="supplier_id">Proveedor*</Label>
-          <Select
-            onValueChange={(value) => setValue("supplier_id", value)}
-            defaultValue={product?.supplier_id}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a supplier" />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliers.map((supplier) => (
-                <SelectItem key={supplier.id} value={supplier.id}>
-                  {supplier.business_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SupplierSearchCombobox
+            id="supplier_id"
+            label="Proveedor*"
+            value={supplierId ? String(supplierId) : ""}
+            onValueChange={(value) => setValue("supplier_id", value, { shouldValidate: true })}
+            suppliers={suppliers.map((s) => ({
+              id: s.id,
+              name: s.business_name || s.name || `Proveedor ${s.id}`,
+            }))}
+            error={Boolean(errors.supplier_id)}
+          />
           {errors.supplier_id && (
             <p className="text-sm text-red-500">{errors.supplier_id.message}</p>
           )}

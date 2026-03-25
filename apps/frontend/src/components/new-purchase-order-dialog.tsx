@@ -24,6 +24,7 @@ import { PurchaseOrderPaymentSection, PAYMENT_VALIDATION_TOLERANCE } from './pur
 import { useNewPurchaseOrder } from '@/contexts/new-purchase-order-context';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { formatCurrency } from '@/utils/sale-calculations';
+import { SupplierSearchCombobox } from '@/components/suppliers/SupplierSearchCombobox';
 
 export interface NewPurchaseOrderDialogProps {
   open: boolean;
@@ -36,7 +37,10 @@ export interface NewPurchaseOrderDialogProps {
 interface Supplier {
   id: number;
   name: string;
-  contact_name: string;
+  contact_name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  cuit?: string | null;
 }
 
 interface Branch {
@@ -697,21 +701,21 @@ export const NewPurchaseOrderDialog = ({ open, onOpenChange, onSaved, preselecte
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="supplier_id">Proveedor *</Label>
-              <Select value={form.supplier_id} onValueChange={(value) => setForm({ ...form, supplier_id: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un proveedor" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60 overflow-y-auto">
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <SupplierSearchCombobox
+              id="supplier_id"
+              label="Proveedor *"
+              value={form.supplier_id}
+              onValueChange={(value) => setForm({ ...form, supplier_id: value })}
+              suppliers={suppliers.map((s) => ({
+                id: s.id,
+                name: s.name,
+                contact_name: s.contact_name,
+                phone: s.phone,
+                email: s.email,
+                cuit: s.cuit,
+              }))}
+              onInputKeyDown={handleInputKeyDown}
+            />
 
             {!disableBranchSelection && (
               <div className="space-y-2">
