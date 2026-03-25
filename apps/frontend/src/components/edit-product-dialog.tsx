@@ -32,7 +32,7 @@ interface EditProductDialogProps {
 }
 
 export function EditProductDialog({ open, onOpenChange, product, onProductUpdated }: EditProductDialogProps) {
-  type ProductFormData = Omit<Partial<Product>, 'id' | 'measure_id' | 'category_id' | 'supplier_id' | 'iva_id' | 'unit_price' | 'markup' | 'sale_price' | 'status' | 'web' | 'created_at' | 'updated_at' | 'deleted_at' | 'measure' | 'category' | 'iva' | 'supplier' | 'stocks' | 'image_id' | 'currency'> & {
+  type ProductFormData = Omit<Partial<Product>, 'id' | 'measure_id' | 'category_id' | 'supplier_id' | 'iva_id' | 'unit_price' | 'markup' | 'sale_price' | 'status' | 'web' | 'created_at' | 'updated_at' | 'deleted_at' | 'measure' | 'category' | 'iva' | 'supplier' | 'stocks' | 'image_id' | 'currency' | 'allow_discount'> & {
     unit_price: string;
     markup: string;
     sale_price: string;
@@ -621,7 +621,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-visible">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-visible flex flex-col">
         <DialogHeader>
           <DialogTitle>Editar Producto</DialogTitle>
           <DialogDescription>
@@ -629,7 +629,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[min(85vh,calc(90vh-5rem))] overflow-y-auto overflow-x-hidden pr-1">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1 min-h-0">
         <div className="grid gap-4 py-4">
           {/* Información básica */}
           <div className="grid grid-cols-2 gap-4">

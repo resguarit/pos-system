@@ -712,7 +712,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-visible">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-visible flex flex-col">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle>Nuevo Producto</DialogTitle>
@@ -727,7 +727,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
           </DialogDescription>
         </DialogHeader>
 
-        <div className="max-h-[min(85vh,calc(90vh-5rem))] overflow-y-auto overflow-x-hidden pr-1">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden pr-1 min-h-0">
         <div className="grid gap-4 py-4">
           {/* Información básica */}
           <div className="grid grid-cols-2 gap-4">
