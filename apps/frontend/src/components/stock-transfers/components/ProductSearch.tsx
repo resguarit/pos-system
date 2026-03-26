@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, Search } from 'lucide-react';
 import { getProducts } from '@/lib/api/productService';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { usePosCategories } from '@/hooks/usePosCategories';
 import type { Product } from '../types';
 
 interface ProductSearchProps {
@@ -32,23 +34,42 @@ export function ProductSearch({
   const [loadingStock, setLoadingStock] = useState(false);
   const [adding, setAdding] = useState(false);
 
+  // Category hooks
+  const {
+    parentCategories,
+    subcategories,
+    selectedCategoryId,
+    selectedSubcategoryId,
+    loadingSubcategories,
+    setSelectedCategoryId,
+    setSelectedSubcategoryId,
+    filterCategoryIds,
+  } = usePosCategories();
+
   // Server-side search state
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Fetch products from API with search term
-  const fetchProducts = useCallback(async (term: string) => {
+  // Fetch products from API with search term and category filters
+  const fetchProducts = useCallback(async (term: string, currentCategoryIds: number[] | null) => {
     setIsSearching(true);
     try {
-      const params: Record<string, string | number> = {
-        per_page: 20,
+      const params: Record<string, string | number | number[]> = {
+        per_page: 100,
         status: 'active',
+        include: 'category',
       };
+      
       if (term.trim()) {
         params.search = term.trim();
       }
+
+      if (currentCategoryIds && currentCategoryIds.length > 0) {
+        params.category_ids = currentCategoryIds;
+      }
+
       const data = await getProducts(params);
       // data can be an array or paginated object with .data
       const products = Array.isArray(data) ? data : (data.data || []);
@@ -61,7 +82,7 @@ export function ProductSearch({
     }
   }, []);
 
-  // Debounced search - triggers API call 300ms after user stops typing
+  // Debounced search - triggers API call 300ms after user stops typing or category changes
   useEffect(() => {
     if (!showDropdown) return;
 
@@ -70,7 +91,7 @@ export function ProductSearch({
     }
 
     debounceTimer.current = setTimeout(() => {
-      fetchProducts(search);
+      fetchProducts(search, filterCategoryIds);
     }, 300);
 
     return () => {
@@ -78,7 +99,15 @@ export function ProductSearch({
         clearTimeout(debounceTimer.current);
       }
     };
-  }, [search, showDropdown, fetchProducts]);
+  }, [search, showDropdown, fetchProducts, filterCategoryIds]);
+
+  // Reload initial results when category filter changes
+  useEffect(() => {
+    if (showDropdown) {
+      fetchProducts(search, filterCategoryIds);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCategoryIds]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -139,7 +168,52 @@ export function ProductSearch({
   };
 
   return (
-    <div className="space-y-2" ref={containerRef}>
+    <div className="space-y-4" ref={containerRef}>
+      {/* Category Filters */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <Select 
+          value={selectedCategoryId} 
+          onValueChange={(val) => {
+            setSelectedCategoryId(val);
+            setShowDropdown(true);
+          }} 
+          disabled={disabled}
+        >
+          <SelectTrigger className="w-full md:w-[250px] bg-white">
+            <SelectValue placeholder="Todas las categorías" />
+          </SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            <SelectItem value="all">Todas las categorías</SelectItem>
+            {parentCategories.map((cat) => (
+              <SelectItem key={cat.id} value={cat.id.toString()}>
+                {cat.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select 
+          value={selectedSubcategoryId} 
+          onValueChange={(val) => {
+            setSelectedSubcategoryId(val);
+            setShowDropdown(true);
+          }} 
+          disabled={disabled || selectedCategoryId === 'all' || loadingSubcategories}
+        >
+          <SelectTrigger className="w-full md:w-[250px] bg-white">
+            <SelectValue placeholder="Todas las subcategorías" />
+          </SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            <SelectItem value="all">Todas las subcategorías</SelectItem>
+            {subcategories.map((sub) => (
+              <SelectItem key={sub.id} value={sub.id.toString()}>
+                {sub.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex flex-col md:flex-row gap-2">
         {/* Search Input */}
         <div className="flex-1 relative">
@@ -158,11 +232,11 @@ export function ProductSearch({
                 setShowDropdown(true);
                 // Load initial results when focusing with empty search
                 if (searchResults.length === 0) {
-                  fetchProducts('');
+                  fetchProducts(search, filterCategoryIds);
                 }
               }}
               disabled={disabled}
-              className="pl-9"
+              className="pl-9 bg-white"
             />
           </div>
 
@@ -178,17 +252,22 @@ export function ProductSearch({
                 searchResults.map((product) => (
                   <div
                     key={product.id}
-                    className="px-4 py-2 hover:bg-accent cursor-pointer"
+                    className="px-4 py-2 hover:bg-accent cursor-pointer border-b last:border-0"
                     onClick={() => handleProductSelect(product)}
                   >
-                    <div className="font-medium">{product.description}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {product.code || product.barcode || '-'}
+                    <div className="font-medium text-sm">{product.description}</div>
+                    <div className="flex items-center text-xs text-muted-foreground mt-1">
+                      <span className="font-mono bg-muted px-1.5 py-0.5 rounded mr-2">
+                        {product.code || product.barcode || '-'}
+                      </span>
+                      {product.category && (
+                        <span className="text-blue-600 truncate">{product.category.name}</span>
+                      )}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="px-4 py-3 text-sm text-muted-foreground text-center">
+                <div className="px-4 py-4 text-sm text-muted-foreground text-center">
                   {search.trim() ? 'No se encontraron productos' : 'Escriba para buscar productos'}
                 </div>
               )}
@@ -204,7 +283,7 @@ export function ProductSearch({
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             onKeyDown={handleQuantityKeyDown}
-            className="w-20"
+            className="w-20 bg-white"
             min="1"
             disabled={disabled || !selectedProductId}
           />
@@ -212,8 +291,9 @@ export function ProductSearch({
           <Button
             type="button"
             onClick={handleAdd}
-            variant="outline"
+            variant="default"
             size="icon"
+            className="shrink-0 transition-all hover:scale-105"
             disabled={disabled || adding || !selectedProductId || !quantity}
           >
             {adding ? (
@@ -226,11 +306,15 @@ export function ProductSearch({
       </div>
 
       {/* Stock info - shown below when product selected */}
-      {selectedProductId && selectedProductStock !== null && (
-        <p className="text-xs text-blue-600/70 pl-1">
-          {loadingStock ? "Verificando stock..." : `Stock disponible en origen: ${selectedProductStock} unidades`}
-        </p>
-      )}
+      <div className="h-5">
+        {selectedProductId && selectedProductStock !== null && (
+          <p className="text-sm font-medium text-blue-600 flex items-center gap-1.5 pl-1 fade-in-0 animate-in slide-in-from-left-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+            {loadingStock ? "Verificando stock..." : `Stock disponible en origen: ${selectedProductStock} unidades`}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
+

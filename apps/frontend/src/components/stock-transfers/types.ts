@@ -12,12 +12,12 @@ export interface Branch {
   status?: boolean;
 }
 
-// Product type compatible with API response
 export interface Product {
   id: number | string;
   description: string;
   code?: string | null;
   barcode?: string | null;
+  category?: { id: number | string; name: string };
 }
 
 export interface TransferItem {
