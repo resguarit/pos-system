@@ -30,6 +30,7 @@ class PosController extends Controller
     public function searchProducts(Request $request)
     {
         $query = trim((string) $request->input('query', ''));
+        $branchId = $request->input('branch_id');
         $likeTerm = '%' . addcslashes($query, '\\_') . '%';
 
         if (empty($query)) {
@@ -38,6 +39,11 @@ class PosController extends Controller
 
         $products = Product::with(['iva', 'category'])
             ->where('status', true)
+            ->when($branchId, function ($q) use ($branchId) {
+                $q->whereHas('stocks', function ($sq) use ($branchId) {
+                    $sq->where('branch_id', $branchId);
+                });
+            })
             ->where(function ($q) use ($query, $likeTerm) {
                 $q->where('code', '=', $query)
                     ->orWhere('description', 'LIKE', $likeTerm);

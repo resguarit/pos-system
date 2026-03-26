@@ -198,7 +198,8 @@ export default function POSPage() {
 
   const fetchProducts = useCallback(async (perPage = SMALL_CATALOG_THRESHOLD) => {
     try {
-      const response = await request({ method: "GET", url: `/products?include=category,iva&per_page=${perPage}&status=active` })
+      const branchFilter = selectedBranch?.id ? `&branch_ids[]=${selectedBranch.id}` : ''
+      const response = await request({ method: "GET", url: `/products?include=category,iva&per_page=${perPage}&status=active${branchFilter}` })
       // Manejar estructura paginada para productos también
       const productData = Array.isArray(response) ? response :
         Array.isArray(response?.data?.data) ? response.data.data :
@@ -209,7 +210,7 @@ export default function POSPage() {
     } catch (err) {
       setProducts([])
     }
-  }, [request, mapProductForPos]); // Dependencia estable
+  }, [request, mapProductForPos, selectedBranch?.id]); // Dependencia estable
 
   const initializeProductCatalogMode = useCallback(async () => {
     if (!selectedBranch?.id) {
@@ -255,7 +256,7 @@ export default function POSPage() {
     const response = await request({
       method: 'GET',
       url: '/pos/products',
-      params: { query },
+      params: { query, branch_id: selectedBranch?.id },
       signal
     })
 
@@ -266,7 +267,7 @@ export default function POSPage() {
         : []
 
     return data.map(mapProductForPos)
-  }, [request, mapProductForPos])
+  }, [request, mapProductForPos, selectedBranch?.id])
 
   // Función estable para recargar productos cuando se actualice la tasa de cambio
   const handleExchangeRateUpdate = useCallback(() => {
