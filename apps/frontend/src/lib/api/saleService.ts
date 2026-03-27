@@ -15,7 +15,8 @@ interface GetSoldProductsParams {
     destination_branch_id: string;
     from_date: Date;
     to_date: Date;
-    category_id?: number;
+    /** Array of category IDs to filter (parent + children from cascaded selection) */
+    category_ids?: number[];
 }
 
 /**
@@ -29,7 +30,7 @@ export async function getSoldProductsForTransfer(params: GetSoldProductsParams):
                 destination_branch_id: params.destination_branch_id,
                 from_date: format(params.from_date, 'yyyy-MM-dd'),
                 to_date: format(params.to_date, 'yyyy-MM-dd'),
-                ...(params.category_id && { category_id: params.category_id }),
+                ...(params.category_ids?.length ? { 'category_ids[]': params.category_ids } : {}),
             },
         }
     );

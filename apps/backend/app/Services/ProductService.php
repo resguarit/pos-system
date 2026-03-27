@@ -83,6 +83,7 @@ class ProductService implements ProductServiceInterface
     public function getPaginatedProducts(array $filters, int $perPage = 50)
     {
         try {
+            Log::info("getPaginatedProducts filters", ['filters' => $filters]);
             $query = Product::with(['measure', 'category', 'iva', 'supplier']);
 
             // --- Apply Filters ---
@@ -217,6 +218,12 @@ class ProductService implements ProductServiceInterface
                 $query->orderByRaw(
                     '(SELECT COALESCE(SUM(current_stock), 0) FROM stocks WHERE stocks.product_id = products.id AND stocks.deleted_at IS NULL' . $branchCondition . ') ' . $sortDir
                 )->orderBy('products.description', 'asc');
+            } elseif ($sortBy === 'category') {
+                $query->orderByRaw(
+                    "COALESCE((SELECT name FROM categories WHERE categories.id = products.category_id AND categories.deleted_at IS NULL), 'Sin Categoría') " . $sortDir
+                )->orderBy('products.description', 'asc');
+            } elseif ($sortBy === 'description') {
+                $query->orderBy('description', $sortDir);
             } elseif (!empty($filters['search'])) {
                 $query->orderBy('description', 'asc');
             } else {

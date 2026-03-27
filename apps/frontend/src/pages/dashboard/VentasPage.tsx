@@ -32,7 +32,7 @@ import SalesHistoryChart from "@/components/dashboard/sucursales/sales-history-c
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog";
 import type { DateRange } from "@/components/ui/date-range-picker";
 import Pagination from "@/components/ui/pagination";
-import { format } from "date-fns";
+import { format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import useApi from "@/hooks/useApi";
@@ -673,6 +673,7 @@ export default function VentasPage() {
 
   const canAnnulSale = (sale: SaleHeader): boolean => {
     const receiptType = getReceiptType(sale).displayName;
+    if (sale.status === 'annulled') return false;
     return !(
       receiptType.includes('NOTA DE CRÉDITO') ||
       receiptType.includes('DEVOLUCIÓN')
@@ -1193,7 +1194,6 @@ export default function VentasPage() {
                 </Button>
                 {hasPermission('exportar_reportes') && (
                   <DropdownMenu>
-                    {/* @ts-expect-error - UI component props mismatch */}
                     <DropdownMenuTrigger asChild>
                       <Button
                         variant="outline"
@@ -1206,14 +1206,11 @@ export default function VentasPage() {
                         <span className="hidden lg:inline">Exportar</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    {/* @ts-expect-error - UI component props mismatch */}
                     <DropdownMenuContent align="end">
-                      {/* @ts-expect-error - UI component props mismatch */}
                       <DropdownMenuItem onClick={handleExportCSV} className="cursor-pointer">
                         <FileText className="mr-2 h-4 w-4" />
                         Exportar CSV
                       </DropdownMenuItem>
-                      {/* @ts-expect-error - UI component props mismatch */}
                       <DropdownMenuItem onClick={handleExportPDF} className="cursor-pointer">
                         <FileText className="mr-2 h-4 w-4" />
                         Exportar PDF
@@ -1307,7 +1304,6 @@ export default function VentasPage() {
               </Card>
             </div>
 
-            {/* @ts-expect-error - UI component props mismatch */}
             <Tabs
               value={statusFilter}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1383,7 +1379,6 @@ export default function VentasPage() {
                               // eslint-disable-next-line @typescript-eslint/no-explicit-any
                               onValueChange={(value: any) => setBudgetStatus(value)}
                             >
-                              {/* @ts-expect-error - UI component props mismatch */}
                               <SelectTrigger className="w-[180px]">
                                 <SelectValue placeholder="Estado" />
                               </SelectTrigger>

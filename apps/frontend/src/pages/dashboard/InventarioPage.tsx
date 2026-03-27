@@ -110,7 +110,8 @@ export default function InventarioPage() {
   const [exportStockCountDialogOpen, setExportStockCountDialogOpen] = useState(false)
   const [advancedBulkUpdateDialogOpen, setAdvancedBulkUpdateDialogOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [stockSortDirection, setStockSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortBy, setSortBy] = useState<'stock' | 'description' | 'category'>('stock')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [supplierFilterQuery, setSupplierFilterQuery] = useState("")
 
   const availableSubcategories = categories.filter((c) => String(c.parent_id) === selectedCategoryId)
@@ -189,8 +190,8 @@ export default function InventarioPage() {
         params.set('status', selectedProductStatus)
       }
 
-      params.set('sort_by', 'stock')
-      params.set('sort_direction', stockSortDirection)
+      params.set('sort_by', sortBy)
+      params.set('sort_direction', sortDirection)
 
       // for_admin is no longer strictly needed for pagination but kept if backend uses it for other logic, 
       // primarily we rely on the new pagination structure.
@@ -274,7 +275,7 @@ export default function InventarioPage() {
       console.error("Error al cargar productos:", err)
       setProducts([])
     }
-  }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, categories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, stockSortDirection]);
+  }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, categories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, sortBy, sortDirection]);
 
   const refreshData = useCallback(() => {
     // If we are on page > 1 and refresh, we might want to stay on page or go to 1. 
@@ -757,15 +758,25 @@ export default function InventarioPage() {
     return buildFlattenRows()
   }
 
-  const toggleStockSortDirection = () => {
-    setStockSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+  const handleSort = (column: 'stock' | 'description' | 'category') => {
+    if (sortBy === column) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(column)
+      setSortDirection('asc')
+    }
     setPage(1)
     const sp = new URLSearchParams(searchParams)
     sp.set('page', '1')
     setSearchParams(sp, { replace: true })
   }
 
-  const stockSortLabel = stockSortDirection === 'asc' ? 'Ordenar stock de mayor a menor' : 'Ordenar stock de menor a mayor'
+  const getSortLabel = (column: 'stock' | 'description' | 'category') => {
+    if (column === 'stock') {
+      return sortDirection === 'asc' ? 'Ordenar stock de mayor a menor' : 'Ordenar stock de menor a mayor';
+    }
+    return sortDirection === 'asc' ? `Ordenar ${column === 'description' ? 'descripción' : 'categoría'} Z-A` : `Ordenar ${column === 'description' ? 'descripción' : 'categoría'} A-Z`;
+  }
 
   const togglePerBranchView = () => {
     const next = !perBranchView
@@ -1078,7 +1089,15 @@ export default function InventarioPage() {
                               getResizeHandleProps={getResizeHandleProps}
                               getColumnHeaderProps={getColumnHeaderProps}
                             >
-                              Producto
+                              <button
+                                type="button"
+                                onClick={() => handleSort('description')}
+                                className="inline-flex items-center gap-1 hover:underline w-full text-left font-semibold text-muted-foreground"
+                                title={getSortLabel('description')}
+                              >
+                                PRODUCTO
+                                {sortBy === 'description' && (sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />)}
+                              </button>
                             </ResizableTableHeader>
                             <ResizableTableHeader
                               columnId="category"
@@ -1086,7 +1105,15 @@ export default function InventarioPage() {
                               getColumnHeaderProps={getColumnHeaderProps}
                               className="hidden sm:table-cell"
                             >
-                              Categoría
+                              <button
+                                type="button"
+                                onClick={() => handleSort('category')}
+                                className="inline-flex items-center gap-1 hover:underline w-full text-left font-semibold text-muted-foreground"
+                                title={getSortLabel('category')}
+                              >
+                                CATEGORÍA
+                                {sortBy === 'category' && (sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />)}
+                              </button>
                             </ResizableTableHeader>
                             {hasPermission('ver_precio_unitario') && (
                               <ResizableTableHeader
@@ -1116,16 +1143,16 @@ export default function InventarioPage() {
                                 >
                                   <button
                                     type="button"
-                                    onClick={toggleStockSortDirection}
-                                    className="inline-flex items-center gap-1 hover:underline"
-                                    title={stockSortLabel}
+                                    onClick={() => handleSort('stock')}
+                                    className="inline-flex items-center gap-1 hover:underline font-semibold text-muted-foreground"
+                                    title={getSortLabel('stock')}
                                   >
                                     STOCK ACTUAL
-                                    {stockSortDirection === 'asc' ? (
+                                    {sortBy === 'stock' && (sortDirection === 'asc' ? (
                                       <ChevronUp className="h-3.5 w-3.5" />
                                     ) : (
                                       <ChevronDown className="h-3.5 w-3.5" />
-                                    )}
+                                    ))}
                                   </button>
                                 </ResizableTableHeader>
                                 <ResizableTableHeader
@@ -1327,7 +1354,15 @@ export default function InventarioPage() {
                           getResizeHandleProps={getResizeHandleProps}
                           getColumnHeaderProps={getColumnHeaderProps}
                         >
-                          Producto
+                          <button
+                            type="button"
+                            onClick={() => handleSort('description')}
+                            className="inline-flex items-center gap-1 hover:underline w-full text-left font-semibold text-muted-foreground"
+                            title={getSortLabel('description')}
+                          >
+                            Producto
+                            {sortBy === 'description' && (sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />)}
+                          </button>
                         </ResizableTableHeader>
                         <ResizableTableHeader
                           columnId="category"
@@ -1335,7 +1370,15 @@ export default function InventarioPage() {
                           getColumnHeaderProps={getColumnHeaderProps}
                           className="hidden sm:table-cell"
                         >
-                          Categoría
+                          <button
+                            type="button"
+                            onClick={() => handleSort('category')}
+                            className="inline-flex items-center gap-1 hover:underline w-full text-left font-semibold text-muted-foreground"
+                            title={getSortLabel('category')}
+                          >
+                            Categoría
+                            {sortBy === 'category' && (sortDirection === 'asc' ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />)}
+                          </button>
                         </ResizableTableHeader>
                         {hasPermission('ver_precio_unitario') && (
                           <ResizableTableHeader
@@ -1365,16 +1408,16 @@ export default function InventarioPage() {
                             >
                               <button
                                 type="button"
-                                onClick={toggleStockSortDirection}
-                                className="inline-flex items-center gap-1 hover:underline"
-                                title={stockSortLabel}
+                                onClick={() => handleSort('stock')}
+                                className="inline-flex items-center gap-1 hover:underline font-semibold text-muted-foreground"
+                                title={getSortLabel('stock')}
                               >
                                 STOCK ACTUAL
-                                {stockSortDirection === 'asc' ? (
+                                {sortBy === 'stock' && (sortDirection === 'asc' ? (
                                   <ChevronUp className="h-3.5 w-3.5" />
                                 ) : (
                                   <ChevronDown className="h-3.5 w-3.5" />
-                                )}
+                                ))}
                               </button>
                             </ResizableTableHeader>
                             <ResizableTableHeader

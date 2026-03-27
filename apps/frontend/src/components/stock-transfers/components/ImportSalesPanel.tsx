@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,7 +13,7 @@ import { Calendar as CalendarIcon, Download, Search, Loader2, FileSpreadsheet, F
 import { sileo } from "sileo"
 import type { DateRange } from 'react-day-picker';
 import { saleService } from '@/lib/api/saleService';
-import { getCategories, type Category } from '@/lib/api/categoryService';
+import { usePosCategories } from '@/hooks/usePosCategories';
 
 interface ImportSalesPanelProps {
     onImport: (items: { productId: number; quantity: number; productCode?: string; productName?: string; availableStock?: number }[]) => void;
@@ -31,41 +31,21 @@ interface SoldProduct {
 
 export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesPanelProps) {
     const [dateRange, setDateRange] = useState<DateRange | undefined>();
-    const [category, setCategory] = useState<string>("all");
-    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(false);
-    const [loadingCategories, setLoadingCategories] = useState(false);
     const [results, setResults] = useState<SoldProduct[]>([]);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
-    useEffect(() => {
-        let cancelled = false;
-
-        const fetchCategories = async () => {
-            setLoadingCategories(true);
-            try {
-                const data = await getCategories();
-                if (!cancelled) {
-                    setCategories(Array.isArray(data) ? data : []);
-                }
-            } catch {
-                if (!cancelled) {
-                    setCategories([]);
-                    sileo.error({ title: "No se pudieron cargar las categorías" });
-                }
-            } finally {
-                if (!cancelled) {
-                    setLoadingCategories(false);
-                }
-            }
-        };
-
-        fetchCategories();
-
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+    // Cascaded category/subcategory filter - same pattern as ProductSearch
+    const {
+        parentCategories,
+        subcategories,
+        selectedCategoryId,
+        selectedSubcategoryId,
+        loadingSubcategories,
+        setSelectedCategoryId,
+        setSelectedSubcategoryId,
+        filterCategoryIds,
+    } = usePosCategories();
 
     // Search sold products from API
     const handleSearch = async () => {
@@ -88,7 +68,7 @@ export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesP
                 destination_branch_id: destinationBranchId,
                 from_date: dateRange.from,
                 to_date: dateRange.to,
-                ...(category !== "all" && { category_id: Number(category) }),
+                ...(filterCategoryIds ? { category_ids: filterCategoryIds } : {}),
             });
 
             setResults(soldProducts);
@@ -106,6 +86,7 @@ export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesP
             setLoading(false);
         }
     };
+
 
     const handleToggleSelect = (id: number) => {
         setSelectedIds(prev =>
@@ -271,7 +252,7 @@ export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesP
                         <PopoverContent className="w-auto p-0" align="start">
                             <Calendar
                                 mode="range"
-                                selected={dateRange}
+                                selected={dateRange as { from: Date; to?: Date } | undefined}
                                 onSelect={setDateRange}
                                 numberOfMonths={2}
                                 locale={es}
@@ -280,24 +261,46 @@ export function ImportSalesPanel({ onImport, destinationBranchId }: ImportSalesP
                     </Popover>
                 </div>
 
-                <div className="space-y-2 w-[200px]">
+                {/* Category Filters - parent + subcategory cascade */}
+                <div className="space-y-2">
                     <Label>Categoría</Label>
-                    <Select value={category} onValueChange={setCategory}>
-                        <SelectTrigger disabled={loadingCategories}>
-                            <SelectValue placeholder="Todas" />
+                    <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Todas las categorías" />
                         </SelectTrigger>
                         <SelectContent className="max-h-64 overflow-y-auto">
-                            <SelectItem value="all">Todas</SelectItem>
-                            {categories.map((item) => (
-                                <SelectItem key={item.id} value={String(item.id)}>
-                                    {item.name}
+                            <SelectItem value="all">Todas las categorías</SelectItem>
+                            {parentCategories.map((cat) => (
+                                <SelectItem key={cat.id} value={String(cat.id)}>
+                                    {cat.name}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                 </div>
 
-                <Button onClick={handleSearch} disabled={loading} className="px-8">
+                <div className="space-y-2">
+                    <Label>Subcategoría</Label>
+                    <Select
+                        value={selectedSubcategoryId}
+                        onValueChange={setSelectedSubcategoryId}
+                        disabled={selectedCategoryId === 'all' || loadingSubcategories}
+                    >
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Todas las subcategorías" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64 overflow-y-auto">
+                            <SelectItem value="all">Todas las subcategorías</SelectItem>
+                            {subcategories.map((sub) => (
+                                <SelectItem key={sub.id} value={String(sub.id)}>
+                                    {sub.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <Button onClick={handleSearch} disabled={loading} className="px-8 self-end">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                     Buscar
                 </Button>

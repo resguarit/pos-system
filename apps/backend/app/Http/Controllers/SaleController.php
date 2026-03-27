@@ -654,7 +654,8 @@ class SaleController extends Controller
             'source_branch_id' => 'required_without:destination_branch_id|integer|exists:branches,id',
             'from_date' => 'required|date',
             'to_date' => 'required|date|after_or_equal:from_date',
-            'category_id' => 'nullable|integer|exists:categories,id',
+            'category_ids' => 'nullable|array',
+            'category_ids.*' => 'integer|exists:categories,id',
         ]);
 
         if ($validator->fails()) {
@@ -668,7 +669,7 @@ class SaleController extends Controller
             $branchId = $request->input('destination_branch_id') ?? $request->input('source_branch_id');
             $fromDate = $request->input('from_date');
             $toDate = $request->input('to_date');
-            $categoryId = $request->input('category_id');
+            $categoryIds = $request->input('category_ids', []);
 
             // Query sold items grouped by product
             $query = DB::table('sale_items')
@@ -692,9 +693,9 @@ class SaleController extends Controller
                 )
                 ->groupBy('products.id', 'products.code', 'products.description', 'products.category_id');
 
-            // Filter by category if provided
-            if ($categoryId) {
-                $query->where('products.category_id', $categoryId);
+            // Filter by one or more category IDs (supports parent + children from cascade)
+            if (!empty($categoryIds)) {
+                $query->whereIn('products.category_id', $categoryIds);
             }
 
             $soldProducts = $query->get();
