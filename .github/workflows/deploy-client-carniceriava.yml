@@ -31,7 +31,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || secrets.VPS_HOST }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || secrets.VPS_PORT }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         timeout: 120s
@@ -40,6 +40,7 @@ jobs:
         script: |
           cd ${{ secrets.CLIENT_CARNICERIAVA_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
           echo "🚀 Deploying backend to CARNICERIA VA..."
+          git config --global --add safe.directory $(pwd)
           git fetch origin
           git reset --hard origin/master
           cd apps/backend
@@ -136,7 +137,7 @@ jobs:
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || secrets.VPS_HOST }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || secrets.VPS_PORT }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
@@ -150,7 +151,7 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || secrets.VPS_HOST }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || secrets.VPS_PORT }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         timeout: 120s
