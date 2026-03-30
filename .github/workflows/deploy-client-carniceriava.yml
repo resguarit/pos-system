@@ -30,8 +30,8 @@ jobs:
     - name: Deploy Backend to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || '200.58.127.86' }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
+        host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || secrets.VPS_PORT }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         timeout: 120s
@@ -135,8 +135,8 @@ jobs:
     - name: Deploy Frontend to VPS
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || '200.58.127.86' }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
+        host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || secrets.VPS_PORT }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
@@ -149,8 +149,8 @@ jobs:
     - name: Verify and fix frontend deployment
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || '200.58.127.86' }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
+        host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || secrets.VPS_HOST }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || secrets.VPS_PORT }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         timeout: 120s
