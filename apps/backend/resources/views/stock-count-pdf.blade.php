@@ -88,7 +88,9 @@
 <body>
     <div class="header">
         <div class="logo-container">
-            @php($logoPath = public_path('images/logo.jpg'))
+            @php
+                $logoPath = public_path('images/logo.jpg');
+            @endphp
             @if(is_string($logoPath) && file_exists($logoPath))
                 <img src="{{ $logoPath }}" alt="Logo" class="company-logo">
             @endif
