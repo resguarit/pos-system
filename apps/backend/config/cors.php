@@ -4,6 +4,14 @@
 $frontendUrl = rtrim(env('FRONTEND_URL', 'http://localhost:5173'), '/');
 $frontendDomain = parse_url($frontendUrl, PHP_URL_HOST) ?? 'localhost';
 
+// Also infer frontend domain from APP_URL when hosted behind api.<domain>
+$appUrl = rtrim((string) env('APP_URL', ''), '/');
+$appHost = $appUrl ? (parse_url($appUrl, PHP_URL_HOST) ?? '') : '';
+$inferredFrontendDomain = '';
+if (is_string($appHost) && $appHost !== '' && str_starts_with($appHost, 'api.')) {
+    $inferredFrontendDomain = substr($appHost, 4) ?: '';
+}
+
 // Build allowed origins dynamically
 $allowedOrigins = [$frontendUrl];
 
@@ -34,6 +42,12 @@ $allowedOrigins = array_merge($allowedOrigins, [
     'https://127.0.0.1:5173',
 ]);
 
+// Add inferred production frontend origins (apex + www) if available
+if (is_string($inferredFrontendDomain) && $inferredFrontendDomain !== '') {
+    $allowedOrigins[] = 'https://' . $inferredFrontendDomain;
+    $allowedOrigins[] = 'https://www.' . $inferredFrontendDomain;
+}
+
 // Remove duplicates and reindex
 $allowedOrigins = array_values(array_unique($allowedOrigins));
 
@@ -49,6 +63,13 @@ if ($frontendDomain !== 'localhost' && $frontendDomain !== '127.0.0.1') {
     $allowedOriginsPatterns[] = '^https?://(www\\.)?' . $domainPattern . '$';
     // Allow any subdomain
     $allowedOriginsPatterns[] = '^https?://.*\\.' . $domainPattern . '$';
+}
+
+// Add inferred domain patterns (apex + www + subdomains)
+if (is_string($inferredFrontendDomain) && $inferredFrontendDomain !== '' && $inferredFrontendDomain !== 'localhost' && $inferredFrontendDomain !== '127.0.0.1') {
+    $inferredPattern = str_replace('.', '\\.', $inferredFrontendDomain);
+    $allowedOriginsPatterns[] = '^https?://(www\\.)?' . $inferredPattern . '$';
+    $allowedOriginsPatterns[] = '^https?://.*\\.' . $inferredPattern . '$';
 }
 
 return [
