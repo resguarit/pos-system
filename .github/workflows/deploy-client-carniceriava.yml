@@ -31,9 +31,12 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || '200.58.127.86' }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 22 }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        timeout: 120s
+        command_timeout: 20m
+        script_stop: true
         script: |
           cd ${{ secrets.CLIENT_CARNICERIAVA_BACKEND_DEPLOY_PATH || secrets.BACKEND_DEPLOY_PATH }}
           echo "🚀 Deploying backend to CARNICERIA VA..."
@@ -85,10 +88,15 @@ jobs:
           
           echo "✅ Backend deployment completed"
           
-    - name: Notify backend deployment
-      if: always()
+    - name: Notify backend deployment (success)
+      if: success()
       run: |
         echo "✅ Backend deployment completed for CARNICERIA VA"
+
+    - name: Notify backend deployment (failure)
+      if: failure()
+      run: |
+        echo "❌ Backend deployment FAILED for CARNICERIA VA"
 
   deploy_frontend:
     name: Deploy Frontend - CARNICERIA VA
@@ -128,21 +136,26 @@ jobs:
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || '200.58.127.86' }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 22 }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
         source: "apps/frontend/dist/*"
         target: ${{ secrets.CLIENT_CARNICERIAVA_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}
         strip_components: 2
         rm: true
+        timeout: 120s
+        command_timeout: 20m
         
     - name: Verify and fix frontend deployment
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.CLIENT_CARNICERIAVA_VPS_HOST || '200.58.127.86' }}
-        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 22 }}
+        port: ${{ secrets.CLIENT_CARNICERIAVA_VPS_PORT || 5614 }}
         username: root
         key: ${{ secrets.CLIENT_CARNICERIAVA_VPS_SSH_KEY || secrets.VPS_SSH_KEY }}
+        timeout: 120s
+        command_timeout: 20m
+        script_stop: true
         script: |
           DEPLOY_PATH="${{ secrets.CLIENT_CARNICERIAVA_FRONTEND_DEPLOY_PATH || secrets.FRONTEND_DEPLOY_PATH }}"
           echo "🔍 Verificando deployment en: $DEPLOY_PATH"
@@ -172,7 +185,12 @@ jobs:
           
           echo "✅ index.html existe: $([ -f "$DEPLOY_PATH/index.html" ] && echo 'SÍ' || echo 'NO')"
           
-    - name: Notify frontend deployment
-      if: always()
+    - name: Notify frontend deployment (success)
+      if: success()
       run: |
         echo "✅ Frontend deployment completed for CARNICERIA VA"
+
+    - name: Notify frontend deployment (failure)
+      if: failure()
+      run: |
+        echo "❌ Frontend deployment FAILED for CARNICERIA VA"
