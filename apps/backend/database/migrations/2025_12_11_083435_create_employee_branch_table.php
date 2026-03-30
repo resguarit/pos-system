@@ -10,6 +10,9 @@ return new class extends Migration {
      */
     public function up(): void
     {
+        if (Schema::hasTable('employee_branch')) {
+            return;
+        }
         Schema::create('employee_branch', function (Blueprint $table) {
             $table->id();
             $table->timestamps();

@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
+        if (Schema::hasTable('expense_reminders')) {
+            return;
+        }
         Schema::create('expense_reminders', function (Blueprint $table) {
             $table->id();
             $table->foreignId('expense_id')->constrained('expenses')->cascadeOnDelete();
