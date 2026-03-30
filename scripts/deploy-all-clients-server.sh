@@ -13,6 +13,7 @@ set -e
 
 readonly HOME_DIR="/home"
 readonly SCRIPT_NAME="${0##*/}"
+readonly OPTIMIZE_AUTOLOAD="${OPTIMIZE_AUTOLOAD:-0}"
 
 # -----------------------------------------------------------------------------
 # Descubre la ruta del backend Laravel dentro de un directorio api.* o dipag-api.*
@@ -65,9 +66,17 @@ deploy_one_client() {
       echo "⚠️  Composer not found"
       return 1
     fi
-    if ! COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap; then
+    # NOTE: --optimize-autoloader can be very slow on some VPS disks (it scans a lot of files).
+    # Keep deploy fast by default; allow opt-in via OPTIMIZE_AUTOLOAD=1.
+    if ! COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_MEMORY_LIMIT=-1 composer install --no-dev --no-interaction --prefer-dist --no-progress --ignore-platform-req=ext-soap; then
       echo "❌ Composer install failed"
       return 1
+    fi
+    if [[ "${OPTIMIZE_AUTOLOAD}" == "1" ]]; then
+      echo "⚙️  Optimizing Composer autoload (OPTIMIZE_AUTOLOAD=1)..."
+      if ! COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_MEMORY_LIMIT=-1 composer dump-autoload --no-dev --no-interaction --no-progress --optimize; then
+        echo "⚠️  Autoload optimization failed (continuing)"
+      fi
     fi
 
     # Migraciones
