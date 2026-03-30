@@ -296,7 +296,7 @@ class ExchangeRateController extends Controller
                     $updatedCount++;
                     
                 } catch (\Exception $e) {
-                    \Log::error("Error updating price for product {$product->id}", [
+                    logger()->error("Error updating price for product {$product->id}", [
                         'product_id' => $product->id,
                         'product_code' => $product->code,
                         'product_description' => $product->description,
