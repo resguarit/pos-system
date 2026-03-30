@@ -388,7 +388,25 @@ class ProductController extends Controller
             $includeOutOfStock = filter_var($request->query('include_out_of_stock', false), FILTER_VALIDATE_BOOLEAN);
             $format = strtolower((string) $request->query('format', 'pdf'));
 
-            $query = Product::with(['category', 'supplier', 'stocks']);
+            // Keep memory usage low: do NOT eager-load full stocks rows for every product.
+            $query = Product::query()
+                ->select([
+                    'id',
+                    'code',
+                    'description',
+                    'category_id',
+                    'supplier_id',
+                    'unit_price',
+                    'currency',
+                    'markup',
+                    'iva_id',
+                    'sale_price',
+                    'status',
+                ])
+                ->with([
+                    'category:id,name',
+                    'supplier:id,name',
+                ]);
 
             if (!$includeInactive) {
                 $query->where('status', true);
@@ -414,6 +432,17 @@ class ProductController extends Controller
                 $query->whereHas('stocks', function ($q) {
                     $q->where('current_stock', '>', 0);
                 });
+            }
+
+            // Compute stock totals in SQL to avoid loading stocks relationship.
+            if (!empty($branchIds)) {
+                $query->withSum([
+                    'stocks as stock_total' => function ($q) use ($branchIds) {
+                        $q->whereIn('branch_id', $branchIds);
+                    }
+                ], 'current_stock');
+            } else {
+                $query->withSum('stocks as stock_total', 'current_stock');
             }
 
             $products = $query
@@ -458,9 +487,7 @@ class ProductController extends Controller
 
                 $row = 2;
                 foreach ($products as $product) {
-                    $stockTotal = !empty($branchIds)
-                        ? $product->stocks->whereIn('branch_id', $branchIds)->sum('current_stock')
-                        : $product->stocks->sum('current_stock');
+                    $stockTotal = (int) round((float) ($product->stock_total ?? 0));
 
                     $sheet->fromArray([
                         $product->code ?: '-',
@@ -469,7 +496,7 @@ class ProductController extends Controller
                         $product->supplier ? $product->supplier->name : '-',
                         (float) ($product->unit_price ?? 0),
                         (float) ($product->sale_price ?? 0),
-                        (int) $stockTotal,
+                        $stockTotal,
                         '',
                         '',
                     ], null, 'A' . $row);

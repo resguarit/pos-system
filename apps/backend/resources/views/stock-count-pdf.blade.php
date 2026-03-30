@@ -135,15 +135,7 @@
                             {{ number_format((float) ($product->sale_price ?? 0), 2, ',', '.') }}
                         </td>
                         <td style="text-align: center;">
-                            @php
-                                $stockTotal = 0;
-                                if (!empty($branchIds)) {
-                                    $stockTotal = $product->stocks->whereIn('branch_id', $branchIds)->sum('current_stock');
-                                } else {
-                                    $stockTotal = $product->stocks->sum('current_stock');
-                                }
-                            @endphp
-                            {{ intval($stockTotal) }}
+                            {{ (int) round((float) ($product->stock_total ?? 0)) }}
                         </td>
                         <td></td>
                         <td></td>
