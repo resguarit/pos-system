@@ -13,7 +13,6 @@ return new class extends Migration {
         Schema::create('client_services', function (Blueprint $table) {
             $table->id();
             $table->foreignId('customer_id')->constrained('customers')->onDelete('cascade');
-            $table->foreignId('service_type_id')->nullable()->constrained('service_types')->onDelete('set null');
             $table->string('name'); // Puede ser personalizado o heredar de service_type
             $table->text('description')->nullable();
             $table->decimal('amount', 15, 2);

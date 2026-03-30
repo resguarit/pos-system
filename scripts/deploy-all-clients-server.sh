@@ -22,8 +22,8 @@ readonly SCRIPT_NAME="${0##*/}"
 discover_backend_path() {
   local api_dir="$1"
 
-  # Special handling for dipag structure (code in public_html)
-  if [[ "$api_dir" == *"dipag"* ]]; then
+  # Special handling for dipag and carniceriava structure (code in public_html)
+  if [[ "$api_dir" == *"dipag"* || "$api_dir" == *"carniceriava"* ]]; then
      if [[ -d "${api_dir}/public_html" && -f "${api_dir}/public_html/artisan" ]]; then
        echo "${api_dir}/public_html"
        return
@@ -100,7 +100,7 @@ main() {
   cd "${HOME_DIR}" || { echo "❌ Cannot cd to ${HOME_DIR}"; exit 1; }
 
   local api_dirs
-  api_dirs=$(ls -d api.* dipag-api.* 2>/dev/null | sort -u || true)
+  api_dirs=$(ls -d api.* dipag-api.* carniceriava-api.* 2>/dev/null | sort -u || true)
   if [[ -z "${api_dirs}" ]]; then
     echo "❌ No api.* ni dipag-api.* directories found in ${HOME_DIR}"
     exit 1
@@ -117,6 +117,7 @@ main() {
     total=$((total + 1))
     local client_name="${api_dir#api.}"
     client_name="${client_name#dipag-api.}"
+    client_name="${client_name#carniceriava-api.}"
     client_name="${client_name%.com.ar}"
     client_name="${client_name%.net.ar}"
 
