@@ -45,6 +45,9 @@ $allowedOriginsPatterns = [
 // Add domain pattern if domain is not localhost
 if ($frontendDomain !== 'localhost' && $frontendDomain !== '127.0.0.1') {
     $domainPattern = str_replace('.', '\\.', $frontendDomain);
+    // Allow apex domain and www
+    $allowedOriginsPatterns[] = '^https?://(www\\.)?' . $domainPattern . '$';
+    // Allow any subdomain
     $allowedOriginsPatterns[] = '^https?://.*\\.' . $domainPattern . '$';
 }
 

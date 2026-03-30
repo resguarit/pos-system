@@ -88,7 +88,10 @@
 <body>
     <div class="header">
         <div class="logo-container">
-            <img src="{{ public_path('images/logo.jpg') }}" alt="Logo" class="company-logo">
+            @php($logoPath = public_path('images/logo.jpg'))
+            @if(is_string($logoPath) && file_exists($logoPath))
+                <img src="{{ $logoPath }}" alt="Logo" class="company-logo">
+            @endif
         </div>
         <div class="document-title">Planilla de Conteo de Stock</div>
         <div class="document-info">
@@ -106,9 +109,11 @@
             <thead>
                 <tr>
                     <th style="width: 10%;">Codigo</th>
-                    <th style="width: 28%;">Descripcion</th>
-                    <th style="width: 16%;">Categoria</th>
-                    <th style="width: 16%;">Proveedor</th>
+                    <th style="width: 22%;">Descripcion</th>
+                    <th style="width: 14%;">Categoria</th>
+                    <th style="width: 14%;">Proveedor</th>
+                    <th style="width: 10%; text-align: right;">Precio Unit.</th>
+                    <th style="width: 10%; text-align: right;">Precio Venta</th>
                     <th style="width: 10%; text-align: center;">Stock Actual</th>
                     <th style="width: 10%; text-align: center;">Conteo Fisico</th>
                     <th style="width: 10%; text-align: center;">Diferencia</th>
@@ -121,6 +126,12 @@
                         <td>{{ $product->description }}</td>
                         <td>{{ $product->category ? $product->category->name : '-' }}</td>
                         <td>{{ $product->supplier ? $product->supplier->name : '-' }}</td>
+                        <td style="text-align: right;">
+                            {{ number_format((float) ($product->unit_price ?? 0), 2, ',', '.') }}
+                        </td>
+                        <td style="text-align: right;">
+                            {{ number_format((float) ($product->sale_price ?? 0), 2, ',', '.') }}
+                        </td>
                         <td style="text-align: center;">
                             @php
                                 $stockTotal = 0;

@@ -449,6 +449,8 @@ class ProductController extends Controller
                     'Descripcion',
                     'Categoria',
                     'Proveedor',
+                    'Precio Unitario',
+                    'Precio Venta',
                     'Stock Actual',
                     'Conteo Fisico',
                     'Diferencia',
@@ -465,6 +467,8 @@ class ProductController extends Controller
                         $product->description,
                         $product->category ? $product->category->name : '-',
                         $product->supplier ? $product->supplier->name : '-',
+                        (float) ($product->unit_price ?? 0),
+                        (float) ($product->sale_price ?? 0),
                         (int) $stockTotal,
                         '',
                         '',
@@ -473,7 +477,7 @@ class ProductController extends Controller
                     $row++;
                 }
 
-                foreach (range('A', 'G') as $column) {
+                foreach (range('A', 'I') as $column) {
                     $sheet->getColumnDimension($column)->setAutoSize(true);
                 }
 
