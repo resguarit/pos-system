@@ -450,13 +450,10 @@ class ProductController extends Controller
 
             $productsCount = (clone $query)->count('products.id');
 
-            // PDFs become huge quickly; protect the server from running out of memory.
+            // Large exports: Excel is the only stable single-file output.
+            // If the client requests PDF but the result set is huge, switch to Excel automatically.
             if ($format === 'pdf' && $productsCount > 2000) {
-                return response()->json([
-                    'message' => 'La planilla es demasiado grande para exportar en PDF.',
-                    'error' => 'Aplicá filtros (sucursal/categoría/proveedor) o exportá en Excel.',
-                    'count' => $productsCount,
-                ], 422);
+                $format = 'xlsx';
             }
 
             // Use cursor() to avoid loading all rows in memory at once.
