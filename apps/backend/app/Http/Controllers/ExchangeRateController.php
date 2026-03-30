@@ -318,7 +318,7 @@ class ExchangeRateController extends Controller
 
             $response = [
                 'success' => true,
-                'message' => "Updated prices for {$updatedCount} products" . (count($failedProducts) > 0 ? " ({count($failedProducts)} failed)" : ""),
+                'message' => "Updated prices for {$updatedCount} products" . (count($failedProducts) > 0 ? (' (' . count($failedProducts) . ' failed)') : ""),
                 'data' => [
                     'updated_count' => $updatedCount,
                     'failed_count' => count($failedProducts),
