@@ -102,7 +102,7 @@
         </div>
     </div>
 
-    @if($products->isEmpty())
+    @if(($productsCount ?? 0) === 0)
         <div style="text-align: center; padding: 40px; color: #666;">
             <p>No hay productos disponibles para los filtros seleccionados.</p>
         </div>
@@ -126,13 +126,28 @@
                     <tr>
                         <td>{{ $product->code ?: '-' }}</td>
                         <td>{{ $product->description }}</td>
-                        <td>{{ $product->category ? $product->category->name : '-' }}</td>
-                        <td>{{ $product->supplier ? $product->supplier->name : '-' }}</td>
+                        <td>{{ $product->category_name ?: '-' }}</td>
+                        <td>{{ $product->supplier_name ?: '-' }}</td>
                         <td style="text-align: right;">
                             {{ number_format((float) ($product->unit_price ?? 0), 2, ',', '.') }}
                         </td>
                         <td style="text-align: right;">
-                            {{ number_format((float) ($product->sale_price ?? 0), 2, ',', '.') }}
+                            @php
+                                $ivaRate = null;
+                                if (isset($product->iva_rate_percent) && $product->iva_rate_percent !== null) {
+                                    $ivaRate = ((float) $product->iva_rate_percent) / 100;
+                                }
+                                $storedSalePrice = $product->sale_price ?? null;
+                                $salePrice = ($storedSalePrice !== null && (float) $storedSalePrice > 0)
+                                    ? (float) $storedSalePrice
+                                    : (new \App\Services\PricingService())->calculateSalePrice(
+                                        (float) ($product->unit_price ?? 0),
+                                        (string) ($product->currency ?? 'ARS'),
+                                        (float) ($product->markup ?? 0),
+                                        $ivaRate
+                                    );
+                            @endphp
+                            {{ number_format((float) ($salePrice ?? 0), 2, ',', '.') }}
                         </td>
                         <td style="text-align: center;">
                             {{ (int) round((float) ($product->stock_total ?? 0)) }}

@@ -388,36 +388,45 @@ class ProductController extends Controller
             $includeOutOfStock = filter_var($request->query('include_out_of_stock', false), FILTER_VALIDATE_BOOLEAN);
             $format = strtolower((string) $request->query('format', 'pdf'));
 
-            // Keep memory usage low: do NOT eager-load full stocks rows for every product.
+            // Keep memory usage low: avoid eager-loading stocks and avoid loading thousands
+            // of Eloquent relations. Build a lean query with SQL aggregates.
             $query = Product::query()
+                ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
+                ->leftJoin('suppliers', 'suppliers.id', '=', 'products.supplier_id')
+                ->leftJoin('ivas', 'ivas.id', '=', 'products.iva_id')
                 ->select([
-                    'id',
-                    'code',
-                    'description',
-                    'category_id',
-                    'supplier_id',
-                    'unit_price',
-                    'currency',
-                    'markup',
-                    'iva_id',
-                    'sale_price',
-                    'status',
+                    'products.id',
+                    'products.code',
+                    'products.description',
+                    'products.unit_price',
+                    'products.currency',
+                    'products.markup',
+                    'products.sale_price',
+                    'products.status',
+                    'categories.name as category_name',
+                    'suppliers.name as supplier_name',
+                    'ivas.rate as iva_rate_percent',
                 ])
-                ->with([
-                    'category:id,name',
-                    'supplier:id,name',
-                ]);
+                ->selectSub(function ($q) use ($branchIds) {
+                    $q->from('stocks')
+                        ->selectRaw('COALESCE(SUM(current_stock), 0)')
+                        ->whereColumn('stocks.product_id', 'products.id');
+
+                    if (!empty($branchIds)) {
+                        $q->whereIn('stocks.branch_id', $branchIds);
+                    }
+                }, 'stock_total');
 
             if (!$includeInactive) {
-                $query->where('status', true);
+                $query->where('products.status', true);
             }
 
             if (!empty($categoryIds)) {
-                $query->whereIn('category_id', $categoryIds);
+                $query->whereIn('products.category_id', $categoryIds);
             }
 
             if (!empty($supplierIds)) {
-                $query->whereIn('supplier_id', $supplierIds);
+                $query->whereIn('products.supplier_id', $supplierIds);
             }
 
             if (!empty($branchIds)) {
@@ -434,21 +443,24 @@ class ProductController extends Controller
                 });
             }
 
-            // Compute stock totals in SQL to avoid loading stocks relationship.
-            if (!empty($branchIds)) {
-                $query->withSum([
-                    'stocks as stock_total' => function ($q) use ($branchIds) {
-                        $q->whereIn('branch_id', $branchIds);
-                    }
-                ], 'current_stock');
-            } else {
-                $query->withSum('stocks as stock_total', 'current_stock');
+            // Order by category then description (use joined alias).
+            $query
+                ->orderByRaw('COALESCE(categories.name, \'\') asc')
+                ->orderBy('products.description');
+
+            $productsCount = (clone $query)->count('products.id');
+
+            // PDFs become huge quickly; protect the server from running out of memory.
+            if ($format === 'pdf' && $productsCount > 2000) {
+                return response()->json([
+                    'message' => 'La planilla es demasiado grande para exportar en PDF.',
+                    'error' => 'Aplicá filtros (sucursal/categoría/proveedor) o exportá en Excel.',
+                    'count' => $productsCount,
+                ], 422);
             }
 
-            $products = $query
-                ->orderBy('category_id')
-                ->orderBy('description')
-                ->get();
+            // Use cursor() to avoid loading all rows in memory at once.
+            $products = $query->cursor();
 
             $selectedBranchNames = empty($branchIds)
                 ? []
@@ -486,16 +498,31 @@ class ProductController extends Controller
                 ], null, 'A1');
 
                 $row = 2;
+                $pricingService = new \App\Services\PricingService();
                 foreach ($products as $product) {
                     $stockTotal = (int) round((float) ($product->stock_total ?? 0));
+                    $ivaRate = null;
+                    if (isset($product->iva_rate_percent) && $product->iva_rate_percent !== null) {
+                        $ivaRate = ((float) $product->iva_rate_percent) / 100;
+                    }
+
+                    $storedSalePrice = $product->sale_price ?? null;
+                    $computedSalePrice = ($storedSalePrice !== null && (float) $storedSalePrice > 0)
+                        ? (float) $storedSalePrice
+                        : $pricingService->calculateSalePrice(
+                            (float) ($product->unit_price ?? 0),
+                            (string) ($product->currency ?? 'ARS'),
+                            (float) ($product->markup ?? 0),
+                            $ivaRate
+                        );
 
                     $sheet->fromArray([
                         $product->code ?: '-',
                         $product->description,
-                        $product->category ? $product->category->name : '-',
-                        $product->supplier ? $product->supplier->name : '-',
+                        $product->category_name ?: '-',
+                        $product->supplier_name ?: '-',
                         (float) ($product->unit_price ?? 0),
-                        (float) ($product->sale_price ?? 0),
+                        (float) ($computedSalePrice ?? 0),
                         $stockTotal,
                         '',
                         '',
@@ -525,6 +552,7 @@ class ProductController extends Controller
                 'branchSummary' => empty($selectedBranchNames) ? 'Todas' : implode(', ', $selectedBranchNames),
                 'supplierSummary' => empty($selectedSupplierNames) ? 'Todos' : implode(', ', $selectedSupplierNames),
                 'exportDate' => now()->format('d/m/Y H:i'),
+                'productsCount' => $productsCount,
             ])->setPaper('a4', 'portrait');
 
             $filename = 'planilla-conteo-' . now()->format('Y-m-d') . '.pdf';
