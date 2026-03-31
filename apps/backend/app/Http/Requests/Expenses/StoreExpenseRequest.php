@@ -34,7 +34,7 @@ class StoreExpenseRequest extends FormRequest
                 'nullable',
                 'exists:payment_methods,id',
                 function (string $attribute, mixed $value, \Closure $fail): void {
-                    if ($value && PaymentMethod::find($value)?->name === 'Cuenta Corriente') {
+                    if ($value && PaymentMethod::find($value)?->isSaleOnCustomerCredit()) {
                         $fail('Los gastos no pueden pagarse con Cuenta Corriente.');
                     }
                 },

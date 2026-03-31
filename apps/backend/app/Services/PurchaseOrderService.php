@@ -387,10 +387,7 @@ class PurchaseOrderService implements PurchaseOrderServiceInterface
             return;
         }
 
-        // Verificar si es Cuenta Corriente
-        // Buscamos por nombre "Cuenta Corriente" (o similar)
-        // Idealmente tendríamos un flag en payment_method, pero por seeder sabemos el nombre
-        $isCurrentAccount = stripos($paymentMethod->name, 'Cuenta Corriente') !== false;
+        $isCurrentAccount = $paymentMethod->isSaleOnCustomerCredit();
 
         if ($isCurrentAccount) {
             $this->registerPurchaseCurrentAccountMovement($purchaseOrder, $paymentMethod, $amount);

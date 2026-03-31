@@ -720,8 +720,9 @@ class SaleService implements SaleServiceInterface
             }
         }
 
-        // Si la venta tiene cliente, registrar SIEMPRE en cuenta corriente
-        if ($sale->customer_id) {
+        // Cuenta corriente: solo si hay cobro pendiente vía método "Cuenta Corriente".
+        // Otros métodos sin afectar caja (delivery, etc.) no deben generar débito/crédito en CC.
+        if ($sale->customer_id && $this->saleHasCuentaCorrientePayment($sale)) {
             $this->registerAllSaleMovementsInCurrentAccount($sale);
         }
 
@@ -733,7 +734,7 @@ class SaleService implements SaleServiceInterface
                 return false;
             }
             // Excluir "Cuenta Corriente"
-            if ($paymentMethod->name === 'Cuenta Corriente') {
+            if ($paymentMethod->isSaleOnCustomerCredit()) {
                 return false;
             }
             // Solo incluir métodos de pago que realmente afectan la caja
@@ -783,7 +784,7 @@ class SaleService implements SaleServiceInterface
                     $paymentMethod = $payment->paymentMethod; // puede ser null si no está vinculado
 
                     // IMPORTANTE: NO registrar en caja si es pago a cuenta corriente
-                    if ($paymentMethod && $paymentMethod->name === 'Cuenta Corriente') {
+                    if ($paymentMethod && $paymentMethod->isSaleOnCustomerCredit()) {
                         continue;
                     }
 
@@ -854,6 +855,15 @@ class SaleService implements SaleServiceInterface
         }
     }
 
+
+    private function saleHasCuentaCorrientePayment(SaleHeader $sale): bool
+    {
+        return $sale->salePayments->contains(function ($payment) {
+            $method = $payment->paymentMethod;
+
+            return $method && $method->isSaleOnCustomerCredit();
+        });
+    }
 
     /**
      * Registra TODOS los movimientos de una venta en cuenta corriente
@@ -934,12 +944,11 @@ class SaleService implements SaleServiceInterface
                     'Efectivo' => 'Pago en efectivo',
                     'Tarjeta de crédito', 'Tarjeta de débito' => 'Pago con tarjeta',
                     'Transferencia' => 'Pago con transferencia',
-                    'Cuenta Corriente' => 'Pago de cuenta corriente', // No registrar pago inmediato si es a crédito
-                    default => 'Pago de cuenta corriente'
+                    default => 'Pago de cuenta corriente',
                 };
 
-                // Si es pago a cuenta corriente, no registrar el crédito (queda pendiente)
-                if ($paymentMethod->name === 'Cuenta Corriente') {
+                // Si es venta a cuenta corriente, no registrar el crédito (queda pendiente)
+                if ($paymentMethod && $paymentMethod->isSaleOnCustomerCredit()) {
                     continue;
                 }
 

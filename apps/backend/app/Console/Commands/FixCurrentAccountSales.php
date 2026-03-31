@@ -16,11 +16,10 @@ class FixCurrentAccountSales extends Command
     {
         $this->info('🔍 Buscando ventas con pagos a cuenta corriente...');
         
-        // Buscar método de pago "Cuenta Corriente"
-        $currentAccountPaymentMethod = PaymentMethod::where('name', 'Cuenta Corriente')->first();
+        $currentAccountPaymentMethod = PaymentMethod::where('is_customer_credit', true)->first();
         
         if (!$currentAccountPaymentMethod) {
-            $this->error('No se encontró el método de pago "Cuenta Corriente"');
+            $this->error('No se encontró un método de pago marcado como cuenta corriente (is_customer_credit=true)');
             return 1;
         }
         
@@ -39,10 +38,9 @@ class FixCurrentAccountSales extends Command
         $skipped = 0;
         
         foreach ($sales as $sale) {
-            // Calcular total pagado solo con métodos que afectan caja
             $paidAmount = $sale->salePayments
                 ->filter(function ($payment) {
-                    return $payment->paymentMethod && $payment->paymentMethod->affects_cash === true;
+                    return PaymentMethod::paymentCountsTowardSalePaid($payment->paymentMethod);
                 })
                 ->sum('amount');
             

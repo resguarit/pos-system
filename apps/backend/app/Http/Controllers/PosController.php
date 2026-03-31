@@ -264,19 +264,11 @@ class PosController extends Controller
     {
         $saleHeader->load('salePayments.paymentMethod');
 
-        // Contar solo los pagos que afectan caja
-        // Los pagos a cuenta corriente (cuando se selecciona como método de pago) NO deben contar
+        // Sumar todo lo cobrado salvo el método "Cuenta Corriente" (sigue pendiente en el cliente).
+        // Métodos que no afectan caja (delivery, etc.) sí cierran el total de la venta.
         $totalPaid = (float) $saleHeader->salePayments
             ->filter(function ($payment) {
-                $paymentMethod = $payment->paymentMethod;
-
-                // Incluir solo pagos que afectan caja
-                if ($paymentMethod && $paymentMethod->affects_cash === true) {
-                    return true;
-                }
-
-                // Excluir pagos a cuenta corriente
-                return false;
+                return PaymentMethod::paymentCountsTowardSalePaid($payment->paymentMethod);
             })
             ->sum('amount');
 

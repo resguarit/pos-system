@@ -31,11 +31,10 @@ class FixSalesPaymentStatus extends Command
                 // Cargar relación con paymentMethod
                 $sale->load('salePayments.paymentMethod');
                 
-                // IMPORTANTE: Solo contar pagos que afectan caja (afects_cash = true)
-                // Los pagos a cuenta corriente NO deben contar como pagos efectivos
-                $totalPaid = (float)$sale->salePayments
+                // Todo lo cobrado excepto método Cuenta Corriente (incluye medios que no afectan caja).
+                $totalPaid = (float) $sale->salePayments
                     ->filter(function ($payment) {
-                        return $payment->paymentMethod && $payment->paymentMethod->affects_cash === true;
+                        return \App\Models\PaymentMethod::paymentCountsTowardSalePaid($payment->paymentMethod);
                     })
                     ->sum('amount');
                 
