@@ -294,7 +294,32 @@ class SaleHeader extends Model
      */
     public function scopeValidForDebt($query)
     {
-        return $query->whereNotIn('status', ['rejected', 'annulled']);
+        $excludedAfipCodes = [
+            '3',
+            '8',
+            '13',
+            '16', // Presupuesto (no genera deuda)
+            '53',
+            '203',
+            '208',
+            '213',
+            '003',
+            '008',
+            '013',
+            '016',
+            '053',
+        ];
+
+        return $query
+            ->whereNotIn('status', ['rejected', 'annulled'])
+            ->whereDoesntHave('receiptType', function ($receiptQuery) use ($excludedAfipCodes) {
+                $receiptQuery
+                    ->whereIn('afip_code', $excludedAfipCodes)
+                    ->orWhere('description', 'like', '%Nota de Crédito%')
+                    ->orWhere('description', 'like', '%Nota de Credito%')
+                    ->orWhere('description', 'like', '%Devolución%')
+                    ->orWhere('description', 'like', '%Devolucion%');
+            });
     }
 
     /**

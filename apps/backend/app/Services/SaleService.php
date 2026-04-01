@@ -699,14 +699,12 @@ class SaleService implements SaleServiceInterface
             $receiptName = $sale->receiptType->description ?? $sale->receiptType->name ?? '';
             $receiptCode = $sale->receiptType->afip_code ?? '';
         
-            // Códigos AFIP para Notas de Crédito: 3, 8, 13, 53, 203, 208
-            // Códigos AFIP para Notas de Débito: 2, 7, 12, 52, 202, 207
-            $creditNoteAfipCodes = ['003', '008', '013', '053', '203', '208'];
-            $debitNoteAfipCodes = ['002', '007', '012', '052', '202', '207'];
-            $noteCodes = array_merge($creditNoteAfipCodes, $debitNoteAfipCodes);
-        
+            // Normalizar para soportar códigos guardados con y sin ceros a la izquierda (ej: "008" o "8")
+            $normalizedReceiptCode = (int) ltrim((string) $receiptCode, '0');
+            $noteAfipCodes = [2, 3, 7, 8, 12, 13, 52, 53, 202, 203, 207, 208, 212, 213];
+
             // Chequear por código AFIP
-            if (in_array((string)$receiptCode, $noteCodes)) {
+            if (in_array($normalizedReceiptCode, $noteAfipCodes, true)) {
                 return; // No registrar notas de crédito/débito en cuenta corriente
             }
         
