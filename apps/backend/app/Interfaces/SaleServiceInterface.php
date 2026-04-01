@@ -67,4 +67,13 @@ interface SaleServiceInterface
      * @throws \Exception Si hay errores en la autorización
      */
     public function authorizeWithAfip(SaleHeader $sale): array;
+
+    /**
+     * Convierte una venta emitida como Factura X a un comprobante fiscal.
+     *
+     * @param int $saleId ID de la venta origen (Factura X)
+     * @param int $newReceiptTypeId ID del nuevo tipo de comprobante fiscal
+     * @return SaleHeader Venta actualizada
+     */
+    public function convertFacturaXToFiscal(int $saleId, int $newReceiptTypeId): SaleHeader;
 }

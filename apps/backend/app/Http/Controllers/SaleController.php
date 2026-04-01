@@ -461,6 +461,54 @@ class SaleController extends Controller
     }
 
     /**
+     * Convierte una Factura X existente a un comprobante fiscal.
+     *
+     * @param Request $request
+     * @param int $id ID de la venta (Factura X)
+     * @return JsonResponse
+     */
+    public function convertFacturaXToFiscal(Request $request, int $id): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'receipt_type_id' => 'required|integer|exists:receipt_type,id',
+        ], [
+            'receipt_type_id.required' => 'El tipo de comprobante fiscal es obligatorio.',
+            'receipt_type_id.exists' => 'El tipo de comprobante fiscal seleccionado no existe.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Datos inválidos para la conversión a comprobante fiscal.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $updatedSale = $this->saleService->convertFacturaXToFiscal(
+                $id,
+                (int) $request->input('receipt_type_id')
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $updatedSale,
+                'message' => 'Factura X convertida a comprobante fiscal exitosamente.',
+            ], 200);
+        } catch (\InvalidArgumentException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al convertir la Factura X: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Convertir un presupuesto a venta
      * 
      * @param Request $request

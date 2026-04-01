@@ -494,6 +494,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::middleware('has_permission:anular_ventas')->delete('/{id}', [SaleController::class, 'destroy'])->whereNumber('id');
         Route::middleware('has_permission:anular_ventas')->post('/{id}/annul', [SaleAnnulmentController::class, 'annulSale'])->whereNumber('id');
         Route::middleware('has_permission:crear_ventas')->post('/{id}/authorize-afip', [SaleController::class, 'authorizeWithAfip'])->whereNumber('id');
+        Route::middleware('has_permission:crear_ventas')->post('/{id}/convert-to-fiscal', [SaleController::class, 'convertFacturaXToFiscal'])->whereNumber('id');
     });
 
     // Budget (Presupuesto) Routes

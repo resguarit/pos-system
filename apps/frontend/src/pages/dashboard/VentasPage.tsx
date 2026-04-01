@@ -56,6 +56,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import PresupuestosPage from "./PresupuestosPage";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus";
@@ -105,6 +106,7 @@ export default function VentasPage() {
   const [statusFilter, setStatusFilter] = usePersistentState<'all' | 'active' | 'annulled' | 'budgets'>("statusFilter", 'all');
   const [branchFilterIds, setBranchFilterIds] = usePersistentState<string[]>("branchFilterIds", []);
   const [selectedProductIds, setSelectedProductIds] = usePersistentState<string[]>("selectedProductIds", []); // Estado para productos seleccionados
+  const [selectedReceiptType, setSelectedReceiptType] = usePersistentState<string>("selectedReceiptType", "all");
   const [productOptions, setProductOptions] = useState<Option[]>([]); // Estado para opciones de productos
   const [productLabelMap, setProductLabelMap] = useState<Record<string, string>>({});
   const [debouncedProductQuery, setDebouncedProductQuery] = useState("");
@@ -809,8 +811,7 @@ export default function VentasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, dateRange?.from, dateRange?.to, searchTerm, selectionChangeToken]);
 
-  // Determinar qué ventas mostrar según el filtro
-  const filteredSales = (() => {
+  const salesForCurrentStatusAndBranch = useMemo(() => {
     if (statusFilter === 'budgets') return [];
     if (statusFilter === 'annulled') {
       // Para anuladas, usar todas las anuladas cargadas
@@ -855,7 +856,31 @@ export default function VentasPage() {
 
       return matchesStatus && matchesBranch;
     });
-  })();
+  }, [statusFilter, annulledSales, sales, branchFilterIds, branches]);
+
+  const receiptTypeOptions = useMemo(() => {
+    const uniqueTypes = Array.from(
+      new Set(
+        salesForCurrentStatusAndBranch
+          .map((sale) => getReceiptType(sale).displayName)
+          .filter((value) => value && value !== 'N/A')
+      )
+    );
+
+    return uniqueTypes.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [salesForCurrentStatusAndBranch]);
+
+  const filteredSales = useMemo(() => {
+    if (selectedReceiptType === 'all') return salesForCurrentStatusAndBranch;
+    return salesForCurrentStatusAndBranch.filter(
+      (sale) => getReceiptType(sale).displayName === selectedReceiptType
+    );
+  }, [salesForCurrentStatusAndBranch, selectedReceiptType]);
+
+  const handleReceiptTypeChange = (value: string) => {
+    setSelectedReceiptType(value);
+    setCurrentPage(1);
+  };
 
   const handleDateRangeChange = (range: DateRange | undefined) => {
     setDateRange({ from: range?.from ?? new Date(), to: range?.to ?? new Date() });
@@ -1353,19 +1378,19 @@ export default function VentasPage() {
                   <CollapsibleContent className="pt-1">
                     <div className="flex flex-wrap gap-2 p-3 rounded-lg border bg-muted/30">
                       <div className="relative w-full sm:w-[280px]">
-                        <input
+                        <Input
                           type="text"
                           placeholder="Buscar por cliente, teléfono o comprobante..."
                           value={searchTerm}
                           onChange={(e) => handleSearchTermChange(e.target.value)}
-                          className="px-3 py-2 rounded-md border border-input bg-background text-sm ring-offset-background w-full"
+                          className="h-9 bg-background"
                         />
                       </div>
 
                       <DatePickerWithRange
                         selected={dateRange}
                         onSelect={handleDateRangeChange}
-                        className="md:w-auto"
+                        className="w-full sm:w-[260px] [&_button]:h-9 [&_button]:w-full"
                         showClearButton={true}
                         onClear={clearDateRange}
                       />
@@ -1435,7 +1460,7 @@ export default function VentasPage() {
                       )}
 
                       {statusFilter !== 'budgets' && (
-                        <div className="w-[300px] shrink-0">
+                        <div className="w-full sm:w-[260px] shrink-0">
                           <AsyncMultiSelect
                             options={productOptions}
                             selected={selectedProductIds}
@@ -1448,7 +1473,26 @@ export default function VentasPage() {
                             searchPlaceholder="Buscar producto..."
                             emptyMessage={debouncedProductQuery.trim().length < 2 ? "Escribi al menos 2 caracteres para buscar." : "No se encontraron productos"}
                             selectedLabelMap={productLabelMap}
+                            className="h-9 min-h-9 py-2 bg-background"
                           />
+                        </div>
+                      )}
+
+                      {statusFilter !== 'budgets' && (
+                        <div className="w-full sm:w-[260px] shrink-0">
+                          <Select value={selectedReceiptType} onValueChange={handleReceiptTypeChange}>
+                            <SelectTrigger className="h-9 bg-background">
+                              <SelectValue placeholder="Tipo de comprobante" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">Todos los comprobantes</SelectItem>
+                              {receiptTypeOptions.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       )}
                     </div>

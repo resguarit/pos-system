@@ -2452,30 +2452,18 @@ class SaleService implements SaleServiceInterface
         // Obtener tipo de comprobante AFIP
         $invoiceType = $this->mapReceiptTypeToAfipType($sale->receiptType);
 
-        // Obtener el próximo número de comprobante desde AFIP (FECompUltimoAutorizado) para evitar error 10016
-        $invoiceNumber = null;
+        // Determinar CUIT contribuyente para consultar numeración AFIP
         $taxpayerCuit = null;
         if ($sale->branch && !empty($sale->branch->cuit)) {
-            $taxpayerCuit = preg_replace('/[^0-9]/', '', $sale->branch->cuit);
-            if (strlen($taxpayerCuit) === AfipConstants::CUIT_LENGTH) {
-                try {
-                    $lastAuthorized = \Resguar\AfipSdk\Facades\Afip::getLastAuthorizedInvoice($pointOfSale, $invoiceType, $taxpayerCuit);
-                    $lastCbte = (int) ($lastAuthorized['CbteNro'] ?? 0);
-                    $invoiceNumber = $lastCbte + 1;
-                } catch (\Throwable $e) {
-                    Log::warning('No se pudo obtener último comprobante autorizado de AFIP, se usará el número de la venta', [
-                        'sale_id' => $sale->id,
-                        'point_of_sale' => $pointOfSale,
-                        'invoice_type' => $invoiceType,
-                        'error' => $e->getMessage(),
-                    ]);
-                }
+            $candidate = preg_replace('/[^0-9]/', '', (string) $sale->branch->cuit);
+            if (strlen($candidate) === AfipConstants::CUIT_LENGTH) {
+                $taxpayerCuit = $candidate;
             }
         }
-        if ($invoiceNumber === null && !empty($sale->receipt_number)) {
-            $invoiceNumber = (int) preg_replace('/[^0-9]/', '', $sale->receipt_number);
-            if ($invoiceNumber < 1) {
-                $invoiceNumber = null;
+        if (!$taxpayerCuit) {
+            $candidate = preg_replace('/[^0-9]/', '', (string) (config('afip.cuit', config('arca.cuit', '')) ?? ''));
+            if (strlen($candidate) === AfipConstants::CUIT_LENGTH) {
+                $taxpayerCuit = $candidate;
             }
         }
 
@@ -2570,6 +2558,30 @@ class SaleService implements SaleServiceInterface
                 'sale_id' => $sale->id,
                 'invoice_type' => $invoiceType,
             ]);
+        }
+
+        // Obtener SIEMPRE el próximo número AFIP con el tipo final de comprobante.
+        // Evita errores 10016 cuando el tipo final difiere del seleccionado inicialmente
+        // o cuando la venta proviene de una conversión interna (Factura X -> fiscal).
+        $invoiceNumber = null;
+        if ($taxpayerCuit) {
+            try {
+                $lastAuthorized = \Resguar\AfipSdk\Facades\Afip::getLastAuthorizedInvoice($pointOfSale, $invoiceType, $taxpayerCuit);
+                $lastCbte = (int) ($lastAuthorized['CbteNro'] ?? 0);
+                $invoiceNumber = $lastCbte + 1;
+            } catch (\Throwable $e) {
+                Log::error('No se pudo obtener el próximo número AFIP para autorizar', [
+                    'sale_id' => $sale->id,
+                    'point_of_sale' => $pointOfSale,
+                    'invoice_type' => $invoiceType,
+                    'taxpayer_cuit' => $taxpayerCuit,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($invoiceNumber === null || $invoiceNumber < 1) {
+            throw new \Exception('No se pudo obtener el próximo número de comprobante desde ARCA. Verifique certificado, punto de venta y conectividad, e intente nuevamente.');
         }
 
         // --- CORRECCIÓN FINAL DE INCONSISTENCIAS PARA EVITAR RECHAZO DEL SDK O AFIP ---
@@ -3391,6 +3403,89 @@ class SaleService implements SaleServiceInterface
             'pointOfSale' => $pointOfSale,
             'invoiceType' => $invoiceType,
         ];
+    }
+
+    /**
+     * Convierte una Factura X existente a un comprobante fiscal.
+     *
+     * Actualiza tipo de comprobante y asigna un nuevo número de comprobante
+     * según la secuencia vigente de ventas de la sucursal.
+     *
+     * @param int $saleId
+     * @param int $newReceiptTypeId
+     * @return SaleHeader
+     */
+    public function convertFacturaXToFiscal(int $saleId, int $newReceiptTypeId): SaleHeader
+    {
+        return DB::transaction(function () use ($saleId, $newReceiptTypeId) {
+            $sale = SaleHeader::with(['receiptType', 'branch', 'customer.person', 'customerTaxIdentity.fiscalCondition'])
+                ->lockForUpdate()
+                ->find($saleId);
+
+            if (!$sale) {
+                throw new \InvalidArgumentException('Venta no encontrada.');
+            }
+
+            $currentAfipCode = $sale->receiptType->afip_code ?? null;
+            if (!AfipConstants::isFacturaX($currentAfipCode)) {
+                throw new \InvalidArgumentException('Solo se puede convertir una Factura X a comprobante fiscal.');
+            }
+
+            if (!empty($sale->cae)) {
+                throw new \InvalidArgumentException('La venta ya está autorizada con CAE y no puede convertirse.');
+            }
+
+            if ($sale->status === 'annulled') {
+                throw new \InvalidArgumentException('No se puede convertir una venta anulada.');
+            }
+
+            $newReceiptType = ReceiptType::find($newReceiptTypeId);
+            if (!$newReceiptType) {
+                throw new \InvalidArgumentException('Tipo de comprobante fiscal no válido.');
+            }
+
+            if (AfipConstants::isInternalOnlyReceipt($newReceiptType->afip_code)) {
+                throw new \InvalidArgumentException('Debe seleccionar un comprobante fiscal (no interno).');
+            }
+
+            if ($sale->receipt_type_id === $newReceiptType->id) {
+                return $sale->fresh([
+                    'receiptType',
+                    'branch',
+                    'customer.person',
+                    'customer.taxIdentities.fiscalCondition',
+                    'customerTaxIdentity.fiscalCondition',
+                    'user.person',
+                    'saleFiscalCondition',
+                    'saleDocumentType',
+                    'items.product.iva',
+                    'saleIvas.iva',
+                    'salePayments.paymentMethod',
+                ]);
+            }
+
+            $sale->receipt_type_id = $newReceiptType->id;
+            $sale->numbering_scope = SaleNumberingScope::SALE;
+            // Conservamos temporalmente el número actual (columna NOT NULL).
+            // El número fiscal definitivo lo asigna ARCA al autorizar.
+            // La fecha fiscal debe ser "hoy" para evitar rechazo 10016 por fecha fuera de secuencia.
+            $sale->date = Carbon::now();
+            $sale->save();
+
+            return $sale->fresh([
+                'receiptType',
+                'branch',
+                'customer.person',
+                'customer.taxIdentities.fiscalCondition',
+                'customerTaxIdentity.fiscalCondition',
+                'user.person',
+                'saleFiscalCondition',
+                'saleDocumentType',
+                'items.product.iva',
+                'saleIvas.iva',
+                'salePayments.paymentMethod',
+            ]);
+        });
     }
 
     /**

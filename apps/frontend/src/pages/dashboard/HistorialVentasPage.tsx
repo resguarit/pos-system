@@ -26,6 +26,7 @@ export default function SalesHistoryPage() {
   const [selectedBranchId, setSelectedBranchId] = usePersistentState<number | null>('selectedBranchId', null);
   const [showChart, setShowChart] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = usePersistentState<string[]>('selectedProductIds', []);
+  const [selectedReceiptType, setSelectedReceiptType] = usePersistentState<string>('selectedReceiptType', 'all');
   const [products, setProducts] = useState<Option[]>([]);
   const [sales, setSales] = useState<SaleHeader[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,7 +59,7 @@ export default function SalesHistoryPage() {
       return data.data as SaleHeader;
     }
 
-    return (data as SaleHeader) ?? (response as SaleHeader);
+    return (data as unknown as SaleHeader) ?? (response as unknown as SaleHeader);
   };
 
   const handleShowChart = () => {
@@ -72,6 +73,7 @@ export default function SalesHistoryPage() {
     setSelectedBranchId(branchId);
     setShowChart(false); // Hide chart when branch changes
     setCurrentPage(1); // Reset to first page
+    setSelectedReceiptType('all');
     if (branchId) {
       loadSales(branchId);
       loadProducts(branchId);
@@ -90,7 +92,7 @@ export default function SalesHistoryPage() {
       });
       if (response && response.success) {
         const productsData = Array.isArray(response.data?.data) ? response.data.data : [];
-        const productOptions: Option[] = productsData.map((product) => {
+        const productOptions: Option[] = productsData.map((product: unknown) => {
           const item = product as { id: number | string; code?: string; name?: string };
           return {
             label: `${item.code ?? ''} - ${item.name ?? ''}`,
@@ -264,16 +266,38 @@ export default function SalesHistoryPage() {
   };
 
   // Paginación client-side
+  const receiptTypeOptions = useMemo(() => {
+    const uniqueTypes = Array.from(
+      new Set(
+        sales
+          .map((sale) => getReceiptType(sale).displayName)
+          .filter((value) => value && value !== 'N/A')
+      )
+    );
+
+    return uniqueTypes.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+  }, [sales]);
+
+  const filteredSales = useMemo(() => {
+    if (selectedReceiptType === 'all') return sales;
+    return sales.filter((sale) => getReceiptType(sale).displayName === selectedReceiptType);
+  }, [sales, selectedReceiptType]);
+
   const paginatedSales = useMemo(() => {
     const startIndex = (currentPage - 1) * perPage;
     const endIndex = startIndex + perPage;
-    return sales.slice(startIndex, endIndex);
-  }, [sales, currentPage, perPage]);
+    return filteredSales.slice(startIndex, endIndex);
+  }, [filteredSales, currentPage, perPage]);
 
-  const totalPages = Math.ceil(sales.length / perPage);
+  const totalPages = Math.ceil(filteredSales.length / perPage);
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
+  };
+
+  const handleReceiptTypeChange = (value: string) => {
+    setSelectedReceiptType(value);
+    setCurrentPage(1);
   };
 
   return (
@@ -307,16 +331,34 @@ export default function SalesHistoryPage() {
         </CardContent>
         {selectedBranchId && (
           <CardContent className="pt-0">
-            <div className="w-full sm:w-[400px]">
-              <h3 className="text-sm font-medium mb-2">Filtrar por Producto(s)</h3>
-              <MultiSelectCombobox
-                options={products}
-                selected={selectedProductIds}
-                onChange={setSelectedProductIds}
-                placeholder="Seleccionar productos..."
-                searchPlaceholder="Buscar producto..."
-                emptyMessage="No se encontraron productos"
-              />
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="w-full sm:w-[400px]">
+                <h3 className="text-sm font-medium mb-2">Filtrar por Producto(s)</h3>
+                <MultiSelectCombobox
+                  options={products}
+                  selected={selectedProductIds}
+                  onChange={setSelectedProductIds}
+                  placeholder="Seleccionar productos..."
+                  searchPlaceholder="Buscar producto..."
+                  emptyMessage="No se encontraron productos"
+                />
+              </div>
+              <div className="w-full sm:w-[280px]">
+                <h3 className="text-sm font-medium mb-2">Tipo de comprobante</h3>
+                <Select value={selectedReceiptType} onValueChange={handleReceiptTypeChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos los comprobantes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos los comprobantes</SelectItem>
+                    {receiptTypeOptions.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         )}
@@ -358,7 +400,7 @@ export default function SalesHistoryPage() {
                         Cargando ventas...
                       </TableCell>
                     </TableRow>
-                  ) : sales.length === 0 ? (
+                  ) : filteredSales.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center">
                         No hay ventas para mostrar
@@ -430,11 +472,11 @@ export default function SalesHistoryPage() {
               </Table>
             </div>
             {/* Paginación */}
-            {!loading && sales.length > 0 && totalPages > 1 && (
+            {!loading && filteredSales.length > 0 && totalPages > 1 && (
               <Pagination
                 currentPage={currentPage}
                 lastPage={totalPages}
-                total={sales.length}
+                total={filteredSales.length}
                 itemName="ventas"
                 onPageChange={handlePageChange}
                 disabled={loading}

@@ -7,6 +7,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
     Table,
     TableBody,
@@ -25,7 +26,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
 import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge";
-import { isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
+import { getAllowedArcaCodesForPos, isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
+import { useAuth } from "@/hooks/useAuth";
+import { sileo } from "sileo";
+import { useBranch } from "@/context/BranchContext";
 
 
 
@@ -57,11 +61,17 @@ const ViewSaleDialog = ({
     const { authorizeSale, canAuthorize, isAuthorizing } = useArcaAuthorization();
 
     const { request } = useApi();
+    const { hasPermission } = useAuth();
+    const { branches } = useBranch();
     const [currentSale, setCurrentSale] = useState<SaleHeader | null>(sale);
     const [showChooseCuitDialog, setShowChooseCuitDialog] = useState(false);
     const [chosenTaxIdentityId, setChosenTaxIdentityId] = useState<number | null>(null);
     const [isUpdatingCuit, setIsUpdatingCuit] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [fiscalReceiptTypes, setFiscalReceiptTypes] = useState<Array<{ id: number; description: string; afip_code?: string }>>([]);
+    const [selectedFiscalReceiptTypeId, setSelectedFiscalReceiptTypeId] = useState<string>("");
+    const [loadingFiscalReceiptTypes, setLoadingFiscalReceiptTypes] = useState(false);
+    const [isConvertingToFiscal, setIsConvertingToFiscal] = useState(false);
 
     // Actualizar venta cuando cambia la prop
     useEffect(() => {
@@ -160,6 +170,93 @@ const ViewSaleDialog = ({
 
 
     const saleToDisplay = currentSale || sale;
+    useEffect(() => {
+        const loadFiscalReceiptTypes = async () => {
+            if (!open || !saleToDisplay) {
+                setFiscalReceiptTypes([]);
+                setSelectedFiscalReceiptTypeId("");
+                setLoadingFiscalReceiptTypes(false);
+                return;
+            }
+
+            const receiptInfo = getReceiptType(saleToDisplay);
+            const isFacturaXSale = String(receiptInfo.arcaCode ?? '') === '017';
+            if (!isFacturaXSale) {
+                setFiscalReceiptTypes([]);
+                setSelectedFiscalReceiptTypeId("");
+                setLoadingFiscalReceiptTypes(false);
+                return;
+            }
+
+            try {
+                setLoadingFiscalReceiptTypes(true);
+                const response = await request({ method: "GET", url: "/receipt-types" });
+                const list = Array.isArray(response)
+                    ? response
+                    : Array.isArray((response as { data?: { data?: unknown[] } })?.data?.data)
+                        ? ((response as { data?: { data?: unknown[] } }).data?.data ?? [])
+                        : Array.isArray((response as { data?: unknown[] })?.data)
+                            ? ((response as { data?: unknown[] }).data ?? [])
+                            : [];
+
+                const fiscalOnlyAll = list
+                    .map((item) => item as { id?: number; description?: string; name?: string; afip_code?: string | number; code?: string | number })
+                    .filter((item) => !!item.id && !!(item.description || item.name))
+                    .filter((item) => !isInternalOnlyReceiptType(item.afip_code))
+                    .map((item) => ({
+                        id: Number(item.id),
+                        description: String(item.description || item.name),
+                        afip_code: item.afip_code != null ? String(item.afip_code) : item.code != null ? String(item.code) : undefined,
+                    }));
+
+                // Filtrar por tipos habilitados en ARCA para el CUIT/certificado de la sucursal.
+                const branchFromSale = typeof saleToDisplay.branch === "object" && saleToDisplay.branch !== null
+                    ? saleToDisplay.branch
+                    : null;
+                const cuitFromSale = branchFromSale?.cuit ? String(branchFromSale.cuit) : "";
+                const cuitFromContext = saleToDisplay.branch_id
+                    ? String(branches.find((b) => b.id === saleToDisplay.branch_id)?.cuit ?? "")
+                    : "";
+                const branchCuit = (cuitFromSale || cuitFromContext).replace(/\D/g, "");
+
+                if (branchCuit.length !== 11) {
+                    setFiscalReceiptTypes([]);
+                    setSelectedFiscalReceiptTypeId("");
+                    sileo.warning({ title: "No se pudo determinar el CUIT de la sucursal para filtrar comprobantes ARCA" });
+                    return;
+                }
+
+                const arcaResponse = await request({
+                    method: "GET",
+                    url: `/arca/receipt-types?cuit=${encodeURIComponent(branchCuit)}`,
+                });
+                const arcaTypes = Array.isArray(arcaResponse)
+                    ? arcaResponse
+                    : Array.isArray((arcaResponse as { data?: unknown[] })?.data)
+                        ? ((arcaResponse as { data?: unknown[] }).data ?? [])
+                        : [];
+                const allowedCodes = getAllowedArcaCodesForPos(arcaTypes as Array<{ id?: number; description?: string }>);
+                const fiscalOnly = fiscalOnlyAll.filter((type) => type.afip_code && allowedCodes.has(String(type.afip_code)));
+
+                setFiscalReceiptTypes(fiscalOnly);
+
+                const defaultType = fiscalOnly.find((t) => t.afip_code === "006") ?? fiscalOnly[0];
+                setSelectedFiscalReceiptTypeId(defaultType ? String(defaultType.id) : "");
+
+                if (fiscalOnly.length === 0) {
+                    sileo.warning({ title: "ARCA no devolvió comprobantes fiscales habilitados para este certificado" });
+                }
+            } catch (error) {
+                console.error("Error al cargar tipos fiscales:", error);
+                sileo.error({ title: "No se pudieron cargar los comprobantes fiscales" });
+            } finally {
+                setLoadingFiscalReceiptTypes(false);
+            }
+        };
+
+        loadFiscalReceiptTypes();
+    }, [open, saleToDisplay, request, getReceiptType, branches]);
+
     const formatCurrencyARS = (amount: number | null | undefined) => {
         if (amount == null) return '$0.00 ARS';
         return new Intl.NumberFormat('es-AR', {
@@ -199,6 +296,7 @@ const ViewSaleDialog = ({
 
     // Presupuesto y Factura X son solo uso interno: no muestran estado ARCA ni botón "Autorizar con ARCA".
     const receiptInfo = getReceiptType(saleToDisplay);
+    const isFacturaX = String(receiptInfo.arcaCode ?? '') === '017';
     const isInternalOnly = isInternalOnlyReceiptType(receiptInfo.arcaCode ?? (receiptInfo as { afipCode?: string }).afipCode ?? '');
 
     // --- FIN DE LA MODIFICACIÓN ---
@@ -246,6 +344,34 @@ const ViewSaleDialog = ({
             await onDownloadPdf(saleToDisplay);
         } finally {
             setIsDownloading(false);
+        }
+    };
+
+    const handleConvertToFiscal = async () => {
+        if (!saleToDisplay?.id || !selectedFiscalReceiptTypeId) return;
+
+        try {
+            setIsConvertingToFiscal(true);
+            const response = await request({
+                method: "POST",
+                url: `/sales/${saleToDisplay.id}/convert-to-fiscal`,
+                data: { receipt_type_id: Number(selectedFiscalReceiptTypeId) },
+            });
+
+            const updatedSale = (response as { data?: SaleHeader })?.data;
+            if (!updatedSale) {
+                throw new Error("No se recibió la venta actualizada");
+            }
+
+            setCurrentSale(updatedSale);
+            onSaleUpdated?.(updatedSale);
+            sileo.success({ title: "Factura X convertida a comprobante fiscal" });
+        } catch (error: unknown) {
+            const parsedError = error as { message?: string; response?: { data?: { message?: string } } };
+            const message = parsedError?.response?.data?.message || parsedError?.message || "No se pudo convertir la Factura X";
+            sileo.error({ title: message });
+        } finally {
+            setIsConvertingToFiscal(false);
         }
     };
 
@@ -428,6 +554,41 @@ const ViewSaleDialog = ({
                     </div>
                     <DialogFooter className="px-6 py-3 shrink-0">
                         <div className="flex items-center gap-2">
+                            {isFacturaX && hasPermission('crear_ventas') && (
+                                <>
+                                    <Select
+                                        value={selectedFiscalReceiptTypeId}
+                                        onValueChange={setSelectedFiscalReceiptTypeId}
+                                        disabled={loadingFiscalReceiptTypes || isConvertingToFiscal || fiscalReceiptTypes.length === 0}
+                                    >
+                                        <SelectTrigger className="w-[230px] h-9">
+                                            <SelectValue placeholder="Elegir comprobante fiscal" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {fiscalReceiptTypes.map((type) => (
+                                                <SelectItem key={type.id} value={String(type.id)}>
+                                                    {type.description}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        onClick={handleConvertToFiscal}
+                                        size="sm"
+                                        variant="default"
+                                        disabled={!selectedFiscalReceiptTypeId || isConvertingToFiscal || loadingFiscalReceiptTypes || fiscalReceiptTypes.length === 0}
+                                    >
+                                        {isConvertingToFiscal ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Convirtiendo...
+                                            </>
+                                        ) : (
+                                            "Pasar a factura fiscal"
+                                        )}
+                                    </Button>
+                                </>
+                            )}
                             {/* Botón de autorización ARCA - No mostrar para Presupuesto ni Factura X (solo uso interno) */}
                             {!isBudget && showArcaUI && !isInternalOnly && canAuthorizeThis && !isAuthorized && (
                                 <Button
