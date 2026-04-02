@@ -55,7 +55,8 @@ return [
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', env('LOG_STACK', 'single')),
-            'ignore_exceptions' => false,
+            // Prevent log sink failures (e.g., file permission issues) from breaking business requests.
+            'ignore_exceptions' => true,
         ],
 
         'single' => [
