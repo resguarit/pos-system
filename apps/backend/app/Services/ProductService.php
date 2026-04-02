@@ -18,6 +18,29 @@ use Illuminate\Support\Facades\DB;
 
 class ProductService implements ProductServiceInterface
 {
+    private function agentDebugProbe(string $runId, string $hypothesisId, string $location, string $message, array $data = []): void
+    {
+        try {
+            $payload = [
+                'sessionId' => 'f08cfd',
+                'runId' => $runId,
+                'hypothesisId' => $hypothesisId,
+                'location' => $location,
+                'message' => $message,
+                'data' => $data,
+                'timestamp' => (int) round(microtime(true) * 1000),
+            ];
+
+            file_put_contents(
+                '/Users/naimguarino/Documents/Resguar IT/POS/pos-system/.cursor/debug-f08cfd.log',
+                json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL,
+                FILE_APPEND | LOCK_EX
+            );
+        } catch (\Throwable $e) {
+            // Intentionally swallow debug probe failures.
+        }
+    }
+
     /**
      * Helper method para recalcular el precio de venta
      */
@@ -83,7 +106,32 @@ class ProductService implements ProductServiceInterface
     public function getPaginatedProducts(array $filters, int $perPage = 50)
     {
         try {
+            $laravelLogPath = storage_path('logs/laravel.log');
+            // #region agent log
+            $this->agentDebugProbe('pre-fix', 'H1', 'ProductService.php:getPaginatedProducts:entry', 'Entering getPaginatedProducts', [
+                'hasFilters' => !empty($filters),
+                'sortBy' => $filters['sort_by'] ?? null,
+                'sortDirection' => $filters['sort_direction'] ?? null,
+                'branchIdsCount' => isset($filters['branch_ids']) && is_array($filters['branch_ids']) ? count($filters['branch_ids']) : 0,
+            ]);
+            // #endregion
+
+            // #region agent log
+            $this->agentDebugProbe('pre-fix', 'H1', 'ProductService.php:getPaginatedProducts:log-path-check', 'Laravel log path writeability snapshot', [
+                'logPath' => $laravelLogPath,
+                'logFileExists' => file_exists($laravelLogPath),
+                'logFileWritable' => file_exists($laravelLogPath) ? is_writable($laravelLogPath) : null,
+                'logDirWritable' => is_writable(dirname($laravelLogPath)),
+            ]);
+            // #endregion
+
+            // #region agent log
+            $this->agentDebugProbe('pre-fix', 'H2', 'ProductService.php:getPaginatedProducts:before-log-info', 'About to execute Log::info for filters', []);
+            // #endregion
             Log::info("getPaginatedProducts filters", ['filters' => $filters]);
+            // #region agent log
+            $this->agentDebugProbe('pre-fix', 'H2', 'ProductService.php:getPaginatedProducts:after-log-info', 'Log::info for filters executed successfully', []);
+            // #endregion
             $query = Product::with(['measure', 'category', 'iva', 'supplier']);
 
             // --- Apply Filters ---
@@ -230,9 +278,34 @@ class ProductService implements ProductServiceInterface
                 $query->orderBy('created_at', 'desc');
             }
 
-            return $query->paginate($perPage);
+            // #region agent log
+            $this->agentDebugProbe('pre-fix', 'H4', 'ProductService.php:getPaginatedProducts:before-paginate', 'About to paginate query', [
+                'perPage' => $perPage,
+                'sortBy' => $sortBy,
+                'sortDir' => $sortDir,
+                'hasStockStatus' => !empty($filters['stock_status']),
+            ]);
+            // #endregion
+
+            $result = $query->paginate($perPage);
+
+            // #region agent log
+            $this->agentDebugProbe('pre-fix', 'H4', 'ProductService.php:getPaginatedProducts:after-paginate', 'Pagination succeeded', [
+                'total' => $result->total(),
+                'count' => $result->count(),
+                'currentPage' => $result->currentPage(),
+            ]);
+            // #endregion
+
+            return $result;
 
         } catch (Exception $e) {
+            // #region agent log
+            $this->agentDebugProbe('pre-fix', 'H3', 'ProductService.php:getPaginatedProducts:catch-entry', 'Entered catch block before Log::error', [
+                'exceptionClass' => get_class($e),
+                'exceptionMessage' => $e->getMessage(),
+            ]);
+            // #endregion
             Log::error('Error fetching paginated products: ' . $e->getMessage(), [
                 'filters' => $filters,
                 'trace' => $e->getTraceAsString()
