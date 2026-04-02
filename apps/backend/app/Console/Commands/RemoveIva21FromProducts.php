@@ -13,6 +13,7 @@ class RemoveIva21FromProducts extends Command
     protected $signature = 'products:remove-iva-21
                             {--dry-run : Muestra el impacto sin guardar cambios}
                             {--batch=500 : Procesar en lotes de N productos}
+                            {--recalculate-markup : Recalcula markup para que el precio automatico (sin sale_price manual) coincida con el precio actual}
                             {--force : Ejecuta sin confirmacion interactiva}';
 
     protected $description = 'Setea IVA 0% en todos los productos manteniendo exactamente el precio de venta actual (fija sale_price manual)';
@@ -22,6 +23,7 @@ class RemoveIva21FromProducts extends Command
         $dryRun = (bool) $this->option('dry-run');
         $force = (bool) $this->option('force');
         $batchSize = max(1, (int) $this->option('batch'));
+        $recalculateMarkup = (bool) $this->option('recalculate-markup');
 
         // Buscar IVA 0% de forma tolerante a decimales/DB drivers
         $iva0 = Iva::withTrashed()
@@ -59,6 +61,7 @@ class RemoveIva21FromProducts extends Command
         $this->line("Productos totales: {$totalProducts}");
         $this->line("Ya en IVA 0: {$alreadyWithIva0}");
         $this->line("Batch size: {$batchSize}");
+        $this->line('Recalcular markup: ' . ($recalculateMarkup ? 'SI' : 'NO'));
         if ($dryRun) {
             $this->comment('Modo dry-run activo: no se guardaran cambios.');
         }
@@ -71,15 +74,18 @@ class RemoveIva21FromProducts extends Command
         $processed = 0;
         $updated = 0;
         $manualSalePriceSet = 0;
+        $markupRecalculated = 0;
         $examplesShown = 0;
 
         $work = function () use (
             $iva0,
             $batchSize,
             $dryRun,
+            $recalculateMarkup,
             &$processed,
             &$updated,
             &$manualSalePriceSet,
+            &$markupRecalculated,
             &$examplesShown
         ): void {
             Product::query()
@@ -87,9 +93,11 @@ class RemoveIva21FromProducts extends Command
                 ->chunkById($batchSize, function ($products) use (
                     $iva0,
                     $dryRun,
+                    $recalculateMarkup,
                     &$processed,
                     &$updated,
                     &$manualSalePriceSet,
+                    &$markupRecalculated,
                     &$examplesShown
                 ): void {
                     foreach ($products as $product) {
@@ -104,12 +112,24 @@ class RemoveIva21FromProducts extends Command
                             'sale_price' => $currentVisibleSalePrice,
                         ];
 
+                        $newMarkup = null;
+                        if ($recalculateMarkup) {
+                            // Con IVA 0% y este markup, el precio automático (si se borra sale_price) debería volver
+                            // a coincidir con $currentVisibleSalePrice.
+                            $product->iva_id = $iva0->id;
+                            $newMarkup = (float) $product->calculateMarkupFromSalePrice($currentVisibleSalePrice);
+                            $updates['markup'] = $newMarkup;
+                        }
+
                         if ($examplesShown < 5) {
                             $this->line('');
                             $this->line("Producto {$product->id} ({$product->code}) {$product->description}");
                             $this->line("  iva_id: {$product->iva_id} -> {$iva0->id} (IVA 0%)");
                             $this->line('  sale_price (visible) antes: ' . number_format($currentVisibleSalePrice, 2, '.', ''));
                             $this->line('  sale_price (manual) nuevo: ' . number_format((float) $updates['sale_price'], 2, '.', ''));
+                            if ($recalculateMarkup) {
+                                $this->line('  markup nuevo: ' . number_format((float) $newMarkup, 4, '.', ''));
+                            }
                             $examplesShown++;
                         }
 
@@ -120,6 +140,9 @@ class RemoveIva21FromProducts extends Command
                         $product->forceFill($updates)->saveQuietly();
                         $updated++;
                         $manualSalePriceSet++;
+                        if ($recalculateMarkup) {
+                            $markupRecalculated++;
+                        }
                     }
                 });
         };
@@ -135,6 +158,9 @@ class RemoveIva21FromProducts extends Command
         $this->line("Procesados: {$processed}");
         $this->line("Actualizados: {$updated}");
         $this->line("Con sale_price manual seteado: {$manualSalePriceSet}");
+        if ($recalculateMarkup) {
+            $this->line("Con markup recalculado: {$markupRecalculated}");
+        }
 
         return self::SUCCESS;
     }
