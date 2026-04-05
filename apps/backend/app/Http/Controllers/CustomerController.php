@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use App\Models\SaleHeader;
+use App\Models\Customer;
 
 class CustomerController extends Controller
 {
@@ -18,6 +19,32 @@ class CustomerController extends Controller
     public function __construct(CustomerServiceInterface $customerService)
     {
         $this->customerService = $customerService;
+    }
+
+    public function summary(): JsonResponse
+    {
+        $now = now();
+        $startOfMonth = $now->copy()->startOfMonth();
+        $endOfMonth = $now->copy()->endOfMonth();
+
+        $total = Customer::query()->count();
+        $active = Customer::query()->where('active', true)->count();
+        $inactive = Customer::query()->where('active', false)->count();
+        $newThisMonth = Customer::query()
+            ->whereBetween('created_at', [$startOfMonth, $endOfMonth])
+            ->count();
+
+        return response()->json([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Resumen de clientes',
+            'data' => [
+                'total' => $total,
+                'active' => $active,
+                'inactive' => $inactive,
+                'new_this_month' => $newThisMonth,
+            ],
+        ], 200);
     }
 
     public function index(Request $request): JsonResponse

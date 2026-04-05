@@ -159,6 +159,20 @@ class StatisticsController extends Controller
         );
     }
 
+    public function salesByCustomer(StatisticsFilterRequest $request): JsonResponse
+    {
+        return response()->json(
+            $this->statisticsService->getSalesByCustomer($request->filters())
+        );
+    }
+
+    public function purchaseOrdersSummary(StatisticsFilterRequest $request): JsonResponse
+    {
+        return response()->json(
+            $this->statisticsService->getPurchaseOrdersSummary($request->filters())
+        );
+    }
+
     public function salesByHour(StatisticsFilterRequest $request): JsonResponse
     {
         return response()->json(

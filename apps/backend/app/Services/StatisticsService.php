@@ -61,6 +61,30 @@ class StatisticsService
     }
 
     /**
+     * Ventas agrupadas por cliente (incluye ventas sin cliente asignado).
+     */
+    public function getSalesByCustomer(array $filters): array
+    {
+        $query = $this->baseItemQuery($filters)
+            ->leftJoin('customers', 'sales_header.customer_id', '=', 'customers.id')
+            ->leftJoin('people', 'customers.person_id', '=', 'people.id')
+            ->select(
+                'sales_header.customer_id as customer_id',
+                DB::raw(
+                    'MAX(CASE WHEN sales_header.customer_id IS NULL '
+                    . "THEN 'Sin cliente' ELSE CONCAT(people.first_name, ' ', people.last_name) END) as customer_name"
+                ),
+                DB::raw('COUNT(DISTINCT sale_items.sale_header_id) as total_sales'),
+                DB::raw('SUM(sale_items.quantity) as total_units'),
+                DB::raw('SUM(sale_items.item_total) as total_revenue')
+            )
+            ->groupBy('sales_header.customer_id')
+            ->orderByDesc('total_revenue');
+
+        return $query->get()->toArray();
+    }
+
+    /**
      * Ventas agrupadas por categoría de producto.
      */
     public function getSalesByCategory(array $filters): array
@@ -205,9 +229,65 @@ class StatisticsService
         return $query->get()->toArray();
     }
 
+    /**
+     * Resumen de órdenes de compra completadas (solo fecha y sucursal aplican).
+     *
+     * @return array{order_count: int, totals: array{ARS: float, USD: float}}
+     */
+    public function getPurchaseOrdersSummary(array $filters): array
+    {
+        $query = $this->purchaseOrdersFilteredQuery($filters);
+
+        $orderCount = (int) (clone $query)->count();
+
+        $rows = (clone $query)
+            ->select('currency', DB::raw('SUM(total_amount) as total'))
+            ->groupBy('currency')
+            ->get();
+
+        $totals = ['ARS' => 0.0, 'USD' => 0.0];
+        foreach ($rows as $row) {
+            $currency = $row->currency ?? 'ARS';
+            if (isset($totals[$currency])) {
+                $totals[$currency] = round((float) $row->total, 2);
+            }
+        }
+
+        return [
+            'order_count' => $orderCount,
+            'totals' => $totals,
+        ];
+    }
+
     // ========================================================================
     // Query building helpers (private)
     // ========================================================================
+
+    /**
+     * Órdenes de compra completadas con filtros de fecha y sucursal.
+     *
+     * @return \Illuminate\Database\Query\Builder
+     */
+    private function purchaseOrdersFilteredQuery(array $filters)
+    {
+        $query = DB::table('purchase_orders')
+            ->where('status', 'completed')
+            ->whereNull('deleted_at');
+
+        if (!empty($filters['start_date'])) {
+            $query->whereDate('order_date', '>=', $filters['start_date']);
+        }
+
+        if (!empty($filters['end_date'])) {
+            $query->whereDate('order_date', '<=', $filters['end_date']);
+        }
+
+        if (!empty($filters['branch_id'])) {
+            $query->where('branch_id', $filters['branch_id']);
+        }
+
+        return $query;
+    }
 
     /**
      * Construye la query base: sale_items JOIN sales_header JOIN products.

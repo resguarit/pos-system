@@ -5,6 +5,8 @@ import type {
     UserStat,
     CategoryStat,
     SupplierStat,
+    CustomerStat,
+    PurchaseOrdersSummary,
     HourStat,
     PaymentMethodStat,
     DayOfWeekStat,
@@ -18,7 +20,7 @@ import type {
 /**
  * Custom hook para obtener estadísticas avanzadas de ventas.
  *
- * Encapsula toda la lógica de fetching de los 9 endpoints de estadísticas,
+ * Encapsula toda la lógica de fetching de los endpoints de estadísticas,
  * maneja loading/error, y expone los datos tipados.
  */
 export function useStatistics(filters: StatisticsFilters) {
@@ -27,6 +29,8 @@ export function useStatistics(filters: StatisticsFilters) {
         byUser: [],
         byCategory: [],
         bySupplier: [],
+        byCustomer: [],
+        purchaseOrdersSummary: null,
         byHour: [],
         byPaymentMethod: [],
         byDayOfWeek: [],
@@ -57,6 +61,8 @@ export function useStatistics(filters: StatisticsFilters) {
                 byUserRes,
                 byCategoryRes,
                 bySupplierRes,
+                byCustomerRes,
+                purchaseOrdersRes,
                 byHourRes,
                 byPayMethodRes,
                 byDayRes,
@@ -67,6 +73,8 @@ export function useStatistics(filters: StatisticsFilters) {
                 api.get('/statistics/by-user', { params }),
                 api.get('/statistics/by-category', { params }),
                 api.get('/statistics/by-supplier', { params }),
+                api.get('/statistics/by-customer', { params }),
+                api.get('/statistics/purchase-orders-summary', { params }),
                 api.get('/statistics/by-hour', { params }),
                 api.get('/statistics/by-payment-method', { params }),
                 api.get('/statistics/by-day-of-week', { params }),
@@ -79,6 +87,8 @@ export function useStatistics(filters: StatisticsFilters) {
                 byUser: statsRes.data ? (byUserRes.data as UserStat[]) : [],
                 byCategory: byCategoryRes.data as CategoryStat[],
                 bySupplier: bySupplierRes.data as SupplierStat[],
+                byCustomer: byCustomerRes.data as CustomerStat[],
+                purchaseOrdersSummary: purchaseOrdersRes.data as PurchaseOrdersSummary,
                 byHour: byHourRes.data as HourStat[],
                 byPaymentMethod: byPayMethodRes.data as PaymentMethodStat[],
                 byDayOfWeek: byDayRes.data as DayOfWeekStat[],

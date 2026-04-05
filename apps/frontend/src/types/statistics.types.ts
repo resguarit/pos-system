@@ -33,6 +33,23 @@ export interface SupplierStat {
     total_revenue: number
 }
 
+export interface CustomerStat {
+    customer_id: number | null
+    customer_name: string
+    total_sales: number
+    total_units: number
+    total_revenue: number
+}
+
+/** Resumen de órdenes de compra (mismo período que filtros de fecha/sucursal). */
+export interface PurchaseOrdersSummary {
+    order_count: number
+    totals: {
+        ARS: number
+        USD: number
+    }
+}
+
 export interface HourStat {
     hour: number
     total_sales: number
@@ -91,6 +108,8 @@ export interface StatisticsData {
     byUser: UserStat[]
     byCategory: CategoryStat[]
     bySupplier: SupplierStat[]
+    byCustomer: CustomerStat[]
+    purchaseOrdersSummary: PurchaseOrdersSummary | null
     byHour: HourStat[]
     byPaymentMethod: PaymentMethodStat[]
     byDayOfWeek: DayOfWeekStat[]

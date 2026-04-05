@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Download, BarChart3, TrendingUp, Package, DollarSign, Search, RefreshCw, Users, Clock, Tag, Truck, CreditCard, CalendarDays } from 'lucide-react'
+import { Download, BarChart3, TrendingUp, Package, DollarSign, Search, RefreshCw, Users, Clock, Tag, Truck, CreditCard, CalendarDays, UserCircle, ShoppingCart } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -77,6 +77,8 @@ export default function AnalisisVentasPage() {
     byUser,
     byCategory,
     bySupplier,
+    byCustomer,
+    purchaseOrdersSummary,
     byHour,
     byPaymentMethod,
     byDayOfWeek,
@@ -85,6 +87,11 @@ export default function AnalisisVentasPage() {
     loading,
     refetch,
   } = useStatistics(filters)
+
+  const hasNonPurchaseFilters = useMemo(() =>
+    userId !== 'all' || categoryId !== 'all' || supplierId !== 'all' ||
+    productSearch.trim() !== '' || hourFrom !== 'all' || hourTo !== 'all',
+  [userId, categoryId, supplierId, productSearch, hourFrom, hourTo])
 
   // ─── Export ──────────────────────────────────────────────────────────
 
@@ -129,6 +136,21 @@ export default function AnalisisVentasPage() {
         )
       }
 
+      // Por Cliente
+      if (byCustomer.length > 0) {
+        addSheet("Por Cliente", ["Cliente", "Ventas", "Unidades", "Ingresos"],
+          byCustomer.map(c => [c.customer_name, Number(c.total_sales), Number(c.total_units), Number(c.total_revenue)])
+        )
+      }
+
+      if (purchaseOrdersSummary) {
+        addSheet("Compras (OC)", ["Métrica", "Valor"], [
+          ["Órdenes completadas", purchaseOrdersSummary.order_count],
+          ["Total ARS", purchaseOrdersSummary.totals.ARS],
+          ["Total USD", purchaseOrdersSummary.totals.USD],
+        ])
+      }
+
       // Top Productos
       if (topProducts.length > 0) {
         addSheet("Top Productos", ["#", "Código", "Producto", "Categoría", "Proveedor", "Unidades", "Ingresos", "Ventas"],
@@ -163,7 +185,7 @@ export default function AnalisisVentasPage() {
       console.error("Export error:", error)
       sileo.error({ title: "Error al exportar el informe" })
     }
-  }, [stats, byUser, byCategory, bySupplier, topProducts, byHour, byPaymentMethod, byDayOfWeek])
+  }, [stats, byUser, byCategory, bySupplier, byCustomer, purchaseOrdersSummary, topProducts, byHour, byPaymentMethod, byDayOfWeek])
 
   // ─── Clear filters ───────────────────────────────────────────────────
 
@@ -256,6 +278,7 @@ export default function AnalisisVentasPage() {
           <TabsTrigger value="horas" className="gap-1.5"><Clock className="h-3.5 w-3.5" /><span className="hidden sm:inline">Horas</span></TabsTrigger>
           <TabsTrigger value="pagos" className="gap-1.5"><CreditCard className="h-3.5 w-3.5" /><span className="hidden sm:inline">Pagos</span></TabsTrigger>
           <TabsTrigger value="dias" className="gap-1.5"><CalendarDays className="h-3.5 w-3.5" /><span className="hidden sm:inline">Días</span></TabsTrigger>
+          <TabsTrigger value="clientes-compras" className="gap-1.5"><UserCircle className="h-3.5 w-3.5" /><span className="hidden sm:inline">Clientes y compras</span></TabsTrigger>
         </TabsList>
 
         {/* ─── Tab: Resumen ─── */}
@@ -316,6 +339,60 @@ export default function AnalisisVentasPage() {
         {/* ─── Tab: Días ─── */}
         <TabsContent value="dias" className="space-y-4">
           <DayOfWeekCard data={byDayOfWeek} />
+        </TabsContent>
+
+        {/* ─── Tab: Clientes y compras ─── */}
+        <TabsContent value="clientes-compras" className="space-y-4">
+          {hasNonPurchaseFilters && (
+            <p className="text-sm text-muted-foreground rounded-md border border-dashed border-muted-foreground/30 px-3 py-2">
+              Las órdenes de compra solo usan rango de fechas y sucursal. Los filtros de usuario, categoría, proveedor, producto u hora no aplican a ese bloque; sí aplican a las ventas por cliente.
+            </p>
+          )}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <h3 className="text-sm font-semibold">Órdenes de compra completadas</h3>
+            </div>
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+              <SummaryCard
+                title="Órdenes"
+                value={purchaseOrdersSummary ? formatNumber(purchaseOrdersSummary.order_count) : '—'}
+                subtitle="Completadas en el período"
+                icon={ShoppingCart}
+                iconColor="text-amber-600"
+              />
+              <SummaryCard
+                title="Total ARS"
+                value={purchaseOrdersSummary ? formatCurrency(purchaseOrdersSummary.totals.ARS) : '—'}
+                subtitle="Órdenes de compra"
+                icon={DollarSign}
+                iconColor="text-emerald-600"
+              />
+              <SummaryCard
+                title="Total USD"
+                value={purchaseOrdersSummary
+                  ? new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD' }).format(purchaseOrdersSummary.totals.USD)
+                  : '—'}
+                subtitle="Órdenes de compra"
+                icon={DollarSign}
+                iconColor="text-sky-600"
+              />
+            </div>
+          </div>
+          <GroupedStatsCard
+            title="Ventas por Cliente"
+            description="Desglose según los filtros actuales (incluye ventas sin cliente asignado)"
+            data={byCustomer.map(c => ({
+              id: c.customer_id,
+              name: c.customer_name,
+              total_sales: c.total_sales,
+              total_units: c.total_units,
+              total_revenue: c.total_revenue,
+            }))}
+            totalRevenue={stats?.total_revenue ?? 0}
+            chartLayout="vertical"
+            tableStorageKey="analisis-ventas-grouped-clientes"
+          />
         </TabsContent>
       </Tabs>
     </div>
@@ -856,6 +933,22 @@ function HourChart({ data }: { data: Array<{ hour: number; total_sales: number; 
     defaultWidth: 120,
   })
 
+  const chartData = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        hour: Number(d.hour),
+        total_sales: Number(d.total_sales),
+        total_units: Number(d.total_units),
+        total_revenue: Number(d.total_revenue),
+      })),
+    [data]
+  )
+  const maxRevenue = chartData.length ? Math.max(...chartData.map((d) => d.total_revenue)) : 0
+  const maxSales = chartData.length ? Math.max(...chartData.map((d) => d.total_sales)) : 0
+  const revenueDomain: [number, number] = maxRevenue > 0 ? [0, maxRevenue * 1.05] : [0, 1]
+  const salesDomain: [number, number] = maxSales > 0 ? [0, maxSales * 1.05] : [0, 1]
+
   return (
     <Card>
       <CardHeader>
@@ -866,11 +959,11 @@ function HourChart({ data }: { data: Array<{ hour: number; total_sales: number; 
         {data.length > 0 ? (
           <>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={data}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="hour" tickFormatter={(v) => `${String(v).padStart(2, '0')}h`} tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="left" tickFormatter={formatAxisCurrency} tick={{ fontSize: 12 }} width={70} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} width={50} />
+                <YAxis yAxisId="left" domain={revenueDomain} tickFormatter={formatAxisCurrency} tick={{ fontSize: 12 }} width={70} />
+                <YAxis yAxisId="right" orientation="right" domain={salesDomain} tick={{ fontSize: 12 }} width={50} />
                 <Tooltip formatter={(value: number, name: string) => [name === 'total_revenue' ? formatCurrency(value) : formatNumber(value), name === 'total_revenue' ? 'Ingresos' : 'Ventas']} labelFormatter={formatHourRange} />
                 <Bar yAxisId="left" dataKey="total_revenue" fill="#10b981" radius={[4, 4, 0, 0]} name="total_revenue" />
                 <Bar yAxisId="right" dataKey="total_sales" fill="#3b82f6" radius={[4, 4, 0, 0]} name="total_sales" />
@@ -895,19 +988,19 @@ function HourChart({ data }: { data: Array<{ hour: number; total_sales: number; 
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.map((h) => (
+                  {chartData.map((h) => (
                     <TableRow key={h.hour}>
                       <ResizableTableCell columnId="hour" getColumnCellProps={getColumnCellProps} className="font-medium">
                         {formatHourRange(h.hour)}
                       </ResizableTableCell>
                       <ResizableTableCell columnId="sales" getColumnCellProps={getColumnCellProps} className="text-right">
-                        {formatNumber(Number(h.total_sales))}
+                        {formatNumber(h.total_sales)}
                       </ResizableTableCell>
                       <ResizableTableCell columnId="units" getColumnCellProps={getColumnCellProps} className="text-right">
-                        {formatNumber(Number(h.total_units))}
+                        {formatNumber(h.total_units)}
                       </ResizableTableCell>
                       <ResizableTableCell columnId="revenue" getColumnCellProps={getColumnCellProps} className="text-right">
-                        {formatCurrency(Number(h.total_revenue))}
+                        {formatCurrency(h.total_revenue)}
                       </ResizableTableCell>
                     </TableRow>
                   ))}
@@ -1016,7 +1109,22 @@ function PaymentMethodCard({ data }: { data: Array<{ payment_method_id: number; 
 
 /** Gráfico de ventas por día de la semana */
 function DayOfWeekCard({ data }: { data: Array<{ day_of_week: number; total_sales: number; total_units: number; total_revenue: number }> }) {
-  const chartData = data.map(d => ({ ...d, day_name: getDayName(d.day_of_week) }))
+  const chartData = useMemo(
+    () =>
+      data.map((d) => ({
+        ...d,
+        day_of_week: Number(d.day_of_week),
+        day_name: getDayName(d.day_of_week),
+        total_sales: Number(d.total_sales),
+        total_units: Number(d.total_units),
+        total_revenue: Number(d.total_revenue),
+      })),
+    [data]
+  )
+  const maxRevenue = chartData.length ? Math.max(...chartData.map((d) => d.total_revenue)) : 0
+  const maxSales = chartData.length ? Math.max(...chartData.map((d) => d.total_sales)) : 0
+  const revenueDomain: [number, number] = maxRevenue > 0 ? [0, maxRevenue * 1.05] : [0, 1]
+  const salesDomain: [number, number] = maxSales > 0 ? [0, maxSales * 1.05] : [0, 1]
 
   const dowColumnConfig = useMemo(
     () => [
@@ -1051,8 +1159,8 @@ function DayOfWeekCard({ data }: { data: Array<{ day_of_week: number; total_sale
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="day_name" tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="left" tickFormatter={formatAxisCurrency} tick={{ fontSize: 12 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="left" domain={revenueDomain} tickFormatter={formatAxisCurrency} tick={{ fontSize: 12 }} />
+                <YAxis yAxisId="right" orientation="right" domain={salesDomain} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(value: number, name: string) => [name === 'total_revenue' ? formatCurrency(value) : formatNumber(value), name === 'total_revenue' ? 'Ingresos' : 'Ventas']} />
                 <Bar yAxisId="left" dataKey="total_revenue" fill="#10b981" radius={[4, 4, 0, 0]} name="total_revenue" />
                 <Bar yAxisId="right" dataKey="total_sales" fill="#3b82f6" radius={[4, 4, 0, 0]} name="total_sales" />
@@ -1077,19 +1185,19 @@ function DayOfWeekCard({ data }: { data: Array<{ day_of_week: number; total_sale
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.map((d) => (
+                  {chartData.map((d) => (
                     <TableRow key={d.day_of_week}>
                       <ResizableTableCell columnId="day" getColumnCellProps={getColumnCellProps} className="font-medium">
-                        {getDayName(d.day_of_week)}
+                        {d.day_name}
                       </ResizableTableCell>
                       <ResizableTableCell columnId="sales" getColumnCellProps={getColumnCellProps} className="text-right">
-                        {formatNumber(Number(d.total_sales))}
+                        {formatNumber(d.total_sales)}
                       </ResizableTableCell>
                       <ResizableTableCell columnId="units" getColumnCellProps={getColumnCellProps} className="text-right">
-                        {formatNumber(Number(d.total_units))}
+                        {formatNumber(d.total_units)}
                       </ResizableTableCell>
                       <ResizableTableCell columnId="revenue" getColumnCellProps={getColumnCellProps} className="text-right">
-                        {formatCurrency(Number(d.total_revenue))}
+                        {formatCurrency(d.total_revenue)}
                       </ResizableTableCell>
                     </TableRow>
                   ))}

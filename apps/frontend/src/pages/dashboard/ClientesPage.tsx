@@ -1,16 +1,18 @@
 import { useState, useEffect, useCallback } from "react"
 import { useEntityContext } from "@/context/EntityContext"
 import { useAuth } from "@/hooks/useAuth"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { TableSkeletonBodyRows } from "@/components/ui/loading-states"
 import { Badge } from "@/components/ui/badge"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
-import { Search, Eye, Pencil, Trash2, RotateCw, BarChart2, Wallet } from "lucide-react"
+import { Search, Eye, Pencil, Trash2, RotateCw, BarChart2, Wallet, Users, UserCheck, UserX, UserPlus, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EditCustomerDialog } from "@/components/edit-customer-dialog"
 import useApi from "@/hooks/useApi"
+import api from "@/lib/api"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { Link } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
@@ -25,7 +27,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Plus } from "lucide-react"
+
+interface CustomersSummary {
+  total: number
+  active: number
+  inactive: number
+  new_this_month: number
+}
 
 // Tipo para el cliente
 interface Customer {
@@ -74,6 +82,24 @@ export default function ClientesPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [allCustomers, setAllCustomers] = useState<any[]>([]) // Para paginación del cliente
   const PAGE_SIZE = 10
+
+  const [summary, setSummary] = useState<CustomersSummary | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(true)
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      setSummaryLoading(true)
+      const res = await api.get<{ success?: boolean; data?: CustomersSummary }>("/customers/summary")
+      const payload = res.data
+      if (payload?.success && payload.data) {
+        setSummary(payload.data)
+      }
+    } catch {
+      sileo.error({ title: "No se pudo cargar el resumen de clientes" })
+    } finally {
+      setSummaryLoading(false)
+    }
+  }, [])
 
   // Configuración de columnas redimensionables
   const columnConfig = [
@@ -204,6 +230,10 @@ export default function ClientesPage() {
     };
   }, [fetchCustomers]); // Usar fetchCustomers como dependencia
 
+  useEffect(() => {
+    void fetchSummary()
+  }, [fetchSummary])
+
   const handleDeleteClick = (customerId: number) => {
     setCustomerToDelete(customerId)
     setDeleteDialogOpen(true)
@@ -248,7 +278,7 @@ export default function ClientesPage() {
     <div className="h-full w-full flex flex-col space-y-4 p-4 md:p-6">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Clientes</h2>        <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={() => fetchCustomers()} disabled={loading} title="Refrescar">
+          <Button variant="outline" size="icon" onClick={() => { void fetchCustomers(); void fetchSummary() }} disabled={loading} title="Refrescar">
             <RotateCw className={loading ? "animate-spin h-4 w-4" : "h-4 w-4"} />
           </Button>
           {hasPermission('crear_clientes') && (
@@ -260,6 +290,57 @@ export default function ClientesPage() {
             </Button>
           )}
         </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total clientes</CardTitle>
+            <Users className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {summaryLoading ? "—" : (summary?.total ?? 0).toLocaleString("es-AR")}
+            </div>
+            <p className="text-xs text-muted-foreground">En el sistema</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Activos</CardTitle>
+            <UserCheck className="h-4 w-4 text-emerald-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {summaryLoading ? "—" : (summary?.active ?? 0).toLocaleString("es-AR")}
+            </div>
+            <p className="text-xs text-muted-foreground">Estado activo</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Inactivos</CardTitle>
+            <UserX className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {summaryLoading ? "—" : (summary?.inactive ?? 0).toLocaleString("es-AR")}
+            </div>
+            <p className="text-xs text-muted-foreground">Estado inactivo</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Nuevos este mes</CardTitle>
+            <UserPlus className="h-4 w-4 text-violet-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {summaryLoading ? "—" : (summary?.new_this_month ?? 0).toLocaleString("es-AR")}
+            </div>
+            <p className="text-xs text-muted-foreground">Altas en el mes actual</p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">

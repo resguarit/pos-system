@@ -390,6 +390,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
     Route::prefix('customers')->group(function () {
         // Lectura de clientes (solo requiere autenticación)
         Route::middleware('auth:sanctum')->group(function () {
+            Route::get('/summary', [CustomerController::class, 'summary']);
             Route::get('/', [CustomerController::class, 'index']);
             Route::get('/check-name/{firstName}/{lastName}', [CustomerController::class, 'checkName']);
             Route::get('/{id}', [CustomerController::class, 'show']);
@@ -638,6 +639,8 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::get('/by-user', [StatisticsController::class, 'salesByUser']);
         Route::get('/by-category', [StatisticsController::class, 'salesByCategory']);
         Route::get('/by-supplier', [StatisticsController::class, 'salesBySupplier']);
+        Route::get('/by-customer', [StatisticsController::class, 'salesByCustomer']);
+        Route::get('/purchase-orders-summary', [StatisticsController::class, 'purchaseOrdersSummary']);
         Route::get('/by-hour', [StatisticsController::class, 'salesByHour']);
         Route::get('/by-payment-method', [StatisticsController::class, 'salesByPaymentMethod']);
         Route::get('/by-day-of-week', [StatisticsController::class, 'salesByDayOfWeek']);
