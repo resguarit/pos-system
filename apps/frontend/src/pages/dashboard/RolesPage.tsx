@@ -26,7 +26,7 @@ import Pagination from "@/components/ui/pagination"
 
 // --- INICIO DE MODIFICACIÓN ---
 // 1. Se importa la utilidad de estilos. La ruta asume que el archivo está en `src/lib`.
-import { getRoleStyle } from "@/types/roles-styles"
+import { getRoleBadgeDisplay } from "@/types/roles-styles"
 // --- FIN DE MODIFICACIÓN ---
 
 interface Role {
@@ -35,6 +35,7 @@ interface Role {
   description: string
   permissions_count: number
   isSystem: boolean
+  color?: string | null
 }
 
 export default function RolesPage() {
@@ -105,12 +106,13 @@ export default function RolesPage() {
           setTotalPages(response.last_page || response.data?.last_page || Math.ceil((response.total || rolesData.length) / PAGE_SIZE))
         } else {
           // Fallback: usar paginación del cliente
-          const allRolesData = rolesData.map((role: { id: string | number; name?: string; description?: string; permissions_count?: number; is_system?: boolean }) => ({
+          const allRolesData = rolesData.map((role: { id: string | number; name?: string; description?: string; permissions_count?: number; is_system?: boolean; color?: string | null }) => ({
             id: String(role.id),
             name: role.name || '',
             description: role.description || "",
             permissions_count: role.permissions_count || 0,
             isSystem: !!role.is_system,
+            color: role.color ?? null,
           }));
           
           setRoles(allRolesData);
@@ -266,19 +268,19 @@ export default function RolesPage() {
                     </TableRow>
                   ) : (
                     roles.map((role) => {
-                      // --- INICIO DE MODIFICACIÓN ---
-                      // 2. Se obtienen los estilos para el rol actual.
-                      const RoleIcon = getRoleStyle(role.name).icon;
-                      const roleColor = getRoleStyle(role.name).color;
-                      // --- FIN DE MODIFICACIÓN ---
+                      const display = getRoleBadgeDisplay(role.name, role.color)
+                      const RoleIcon = display.icon
                       return (
                         <TableRow key={role.id}>
                           <ResizableTableCell
                             columnId="name"
                             getColumnCellProps={getColumnCellProps}
                           >
-                            <div className={`flex items-center gap-2 font-medium ${roleColor}`}>
-                              <RoleIcon className="h-4 w-4" />
+                            <div
+                              className={`flex items-center gap-2 font-medium min-w-0 ${!display.useCustomColor ? display.twText ?? "" : ""}`}
+                              style={display.useCustomColor && display.custom ? { color: display.custom.color } : undefined}
+                            >
+                              <RoleIcon className="h-4 w-4 shrink-0" />
                               <span className="truncate" title={role.name}>{role.name}</span>
                             </div>
                           </ResizableTableCell>

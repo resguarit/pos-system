@@ -238,6 +238,7 @@ class UserController extends Controller
                     'name' => $user->role->name,
                     'description' => $user->role->description ?? null,
                     'is_system' => $user->role->is_system ?? false,
+                    'color' => $user->role->color ?? null,
                 ] : null,
                 'branches' => $branches,
                 'created_at' => $user->created_at,

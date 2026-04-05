@@ -45,6 +45,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     web: string;
     allow_discount: string;
     code: string;
+    scale_plu: string;
     description: string;
     observaciones: string;
   };
@@ -243,7 +244,10 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
         web: product.web ? "1" : "0",
         allow_discount: product.allow_discount === false ? "0" : "1",
         currency: product.currency || 'ARS',
-        code: product.code || ''
+        code: product.code || '',
+        scale_plu: product.scale_plu != null && String(product.scale_plu).trim() !== ''
+          ? String(product.scale_plu)
+          : ''
       };
 
       setFormData(initialData);
@@ -258,6 +262,16 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       setResolvedProduct(null);
     }
   }, [open, product, formatMarkup, fetchCatalogs]);
+
+  useEffect(() => {
+    if (!open || !resolvedProduct) return;
+    const sp = resolvedProduct.scale_plu != null ? String(resolvedProduct.scale_plu).trim() : '';
+    if (!sp) return;
+    setFormData((prev) => {
+      if (!prev || prev.scale_plu !== '') return prev;
+      return { ...prev, scale_plu: sp };
+    });
+  }, [open, resolvedProduct]);
 
   // Sincronizar formData.markup con pricing.markup cuando el hook lo recalcula
   // PERO NO cuando el usuario está editando el campo markup directamente
@@ -669,6 +683,32 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
               </div>
             </div>
           </div>
+
+          <details className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/30 text-muted-foreground">
+            <summary className="cursor-pointer list-none px-3 py-2 text-xs outline-none transition-colors hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
+              <span className="text-muted-foreground/90">Opcional · venta con balanza y etiqueta</span>
+            </summary>
+            <div className="border-t border-border/40 px-3 pb-3 pt-2">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="grid w-full max-w-[140px] gap-1">
+                  <Label htmlFor="scale_plu_edit" className="text-xs font-normal text-muted-foreground">
+                    Nº PLU
+                  </Label>
+                  <Input
+                    id="scale_plu_edit"
+                    value={formData.scale_plu}
+                    onChange={(e) => handleInputChange('scale_plu', e.target.value)}
+                    placeholder="Ej. 36"
+                    inputMode="numeric"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <p className="min-w-0 flex-1 pb-1 text-[11px] leading-snug text-muted-foreground/85">
+                  Coincide con la etiqueta. Precio de venta en $/kg.
+                </p>
+              </div>
+            </div>
+          </details>
 
           {/* Precios */}
           <div className="grid grid-cols-2 gap-4">

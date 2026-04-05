@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { Link, useSearchParams } from "react-router-dom"
 import Pagination from "@/components/ui/pagination"
 import { RoleBadge } from "@/components/roles/RoleBadge"
+import { getRoleBadgeDisplay } from "@/types/roles-styles"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,7 +29,7 @@ interface User {
   id: string
   name: string
   email: string
-  role: { id: string; name: string } | string
+  role: { id: string; name: string; color?: string | null } | string
   active: boolean
   person?: {
     first_name: string
@@ -46,6 +47,7 @@ interface User {
 interface Role {
   id: string;
   name: string;
+  color?: string | null;
 }
 
 export default function UsuariosPage() {
@@ -258,9 +260,22 @@ export default function UsuariosPage() {
             </SelectTrigger>
             <SelectContent style={{ maxHeight: 300, overflowY: 'auto' }}>
               <SelectItem value="all">Todos los roles</SelectItem>
-              {roles.map((role) => (
-                <SelectItem key={role.id} value={role.id}>{role.name}</SelectItem>
-              ))}
+              {roles.map((role) => {
+                const d = getRoleBadgeDisplay(role.name, role.color)
+                const Icon = d.icon
+                return (
+                  <SelectItem key={role.id} value={role.id}>
+                    <span className="flex items-center gap-2">
+                      {d.useCustomColor && d.custom ? (
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full border border-border" style={{ backgroundColor: d.custom.color }} />
+                      ) : (
+                        <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                      {role.name}
+                    </span>
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -378,6 +393,7 @@ export default function UsuariosPage() {
                     >
                       <RoleBadge
                         roleName={typeof user.role === "string" ? user.role : user.role?.name}
+                        roleColor={typeof user.role === "object" ? user.role?.color : undefined}
                         className="hover:bg-opacity-90 truncate"
                       />
                     </ResizableTableCell>

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { BranchesForm } from "@/components/branches/branches-form"
+import { Skeleton } from "@/components/ui/loading-states"
 import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
 import { sileo } from "sileo"
@@ -72,12 +73,12 @@ export default function ViewBranchPage() {
         if (fetchedBranch) {
           dispatch({ type: "SET_ENTITY", entityType: "branches", id: id!, entity: fetchedBranch })
         }
-      } catch (e: any) {
-        if (e.name === 'AbortError') {
-        } else {
-          setBranch(null)
-          sileo.error({ title: "Error al cargar los detalles de la sucursal." })
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name === 'AbortError') {
+          return
         }
+        setBranch(null)
+        sileo.error({ title: "Error al cargar los detalles de la sucursal." })
       } finally {
         setLoading(false)
       }
@@ -87,10 +88,24 @@ export default function ViewBranchPage() {
     return () => {
       controller.abort();
     };
-    // eslint-disable-next-line
   }, [id, state.branches, dispatch, request])
 
-  if (loading) return <div className="p-8 text-center">Cargando...</div>
+  if (loading) {
+    return (
+      <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-4xl" aria-busy="true" aria-label="Cargando sucursal">
+        <Skeleton className="h-8 w-48 rounded-md" />
+        <div className="space-y-4 rounded-lg border p-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Skeleton className="h-10 w-full rounded-md" />
+            <Skeleton className="h-10 w-full rounded-md" />
+            <Skeleton className="h-10 w-full rounded-md sm:col-span-2" />
+            <Skeleton className="h-24 w-full rounded-md sm:col-span-2" />
+          </div>
+          <Skeleton className="h-10 w-32 rounded-md" />
+        </div>
+      </div>
+    )
+  }
   if (!branch) return <div className="p-8 text-center text-red-500">No se encontró la sucursal o hubo un error al cargarla.</div>
 
   return (

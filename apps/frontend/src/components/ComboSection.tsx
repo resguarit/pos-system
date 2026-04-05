@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/loading-states";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Info, Zap } from "lucide-react";
@@ -86,7 +87,7 @@ export function ComboSection({
    * Maneja la adición de un combo al carrito con validación de stock
    * Aplica principio SRP - Solo maneja la lógica de agregar combo
    */
-  const handleAddComboToCart = useCallback(async (combo: Combo, qty?: number, customSelections?: Map<number, { option: any, quantity: number }[]>) => {
+  const handleAddComboToCart = useCallback(async (combo: Combo, qty?: number, customSelections?: Map<number, { option: unknown, quantity: number }[]>) => {
     try {
       setAddingCombo(combo.id);
       const quantityToAdd = Math.max(1, Number(qty ?? addQtyPerClick) || 1);
@@ -215,12 +216,25 @@ export function ComboSection({
  * Aplica principio DRY - Reutilizable para cualquier estado de carga
  */
 const LoadingState: React.FC = () => (
-  <div className="col-span-full flex items-center justify-center py-8">
-    <div className="flex items-center gap-2 text-muted-foreground">
-      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-      Cargando combos...
+  <>
+    <ComboSectionHeader />
+    <div className="col-span-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Card key={`combo-sk-${i}`} className="flex flex-col h-full overflow-hidden border-muted">
+          <CardContent className="p-4 flex-1 space-y-3">
+            <Skeleton className="h-5 w-[78%]" />
+            <Skeleton className="h-4 w-[45%]" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-[60%]" />
+          </CardContent>
+          <CardFooter className="p-4 pt-0 flex gap-2">
+            <Skeleton className="h-9 flex-1 rounded-md" />
+            <Skeleton className="h-9 w-9 rounded-md shrink-0" />
+          </CardFooter>
+        </Card>
+      ))}
     </div>
-  </div>
+  </>
 );
 
 /**

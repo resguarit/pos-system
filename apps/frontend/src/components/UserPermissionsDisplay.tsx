@@ -183,7 +183,9 @@ export function UserPermissionsDisplay({
   };
 
   const getRoleBadge = () => {
-    return <RoleBadge roleName={user.role?.name} />;
+    return (
+      <RoleBadge roleName={user.role?.name} roleColor={user.role?.color} />
+    )
   };
 
   const BasicInfo = () => (

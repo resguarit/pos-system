@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- POS sale API responses vary in shape */
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -67,8 +68,6 @@ export default function CompleteSalePage() {
   const effectiveBranch = activeBranch || (branches?.length ? branches[0] : null)
 
   if (import.meta.env.DEV) {
-    // Debug: verificar qué sucursal se está usando (solo en desarrollo)
-    // eslint-disable-next-line no-console
     console.log('CompleteSalePage - Branch info:', {
       stateBranchId,
       activeBranchId: activeBranch?.id,
@@ -206,7 +205,7 @@ export default function CompleteSalePage() {
         }))
 
       setPaymentMethods(filteredMethods)
-    } catch (err) {
+    } catch {
       setPaymentMethods([])
       sileo.error({ title: "Error al cargar los métodos de pago." })
     }
@@ -447,6 +446,19 @@ export default function CompleteSalePage() {
         items: cart.map((item) => {
           const productId = extractProductId(item)
 
+          const scaleMeta =
+            item.is_scale_line && item.scale_barcode
+              ? {
+                  barcode: item.scale_barcode,
+                  ...(item.scale_plu != null && String(item.scale_plu).trim() !== ''
+                    ? { plu: String(item.scale_plu).trim() }
+                    : {}),
+                  ...(item.scale_embedded_amount != null && item.scale_embedded_amount > 0
+                    ? { embedded_amount_ars: item.scale_embedded_amount }
+                    : {}),
+                }
+              : undefined
+
           return {
             product_id: productId,
             quantity: item.quantity,
@@ -455,6 +467,7 @@ export default function CompleteSalePage() {
               && isItemDiscountAllowed(item)
               ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
               : {}),
+            ...(scaleMeta ? { scale_barcode_meta: scaleMeta } : {}),
           }
         }),
         payments: normalizedPayments,
@@ -864,7 +877,16 @@ export default function CompleteSalePage() {
                     </TableHeader>
                     <TableBody>
                       {cart.map((item, idx) => {
-                        const base = roundToTwoDecimals((item.price || 0) * item.quantity)
+                        const scaleGross =
+                          item.is_scale_line &&
+                          item.scale_embedded_amount != null &&
+                          Number(item.scale_embedded_amount) > 0
+                        const base = scaleGross
+                          ? roundToTwoDecimals(
+                              Number(item.scale_embedded_amount) /
+                                (1 + (item.iva_rate || 0) / 100)
+                            )
+                          : roundToTwoDecimals((item.price || 0) * item.quantity)
                         const itemDiscRaw = item.discount_type === 'percent'
                           ? roundToTwoDecimals(base * ((item.discount_value || 0) / 100))
                           : roundToTwoDecimals(Number(item.discount_value || 0))

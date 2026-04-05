@@ -78,6 +78,7 @@ class ProductController extends Controller
             'web' => 'required|boolean',
             'allow_discount' => 'sometimes|boolean',
             'observaciones' => 'nullable|string',
+            'scale_plu' => ['nullable', 'string', 'max:20', Rule::unique('products', 'scale_plu')->whereNull('deleted_at')],
             'branch_id' => 'nullable|integer|exists:branches,id',
             'branch_ids' => 'nullable|array',
             'branch_ids.*' => 'integer|exists:branches,id',
@@ -124,6 +125,7 @@ class ProductController extends Controller
             'web' => 'sometimes|required|boolean',
             'allow_discount' => 'sometimes|boolean',
             'observaciones' => 'nullable|string',
+            'scale_plu' => ['nullable', 'string', 'max:20', Rule::unique('products', 'scale_plu')->ignore($id)->whereNull('deleted_at')],
         ]);
 
         return response()->json($this->productService->updateProduct($id, $validatedData));

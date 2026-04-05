@@ -17,13 +17,18 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { Download, Printer, ShieldCheck, Loader2, Building2 } from "lucide-react";
+import { Download, Printer, ShieldCheck, Loader2, Building2, ScanLine } from "lucide-react";
 import { type Dispatch, type SetStateAction, useState, useEffect } from "react";
 import { type SaleHeader } from "@/types/sale";
 import { useArcaAuthorization } from "@/hooks/useArcaAuthorization";
 import useApi from "@/hooks/useApi";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { ConversionStatusBadge } from "@/components/sales/conversion-status-badge";
 import { ArcaStatusBadge } from "@/components/sales/ArcaStatusBadge";
 import { getAllowedArcaCodesForPos, isInternalOnlyReceiptType } from "@/utils/arcaReceiptTypes";
@@ -506,16 +511,59 @@ const ViewSaleDialog = ({
                             </TableHeader>
                             <TableBody>
                                 {saleToDisplay.items?.map((item) => {
-                                    type SaleItem = { id: number; unit_price?: number | string; product?: { sale_price?: number | string; description?: string }; quantity?: number | string; discount_amount?: number | string; description?: string };
-                                    const saleItem = item as SaleItem;
+                                    type SaleItemRow = {
+                                        id: number
+                                        unit_price?: number | string
+                                        product?: { sale_price?: number | string; description?: string }
+                                        quantity?: number | string
+                                        discount_amount?: number | string
+                                        description?: string
+                                        scale_barcode_meta?: { barcode?: string; plu?: string; embedded_amount_ars?: number } | null
+                                    }
+                                    const saleItem = item as SaleItemRow;
                                     const unitPrice = Number(saleItem.unit_price || saleItem.product?.sale_price || 0);
                                     const quantity = Number(saleItem.quantity || 0);
                                     const discountAmount = Number(saleItem.discount_amount || 0);
                                     const itemTotal = (unitPrice * quantity) - discountAmount;
+                                    const scaleMeta = saleItem.scale_barcode_meta
 
                                     return (
                                         <TableRow key={saleItem.id}>
-                                            <TableCell>{saleItem.description || saleItem.product?.description || 'Sin descripción'}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col gap-1">
+                                                    <span>{saleItem.description || saleItem.product?.description || 'Sin descripción'}</span>
+                                                    {scaleMeta?.barcode && (
+                                                        <Popover modal={false}>
+                                                            <PopoverTrigger asChild>
+                                                                <button
+                                                                    type="button"
+                                                                    aria-label="Ver detalle de etiqueta de balanza"
+                                                                    className="inline-flex w-fit max-w-full items-center gap-1 rounded-sm text-left text-[11px] text-muted-foreground underline decoration-dotted underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                                >
+                                                                    <ScanLine className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+                                                                    Lectura balanza
+                                                                </button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent
+                                                                side="bottom"
+                                                                align="start"
+                                                                className="z-[100] max-w-xs text-xs"
+                                                            >
+                                                                <p className="font-medium text-foreground">Etiqueta escaneada</p>
+                                                                <ul className="mt-1.5 space-y-1 tabular-nums text-muted-foreground">
+                                                                    <li><span className="text-foreground">Código:</span> {scaleMeta.barcode}</li>
+                                                                    {scaleMeta.plu != null && scaleMeta.plu !== '' && (
+                                                                        <li><span className="text-foreground">PLU:</span> {scaleMeta.plu}</li>
+                                                                    )}
+                                                                    {scaleMeta.embedded_amount_ars != null && (
+                                                                        <li><span className="text-foreground">Importe en etiqueta:</span> ${Number(scaleMeta.embedded_amount_ars).toLocaleString('es-AR')}</li>
+                                                                    )}
+                                                                </ul>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    )}
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="text-right">{quantity}</TableCell>
                                             <TableCell className="text-right">{formatUnitPrice(saleItem)}</TableCell>
                                             <TableCell className="text-right">{formatCurrencyARS(discountAmount)}</TableCell>

@@ -98,6 +98,44 @@ class SaleService implements SaleServiceInterface
     private const RECEIPT_NUMBER_MAX_ATTEMPTS = 10;
 
     /**
+     * Normaliza metadatos de etiqueta de balanza para persistencia (auditoría).
+     *
+     * @param  array<string, mixed>|null  $raw
+     * @return array<string, mixed>|null
+     */
+    private function normalizeScaleBarcodeMeta(?array $raw): ?array
+    {
+        if ($raw === null || $raw === []) {
+            return null;
+        }
+
+        $out = [];
+
+        if (isset($raw['barcode'])) {
+            $digits = preg_replace('/\D/', '', (string) $raw['barcode']);
+            if ($digits !== '') {
+                $out['barcode'] = strlen($digits) > 32 ? substr($digits, 0, 32) : $digits;
+            }
+        }
+
+        if (isset($raw['plu'])) {
+            $plu = trim((string) $raw['plu']);
+            if ($plu !== '') {
+                $out['plu'] = mb_substr($plu, 0, 20);
+            }
+        }
+
+        if (isset($raw['embedded_amount_ars'])) {
+            $amt = round((float) $raw['embedded_amount_ars'], 2);
+            if ($amt >= 0 && $amt < 100000000) {
+                $out['embedded_amount_ars'] = $amt;
+            }
+        }
+
+        return $out === [] ? null : $out;
+    }
+
+    /**
      * Prepara los items de venta calculando precios unitarios, descuentos, base e IVA.
      * Descuentos: por ítem antes de IVA. Montos con hasta 2 decimales.
      */
@@ -145,6 +183,12 @@ class SaleService implements SaleServiceInterface
             $itemIva = round($netBase * ($ivaRate / 100.0), 2);
             $itemTotal = round($netBase + $itemIva, 2);
 
+            $scaleBarcodeMeta = $this->normalizeScaleBarcodeMeta(
+                isset($item['scale_barcode_meta']) && is_array($item['scale_barcode_meta'])
+                    ? $item['scale_barcode_meta']
+                    : null
+            );
+
             $preparedItems[] = [
                 'product_id' => $product->id,
                 'quantity' => $quantity,
@@ -159,6 +203,7 @@ class SaleService implements SaleServiceInterface
                 'item_subtotal' => $netBase,
                 'item_iva' => $itemIva,
                 'item_total' => $itemTotal,
+                'scale_barcode_meta' => $scaleBarcodeMeta,
                 // Auxiliares no persistidos, útiles para cálculos posteriores
                 '_net_base' => $netBase,
             ];

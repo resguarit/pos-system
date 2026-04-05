@@ -16,6 +16,7 @@ class Role extends Model
     protected $fillable = [
         'name',
         'description',
+        'color',
         'active',
         'access_schedule',
         'single_session_only',

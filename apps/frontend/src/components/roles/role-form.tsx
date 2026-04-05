@@ -25,6 +25,10 @@ import { ArrowLeft, Save, Loader2, Info } from "lucide-react"
 
 // Componente de restricción de horarios
 import ScheduleRestrictionConfig, { type AccessSchedule } from "./ScheduleRestrictionConfig"
+import { isValidRoleColorHex } from "@/types/roles-styles"
+
+const ROLE_COLOR_PRESETS = ["#64748b", "#3b82f6", "#22c55e", "#a855f7", "#f97316", "#eab308", "#ec4899", "#14b8a6"] as const
+const DEFAULT_ROLE_COLOR = ROLE_COLOR_PRESETS[0]
 
 // --- Interfaces ---
 interface Module {
@@ -166,6 +170,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
   const [formData, setFormData] = useState({
     name: "",
     description: "",
+    color: DEFAULT_ROLE_COLOR,
     permissions: [] as string[],
     access_schedule: null as AccessSchedule | null,
     single_session_only: false,
@@ -247,6 +252,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
           setFormData({
             name: roleData.name || "",
             description: roleData.description || "",
+            color: isValidRoleColorHex(roleData.color) ? roleData.color : DEFAULT_ROLE_COLOR,
             permissions: assignedPermsIds,
             access_schedule: roleData.access_schedule || null,
             single_session_only: roleData.single_session_only || false,
@@ -358,6 +364,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
           data: {
             name: formData.name,
             description: formData.description,
+            color: isValidRoleColorHex(formData.color) ? formData.color : null,
             access_schedule: formData.access_schedule,
             single_session_only: formData.single_session_only
           }
@@ -375,6 +382,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
           data: {
             name: formData.name,
             description: formData.description,
+            color: isValidRoleColorHex(formData.color) ? formData.color : null,
             permissions: formData.permissions.map(Number),
             access_schedule: formData.access_schedule,
             single_session_only: formData.single_session_only,
@@ -392,7 +400,7 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData.name, formData.description, formData.permissions, formData.access_schedule, formData.single_session_only, roleId, request, navigate]);
+  }, [formData.name, formData.description, formData.color, formData.permissions, formData.access_schedule, formData.single_session_only, roleId, request, navigate]);
 
   // Ref para el scroll top
   const topRef = useRef<HTMLDivElement>(null);
@@ -474,6 +482,31 @@ export default function RoleForm({ roleId, viewOnly = false }: RoleFormProps) {
               <div className="space-y-2">
                 <Label htmlFor="description">Descripción</Label>
                 <Textarea id="description" name="description" value={formData.description} onChange={handleInputChange} disabled={viewOnly || isSubmitting || isSystem || formData.name.toLowerCase() === 'admin'} rows={3} />
+              </div>
+              <div className="space-y-2">
+                <Label>Color del rol</Label>
+                <p className="text-xs text-muted-foreground">Identificación visual en listados (formato #RRGGBB).</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {ROLE_COLOR_PRESETS.map((hex) => (
+                    <button
+                      key={hex}
+                      type="button"
+                      title={hex}
+                      disabled={viewOnly || isSubmitting || isSystem}
+                      onClick={() => setFormData((p) => ({ ...p, color: hex }))}
+                      className={`h-8 w-8 rounded-full border-2 border-border shadow-sm transition-transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 ${formData.color === hex ? "ring-2 ring-offset-2 ring-primary" : ""}`}
+                      style={{ backgroundColor: hex }}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    className="h-10 w-14 cursor-pointer rounded border border-input bg-background p-1 disabled:opacity-50"
+                    value={isValidRoleColorHex(formData.color) ? formData.color : DEFAULT_ROLE_COLOR}
+                    onChange={(e) => setFormData((p) => ({ ...p, color: e.target.value }))}
+                    disabled={viewOnly || isSubmitting || isSystem}
+                    aria-label="Elegir color personalizado"
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>

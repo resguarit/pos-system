@@ -35,6 +35,7 @@ class Product extends Model
         'web',
         'allow_discount',
         'observaciones',
+        'scale_plu',
     ];
 
     protected $casts = [
@@ -45,6 +46,15 @@ class Product extends Model
         'web' => 'boolean',
         'allow_discount' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (Product $product) {
+            if ($product->scale_plu === '') {
+                $product->scale_plu = null;
+            }
+        });
+    }
 
     protected $appends = ['sale_price', 'barcode'];
 
@@ -170,7 +180,7 @@ class Product extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['description', 'code', 'measure', 'measure_id', 'unit_price', 'currency', 'markup', 'category_id', 'iva_id', 'image_id', 'supplier_id', 'status', 'web', 'allow_discount', 'observaciones'])
+            ->logOnly(['description', 'code', 'scale_plu', 'measure', 'measure_id', 'unit_price', 'currency', 'markup', 'category_id', 'iva_id', 'image_id', 'supplier_id', 'status', 'web', 'allow_discount', 'observaciones'])
             ->useLogName('product')
             ->logOnlyDirty();
     }

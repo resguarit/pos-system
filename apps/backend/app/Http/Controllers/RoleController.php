@@ -57,6 +57,7 @@ class RoleController extends Controller
         $validatedData = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name',
             'description' => 'nullable|string|max:500',
+            'color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'single_session_only' => 'nullable|boolean',
             'access_schedule' => 'nullable|array',
             'access_schedule.enabled' => 'nullable|boolean',
@@ -116,6 +117,7 @@ class RoleController extends Controller
         $validatedData = $request->validate([
             'name' => 'required|string|max:255|unique:roles,name,' . $id,
             'description' => 'nullable|string|max:500',
+            'color' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'single_session_only' => 'nullable|boolean',
             'access_schedule' => 'nullable|array',
             'access_schedule.enabled' => 'nullable|boolean',

@@ -1,5 +1,5 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { LoadingSkeleton, EmptyState } from "@/components/ui/loading-states"
+import { EmptyState, Skeleton, TableSkeleton } from "@/components/ui/loading-states"
 
 interface Column<T> {
   key: string
@@ -19,7 +19,7 @@ interface DataTableProps<T> {
   maxHeight?: string
 }
 
-export function DataTable<T extends Record<string, any>>({
+export function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   isLoading = false,
@@ -31,11 +31,16 @@ export function DataTable<T extends Record<string, any>>({
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
-      <LoadingSkeleton 
-        className={`w-full ${maxHeight !== "auto" ? maxHeight : "h-40"}`}
-        items={5}
-        height="auto"
-      />
+      <div
+        className={`w-full ${maxHeight !== "auto" ? maxHeight : "min-h-40"} ${maxHeight !== "auto" ? "overflow-y-auto" : ""}`}
+      >
+        <TableSkeleton
+          columns={columns.length}
+          rows={5}
+          showHeader
+          hasActionsColumn={Boolean(actions)}
+        />
+      </div>
     )
   }
 
@@ -117,11 +122,15 @@ export function SimpleList<T>({
 }: SimpleListProps<T>) {
   if (isLoading) {
     return (
-      <LoadingSkeleton 
-        className={`w-full ${maxHeight !== "auto" ? maxHeight : "h-40"}`}
-        items={5}
-        height="auto"
-      />
+      <div
+        className={`w-full ${maxHeight !== "auto" ? maxHeight : "min-h-40"} ${maxHeight !== "auto" ? "overflow-y-auto" : ""}`}
+      >
+        <div className="space-y-3 py-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
+      </div>
     )
   }
 
@@ -144,7 +153,7 @@ export function SimpleList<T>({
         style={{ gridTemplateRows: `repeat(${fillToCount}, minmax(0, 1fr))` }}
       >
         {data.slice(0, fillToCount).map((item, index) => (
-          <div key={(item as any)?.id ?? index} className={`h-full ${itemClassName ?? ""}`}>
+          <div key={String((item as { id?: string | number }).id ?? index)} className={`h-full ${itemClassName ?? ""}`}>
             {renderItem(item, index)}
           </div>
         ))}

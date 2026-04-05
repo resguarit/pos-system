@@ -56,6 +56,8 @@ function catalogResponseToArray(res: unknown): unknown[] {
 
 type ProductFormData = {
   code: string;
+  /** PLU de balanza (opcional), ej. 36 — debe coincidir con la etiqueta */
+  scale_plu: string;
   description: string;
   unit_price: string;
   currency: 'USD' | 'ARS';
@@ -76,6 +78,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
   
   const [formData, setFormData] = useState<ProductFormData>({
     code: "",
+    scale_plu: "",
     description: "",
     unit_price: "",
     currency: "ARS",
@@ -289,6 +292,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
       setIsManualPrice(false);
       setFormData({
         code: "",
+        scale_plu: "",
         description: "",
         unit_price: "",
         currency: "ARS",
@@ -657,6 +661,7 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
         data: {
           description: formData.description,
           code: formData.code,
+          scale_plu: formData.scale_plu.trim() || null,
           unit_price: NumberFormatter.parseFormattedNumber(formData.unit_price || '0'),
           currency: formData.currency,
           markup: markupToSend, // Usar el markup calculado localmente
@@ -767,6 +772,32 @@ export function NewProductDialog({ open, onOpenChange, onSuccess }: NewProductDi
               </div>
             </div>
           </div>
+
+          <details className="rounded-md border border-dashed border-muted-foreground/25 bg-muted/30 text-muted-foreground">
+            <summary className="cursor-pointer list-none px-3 py-2 text-xs outline-none transition-colors hover:bg-muted/50 [&::-webkit-details-marker]:hidden">
+              <span className="text-muted-foreground/90">Opcional · venta con balanza y etiqueta</span>
+            </summary>
+            <div className="border-t border-border/40 px-3 pb-3 pt-2">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="grid w-full max-w-[140px] gap-1">
+                  <Label htmlFor="scale_plu" className="text-xs font-normal text-muted-foreground">
+                    Nº PLU
+                  </Label>
+                  <Input
+                    id="scale_plu"
+                    value={formData.scale_plu}
+                    onChange={(e) => handleInputChange('scale_plu', e.target.value)}
+                    placeholder="Ej. 36"
+                    inputMode="numeric"
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <p className="min-w-0 flex-1 pb-1 text-[11px] leading-snug text-muted-foreground/85">
+                  Coincide con la etiqueta. Precio de venta en $/kg.
+                </p>
+              </div>
+            </div>
+          </details>
 
           {/* Precios */}
           <div className="grid grid-cols-2 gap-4">

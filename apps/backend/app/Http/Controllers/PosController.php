@@ -46,9 +46,10 @@ class PosController extends Controller
             })
             ->where(function ($q) use ($query, $likeTerm) {
                 $q->where('code', '=', $query)
+                    ->orWhere('scale_plu', '=', $query)
                     ->orWhere('description', 'LIKE', $likeTerm);
             })
-            ->orderByRaw('CASE WHEN code = ? THEN 0 ELSE 1 END', [$query])
+            ->orderByRaw('CASE WHEN scale_plu = ? THEN 0 WHEN code = ? THEN 1 ELSE 2 END', [$query, $query])
             ->orderBy('description')
             ->get();
 
@@ -92,6 +93,10 @@ class PosController extends Controller
             'items.*.unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:percent,amount',
             'items.*.discount_value' => 'nullable|numeric|min:0',
+            'items.*.scale_barcode_meta' => 'nullable|array',
+            'items.*.scale_barcode_meta.barcode' => 'nullable|string|max:32',
+            'items.*.scale_barcode_meta.plu' => 'nullable|string|max:20',
+            'items.*.scale_barcode_meta.embedded_amount_ars' => 'nullable|numeric|min:0|max:99999999',
             'payments' => 'required|array|min:1',
             'payments.*.payment_method_id' => 'required|integer|exists:payment_methods,id',
             'payments.*.amount' => 'required|numeric|min:0',

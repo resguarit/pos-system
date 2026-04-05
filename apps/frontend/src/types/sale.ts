@@ -21,12 +21,20 @@ export interface Payment {
   amount: string
 }
 
+/** Auditoría de etiqueta de balanza (opcional, solo ítems escaneados) */
+export interface ScaleBarcodeMetaPayload {
+  barcode: string
+  plu?: string
+  embedded_amount_ars?: number
+}
+
 export interface SaleItem {
   product_id: number
   quantity: number
   unit_price: number
   discount_type?: 'percent' | 'amount'
   discount_value?: number
+  scale_barcode_meta?: ScaleBarcodeMetaPayload
 }
 
 export interface SaleData {
@@ -133,6 +141,8 @@ export interface SaleHeader {
     item_iva?: number
     item_total?: number
     discount_amount?: number
+    /** Auditoría de lectura de etiqueta de balanza (si aplica) */
+    scale_barcode_meta?: ScaleBarcodeMetaPayload | null
   }>
   subtotal?: number
   total_iva_amount?: number

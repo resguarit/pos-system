@@ -17,6 +17,7 @@ import { useExchangeRateUpdates } from "@/hooks/useExchangeRateUpdates"
 
 import MultipleBranchesCashStatus from "@/components/cash-register-multiple-branches-status"
 import { Building, Minus, Plus, Search, ShoppingCart, Trash2, X, Barcode, Package, Loader2 } from "lucide-react"
+import { Skeleton } from "@/components/ui/loading-states"
 import { ComboSection } from "@/components/ComboSection"
 import { useCombosInPOS } from "@/hooks/useCombosInPOS"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -30,24 +31,45 @@ import { formatCurrency, roundToTwoDecimals } from '@/utils/sale-calculations'
 import { useSaleTotals } from '@/hooks/useSaleTotals'
 import SaleReceiptPreviewDialog from "@/components/SaleReceiptPreviewDialog"
 import type { SaleHeader } from '@/types/sale'
+import {
+  normalizeScalePlu,
+  quantityKgForScaleLine,
+  roundScaleQuantityKg,
+  tryParseScaleBarcode,
+} from '@/utils/scaleBarcode'
 
 const SMALL_CATALOG_THRESHOLD = 300
 const SERVER_SEARCH_DEBOUNCE_MS = 400
 const SERVER_SEARCH_MIN_LENGTH = 2
 const MIN_SALE_QUANTITY = 1
+const MIN_SCALE_QUANTITY_KG = 0.001
 const QUANTITY_DECIMAL_STEP = 1
 const CART_QUANTITY_ADJUST_STEP = 1
+const SCALE_CART_QUANTITY_ADJUST_STEP_KG = 0.01
 
-const normalizeQuantity = (value: number, fallback = 1) => {
+const normalizeQuantity = (value: number, fallback = 1, opts?: { isScale?: boolean }) => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return fallback
+  if (opts?.isScale) {
+    const q = Math.max(MIN_SCALE_QUANTITY_KG, roundScaleQuantityKg(parsed))
+    return q
+  }
   const safe = Math.max(MIN_SALE_QUANTITY, parsed)
   return Math.round(safe)
 }
 
-const formatQuantity = (value: number) => {
+const formatQuantity = (value: number, isScale?: boolean) => {
+  if (isScale) {
+    const q = normalizeQuantity(value, MIN_SCALE_QUANTITY_KG, { isScale: true })
+    return q.toLocaleString('es-AR', { minimumFractionDigits: 3, maximumFractionDigits: 4 })
+  }
   const normalized = normalizeQuantity(value)
   return String(normalized)
+}
+
+function productMatchesScalePlu(p: { scale_plu?: string | null }, pluNormalized: string): boolean {
+  if (p.scale_plu == null || String(p.scale_plu).trim() === '') return false
+  return normalizeScalePlu(String(p.scale_plu)) === pluNormalized
 }
 
 const isAbortError = (error: unknown) => {
@@ -526,9 +548,11 @@ export default function POSPage() {
 
   const filteredProducts = products.filter((product) => {
     const matchesCategory = filterCategoryIds === null || filterCategoryIds.includes(product.category_id);
+    const plu = product.scale_plu != null ? String(product.scale_plu) : ''
     const matchesSearch = matchesWildcard(product.description || '', productCodeInput) ||
       matchesWildcard(String(product.code), productCodeInput) ||
-      (product.barcode && matchesWildcard(String(product.barcode), productCodeInput));
+      (product.barcode && matchesWildcard(String(product.barcode), productCodeInput)) ||
+      (plu && matchesWildcard(plu, productCodeInput));
 
     return matchesCategory && matchesSearch;
   });
@@ -545,8 +569,12 @@ export default function POSPage() {
   }
 
   // Actualizar para respetar la cantidad por click
-  const addToCart = useCallback((product: CartItem, qty?: number) => {
-    const quantityToAdd = normalizeQuantity(Number(qty ?? addQtyPerClick) || 1)
+  const addToCart = useCallback((product: CartItem, qty?: number, opts?: { isScale?: boolean }) => {
+    const isScale = opts?.isScale === true
+    const rawQty = Number(qty ?? addQtyPerClick) || 1
+    const quantityToAdd = isScale
+      ? normalizeQuantity(rawQty, MIN_SCALE_QUANTITY_KG, { isScale: true })
+      : normalizeQuantity(rawQty)
 
     setCart((prevCart) => {
       // ✅ Solo buscar productos individuales (no de combos) con el mismo ID
@@ -557,7 +585,20 @@ export default function POSPage() {
       if (existingIndividualItem) {
         return prevCart.map((item) =>
           item.id === product.id && !item.is_from_combo
-            ? { ...item, quantity: item.quantity + quantityToAdd }
+            ? {
+                ...item,
+                quantity: isScale
+                  ? normalizeQuantity(item.quantity + quantityToAdd, MIN_SCALE_QUANTITY_KG, { isScale: true })
+                  : item.quantity + quantityToAdd,
+                ...(isScale
+                  ? {
+                      is_scale_line: true,
+                      scale_barcode: product.scale_barcode ?? item.scale_barcode,
+                      scale_plu: product.scale_plu ?? item.scale_plu,
+                      scale_embedded_amount: product.scale_embedded_amount ?? item.scale_embedded_amount,
+                    }
+                  : {}),
+              }
             : item
         );
       } else {
@@ -741,6 +782,81 @@ export default function POSPage() {
     setIsSearchingProduct(true)
 
     try {
+      const parsedScale = tryParseScaleBarcode(code)
+      if (parsedScale && parsedScale.valueType === 'amount_ars_whole') {
+        const pluNorm = parsedScale.pluNormalized
+        const embeddedAmount = parsedScale.embeddedValue
+
+        const pickByPlu = (list: typeof products) =>
+          list.find((p) => productMatchesScalePlu(p, pluNorm))
+
+        let foundProduct = pickByPlu(products)
+        let serverResults: typeof products = []
+
+        if (!foundProduct) {
+          serverResults = await findProductOnServer(pluNorm)
+          foundProduct = pickByPlu(serverResults)
+        }
+
+        if (serverResults.length > 0 && productSearchMode === 'local-cache') {
+          setProducts(prev => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const existingIds = new Set(prev.map((p: any) => p.id))
+            const newProducts = serverResults.filter(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (p: any) => !existingIds.has(p.id)
+            )
+            return newProducts.length > 0 ? [...prev, ...newProducts] : prev
+          })
+        }
+
+        if (!foundProduct) {
+          sileo.error({
+            title: "PLU de balanza sin producto",
+            description: `No hay un producto con PLU ${pluNorm}. Asigná el campo PLU balanza en el artículo (ej. ${parsedScale.pluDigits}).`,
+          })
+          setProductCodeInput("")
+          return
+        }
+
+        const unitPrice = Number(foundProduct.sale_price ?? 0)
+        if (unitPrice <= 0) {
+          sileo.error({
+            title: "Precio inválido",
+            description: "El producto no tiene precio de venta por kg; no se puede calcular el peso desde la etiqueta.",
+          })
+          setProductCodeInput("")
+          return
+        }
+
+        const qtyKg = quantityKgForScaleLine(embeddedAmount, unitPrice)
+        const lineGross = roundToTwoDecimals(qtyKg * unitPrice)
+        if (Math.abs(lineGross - embeddedAmount) > 0.02) {
+          sileo.warning({
+            title: "Revisá el precio $/kg",
+            description:
+              `El importe de la etiqueta ($${embeddedAmount}) no cierra con el precio del producto ($${unitPrice.toLocaleString('es-AR')}/kg). ` +
+              'Si la balanza tiene otro precio para este PLU, actualizá el producto o la balanza para que coincidan.',
+          })
+        }
+
+        const cartLine: CartItem = {
+          ...foundProduct,
+          is_scale_line: true,
+          scale_barcode: parsedScale.raw,
+          scale_plu: pluNorm,
+          scale_embedded_amount: embeddedAmount,
+        }
+
+        addToCart(cartLine, qtyKg, { isScale: true })
+        sileo.success({
+          title: "Producto de balanza agregado",
+          description: `${foundProduct.description} — ${formatQuantity(qtyKg, true)} kg · $${embeddedAmount.toLocaleString('es-AR')}`,
+        })
+        setProductCodeInput("")
+        return
+      }
+
       const isExactMatch = (p: { code?: string | number; barcode?: string | number }) =>
         String(p.code).toLowerCase() === code.toLowerCase() ||
         (p.barcode && String(p.barcode).toLowerCase() === code.toLowerCase())
@@ -799,9 +915,26 @@ export default function POSPage() {
   }
 
   const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity < MIN_SALE_QUANTITY) return
-    const normalizedQuantity = normalizeQuantity(newQuantity)
-    setCart((prevCart) => prevCart.map((item) => (item.id === productId ? { ...item, quantity: normalizedQuantity } : item)))
+    setCart((prevCart) => {
+      const item = prevCart.find((i) => i.id === productId)
+      const isScale = item?.is_scale_line === true
+      const minQ = isScale ? MIN_SCALE_QUANTITY_KG : MIN_SALE_QUANTITY
+      if (newQuantity < minQ) return prevCart
+      const normalizedQuantity = isScale
+        ? normalizeQuantity(newQuantity, MIN_SCALE_QUANTITY_KG, { isScale: true })
+        : normalizeQuantity(newQuantity)
+      return prevCart.map((row) => {
+        if (row.id !== productId) return row
+        if (row.is_scale_line && row.scale_embedded_amount != null) {
+          return {
+            ...row,
+            quantity: normalizedQuantity,
+            scale_embedded_amount: undefined,
+          }
+        }
+        return { ...row, quantity: normalizedQuantity }
+      })
+    })
   }
 
   const clearCart = () => {
@@ -860,12 +993,19 @@ export default function POSPage() {
               </TableHeader>
               <TableBody>
                 {cart.map((item) => {
+                  const isScaleLine = item.is_scale_line === true
+                  const qtyStep = isScaleLine ? 0.001 : QUANTITY_DECIMAL_STEP
+                  const qtyAdjust = isScaleLine ? SCALE_CART_QUANTITY_ADJUST_STEP_KG : CART_QUANTITY_ADJUST_STEP
+                  const qtyMin = isScaleLine ? MIN_SCALE_QUANTITY_KG : MIN_SALE_QUANTITY
                   return (
                     <TableRow key={`${item.id}-${item.is_from_combo ? 'combo' : 'product'}`}>
                       <TableCell className="font-medium py-1 sm:py-2">
                         <div className="text-xs sm:text-sm truncate">{item.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {formatCurrency(item.sale_price)} c/u
+                          {formatCurrency(item.sale_price)} {isScaleLine ? '/kg' : 'c/u'}
+                          {isScaleLine && item.scale_plu != null && (
+                            <span className="ml-1">· PLU {item.scale_plu}</span>
+                          )}
                           {item.discount_type && (item.discount_value ?? 0) > 0 && (
                             <span className="ml-1 sm:ml-2 text-amber-700 text-xs">Desc: {item.discount_type === 'percent' ? `${item.discount_value}%` : `${formatCurrency(Number(item.discount_value))}`}</span>
                           )}
@@ -888,14 +1028,14 @@ export default function POSPage() {
                             variant="outline"
                             size="icon"
                             className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6"
-                            onClick={() => updateQuantity(item.id, item.quantity - CART_QUANTITY_ADJUST_STEP)}
+                            onClick={() => updateQuantity(item.id, item.quantity - qtyAdjust)}
                           >
                             <Minus className="h-2 w-2 sm:h-3 sm:w-3" />
                           </Button>
                           <Input
                             type="number"
-                            min={MIN_SALE_QUANTITY}
-                            step={QUANTITY_DECIMAL_STEP}
+                            min={qtyMin}
+                            step={qtyStep}
                             value={item.quantity}
                             onChange={(e) => {
                               const value = Number(e.target.value)
@@ -907,13 +1047,17 @@ export default function POSPage() {
                             variant="outline"
                             size="icon"
                             className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6"
-                            onClick={() => updateQuantity(item.id, item.quantity + CART_QUANTITY_ADJUST_STEP)}
+                            onClick={() => updateQuantity(item.id, item.quantity + qtyAdjust)}
                           >
                             <Plus className="h-2 w-2 sm:h-3 sm:w-3" />
                           </Button>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">{formatCurrency(item.sale_price * item.quantity)}</TableCell>
+                      <TableCell className="text-right text-xs sm:text-sm py-1 sm:py-2">
+                        {item.is_scale_line && item.scale_embedded_amount != null
+                          ? formatCurrency(item.scale_embedded_amount)
+                          : formatCurrency(item.sale_price * item.quantity)}
+                      </TableCell>
                       <TableCell className="py-1 sm:py-2">
                         <Button variant="ghost" size="icon" className="h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6" onClick={() => removeFromCart(item.id)}>
                           <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
@@ -1155,45 +1299,63 @@ export default function POSPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {filteredProducts.map((product) => {
-              const ui = getStockUi(product.id)
-              return (
-                <Card
-                  key={product.id}
-                  className={`flex flex-col h-full overflow-hidden cursor-pointer hover:border-primary border ${ui.card}`}
-                  onClick={() => addToCart(product, addQtyPerClick)}
-                >
-                  <CardContent className={`p-3 flex-1 ${ui.content}`}>
-                    <h3 className="font-medium text-sm mb-1 leading-tight">{product.description}</h3>
-                    <p className="text-muted-foreground text-sm mb-2 font-semibold">{formatCurrency(product.sale_price)}</p>
-                    {/* Mostrar stock con indicador */}
-                    <p className="text-xs flex items-center">
-                      <span className={`inline-block w-2 h-2 rounded-full mr-2 ${ui.dot}`} />
-                      Stock: {stocksMap[product.id]?.current ?? 'N/D'}
-                    </p>
-                  </CardContent>
-                  <CardFooter className="p-3 pt-2 mt-auto">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={`w-full h-8 cursor-pointer ${ui.button}`}
-                      onClick={(e) => { e.stopPropagation(); addToCart(product, addQtyPerClick); }}
+            {isLoadingCatalog && filteredProducts.length === 0
+              ? Array.from({ length: 10 }).map((_, i) => (
+                  <Card
+                    key={`cat-sk-${i}`}
+                    className="flex flex-col h-full overflow-hidden border-muted"
+                  >
+                    <CardContent className="p-3 flex-1 space-y-2">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-[70%]" />
+                      <Skeleton className="h-3 w-1/2 mt-2" />
+                      <div className="flex items-center gap-2 pt-1">
+                        <Skeleton className="h-2 w-2 rounded-full" />
+                        <Skeleton className="h-3 w-24" />
+                      </div>
+                    </CardContent>
+                    <CardFooter className="p-3 pt-2 mt-auto">
+                      <Skeleton className="h-8 w-full rounded-md" />
+                    </CardFooter>
+                  </Card>
+                ))
+              : filteredProducts.map((product) => {
+                  const ui = getStockUi(product.id)
+                  return (
+                    <Card
+                      key={product.id}
+                      className={`flex flex-col h-full overflow-hidden cursor-pointer hover:border-primary border ${ui.card}`}
+                      onClick={() => addToCart(product, addQtyPerClick)}
                     >
-                      Agregar x{formatQuantity(addQtyPerClick)}
-                    </Button>
-                  </CardFooter>
-                </Card>
-              )
-            })}
+                      <CardContent className={`p-3 flex-1 ${ui.content}`}>
+                        <h3 className="font-medium text-sm mb-1 leading-tight">{product.description}</h3>
+                        <p className="text-muted-foreground text-sm mb-2 font-semibold">{formatCurrency(product.sale_price)}</p>
+                        {/* Mostrar stock con indicador */}
+                        <p className="text-xs flex items-center">
+                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${ui.dot}`} />
+                          Stock: {stocksMap[product.id]?.current ?? 'N/D'}
+                        </p>
+                      </CardContent>
+                      <CardFooter className="p-3 pt-2 mt-auto">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={`w-full h-8 cursor-pointer ${ui.button}`}
+                          onClick={(e) => { e.stopPropagation(); addToCart(product, addQtyPerClick); }}
+                        >
+                          Agregar x{formatQuantity(addQtyPerClick)}
+                        </Button>
+                      </CardFooter>
+                    </Card>
+                  )
+                })}
           </div>
 
-          {filteredProducts.length === 0 && (
+          {!isLoadingCatalog && filteredProducts.length === 0 && (
             <div className="mt-6 text-center text-sm text-muted-foreground">
-              {isLoadingCatalog
-                ? 'Cargando catálogo de la sucursal...'
-                : productSearchMode === 'local-cache'
-                  ? 'No hay productos que coincidan con los filtros actuales.'
-                  : 'Escribí un código o descripción para buscar y agregar productos sin cargar todo el catálogo.'}
+              {productSearchMode === 'local-cache'
+                ? 'No hay productos que coincidan con los filtros actuales.'
+                : 'Escribí un código o descripción para buscar y agregar productos sin cargar todo el catálogo.'}
             </div>
           )}
         </div>

@@ -18,8 +18,8 @@ import useApi from "@/hooks/useApi"
 import { useEntityContext } from "@/context/EntityContext"
 
 // Utilidades y Iconos
-import { getRoleStyle } from "@/types/roles-styles"
-import { ArrowLeft, Save, Loader2, Eye, EyeOff, UserPlus, Link as LinkIcon } from "lucide-react"
+import { getRoleBadgeDisplay } from "@/types/roles-styles"
+import { ArrowLeft, Save, Loader2, Eye, EyeOff, Link as LinkIcon } from "lucide-react"
 import features from "@/config/features"
 
 
@@ -34,6 +34,7 @@ interface Role {
   id: string
   name: string
   description: string
+  color?: string | null
 }
 
 interface Employee {
@@ -140,7 +141,7 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
           populateFormWithUserData(userData);
           dispatch({ type: 'SET_ENTITY', entityType: 'users', id: userId, entity: userData });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!axios.isCancel(error)) {
           console.error("Error fetching user form data:", error);
           sileo.error({ title: "Error al cargar datos", description: "No se pudieron obtener los datos para el formulario." });
@@ -178,11 +179,17 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
   }, [usernameTimeoutId, emailTimeoutId, nameTimeoutId]);
 
   // --- Funciones y Manejadores ---
-  const populateFormWithUserData = (user: any) => {
-    // Guardar las sucursales del usuario
-    const userBranches = user.branches?.map((b: any) => String(b.id)) || [];
+  const populateFormWithUserData = (user: Record<string, unknown> & {
+    person?: { first_name?: string; last_name?: string }
+    branches?: Array<{ id: number }>
+    email?: string
+    username?: string
+    role_id?: number
+    active?: boolean
+  }) => {
+    const userBranches = user.branches?.map((b) => String(b.id)) || []
 
-    setFormData(prev => ({
+    setFormData(() => ({
       firstName: user.person?.first_name || "",
       lastName: user.person?.last_name || "",
       email: user.email || "",
@@ -190,8 +197,8 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       password: "",
       roleId: String(user.role_id || ""),
       active: !!user.active,
-      branches: userBranches, // Preservar las sucursales
-      employeeId: "", // On edit we don't support relinking yet
+      branches: userBranches,
+      employeeId: "",
       isEmployee: false,
     }))
   }
@@ -426,17 +433,19 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
       }
       navigate("/dashboard/usuarios");
 
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || "Ocurrió un error inesperado.";
-      sileo.error({ title: "Error al guardar", description: errorMessage });
+    } catch (error: unknown) {
+      const errorMessage = axios.isAxiosError(error)
+        ? (error.response?.data as { message?: string } | undefined)?.message
+        : undefined
+      sileo.error({ title: "Error al guardar", description: errorMessage || "Ocurrió un error inesperado." });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   // --- Renderizado del Componente ---
-  const SelectedRoleIcon = getRoleStyle(selectedRole?.name).icon;
-  const selectedRoleColor = getRoleStyle(selectedRole?.name).color;
+  const selectedRoleDisplay = getRoleBadgeDisplay(selectedRole?.name, selectedRole?.color)
+  const SelectedRoleIcon = selectedRoleDisplay.icon
 
   if (isDataLoading) {
     return (
@@ -617,21 +626,54 @@ export default function UserForm({ userId, viewOnly = false }: UserFormProps) {
                   <div className="space-y-2">
                     <Label htmlFor="role">Rol <span className="text-red-500">*</span></Label>
                     <Select value={formData.roleId || ""} onValueChange={handleRoleChange} disabled={viewOnly || isSubmitting}>
-                      <SelectTrigger id="role" className={selectedRole ? selectedRoleColor : ""}>
-                        <div className="flex items-center gap-2">
-                          {selectedRole && <SelectedRoleIcon className="h-4 w-4" />}
+                      <SelectTrigger
+                        id="role"
+                        className={selectedRole && !selectedRoleDisplay.useCustomColor ? selectedRoleDisplay.twText : ""}
+                        style={
+                          selectedRoleDisplay.useCustomColor && selectedRoleDisplay.custom
+                            ? {
+                                color: selectedRoleDisplay.custom.color,
+                                borderColor: selectedRoleDisplay.custom.borderColor,
+                              }
+                            : undefined
+                        }
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {selectedRole && (
+                            <SelectedRoleIcon
+                              className="h-4 w-4 shrink-0"
+                              style={
+                                selectedRoleDisplay.useCustomColor && selectedRoleDisplay.custom
+                                  ? { color: selectedRoleDisplay.custom.color }
+                                  : undefined
+                              }
+                            />
+                          )}
                           <SelectValue placeholder="Seleccionar rol" />
                         </div>
                       </SelectTrigger>
                       <SelectContent>
                         {allRoles.map((role) => {
-                          const RoleIcon = getRoleStyle(role.name).icon;
-                          const roleColor = getRoleStyle(role.name).color;
+                          const d = getRoleBadgeDisplay(role.name, role.color)
+                          const RoleIcon = d.icon
                           return (
-                            <SelectItem key={String(role.id)} value={String(role.id)} className={roleColor}>
-                              <div className="flex items-center gap-2"><RoleIcon className="h-4 w-4" /><span>{role.name}</span></div>
+                            <SelectItem
+                              key={String(role.id)}
+                              value={String(role.id)}
+                              className={!d.useCustomColor ? d.twText : ""}
+                            >
+                              <div
+                                className="flex items-center gap-2"
+                                style={d.useCustomColor && d.custom ? { color: d.custom.color } : undefined}
+                              >
+                                <RoleIcon
+                                  className="h-4 w-4 shrink-0"
+                                  style={d.useCustomColor && d.custom ? { color: d.custom.color } : undefined}
+                                />
+                                <span>{role.name}</span>
+                              </div>
                             </SelectItem>
-                          );
+                          )
                         })}
                       </SelectContent>
                     </Select>

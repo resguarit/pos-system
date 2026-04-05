@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Skeleton, TableSkeletonBodyRows } from "@/components/ui/loading-states"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -431,12 +432,7 @@ export default function ServicesPage() {
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-10">
-                                            <RotateCw className="h-5 w-5 animate-spin mx-auto mb-2" />
-                                            Cargando...
-                                        </TableCell>
-                                    </TableRow>
+                                    <TableSkeletonBodyRows columns={7} rows={8} />
                                 ) : services.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
@@ -545,10 +541,24 @@ export default function ServicesPage() {
                 // Cards View
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {loading ? (
-                        <div className="col-span-full text-center py-10">
-                            <RotateCw className="h-5 w-5 animate-spin mx-auto mb-2" />
-                            Cargando...
-                        </div>
+                        <>
+                            {Array.from({ length: 6 }).map((_, i) => (
+                                <Card key={i} className="overflow-hidden">
+                                    <div className="h-1 bg-muted" />
+                                    <CardHeader className="pb-2 space-y-2">
+                                        <Skeleton className="h-5 w-24" />
+                                        <Skeleton className="h-5 w-16" />
+                                    </CardHeader>
+                                    <CardContent className="space-y-3">
+                                        <Skeleton className="h-6 w-[85%]" />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <Skeleton className="h-12 w-full" />
+                                            <Skeleton className="h-12 w-full" />
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </>
                     ) : services.length === 0 ? (
                         <div className="col-span-full text-center py-10 text-muted-foreground">
                             No se encontraron servicios
@@ -802,7 +812,18 @@ export default function ServicesPage() {
                             <div>
                                 <h4 className="font-semibold mb-3">Historial de Pagos</h4>
                                 {paymentsLoading ? (
-                                    <div className="text-center py-4 text-muted-foreground">Cargando...</div>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Fecha</TableHead>
+                                                <TableHead>Monto</TableHead>
+                                                <TableHead>Notas</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            <TableSkeletonBodyRows columns={3} rows={5} />
+                                        </TableBody>
+                                    </Table>
                                 ) : payments.length === 0 ? (
                                     <div className="text-center py-4 text-muted-foreground">Sin pagos registrados</div>
                                 ) : (

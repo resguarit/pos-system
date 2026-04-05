@@ -1,55 +1,26 @@
 /**
- * @fileoverview Componente reutilizable para mostrar badges de roles con estilos consistentes.
- * 
- * @module components/roles/RoleBadge
+ * @fileoverview Badge de rol con color por nombre o hex guardado en API (#RRGGBB).
  */
 
 import { Badge } from "@/components/ui/badge"
-import { getRoleStyle } from "@/types/roles-styles"
+import { getRoleBadgeDisplay } from "@/types/roles-styles"
 import { cn } from "@/lib/utils"
 import type { HTMLAttributes } from "react"
 
 export interface RoleBadgeProps extends HTMLAttributes<HTMLDivElement> {
-  /** Nombre del rol a mostrar */
   roleName?: string | null
-  /** Texto alternativo a mostrar (por defecto usa roleName) */
+  /** Color #RRGGBB desde API (columna roles.color) */
+  roleColor?: string | null
   displayText?: string
-  /** Tamaño del icono en el badge */
   iconSize?: string
-  /** Si es true, muestra el icono */
   showIcon?: boolean
-  /** Clases CSS adicionales */
   className?: string
-  /** Variante del badge (por defecto usa los colores del rol) */
   variant?: "default" | "outline" | "secondary" | "destructive"
 }
 
-/**
- * Componente reutilizable para mostrar un badge de rol con icono y colores consistentes.
- * 
- * Este componente encapsula la lógica de obtener estilos y renderizar el badge,
- * siguiendo el principio DRY (Don't Repeat Yourself).
- * 
- * @param props - Propiedades del componente
- * @returns Un componente Badge con el estilo del rol
- * 
- * @example
- * ```tsx
- * // Uso básico
- * <RoleBadge roleName="Administrador" />
- * 
- * // Con texto personalizado
- * <RoleBadge roleName="Vendedor" displayText="Vendedor Principal" />
- * 
- * // Sin icono
- * <RoleBadge roleName="Supervisor" showIcon={false} />
- * 
- * // Con clases adicionales
- * <RoleBadge roleName="Gerente" className="hover:bg-opacity-90 truncate" />
- * ```
- */
 export function RoleBadge({
   roleName,
+  roleColor,
   displayText,
   iconSize = "h-3 w-3",
   showIcon = true,
@@ -57,26 +28,38 @@ export function RoleBadge({
   variant,
   ...props
 }: RoleBadgeProps) {
-  const roleStyle = getRoleStyle(roleName)
-  const RoleIcon = roleStyle.icon
+  const display = getRoleBadgeDisplay(roleName, roleColor)
+  const RoleIcon = display.icon
   const displayName = displayText || roleName || "Sin rol"
 
-  // Aplicar los colores del rol a menos que se especifique una variante explícita
-  const badgeClassName = variant === undefined
-    ? cn(roleStyle.badgeColor, className)
-    : className
+  if (display.useCustomColor && display.custom) {
+    const { color, borderColor, backgroundColor } = display.custom
+    return (
+      <Badge
+        variant="outline"
+        className={cn("gap-0.5 font-normal", className)}
+        style={{
+          color,
+          borderColor,
+          backgroundColor,
+        }}
+        {...props}
+      >
+        {showIcon && (
+          <RoleIcon className={cn("mr-0.5 shrink-0", iconSize)} style={{ color }} aria-hidden="true" />
+        )}
+        <span>{displayName}</span>
+      </Badge>
+    )
+  }
+
+  const badgeClassName =
+    variant === undefined ? cn(display.twBadge, className) : className
 
   return (
-    <Badge 
-      className={badgeClassName}
-      variant={variant}
-      {...props}
-    >
-      {showIcon && (
-        <RoleIcon className={cn("mr-1", iconSize)} aria-hidden="true" />
-      )}
+    <Badge className={cn(badgeClassName, "gap-0.5")} variant={variant} {...props}>
+      {showIcon && <RoleIcon className={cn("mr-0.5 shrink-0", iconSize)} aria-hidden="true" />}
       <span>{displayName}</span>
     </Badge>
   )
 }
-

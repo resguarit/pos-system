@@ -1,6 +1,6 @@
 
 import * as React from "react"
-import { Check, ChevronsUpDown, X } from "lucide-react"
+import { Check, ChevronDown, ChevronsUpDown, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,10 @@ interface MultiSelectComboboxProps {
     disabled?: boolean
     maxSelected?: number
     onMaxSelected?: () => void
+    /** Match Select-style chevron (e.g. filter rows next to native Selects). */
+    triggerIcon?: "chevrons" | "chevron-down"
+    /** Accessible name when there is no visible label. */
+    "aria-label"?: string
 }
 
 export function MultiSelectCombobox({
@@ -48,6 +52,8 @@ export function MultiSelectCombobox({
     disabled = false,
     maxSelected,
     onMaxSelected,
+    triggerIcon = "chevrons",
+    "aria-label": ariaLabel,
 }: MultiSelectComboboxProps) {
     const [open, setOpen] = React.useState(false)
 
@@ -64,7 +70,11 @@ export function MultiSelectCombobox({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className={cn("w-full justify-between hover:bg-background/90 h-auto min-h-10 px-3 py-2", className)}
+                    aria-label={ariaLabel}
+                    className={cn(
+                        "w-full justify-between items-center hover:bg-background/90 h-auto min-h-10 px-3 py-2 text-left font-normal",
+                        className
+                    )}
                     disabled={disabled}
                 >
                     <div className="flex flex-wrap gap-1 items-center w-full">
@@ -98,7 +108,11 @@ export function MultiSelectCombobox({
                             </Badge>
                         ))}
                     </div>
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    {triggerIcon === "chevron-down" ? (
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    ) : (
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    )}
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[300px] p-0" align="start">
@@ -111,6 +125,7 @@ export function MultiSelectCombobox({
                                 <CommandItem
                                     key={option.value}
                                     value={option.label}
+                                    className="min-w-0"
                                     onSelect={() => {
                                         if (selected.includes(option.value)) {
                                             onChange(selected.filter((item) => item !== option.value))
@@ -125,11 +140,11 @@ export function MultiSelectCombobox({
                                 >
                                     <Check
                                         className={cn(
-                                            "mr-2 h-4 w-4",
+                                            "mr-2 h-4 w-4 shrink-0",
                                             selected.includes(option.value) ? "opacity-100" : "opacity-0"
                                         )}
                                     />
-                                    {option.label}
+                                    <span className="min-w-0 truncate">{option.label}</span>
                                 </CommandItem>
                             ))}
                         </CommandGroup>

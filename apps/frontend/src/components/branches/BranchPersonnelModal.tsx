@@ -22,6 +22,7 @@ interface Employee {
   user?: {
     role: {
       name: string;
+      color?: string | null;
     };
   };
 }
@@ -110,6 +111,7 @@ export function BranchPersonnelModal({
                     {employee.user?.role && (
                       <RoleBadge
                         roleName={employee.user.role.name}
+                        roleColor={employee.user.role.color}
                         iconSize="h-3.5 w-3.5"
                       />
                     )}

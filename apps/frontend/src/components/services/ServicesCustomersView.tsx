@@ -20,6 +20,7 @@ import { PaymentRegistrationDialog } from "./PaymentRegistrationDialog"
 
 // Import utils
 import { getServicePaymentStatus } from "@/utils/servicePaymentStatus"
+import { getLastPayment, sortPaymentsByDateDesc } from "@/utils/servicePayments"
 
 const normalizeArrayResponse = <T,>(payload: unknown): T[] => {
     const data = payload as { data?: unknown }
@@ -467,16 +468,36 @@ export default function ServicesCustomersView() {
             sileo.success({ title: "Pago registrado exitosamente" })
             setPaymentDialogOpen(false)
 
-            const updatedService = response.data.service
+            const updatedService = response.data?.service as Service | undefined
+            const serviceIdNum = parseInt(paymentForm.service_id, 10)
 
-            if (updatedService && paymentCustomer) {
+            let refreshedPayments: Payment[] = []
+            try {
+                const payRes = await api.get(`/client-services/${serviceIdNum}/payments`)
+                refreshedPayments = Array.isArray(payRes.data) ? payRes.data : []
+            } catch (e) {
+                console.error("Error refreshing payments after register:", e)
+            }
+
+            const sortedPayments = sortPaymentsByDateDesc(refreshedPayments)
+            const lastPayment = getLastPayment(sortedPayments)
+
+            if (serviceDetailOpen && selectedService?.id === serviceIdNum) {
+                setServicePayments(sortedPayments)
+            }
+
+            const mergedService: Service | undefined = updatedService
+                ? { ...updatedService, last_payment: lastPayment }
+                : undefined
+
+            if (mergedService && paymentCustomer) {
                 setCustomers(prevCustomers =>
                     prevCustomers.map(c => {
                         if (c.id === paymentCustomer.id) {
                             return {
                                 ...c,
                                 client_services: c.client_services.map(s =>
-                                    s.id === updatedService.id ? updatedService : s
+                                    s.id === mergedService.id ? mergedService : s
                                 )
                             }
                         }
@@ -490,7 +511,7 @@ export default function ServicesCustomersView() {
                         return {
                             ...prev,
                             client_services: prev.client_services.map(s =>
-                                s.id === updatedService.id ? updatedService : s
+                                s.id === mergedService.id ? mergedService : s
                             )
                         }
                     })

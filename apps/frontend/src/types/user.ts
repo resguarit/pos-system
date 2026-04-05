@@ -23,6 +23,7 @@ export interface User {
     name: string;
     description?: string;
     is_system?: boolean;
+    color?: string | null;
     access_schedule?: AccessSchedule;
   };
   permissions: string[];
@@ -72,6 +73,7 @@ export interface Role {
   description?: string;
   is_system?: boolean;
   active?: boolean;
+  color?: string | null;
   permissions?: Permission[];
   permissions_count?: number;
   access_schedule?: AccessSchedule;

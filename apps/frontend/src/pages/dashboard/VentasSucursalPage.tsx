@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { TableSkeletonBodyRows } from "@/components/ui/loading-states"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
@@ -535,7 +536,7 @@ export default function BranchSalesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && <TableRow><TableCell colSpan={7} className="text-center">Cargando ventas...</TableCell></TableRow>}
+            {loading && <TableSkeletonBodyRows columns={7} rows={8} />}
             {!loading && filteredSales.length === 0 && <TableRow><TableCell colSpan={7} className="text-center">No se encontraron ventas para el período seleccionado.</TableCell></TableRow>}
             {!loading && paginationData.paginatedSales.map((sale) => {
               const receiptTypeInfo = getReceiptType(sale);

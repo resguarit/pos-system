@@ -49,11 +49,26 @@ export const calculateSaleTotals = (
   // 1. Aplicar descuentos por ítem
   const prepared = cart.map((item) => {
     const unitWithIva = Number(item.price_with_iva || item.sale_price || 0)
-    const qty = Math.max(1, Number(item.quantity || 0))
+    const rawQty = Number(item.quantity || 0)
+    const minQty = item.is_scale_line ? 0.001 : 1
+    const qty = Math.max(minQty, rawQty)
     const ivaRate = (item.iva_rate || 0) / 100
 
     const unitWithoutIva = ivaRate > 0 ? unitWithIva / (1 + ivaRate) : unitWithIva
-    const baseWithoutIva = unitWithoutIva * qty
+
+    // Línea de balanza: importe de la etiqueta manda (total con IVA); evita $0,50 de diferencia por redondeo de kg
+    let baseWithoutIva: number
+    if (
+      item.is_scale_line &&
+      item.scale_embedded_amount != null &&
+      Number(item.scale_embedded_amount) > 0
+    ) {
+      const grossWithIva = roundToTwoDecimals(Number(item.scale_embedded_amount))
+      baseWithoutIva = grossWithIva / (1 + ivaRate)
+    } else {
+      baseWithoutIva = unitWithoutIva * qty
+    }
+
     const itemAllowsDiscount = item.allow_discount !== false
 
     let itemDiscountOnBase = 0
@@ -105,7 +120,19 @@ export const calculateSaleTotals = (
   const total = Math.max(0, roundToTwoDecimals(subtotalWithIva - globalDiscountAmount))
 
   const totalItemDiscount = prepared.reduce((sum, p, i) => {
-    const originalBase = roundToTwoDecimals((cart[i].price || 0) * (cart[i].quantity || 0))
+    const ci = cart[i]
+    let originalBase: number
+    if (
+      ci.is_scale_line &&
+      ci.scale_embedded_amount != null &&
+      Number(ci.scale_embedded_amount) > 0
+    ) {
+      const g = Number(ci.scale_embedded_amount)
+      const r = (ci.iva_rate || 0) / 100
+      originalBase = roundToTwoDecimals(g / (1 + r))
+    } else {
+      originalBase = roundToTwoDecimals((ci.price || 0) * (ci.quantity || 0))
+    }
     return sum + Math.max(0, originalBase - p.netBase)
   }, 0)
 

@@ -104,12 +104,14 @@ class ProductService implements ProductServiceInterface
                         // Example: "fin%li" becomes "%fin%li%" -> matches "...fin...li..."
                         $term = "%{$search}%";
                         $q->where('code', 'LIKE', $term)
+                            ->orWhere('scale_plu', 'LIKE', $term)
                             ->orWhere('description', 'LIKE', $term)
                             ->orWhereHas('category', function ($catQ) use ($term) {
                                 $catQ->where('name', 'LIKE', $term);
                             });
                     } else {
                         $q->where('code', 'LIKE', "%{$search}%")
+                            ->orWhere('scale_plu', 'LIKE', "%{$search}%")
                             ->orWhere('description', 'LIKE', "%{$search}%")
                             ->orWhereHas('category', function ($catQ) use ($search) {
                                 $catQ->where('name', 'LIKE', "%{$search}%");
@@ -353,7 +355,7 @@ class ProductService implements ProductServiceInterface
 
         // Lista de campos permitidos para asignación directa al modelo
         $allowedFields = [
-            'code', 'description', 'unit_price', 'markup', 'sale_price',
+            'code', 'description', 'scale_plu', 'unit_price', 'markup', 'sale_price',
             'category_id', 'measure_id', 'supplier_id', 'iva_id',
             'status', 'web', 'allow_discount', 'observaciones', 'currency'
         ];

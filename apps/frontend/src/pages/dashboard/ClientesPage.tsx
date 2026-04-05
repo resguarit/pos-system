@@ -3,6 +3,7 @@ import { useEntityContext } from "@/context/EntityContext"
 import { useAuth } from "@/hooks/useAuth"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
+import { TableSkeletonBodyRows } from "@/components/ui/loading-states"
 import { Badge } from "@/components/ui/badge"
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
@@ -277,8 +278,64 @@ export default function ClientesPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <RotateCw className="animate-spin mr-2 h-5 w-5" /> Cargando clientes...
+        <div className="rounded-md border bg-card">
+          <div className="relative">
+            <Table ref={tableRef} className="w-full">
+              <TableHeader>
+                <TableRow>
+                  <ResizableTableHeader
+                    columnId="name"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                  >
+                    Nombre
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
+                    columnId="email"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                    className="hidden md:table-cell"
+                  >
+                    Email
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
+                    columnId="cuit"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                    className="hidden md:table-cell"
+                  >
+                    CUIT/DNI
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
+                    columnId="phone"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                    className="hidden md:table-cell"
+                  >
+                    Teléfono
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
+                    columnId="status"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                  >
+                    Estado
+                  </ResizableTableHeader>
+                  <ResizableTableHeader
+                    columnId="actions"
+                    getResizeHandleProps={getResizeHandleProps}
+                    getColumnHeaderProps={getColumnHeaderProps}
+                    className="text-center"
+                  >
+                    Acciones
+                  </ResizableTableHeader>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableSkeletonBodyRows columns={6} rows={10} />
+              </TableBody>
+            </Table>
+          </div>
         </div>
       ) : (
         <div className="rounded-md border bg-card">

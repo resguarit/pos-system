@@ -10,6 +10,7 @@ import { EditProductDialog } from "@/components/edit-product-dialog"
 import { ViewProductDialog } from "@/components/view-product-dialog"
 import useApi from "@/hooks/useApi"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { LoadingSkeleton } from "@/components/ui/loading-states"
 import type { Product, Stock, Category as ProductCategoryType, Branch } from "@/types/product"
 import { DeleteProductDialog } from "@/components/delete-product-dialog"
 import { useEntityContext } from "@/context/EntityContext"
@@ -1066,11 +1067,8 @@ export default function InventarioPage() {
           )}
 
           {loading ? (
-            <div className="flex flex-1 justify-center items-center py-8">
-              <div className="flex flex-col items-center">
-                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                <p className="mt-2 text-sm text-muted-foreground">Cargando productos...</p>
-              </div>
+            <div className="flex-1 rounded-md border bg-card p-4 min-h-[360px]">
+              <LoadingSkeleton height="min-h-[320px]" items={14} className="w-full" />
             </div>
           ) : (
             <div className="flex-1 rounded-md border bg-card">

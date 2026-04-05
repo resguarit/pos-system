@@ -26,6 +26,7 @@ class SaleItem extends Model
         'item_subtotal',
         'item_iva',
         'item_total',
+        'scale_barcode_meta',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -46,6 +47,7 @@ class SaleItem extends Model
         'item_iva' => 'decimal:3',
         'item_total' => 'decimal:3',
         'is_combo' => 'boolean',
+        'scale_barcode_meta' => 'array',
     ];
 
     public function saleHeader()

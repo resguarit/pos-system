@@ -4,6 +4,7 @@ import { type Budget } from '@/hooks/useBudgets'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableHeader, TableRow } from '@/components/ui/table'
+import { TableSkeletonBodyRows } from '@/components/ui/loading-states'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrency } from '@/utils/sale-calculations'
@@ -154,9 +155,23 @@ export default function PresupuestosPage({
             {/* Budgets Table */}
             <div className="rounded-md border">
                 {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
+                    <Table ref={tableRef}>
+                        <TableHeader>
+                            <TableRow>
+                                <ResizableTableHeader columnId="number" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Nº Venta</ResizableTableHeader>
+                                <ResizableTableHeader columnId="customer" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Cliente</ResizableTableHeader>
+                                <ResizableTableHeader columnId="receipt_type" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Comprobante</ResizableTableHeader>
+                                <ResizableTableHeader columnId="branch" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className={showBranchColumn ? "" : "hidden"}>Sucursal</ResizableTableHeader>
+                                <ResizableTableHeader columnId="items" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className="text-center">Items</ResizableTableHeader>
+                                <ResizableTableHeader columnId="date" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Fecha</ResizableTableHeader>
+                                <ResizableTableHeader columnId="total" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className="text-right">Total</ResizableTableHeader>
+                                <ResizableTableHeader columnId="actions" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps} className="text-center">Acciones</ResizableTableHeader>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableSkeletonBodyRows columns={8} rows={8} />
+                        </TableBody>
+                    </Table>
                 ) : budgets.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                         <FileText className="h-12 w-12 mb-4 opacity-50" />

@@ -175,3 +175,33 @@ export function hasCustomRoleStyle(roleName?: string | null): boolean {
   const normalizedRole = normalizeRoleName(roleName)
   return normalizedRole !== '' && normalizedRole in ROLE_STYLES_CONFIG
 }
+
+/** True if string is a valid #RRGGBB color (API / form). */
+export function isValidRoleColorHex(v: string | null | undefined): v is string {
+  return typeof v === "string" && /^#[0-9A-Fa-f]{6}$/.test(v.trim())
+}
+
+/**
+ * Visual for role badges: optional custom hex overrides name-based Tailwind classes.
+ */
+export function getRoleBadgeDisplay(roleName: string | null | undefined, colorHex?: string | null) {
+  const base = getRoleStyle(roleName)
+  const hex = colorHex?.trim()
+  if (isValidRoleColorHex(hex)) {
+    return {
+      icon: base.icon,
+      useCustomColor: true as const,
+      custom: {
+        color: hex,
+        borderColor: `${hex}66`,
+        backgroundColor: `${hex}22`,
+      },
+    }
+  }
+  return {
+    icon: base.icon,
+    useCustomColor: false as const,
+    twText: base.textColor,
+    twBadge: base.badgeColor,
+  }
+}

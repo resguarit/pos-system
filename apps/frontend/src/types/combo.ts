@@ -109,6 +109,11 @@ export interface CartItem {
   combo_name?: string;
   original_combo_price?: number;
   combo_discount_applied?: number;
+  /** Línea generada por etiqueta de balanza (cantidad en kg) */
+  is_scale_line?: boolean;
+  scale_barcode?: string;
+  scale_plu?: string;
+  scale_embedded_amount?: number;
 }
 
 export interface CreateComboRequest {

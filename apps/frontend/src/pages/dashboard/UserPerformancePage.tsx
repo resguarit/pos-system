@@ -17,6 +17,7 @@ import { sileo } from "sileo"
 import { format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowLeft, Download, TrendingUp, BarChart3, DollarSign, Award, RefreshCw } from 'lucide-react';
+import { Skeleton, TableSkeletonBodyRows } from '@/components/ui/loading-states';
 import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import * as XLSX from 'xlsx';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -562,13 +563,20 @@ export default function UserPerformancePage() {
 
   if (loadingUser || !user) {
     return (
-      <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p>Cargando datos del usuario...</p>
+      <div className="flex-1 space-y-6 p-4 pt-6 md:p-8" aria-busy="true" aria-label="Cargando datos del usuario">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10 rounded-md shrink-0" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-8 w-64 max-w-full rounded-md" />
+            <Skeleton className="h-4 w-96 max-w-full rounded-md" />
           </div>
         </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
+          <Skeleton className="h-28 rounded-xl" />
+        </div>
+        <Skeleton className="h-64 w-full rounded-lg" />
       </div>
     );
   }
@@ -964,12 +972,7 @@ export default function UserPerformancePage() {
                     </TableHeader>
                     <TableBody>
                       {loadingData ? (
-                        <TableRow>
-                          <TableCell colSpan={columnConfig.length} className="text-center py-8">
-                            <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2" />
-                            Cargando ventas...
-                          </TableCell>
-                        </TableRow>
+                        <TableSkeletonBodyRows columns={columnConfig.length} rows={8} />
                       ) : sales.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={columnConfig.length} className="text-center py-8 text-muted-foreground">

@@ -96,6 +96,8 @@ export interface Product {
   id: number;
   description: string;
   code: string; // Changed from number to string to match usage
+  /** PLU de balanza (ej. 36) para etiquetas EAN-13 variables; único si está definido */
+  scale_plu?: string | null;
   measure_id: number;
   unit_price: string;
   currency: 'USD' | 'ARS'; // Tipo específico para monedas soportadas

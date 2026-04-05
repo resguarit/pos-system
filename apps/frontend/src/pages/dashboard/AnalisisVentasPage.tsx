@@ -1,4 +1,6 @@
 import { useMemo, useCallback } from "react"
+import { useResizableColumns } from "@/hooks/useResizableColumns"
+import { ResizableTableHeader, ResizableTableCell } from "@/components/ui/resizable-table-header"
 import { SupplierSearchCombobox } from "@/components/suppliers/SupplierSearchCombobox"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -7,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download, BarChart3, TrendingUp, Package, DollarSign, Search, RefreshCw, Users, Clock, Tag, Truck, CreditCard, CalendarDays } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useBranches } from "@/hooks/useBranches"
 import { useAuth } from "@/hooks/useAuth"
@@ -269,6 +271,7 @@ export default function AnalisisVentasPage() {
             data={byUser.map(u => ({ id: u.user_id, name: u.user_name, total_sales: u.total_sales, total_units: u.total_units, total_revenue: u.total_revenue }))}
             totalRevenue={stats?.total_revenue ?? 0}
             chartLayout="vertical"
+            tableStorageKey="analisis-ventas-grouped-usuarios"
           />
         </TabsContent>
 
@@ -279,6 +282,7 @@ export default function AnalisisVentasPage() {
             description="Desglose por categoría de producto"
             data={byCategory.map(c => ({ id: c.category_id, name: c.category_name, total_sales: c.total_sales, total_units: c.total_units, total_revenue: c.total_revenue }))}
             totalRevenue={stats?.total_revenue ?? 0}
+            tableStorageKey="analisis-ventas-grouped-categorias"
           />
         </TabsContent>
 
@@ -290,6 +294,7 @@ export default function AnalisisVentasPage() {
             data={bySupplier.map(s => ({ id: s.supplier_id, name: s.supplier_name, total_sales: s.total_sales, total_units: s.total_units, total_revenue: s.total_revenue }))}
             totalRevenue={stats?.total_revenue ?? 0}
             chartLayout="vertical"
+            tableStorageKey="analisis-ventas-grouped-proveedores"
           />
         </TabsContent>
 
@@ -568,14 +573,37 @@ interface GroupedStatRow {
   total_revenue: number
 }
 
-function GroupedStatsCard({ title, description, data, totalRevenue, chartLayout }: {
+function GroupedStatsCard({ title, description, data, totalRevenue, chartLayout, tableStorageKey }: {
   title: string
   description: string
   data: GroupedStatRow[]
   totalRevenue: number
   chartLayout?: 'vertical'
+  tableStorageKey: string
 }) {
   const chartData = data.slice(0, 10)
+
+  const groupedColumnConfig = useMemo(
+    () => [
+      { id: "name", minWidth: 120, maxWidth: 480, defaultWidth: 220 },
+      { id: "sales", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "units", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "revenue", minWidth: 88, maxWidth: 180, defaultWidth: 120 },
+      { id: "pct", minWidth: 72, maxWidth: 120, defaultWidth: 88 },
+    ],
+    []
+  )
+
+  const {
+    getResizeHandleProps,
+    getColumnHeaderProps,
+    getColumnCellProps,
+    tableRef,
+  } = useResizableColumns({
+    columns: groupedColumnConfig,
+    storageKey: tableStorageKey,
+    defaultWidth: 120,
+  })
 
   // Ajustar dominio del eje Y para mejor visualización
   const minRevenue = chartData.length > 0 ? Math.min(...chartData.map(d => Number(d.total_revenue))) : 0
@@ -615,24 +643,44 @@ function GroupedStatsCard({ title, description, data, totalRevenue, chartLayout 
               )}
             </ResponsiveContainer>
             <div className="mt-4 overflow-auto">
-              <Table>
+              <Table ref={tableRef}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead className="text-right">Ventas</TableHead>
-                    <TableHead className="text-right">Unidades</TableHead>
-                    <TableHead className="text-right">Ingresos</TableHead>
-                    <TableHead className="text-right">% Total</TableHead>
+                    <ResizableTableHeader columnId="name" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Nombre
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="sales" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ventas
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="units" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Unidades
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="revenue" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ingresos
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="pct" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      % Total
+                    </ResizableTableHeader>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.map((row) => (
                     <TableRow key={String(row.id ?? 'null')}>
-                      <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(row.total_sales))}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(row.total_units))}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(row.total_revenue))}</TableCell>
-                      <TableCell className="text-right">{percentOf(Number(row.total_revenue), totalRevenue)}</TableCell>
+                      <ResizableTableCell columnId="name" getColumnCellProps={getColumnCellProps} className="font-medium">
+                        {row.name}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="sales" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(row.total_sales))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="units" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(row.total_units))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="revenue" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatCurrency(Number(row.total_revenue))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="pct" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {percentOf(Number(row.total_revenue), totalRevenue)}
+                      </ResizableTableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -649,6 +697,31 @@ function GroupedStatsCard({ title, description, data, totalRevenue, chartLayout 
 
 /** Tabla y gráfico de top productos */
 function TopProductsTable({ data }: { data: Array<{ product_id: number; product_code: string; product_name: string; category_name: string; supplier_name: string; total_units: number; total_revenue: number; total_sales: number }> }) {
+  const topProductsColumnConfig = useMemo(
+    () => [
+      { id: "rank", minWidth: 48, maxWidth: 80, defaultWidth: 56 },
+      { id: "code", minWidth: 72, maxWidth: 160, defaultWidth: 100 },
+      { id: "product", minWidth: 120, maxWidth: 400, defaultWidth: 200 },
+      { id: "category", minWidth: 100, maxWidth: 220, defaultWidth: 140 },
+      { id: "supplier", minWidth: 100, maxWidth: 220, defaultWidth: 140 },
+      { id: "units", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "revenue", minWidth: 88, maxWidth: 180, defaultWidth: 120 },
+      { id: "sales", minWidth: 72, maxWidth: 140, defaultWidth: 88 },
+    ],
+    []
+  )
+
+  const {
+    getResizeHandleProps,
+    getColumnHeaderProps,
+    getColumnCellProps,
+    tableRef,
+  } = useResizableColumns({
+    columns: topProductsColumnConfig,
+    storageKey: "analisis-ventas-top-productos",
+    defaultWidth: 120,
+  })
+
   // Gráfico: top 10 productos por ingresos
   const chartData = data.slice(0, 10).map((p) => ({
     ...p,
@@ -689,34 +762,64 @@ function TopProductsTable({ data }: { data: Array<{ product_id: number; product_
               </BarChart>
             </ResponsiveContainer>
             <div className="mt-4 overflow-auto">
-              <Table>
+              <Table ref={tableRef}>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-10">#</TableHead>
-                    <TableHead>Código</TableHead>
-                    <TableHead>Producto</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead>Proveedor</TableHead>
-                    <TableHead className="text-right">Unidades</TableHead>
-                    <TableHead className="text-right">Ingresos</TableHead>
-                    <TableHead className="text-right">Ventas</TableHead>
+                    <ResizableTableHeader columnId="rank" className="w-10" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      #
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="code" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Código
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="product" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Producto
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="category" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Categoría
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="supplier" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Proveedor
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="units" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Unidades
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="revenue" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ingresos
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="sales" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ventas
+                    </ResizableTableHeader>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.map((p, i) => (
                     <TableRow key={p.product_id}>
-                      <TableCell>
+                      <ResizableTableCell columnId="rank" getColumnCellProps={getColumnCellProps} className="[&>div]:overflow-visible [&>div]:max-w-none">
                         <span className={`w-7 flex justify-center items-center rounded font-bold ${i < 3 ? badgeColors[i] : 'bg-secondary text-secondary-foreground'}`} title={i === 0 ? 'Oro' : i === 1 ? 'Plata' : i === 2 ? 'Bronce' : ''}>
                           {i + 1}
                         </span>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{p.product_code || '—'}</TableCell>
-                      <TableCell className="font-medium max-w-[200px] truncate">{p.product_name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{p.category_name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">{p.supplier_name}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatNumber(Number(p.total_units))}</TableCell>
-                      <TableCell className="text-right font-semibold">{formatCurrency(Number(p.total_revenue))}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(p.total_sales))}</TableCell>
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="code" getColumnCellProps={getColumnCellProps} className="font-mono text-xs">
+                        {p.product_code || "—"}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="product" getColumnCellProps={getColumnCellProps} className="font-medium">
+                        {p.product_name}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="category" getColumnCellProps={getColumnCellProps} className="text-muted-foreground text-sm">
+                        {p.category_name}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="supplier" getColumnCellProps={getColumnCellProps} className="text-muted-foreground text-sm">
+                        {p.supplier_name}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="units" getColumnCellProps={getColumnCellProps} className="text-right font-semibold">
+                        {formatNumber(Number(p.total_units))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="revenue" getColumnCellProps={getColumnCellProps} className="text-right font-semibold">
+                        {formatCurrency(Number(p.total_revenue))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="sales" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(p.total_sales))}
+                      </ResizableTableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -733,6 +836,26 @@ function TopProductsTable({ data }: { data: Array<{ product_id: number; product_
 
 /** Gráfico de ventas por hora */
 function HourChart({ data }: { data: Array<{ hour: number; total_sales: number; total_units: number; total_revenue: number }> }) {
+  const hourColumnConfig = useMemo(
+    () => [
+      { id: "hour", minWidth: 88, maxWidth: 180, defaultWidth: 120 },
+      { id: "sales", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "units", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "revenue", minWidth: 88, maxWidth: 180, defaultWidth: 120 },
+    ],
+    []
+  )
+  const {
+    getResizeHandleProps,
+    getColumnHeaderProps,
+    getColumnCellProps,
+    tableRef,
+  } = useResizableColumns({
+    columns: hourColumnConfig,
+    storageKey: "analisis-ventas-horas",
+    defaultWidth: 120,
+  })
+
   return (
     <Card>
       <CardHeader>
@@ -754,15 +877,38 @@ function HourChart({ data }: { data: Array<{ hour: number; total_sales: number; 
               </BarChart>
             </ResponsiveContainer>
             <div className="mt-4 overflow-auto">
-              <Table>
-                <TableHeader><TableRow><TableHead>Hora</TableHead><TableHead className="text-right">Ventas</TableHead><TableHead className="text-right">Unidades</TableHead><TableHead className="text-right">Ingresos</TableHead></TableRow></TableHeader>
+              <Table ref={tableRef}>
+                <TableHeader>
+                  <TableRow>
+                    <ResizableTableHeader columnId="hour" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Hora
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="sales" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ventas
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="units" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Unidades
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="revenue" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ingresos
+                    </ResizableTableHeader>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {data.map((h) => (
                     <TableRow key={h.hour}>
-                      <TableCell className="font-medium">{formatHourRange(h.hour)}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(h.total_sales))}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(h.total_units))}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(h.total_revenue))}</TableCell>
+                      <ResizableTableCell columnId="hour" getColumnCellProps={getColumnCellProps} className="font-medium">
+                        {formatHourRange(h.hour)}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="sales" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(h.total_sales))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="units" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(h.total_units))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="revenue" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatCurrency(Number(h.total_revenue))}
+                      </ResizableTableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -780,6 +926,26 @@ function HourChart({ data }: { data: Array<{ hour: number; total_sales: number; 
 /** Gráfico de ventas por método de pago */
 function PaymentMethodCard({ data }: { data: Array<{ payment_method_id: number; payment_method_name: string; total_sales: number; total_revenue: number }> }) {
   const totalPayments = data.reduce((acc, pm) => acc + Number(pm.total_revenue), 0)
+
+  const paymentColumnConfig = useMemo(
+    () => [
+      { id: "method", minWidth: 120, maxWidth: 320, defaultWidth: 200 },
+      { id: "sales", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "revenue", minWidth: 88, maxWidth: 180, defaultWidth: 120 },
+      { id: "pct", minWidth: 72, maxWidth: 120, defaultWidth: 88 },
+    ],
+    []
+  )
+  const {
+    getResizeHandleProps,
+    getColumnHeaderProps,
+    getColumnCellProps,
+    tableRef,
+  } = useResizableColumns({
+    columns: paymentColumnConfig,
+    storageKey: "analisis-ventas-pagos",
+    defaultWidth: 120,
+  })
 
   return (
     <Card>
@@ -802,15 +968,38 @@ function PaymentMethodCard({ data }: { data: Array<{ payment_method_id: number; 
               </BarChart>
             </ResponsiveContainer>
             <div className="mt-4 overflow-auto">
-              <Table>
-                <TableHeader><TableRow><TableHead>Método de Pago</TableHead><TableHead className="text-right">Ventas</TableHead><TableHead className="text-right">Ingresos</TableHead><TableHead className="text-right">% Total</TableHead></TableRow></TableHeader>
+              <Table ref={tableRef}>
+                <TableHeader>
+                  <TableRow>
+                    <ResizableTableHeader columnId="method" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Método de Pago
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="sales" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ventas
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="revenue" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ingresos
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="pct" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      % Total
+                    </ResizableTableHeader>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {data.map((p) => (
                     <TableRow key={p.payment_method_id}>
-                      <TableCell className="font-medium">{p.payment_method_name}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(p.total_sales))}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(p.total_revenue))}</TableCell>
-                      <TableCell className="text-right">{percentOf(Number(p.total_revenue), totalPayments)}</TableCell>
+                      <ResizableTableCell columnId="method" getColumnCellProps={getColumnCellProps} className="font-medium">
+                        {p.payment_method_name}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="sales" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(p.total_sales))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="revenue" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatCurrency(Number(p.total_revenue))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="pct" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {percentOf(Number(p.total_revenue), totalPayments)}
+                      </ResizableTableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -828,6 +1017,26 @@ function PaymentMethodCard({ data }: { data: Array<{ payment_method_id: number; 
 /** Gráfico de ventas por día de la semana */
 function DayOfWeekCard({ data }: { data: Array<{ day_of_week: number; total_sales: number; total_units: number; total_revenue: number }> }) {
   const chartData = data.map(d => ({ ...d, day_name: getDayName(d.day_of_week) }))
+
+  const dowColumnConfig = useMemo(
+    () => [
+      { id: "day", minWidth: 100, maxWidth: 200, defaultWidth: 140 },
+      { id: "sales", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "units", minWidth: 72, maxWidth: 140, defaultWidth: 96 },
+      { id: "revenue", minWidth: 88, maxWidth: 180, defaultWidth: 120 },
+    ],
+    []
+  )
+  const {
+    getResizeHandleProps,
+    getColumnHeaderProps,
+    getColumnCellProps,
+    tableRef,
+  } = useResizableColumns({
+    columns: dowColumnConfig,
+    storageKey: "analisis-ventas-dias",
+    defaultWidth: 120,
+  })
 
   return (
     <Card>
@@ -850,15 +1059,38 @@ function DayOfWeekCard({ data }: { data: Array<{ day_of_week: number; total_sale
               </BarChart>
             </ResponsiveContainer>
             <div className="mt-4 overflow-auto">
-              <Table>
-                <TableHeader><TableRow><TableHead>Día</TableHead><TableHead className="text-right">Ventas</TableHead><TableHead className="text-right">Unidades</TableHead><TableHead className="text-right">Ingresos</TableHead></TableRow></TableHeader>
+              <Table ref={tableRef}>
+                <TableHeader>
+                  <TableRow>
+                    <ResizableTableHeader columnId="day" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Día
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="sales" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ventas
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="units" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Unidades
+                    </ResizableTableHeader>
+                    <ResizableTableHeader columnId="revenue" className="text-right" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>
+                      Ingresos
+                    </ResizableTableHeader>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {data.map((d) => (
                     <TableRow key={d.day_of_week}>
-                      <TableCell className="font-medium">{getDayName(d.day_of_week)}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(d.total_sales))}</TableCell>
-                      <TableCell className="text-right">{formatNumber(Number(d.total_units))}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(d.total_revenue))}</TableCell>
+                      <ResizableTableCell columnId="day" getColumnCellProps={getColumnCellProps} className="font-medium">
+                        {getDayName(d.day_of_week)}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="sales" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(d.total_sales))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="units" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatNumber(Number(d.total_units))}
+                      </ResizableTableCell>
+                      <ResizableTableCell columnId="revenue" getColumnCellProps={getColumnCellProps} className="text-right">
+                        {formatCurrency(Number(d.total_revenue))}
+                      </ResizableTableCell>
                     </TableRow>
                   ))}
                 </TableBody>
