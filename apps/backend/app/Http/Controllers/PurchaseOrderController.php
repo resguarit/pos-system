@@ -98,6 +98,18 @@ class PurchaseOrderController extends Controller
                 });
             }
 
+            // Filtro por uno o más productos (ítems de la orden)
+            if ($request->filled('product_ids')) {
+                $raw = $request->input('product_ids');
+                $ids = is_array($raw) ? $raw : [$raw];
+                $ids = array_values(array_filter(array_map('intval', $ids), fn ($id) => $id > 0));
+                if (count($ids) > 0) {
+                    $query->whereHas('items', function ($q) use ($ids) {
+                        $q->whereIn('product_id', $ids);
+                    });
+                }
+            }
+
             $perPage = $request->input('per_page', 15);
             $purchaseOrders = $query->latest()->paginate($perPage);
             return response()->json($purchaseOrders);

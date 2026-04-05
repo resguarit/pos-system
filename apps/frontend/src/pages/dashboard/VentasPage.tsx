@@ -17,6 +17,7 @@ import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { ChevronDown, ChevronUp, Download, FileText, Filter, Printer, RefreshCw, TrendingUp, Users, Wallet, X, Loader2, Eye, Undo2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TableSkeletonBodyRows } from "@/components/ui/loading-states";
 
 
 
@@ -34,7 +35,7 @@ import type { DateRange } from "@/components/ui/date-range-picker";
 import Pagination from "@/components/ui/pagination";
 import { format, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import useApi from "@/hooks/useApi";
 import { type SaleHeader } from "@/types/sale";
 import { sileo } from "sileo"
@@ -61,7 +62,7 @@ import PresupuestosPage from "./PresupuestosPage";
 import { useBudgets } from "@/hooks/useBudgets";
 import { useCashRegisterStatus } from "@/hooks/useCashRegisterStatus";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
-import { AsyncMultiSelect, type Option } from "@/components/ui/async-multi-select";
+import { ProductAsyncMultiSelectFilter } from "@/components/products/ProductAsyncMultiSelectFilter";
 import { usePersistentState } from "@/hooks/usePersistentState";
 
 // Configuración de paginación
@@ -107,13 +108,6 @@ export default function VentasPage() {
   const [branchFilterIds, setBranchFilterIds] = usePersistentState<string[]>("branchFilterIds", []);
   const [selectedProductIds, setSelectedProductIds] = usePersistentState<string[]>("selectedProductIds", []); // Estado para productos seleccionados
   const [selectedReceiptType, setSelectedReceiptType] = usePersistentState<string>("selectedReceiptType", "all");
-  const [productOptions, setProductOptions] = useState<Option[]>([]); // Estado para opciones de productos
-  const [productLabelMap, setProductLabelMap] = useState<Record<string, string>>({});
-  const [debouncedProductQuery, setDebouncedProductQuery] = useState("");
-  const [productPage, setProductPage] = useState(1);
-  const [productHasMore, setProductHasMore] = useState(false);
-  const [productLoading, setProductLoading] = useState(false);
-  const productSearchRequestIdRef = useRef(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Presupuestos State & Hook
@@ -147,22 +141,7 @@ export default function VentasPage() {
     return `${first} +${branchFilterIds.length - 1}`;
   }, [branchFilterIds, branches]);
 
-  const handleProductSearch = useCallback((query: string) => {
-    const trimmedQuery = query.trim();
-
-    setProductPage(1);
-    setDebouncedProductQuery(trimmedQuery);
-
-    if (trimmedQuery.length < 2) {
-      setProductOptions([]);
-      setProductHasMore(false);
-    }
-  }, []);
-
   const toggleBranchFilter = (value: string) => {
-    setProductOptions([]);
-    setProductHasMore(false);
-    setProductPage(1);
     if (branchFilterIds.includes(value)) {
       setBranchFilterIds(branchFilterIds.filter((v) => v !== value));
     } else {
@@ -318,92 +297,6 @@ export default function VentasPage() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
-
-  useEffect(() => {
-    const fetchProducts = async () => {
-      const query = debouncedProductQuery.trim();
-
-      if (query.length < 2) {
-        setProductHasMore(false);
-        setProductLoading(false);
-        return;
-      }
-
-      const requestId = ++productSearchRequestIdRef.current;
-
-      setProductLoading(true);
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = {
-          search: query,
-          page: productPage,
-          per_page: 50,
-        };
-        if (selectedBranchIds.length > 0) {
-          params.branch_ids = selectedBranchIds.map(id => Number(id));
-        }
-
-        const response = await request({
-          method: 'GET',
-          url: '/products',
-          params
-        });
-
-        const responseData = response?.data ?? response;
-        const rawProducts =
-          (response?.success ? response?.data?.data ?? response?.data : undefined) ??
-          responseData?.data ??
-          responseData ??
-          [];
-
-        const items = (Array.isArray(rawProducts) ? rawProducts : []) as Array<Record<string, unknown>>;
-        const options: Option[] = items.map((p) => {
-          const code = p.code ?? p.sku ?? p.barcode ?? p.id;
-          const name = p.name ?? p.description ?? "Sin nombre";
-          const id = p.id ?? code;
-          return {
-            label: `${code} - ${name}`,
-            value: String(id)
-          };
-        });
-
-        if (requestId !== productSearchRequestIdRef.current) {
-          return;
-        }
-
-        setProductOptions((prev) => {
-          if (productPage === 1) return options;
-          const map = new Map(prev.map((opt) => [opt.value, opt]));
-          options.forEach((opt) => map.set(opt.value, opt));
-          return Array.from(map.values());
-        });
-        setProductHasMore(items.length === 50);
-        setProductLabelMap((prev) => {
-          const next = { ...prev };
-          options.forEach((opt) => {
-            next[opt.value] = opt.label;
-          });
-          return next;
-        });
-      } catch (error) {
-        if (requestId !== productSearchRequestIdRef.current) {
-          return;
-        }
-
-        console.error("Error fetching products:", error);
-        if (productPage === 1) setProductOptions([]);
-        setProductHasMore(false);
-      } finally {
-        if (requestId === productSearchRequestIdRef.current) {
-          setProductLoading(false);
-        }
-      }
-    };
-
-    fetchProducts();
-  }, [request, debouncedProductQuery, productPage, selectedBranchIds]);
-
-
 
   const fetchSales = async (fromDate?: Date, toDate?: Date, page = 1, search = "") => {
     try {
@@ -1461,18 +1354,11 @@ export default function VentasPage() {
 
                       {statusFilter !== 'budgets' && (
                         <div className="w-full sm:w-[260px] shrink-0">
-                          <AsyncMultiSelect
-                            options={productOptions}
+                          <ProductAsyncMultiSelectFilter
+                            branchIds={effectiveBranchIds}
                             selected={selectedProductIds}
                             onChange={setSelectedProductIds}
-                            onSearch={handleProductSearch}
-                            loading={productLoading}
-                            hasMore={productHasMore}
-                            onLoadMore={() => setProductPage(p => p + 1)}
                             placeholder="Productos"
-                            searchPlaceholder="Buscar producto..."
-                            emptyMessage={debouncedProductQuery.trim().length < 2 ? "Escribi al menos 2 caracteres para buscar." : "No se encontraron productos"}
-                            selectedLabelMap={productLabelMap}
                             className="h-9 min-h-9 py-2 bg-background"
                           />
                         </div>
@@ -1604,16 +1490,7 @@ export default function VentasPage() {
                         </TableHeader>
                         <TableBody>
                           {(pageLoading || (statusFilter === 'annulled' && loadingAnnulled)) && (
-                            <TableRow>
-                              <TableCell colSpan={8} className="h-24 text-center">
-                                <div className="flex flex-col items-center justify-center">
-                                  <Loader2 className="animate-spin h-6 w-6 text-primary mb-2" />
-                                  <span className="text-sm text-muted-foreground">
-                                    {statusFilter === 'annulled' ? 'Cargando ventas anuladas...' : 'Cargando ventas...'}
-                                  </span>
-                                </div>
-                              </TableCell>
-                            </TableRow>
+                            <TableSkeletonBodyRows columns={8} rows={8} />
                           )}
                           {!pageLoading && !(statusFilter === 'annulled' && loadingAnnulled) && filteredSales.length === 0 && (
                             <TableRow>

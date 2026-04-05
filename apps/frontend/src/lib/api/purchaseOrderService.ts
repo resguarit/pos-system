@@ -109,7 +109,18 @@ const purchaseOrderService = {
    * Obtiene todas las órdenes de compra, con filtros opcionales.
    * Ahora soporta paginación desde el backend.
    */
-  async getAll(params?: { supplier_id?: number; branch_id?: number; status?: string; from?: string; to?: string; page?: number; per_page?: number }): Promise<PaginatedResponse<PurchaseOrder>> {
+  async getAll(params?: {
+    supplier_id?: number;
+    branch_id?: number;
+    branch_ids?: (string | number)[];
+    status?: string;
+    from?: string;
+    to?: string;
+    search?: string;
+    product_ids?: number[];
+    page?: number;
+    per_page?: number;
+  }): Promise<PaginatedResponse<PurchaseOrder>> {
     try {
       const response = await api.get<PaginatedResponse<PurchaseOrder>>('/purchase-orders', { params });
       return response.data;

@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +30,7 @@ import Pagination from "@/components/ui/pagination"
 import { useBranch } from "@/context/BranchContext"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
+import { ProductAsyncMultiSelectFilter } from "@/components/products/ProductAsyncMultiSelectFilter"
 
 export default function PurchaseOrderPage() {
   const { hasPermission, currentBranch } = useAuth();
@@ -91,6 +91,24 @@ export default function PurchaseOrderPage() {
     to: new Date(),
   })
 
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm)
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearchTerm(searchTerm), 500)
+    return () => window.clearTimeout(t)
+  }, [searchTerm])
+
+  const [selectedProductIds, setSelectedProductIds] = usePersistentState<string[]>("purchaseOrderProductIds", [])
+
+  /** Sucursales para la búsqueda de productos (misma API que Ventas: `branch_ids`). */
+  const productSearchBranchIds = useMemo(() => {
+    if (branchFilter !== "all" && branchFilter) {
+      const n = parseInt(branchFilter, 10)
+      if (!Number.isNaN(n)) return [n]
+    }
+    if (filteredBranchIds.length > 0) return filteredBranchIds
+    return selectedBranchIds.map((id) => Number(id)).filter((n) => !Number.isNaN(n))
+  }, [branchFilter, filteredBranchIds, selectedBranchIds])
+
   // Obtener el estado de la caja abierta para la sucursal seleccionada
   const branchId = currentBranch?.id ? Number(currentBranch.id) : 1;
   const { status: cashRegisterStatus, isOpen: isCashRegisterOpen } = useCashRegisterStatus(branchId);
@@ -118,77 +136,79 @@ export default function PurchaseOrderPage() {
     }
   }, [searchParams])
 
-  // Modificar loadPurchaseOrders para aceptar fechas, filtros de sucursales, tamaño de página opcional y término de búsqueda
-  const loadPurchaseOrders = useCallback(async (page = 1, from?: string, to?: string, perPageOverride?: number, searchOverride?: string) => {
+  const loadPurchaseOrders = useCallback(async (page = 1) => {
     try {
       setLoading(true)
-      const params: any = {
-        page: page,
-        per_page: perPageOverride ?? pageSize
-      };
-      if (from) params.from = from;
-      if (to) params.to = to;
-
-      // Usar el override si existe, de lo contrario usar el estado actual
-      const currentSearch = searchOverride !== undefined ? searchOverride : searchTerm;
-      if (currentSearch) params.search = currentSearch;
-
-      // Agregar filtro de estado
-      if (statusFilter !== 'all') {
-        params.status = statusFilter;
+      const params: Record<string, unknown> = {
+        page,
+        per_page: pageSize,
       }
 
-      // Determinar qué sucursales filtrar
-      let targetBranchIds: (string | number)[] = [];
+      const from = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined
+      const to = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined
+      if (from) params.from = from
+      if (to) params.to = to
 
-      if (branchFilter !== 'all') {
-        // Prioridad 1: Filtro específico seleccionado en el dropdown
-        targetBranchIds = [branchFilter];
+      if (debouncedSearchTerm.trim()) params.search = debouncedSearchTerm.trim()
+
+      if (statusFilter !== "all") {
+        params.status = statusFilter
+      }
+
+      let targetBranchIds: (string | number)[] = []
+      if (branchFilter !== "all") {
+        targetBranchIds = [branchFilter]
       } else if (filteredBranchIds.length > 0) {
-        // Prioridad 2: Filtros de URL (ej. desde Caja)
-        targetBranchIds = filteredBranchIds;
+        targetBranchIds = filteredBranchIds
       } else if (selectedBranchIds.length > 0) {
-        // Prioridad 3: Contexto global de sucursales seleccionadas
-        targetBranchIds = selectedBranchIds;
+        targetBranchIds = selectedBranchIds
       }
-
       if (targetBranchIds.length > 0) {
-        params.branch_ids = targetBranchIds;
+        params.branch_ids = targetBranchIds
       }
 
-      const response = await getPurchaseOrders(params);
-      const orders = response.data;
+      if (selectedProductIds.length > 0) {
+        params.product_ids = selectedProductIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n))
+      }
 
-      setPurchaseOrders(orders);
-      setTotalPOItems(response.total);
-      setCurrentPOPage(response.current_page);
-      setTotalPOPages(response.last_page);
+      const response = await getPurchaseOrders(params)
+      const orders = response.data
+
+      setPurchaseOrders(orders)
+      setTotalPOItems(response.total)
+      setCurrentPOPage(response.current_page)
+      setTotalPOPages(response.last_page)
     } catch (error) {
-      console.error('Error loading purchase orders:', error);
-      sileo.error({ title: "Error al cargar órdenes de compra" });
-      setPurchaseOrders([]);
-      setTotalPOItems(0);
-      setTotalPOPages(1);
+      console.error("Error loading purchase orders:", error)
+      sileo.error({ title: "Error al cargar órdenes de compra" })
+      setPurchaseOrders([])
+      setTotalPOItems(0)
+      setTotalPOPages(1)
     } finally {
       setLoading(false)
     }
-  }, [filteredBranchIds, pageSize, searchTerm, statusFilter, branchFilter, selectedBranchIds, setCurrentPOPage])
-
-  // Recargar órdenes cuando cambien los filtros de sucursales, estado o contexto global
-  useEffect(() => {
-    loadPurchaseOrders(1)
-  }, [filteredBranchIds, statusFilter, branchFilter, selectedBranchIds, loadPurchaseOrders])
+  }, [
+    dateRange,
+    debouncedSearchTerm,
+    pageSize,
+    statusFilter,
+    branchFilter,
+    filteredBranchIds,
+    selectedBranchIds,
+    selectedProductIds,
+    setCurrentPOPage,
+  ])
 
   useEffect(() => {
     const fetchSummary = async () => {
       if (dateRange?.from && dateRange?.to) {
         try {
-          const fromDate = format(dateRange?.from, "yyyy-MM-dd")
-          const toDate = format(dateRange?.to, "yyyy-MM-dd")
+          const fromDate = format(dateRange.from, "yyyy-MM-dd")
+          const toDate = format(dateRange.to, "yyyy-MM-dd")
           const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate)
           setSummary(summaryData.totals)
           setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
-        } catch (error) {
+        } catch {
           sileo.error({ title: "Error al cargar el resumen de compras por moneda." })
           setSummary({})
           setSummaryPeriod(null)
@@ -198,36 +218,13 @@ export default function PurchaseOrderPage() {
     fetchSummary()
   }, [dateRange])
 
-
-
-  // Actualizar useEffect para cargar órdenes de compra al cambiar el periodo
   useEffect(() => {
-    // Debounce search is handled by separate effect or input change, 
-    // but here we just want to reload if dates change.
-    // We don't want to trigger on searchTerm change here to avoid double fetch if we use a debounce effect separately.
-    // However, if we don't have a separate effect for searchTerm, we should include it.
-    // Let's implement a debounce effect for search.
+    setCurrentPOPage(1)
+  }, [statusFilter, branchFilter, filteredBranchIds, selectedBranchIds, selectedProductIds, dateRange, debouncedSearchTerm, setCurrentPOPage])
 
-    if (dateRange?.from && dateRange?.to) {
-      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
-      const toDate = format(dateRange?.to, "yyyy-MM-dd");
-      loadPurchaseOrders(currentPOPage, fromDate, toDate);
-    } else {
-      loadPurchaseOrders(currentPOPage);
-    }
-  }, [dateRange, currentPOPage, loadPurchaseOrders])
-
-  // Debounce para la búsqueda
   useEffect(() => {
-    const timer = setTimeout(() => {
-      const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
-      const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
-      loadPurchaseOrders(1, fromDate, toDate);
-    }, 500);
-
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally search-driven to avoid loops
-  }, [searchTerm])
+    loadPurchaseOrders(currentPOPage)
+  }, [currentPOPage, loadPurchaseOrders])
 
   // Funciones de paginación para órdenes de compra
   const goToPOPage = (pageNumber: number) => {
@@ -240,34 +237,24 @@ export default function PurchaseOrderPage() {
   const handlePurchaseOrderSaved = async () => {
     setOpenNewPurchaseOrder(false)
     setEditPurchaseOrderDialogOpen(false)
-    // Mantener el filtro de fechas al recargar
-    if (dateRange?.from && dateRange?.to) {
-      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
-      const toDate = format(dateRange?.to, "yyyy-MM-dd");
-      await loadPurchaseOrders(currentPOPage, fromDate, toDate);
-    } else {
-      await loadPurchaseOrders(currentPOPage);
-    }
+    await loadPurchaseOrders(currentPOPage)
   }
 
   const refreshCards = async () => {
-    setLoading(true);
-    await loadPurchaseOrders(currentPOPage);
-    // Refresca el resumen de compras
+    await loadPurchaseOrders(currentPOPage)
     if (dateRange?.from && dateRange?.to) {
-      const fromDate = format(dateRange?.from, "yyyy-MM-dd");
-      const toDate = format(dateRange?.to, "yyyy-MM-dd");
+      const fromDate = format(dateRange.from, "yyyy-MM-dd")
+      const toDate = format(dateRange.to, "yyyy-MM-dd")
       try {
-        const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate);
-        setSummary(summaryData.totals);
-        setSummaryPeriod({ from: summaryData.from, to: summaryData.to });
+        const summaryData = await getPurchaseSummaryByCurrency(fromDate, toDate)
+        setSummary(summaryData.totals)
+        setSummaryPeriod({ from: summaryData.from, to: summaryData.to })
       } catch {
-        setSummary({});
-        setSummaryPeriod(null);
+        setSummary({})
+        setSummaryPeriod(null)
       }
     }
-    setLoading(false);
-  };
+  }
 
   const handleCompletePurchaseOrder = async (orderId: number) => {
     if (!isCashRegisterOpen || !cashRegisterStatus?.cash_register?.id) {
@@ -475,9 +462,9 @@ export default function PurchaseOrderPage() {
         </div>
 
         <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-          <div className="flex flex-1 items-center space-x-2">
-            <div className="relative w-full md:w-80">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-1 flex-wrap items-center gap-2">
+            <div className="relative w-full min-w-[min(100%,12rem)] md:w-80 md:max-w-md md:flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder="Buscar órdenes..."
@@ -487,7 +474,7 @@ export default function PurchaseOrderPage() {
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full min-w-[10rem] sm:w-[180px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -501,7 +488,7 @@ export default function PurchaseOrderPage() {
             {/* Branch Filter - Only show when multiple branches are selected */}
             {selectedBranchIds.length > 1 && (
               <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full min-w-[10rem] sm:w-[200px]">
                   <SelectValue placeholder="Todas las sucursales" />
                 </SelectTrigger>
                 <SelectContent>
@@ -522,6 +509,15 @@ export default function PurchaseOrderPage() {
                 </SelectContent>
               </Select>
             )}
+            <div className="w-full min-w-[min(100%,20rem)] shrink-0 sm:w-[260px]">
+              <ProductAsyncMultiSelectFilter
+                branchIds={productSearchBranchIds}
+                selected={selectedProductIds}
+                onChange={setSelectedProductIds}
+                placeholder="Productos"
+                className="h-9 min-h-9 py-2 bg-background"
+              />
+            </div>
           </div>
         </div>
 
@@ -651,13 +647,9 @@ export default function PurchaseOrderPage() {
             <Select
               value={pageSize.toString()}
               onValueChange={(value) => {
-                const newSize = Number(value);
-                setPageSize(newSize);
-                setCurrentPOPage(1);
-                // Force reload immediately with new size
-                const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : undefined;
-                const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : undefined;
-                loadPurchaseOrders(1, fromDate, toDate, newSize);
+                const newSize = Number(value)
+                setPageSize(newSize)
+                setCurrentPOPage(1)
               }}
             >
               <SelectTrigger className="h-8 w-[90px]">
