@@ -78,8 +78,12 @@ export function StockTransferDialog({
     }
   }, [open]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /** Enter en un campo dispara el evento submit del formulario; el botón Guardar está fuera del form. Solo guardamos al hacer clic en Guardar. */
+  const suppressNativeFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+  };
+
+  const saveFromFooter = async () => {
     await submit();
   };
 
@@ -111,7 +115,7 @@ export function StockTransferDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto pr-4">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={suppressNativeFormSubmit} className="space-y-4">
             {/* Branch Selection */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -161,6 +165,7 @@ export function StockTransferDialog({
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
+                    type="button"
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
@@ -264,7 +269,8 @@ export function StockTransferDialog({
             Cancelar
           </Button>
           <Button
-            onClick={handleSubmit}
+            type="button"
+            onClick={() => void saveFromFooter()}
             disabled={isSubmitting || loading || items.length === 0}
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

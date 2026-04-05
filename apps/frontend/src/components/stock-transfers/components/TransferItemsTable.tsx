@@ -75,6 +75,9 @@ export function TransferItemsTable({
                         onUpdateQuantity(index, qty);
                       }
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault();
+                    }}
                     min={allowZeroQuantity ? "0" : "1"}
                     disabled={disabled}
                     className={cn(

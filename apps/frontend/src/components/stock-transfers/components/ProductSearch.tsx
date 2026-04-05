@@ -167,6 +167,13 @@ export function ProductSearch({
     }
   };
 
+  // Barcode scanners send Enter after the code; avoid implicit <form> submit from the parent dialog.
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className="space-y-4" ref={containerRef}>
       {/* Category Filters */}
@@ -228,6 +235,7 @@ export function ProductSearch({
                 setSelectedProductId(null);
                 setSelectedProductStock(null);
               }}
+              onKeyDown={handleSearchKeyDown}
               onFocus={() => {
                 setShowDropdown(true);
                 // Load initial results when focusing with empty search
