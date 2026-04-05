@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
@@ -34,6 +34,8 @@ import { format } from "date-fns"
 import { getBillingCycleConfig } from "@/utils/billingCycleUtils"
 import { dispatchExpensesChanged } from "@/utils/expensesEvents"
 import { getErrorMessage } from "@/utils/errorUtils"
+import { useBranch } from "@/context/BranchContext"
+import { cn } from "@/lib/utils"
 
 // Icon mapping from icon ID to component
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string; color?: string }>> = {
@@ -131,6 +133,11 @@ interface Expense {
         user_name?: string;
         username?: string;
     };
+    branch?: {
+        id: number;
+        description?: string;
+        color?: string | null;
+    };
 }
 
 interface Branch {
@@ -142,6 +149,7 @@ export default function ExpensesListPage() {
     const { request, loading } = useApi();
     const { hasPermission } = useAuth();
     const { config } = useSystemConfigContext();
+    const { selectedBranchIds, branches: contextBranches } = useBranch();
     const [expenses, setExpenses] = useState<Expense[]>([])
     const [searchTerm, setSearchTerm] = usePersistentState("searchTerm", "")
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
@@ -153,8 +161,7 @@ export default function ExpensesListPage() {
         start_date: '',
         end_date: ''
     });
-    const [branches, setBranches] = useState<Branch[]>([]);
-    const [stats, setStats] = useState({ by_category: [], by_month: [] });
+    const [stats, setStats] = useState<{ by_category: any[]; by_month: any[]; by_branch?: any[] }>({ by_category: [], by_month: [] });
     const [statsLoading, setStatsLoading] = useState(false);
 
     // Initialize date range with default: first day of current month to today
@@ -178,40 +185,82 @@ export default function ExpensesListPage() {
     const [totalPages, setTotalPages] = useState(1)
     const PAGE_SIZE = 10
 
-    // Column configuration
-    const columnConfig = [
-        { id: 'category', minWidth: 180, maxWidth: 300, defaultWidth: 220 },
-        { id: 'description', minWidth: 180, maxWidth: 400, defaultWidth: 230 },
-        { id: 'createdBy', minWidth: 150, maxWidth: 260, defaultWidth: 190 },
-        { id: 'amount', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
-        { id: 'date', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
-        { id: 'status', minWidth: 100, maxWidth: 150, defaultWidth: 120 },
-        { id: 'actions', minWidth: 120, maxWidth: 180, defaultWidth: 150 }
-    ];
+    const selectedNumericBranchIds = useMemo(
+        () => selectedBranchIds.map((id) => parseInt(String(id), 10)).filter((n) => Number.isFinite(n)),
+        [selectedBranchIds]
+    );
+
+    const effectiveBranchIds = useMemo(() => {
+        if (selectedNumericBranchIds.length === 0) {
+            return [] as number[];
+        }
+        if (filters.branch_id === "all") {
+            return selectedNumericBranchIds;
+        }
+        const one = parseInt(String(filters.branch_id), 10);
+        if (Number.isFinite(one) && selectedNumericBranchIds.includes(one)) {
+            return [one];
+        }
+        return selectedNumericBranchIds;
+    }, [filters.branch_id, selectedNumericBranchIds]);
+
+    const showBranchColumn = effectiveBranchIds.length > 1;
+
+    const branchFilterOptions = useMemo((): Branch[] => {
+        const fromContext: Branch[] = (contextBranches || []).map((b) => ({
+            id: typeof b.id === "string" ? parseInt(b.id, 10) : Number(b.id),
+            description: b.description || `Sucursal ${b.id}`,
+        }));
+        const allowed = new Set(selectedNumericBranchIds);
+        const filtered = fromContext.filter((b) => allowed.has(b.id));
+        if (filtered.length > 0) {
+            return filtered;
+        }
+        return fromContext;
+    }, [contextBranches, selectedNumericBranchIds]);
+
+    // Column configuration (extra column when comparing multiple branches)
+    const columnConfig = useMemo(
+        () => {
+            const rest = [
+                { id: "description", minWidth: 180, maxWidth: 400, defaultWidth: 230 },
+                { id: "createdBy", minWidth: 150, maxWidth: 260, defaultWidth: 190 },
+                { id: "amount", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
+                { id: "date", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
+                { id: "status", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
+                { id: "actions", minWidth: 120, maxWidth: 180, defaultWidth: 150 },
+            ];
+            if (showBranchColumn) {
+                return [
+                    { id: "category", minWidth: 180, maxWidth: 300, defaultWidth: 220 },
+                    { id: "branch", minWidth: 120, maxWidth: 220, defaultWidth: 160 },
+                    ...rest,
+                ];
+            }
+            return [{ id: "category", minWidth: 180, maxWidth: 300, defaultWidth: 220 }, ...rest];
+        },
+        [showBranchColumn]
+    );
 
     const {
         getResizeHandleProps,
         getColumnHeaderProps,
         getColumnCellProps,
-        tableRef
+        tableRef,
     } = useResizableColumns({
         columns: columnConfig,
-        storageKey: 'expenses-column-widths',
-        defaultWidth: 150
+        storageKey: showBranchColumn ? "expenses-column-widths-mb" : "expenses-column-widths",
+        defaultWidth: 150,
     });
 
-    // Load branches
+    // Si el filtro local apunta a una sucursal que ya no está en la selección global, volver a "todas"
     useEffect(() => {
-        const loadBranches = async () => {
-            try {
-                const response = await request({ method: 'GET', url: '/branches' });
-                if (response.success) setBranches(response.data);
-            } catch (error) {
-                console.error("Error loading branches", error);
-            }
-        };
-        loadBranches();
-    }, [request]);
+        if (filters.branch_id === "all") return;
+        const id = parseInt(String(filters.branch_id), 10);
+        if (Number.isFinite(id) && !selectedNumericBranchIds.includes(id)) {
+            setFilters((prev) => ({ ...prev, branch_id: "all" }));
+        }
+    }, [selectedNumericBranchIds, filters.branch_id, setFilters]);
 
     // Update filters when dateRange changes
     useEffect(() => {
@@ -245,7 +294,9 @@ export default function ExpensesListPage() {
             if (debouncedSearchTerm.trim()) {
                 params.search = debouncedSearchTerm.trim();
             }
-            if (filters.branch_id !== 'all') params.branch_id = filters.branch_id;
+            if (effectiveBranchIds.length > 0) {
+                params.branch_ids = effectiveBranchIds;
+            }
             if (filters.status !== 'all') params.status = filters.status;
             if (filters.start_date) params.start_date = filters.start_date;
             if (filters.end_date) params.end_date = filters.end_date;
@@ -266,13 +317,15 @@ export default function ExpensesListPage() {
             console.error("Error fetching expenses:", error);
             sileo.error({ title: "Error al cargar los gastos" });
         }
-    }, [request, debouncedSearchTerm, filters, setCurrentPage]);
+    }, [request, debouncedSearchTerm, filters.status, filters.start_date, filters.end_date, effectiveBranchIds, setCurrentPage]);
 
     const fetchStats = useCallback(async () => {
         setStatsLoading(true);
         try {
             const params: any = {};
-            if (filters.branch_id !== 'all') params.branch_id = filters.branch_id;
+            if (effectiveBranchIds.length > 0) {
+                params.branch_ids = effectiveBranchIds;
+            }
             if (filters.status !== 'all') params.status = filters.status;
             if (filters.start_date) params.start_date = filters.start_date;
             if (filters.end_date) params.end_date = filters.end_date;
@@ -286,7 +339,16 @@ export default function ExpensesListPage() {
         } finally {
             setStatsLoading(false);
         }
-    }, [request, filters]);
+    }, [request, filters.status, filters.start_date, filters.end_date, effectiveBranchIds]);
+
+    const skipBranchPageResetRef = useRef(true);
+    useLayoutEffect(() => {
+        if (skipBranchPageResetRef.current) {
+            skipBranchPageResetRef.current = false;
+            return;
+        }
+        setCurrentPage(1);
+    }, [effectiveBranchIds, setCurrentPage]);
 
     useEffect(() => {
         fetchExpenses(currentPage);
@@ -398,7 +460,6 @@ export default function ExpensesListPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Gastos</h2>
-                    <p className="text-muted-foreground">Gestión y control de gastos</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="icon" onClick={() => { fetchExpenses(currentPage); fetchStats(); }} disabled={loading} title="Refrescar">
@@ -420,7 +481,11 @@ export default function ExpensesListPage() {
 
                 {/* Calendar Widget */}
                 <div className="col-span-1 xl:col-span-3 h-full">
-                    <ExpenseCalendar onDateSelect={handleCalendarDateSelect} filters={filters} />
+                    <ExpenseCalendar
+                        onDateSelect={handleCalendarDateSelect}
+                        filters={filters}
+                        branchIds={effectiveBranchIds}
+                    />
                 </div>
             </div>
 
@@ -442,8 +507,10 @@ export default function ExpensesListPage() {
                             <SelectValue placeholder="Sucursal" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Todas las sucursales</SelectItem>
-                            {branches.map(b => (
+                            <SelectItem value="all">
+                                {selectedNumericBranchIds.length > 1 ? "Todas (seleccionadas)" : "Todas las sucursales"}
+                            </SelectItem>
+                            {branchFilterOptions.map((b) => (
                                 <SelectItem key={b.id} value={b.id.toString()}>{b.description}</SelectItem>
                             ))}
                         </SelectContent>
@@ -491,6 +558,9 @@ export default function ExpensesListPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <ResizableTableHeader columnId="category" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Categoría</ResizableTableHeader>
+                                        {showBranchColumn && (
+                                            <ResizableTableHeader columnId="branch" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Sucursal</ResizableTableHeader>
+                                        )}
                                         <ResizableTableHeader columnId="description" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Descripción</ResizableTableHeader>
                                         <ResizableTableHeader columnId="createdBy" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Creado por</ResizableTableHeader>
                                         <ResizableTableHeader columnId="amount" getResizeHandleProps={getResizeHandleProps} getColumnHeaderProps={getColumnHeaderProps}>Monto</ResizableTableHeader>
@@ -513,6 +583,30 @@ export default function ExpensesListPage() {
                                                     <span className="font-medium">{expense.category?.name || '-'}</span>
                                                 </div>
                                             </ResizableTableCell>
+                                            {showBranchColumn && (
+                                                <ResizableTableCell columnId="branch" getColumnCellProps={getColumnCellProps}>
+                                                    <span
+                                                        className={cn(
+                                                            "inline-flex max-w-[220px] items-center rounded-full border px-2.5 py-0.5 text-xs font-medium leading-tight",
+                                                            !expense.branch?.color && "border-border bg-background text-muted-foreground"
+                                                        )}
+                                                        style={
+                                                            expense.branch?.color
+                                                                ? {
+                                                                      borderColor: expense.branch.color,
+                                                                      color: expense.branch.color,
+                                                                      backgroundColor: "transparent",
+                                                                  }
+                                                                : undefined
+                                                        }
+                                                        title={expense.branch?.description || undefined}
+                                                    >
+                                                        <span className="truncate">
+                                                            {expense.branch?.description || `Sucursal ${expense.branch_id}`}
+                                                        </span>
+                                                    </span>
+                                                </ResizableTableCell>
+                                            )}
                                             <ResizableTableCell columnId="description" getColumnCellProps={getColumnCellProps}>
                                                 <div className="text-muted-foreground">{expense.description || '-'}</div>
                                                 {expense.is_recurring && (

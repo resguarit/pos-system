@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
@@ -145,8 +146,34 @@ class ExpenseService
 
         $query = Expense::query();
 
-        if (isset($filters['branch_id'])) {
-            $query->where('branch_id', $filters['branch_id']);
+        $this->applyBranchScopeToQuery($query, $filters);
+
+        $byBranch = [];
+        $normalizedBranchIds = $this->normalizeBranchIdsFromFilters($filters);
+        if ($normalizedBranchIds !== null && count($normalizedBranchIds) >= 2) {
+            $rows = (clone $query)
+                ->select('branch_id')
+                ->selectRaw('SUM(CASE WHEN status = ? THEN amount ELSE 0 END) as total_paid', ['paid'])
+                ->selectRaw('SUM(CASE WHEN status IN (?, ?) THEN amount ELSE 0 END) as total_open', ['pending', 'approved'])
+                ->groupBy('branch_id')
+                ->orderBy('branch_id')
+                ->get();
+
+            $branchMeta = Branch::whereIn('id', $rows->pluck('branch_id'))
+                ->get(['id', 'description', 'color'])
+                ->keyBy('id');
+
+            $byBranch = $rows->map(function ($row) use ($branchMeta) {
+                $meta = $branchMeta->get($row->branch_id);
+
+                return [
+                    'branch_id' => (int) $row->branch_id,
+                    'name' => $meta?->description ?? ('Sucursal '.$row->branch_id),
+                    'color' => $meta?->color,
+                    'total_paid' => (float) $row->total_paid,
+                    'total_open' => (float) $row->total_open,
+                ];
+            })->values()->all();
         }
         if ($startDate) {
             $query->whereDate('date', '>=', $startDate->toDateString());
@@ -252,9 +279,7 @@ class ExpenseService
 
                 // Create a fresh query for projection to avoid date filter conflicts
                 $projectionQuery = Expense::query();
-                if (isset($filters['branch_id'])) {
-                    $projectionQuery->where('branch_id', $filters['branch_id']);
-                }
+                $this->applyBranchScopeToQuery($projectionQuery, $filters);
                 // We intentionally ignore status filters for projection to show all obligations
 
                 // 2. Upcoming Actual Expenses (Already entered for next month)
@@ -300,8 +325,57 @@ class ExpenseService
 
         return [
             'by_category' => $byCategory,
-            'by_month' => $byMonth
+            'by_month' => $byMonth,
+            'by_branch' => $byBranch,
         ];
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     */
+    private function applyBranchScopeToQuery($query, array $filters): void
+    {
+        $ids = $this->normalizeBranchIdsFromFilters($filters);
+        if ($ids === null) {
+            return;
+        }
+        if (count($ids) === 1) {
+            $query->where('branch_id', $ids[0]);
+        } else {
+            $query->whereIn('branch_id', $ids);
+        }
+    }
+
+    /**
+     * @return int[]|null
+     */
+    private function normalizeBranchIdsFromFilters(array $filters): ?array
+    {
+        if (! empty($filters['branch_ids']) && is_array($filters['branch_ids'])) {
+            $ids = array_values(array_unique(array_map(
+                'intval',
+                array_filter($filters['branch_ids'], fn ($v) => $v !== '' && $v !== null)
+            )));
+            if (count($ids) > 0) {
+                return $ids;
+            }
+        }
+
+        if (array_key_exists('branch_id', $filters) && $filters['branch_id'] !== null && $filters['branch_id'] !== '') {
+            $bid = $filters['branch_id'];
+            if (is_array($bid)) {
+                $ids = array_values(array_unique(array_map(
+                    'intval',
+                    array_filter($bid, fn ($v) => $v !== '' && $v !== null)
+                )));
+
+                return count($ids) ? $ids : null;
+            }
+
+            return [(int) $bid];
+        }
+
+        return null;
     }
 
     private function calculateRecurringProjectionForRange(array $filters, Carbon $startDate, Carbon $endDate): array
@@ -311,9 +385,7 @@ class ExpenseService
             ->where('status', '!=', 'cancelled')
             ->whereDate('date', '<=', $endDate->toDateString());
 
-        if (isset($filters['branch_id'])) {
-            $query->where('branch_id', $filters['branch_id']);
-        }
+        $this->applyBranchScopeToQuery($query, $filters);
 
         $recurringTemplates = $query->get();
         $projectedByMonth = [];

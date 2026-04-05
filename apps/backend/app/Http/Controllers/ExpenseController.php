@@ -37,9 +37,7 @@ class ExpenseController extends Controller
             });
         }
 
-        if ($request->has('branch_id')) {
-            $query->where('branch_id', $request->branch_id);
-        }
+        $this->applyExpenseBranchScope($query, $request);
 
         if ($request->has('category_id')) {
             $query->where('category_id', $request->category_id);
@@ -191,5 +189,53 @@ class ExpenseController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder|\Illuminate\Database\Eloquent\Relations\Relation  $query
+     */
+    private function applyExpenseBranchScope($query, Request $request): void
+    {
+        $ids = $this->normalizeExpenseBranchIdsFromRequest($request);
+        if ($ids === null) {
+            return;
+        }
+        if (count($ids) === 1) {
+            $query->where('branch_id', $ids[0]);
+        } else {
+            $query->whereIn('branch_id', $ids);
+        }
+    }
+
+    /**
+     * @return int[]|null
+     */
+    private function normalizeExpenseBranchIdsFromRequest(Request $request): ?array
+    {
+        $raw = $request->input('branch_ids');
+        if (is_string($raw) && $raw !== '') {
+            $ids = array_filter(array_map('intval', explode(',', $raw)));
+            return count($ids) ? array_values(array_unique($ids)) : null;
+        }
+        if (is_array($raw) && count($raw) > 0) {
+            $ids = array_values(array_unique(array_map('intval', array_filter($raw, fn ($v) => $v !== '' && $v !== null))));
+            return count($ids) ? $ids : null;
+        }
+
+        if (!$request->has('branch_id')) {
+            return null;
+        }
+
+        $branchId = $request->input('branch_id');
+        if ($branchId === null || $branchId === '') {
+            return null;
+        }
+        if (is_array($branchId)) {
+            $ids = array_values(array_unique(array_map('intval', array_filter($branchId, fn ($v) => $v !== '' && $v !== null))));
+
+            return count($ids) ? $ids : null;
+        }
+
+        return [(int) $branchId];
     }
 }

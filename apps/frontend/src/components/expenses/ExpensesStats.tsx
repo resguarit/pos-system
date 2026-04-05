@@ -13,10 +13,19 @@ interface CategoryStat {
     value: number;
 }
 
+interface BranchStat {
+    branch_id: number;
+    name: string;
+    color?: string | null;
+    total_paid: number;
+    total_open: number;
+}
+
 interface ExpensesStatsProps {
     stats: {
         by_month: ExpenseStat[];
         by_category: CategoryStat[];
+        by_branch?: BranchStat[];
     } | null;
     loading: boolean;
 }
@@ -40,8 +49,43 @@ export function ExpensesStats({ stats, loading }: ExpensesStatsProps) {
     // Colores para el gráfico de torta
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
+    const byBranch = stats.by_branch && stats.by_branch.length > 0 ? stats.by_branch : null;
+
     return (
         <>
+            {byBranch && (
+                <div className="col-span-1 xl:col-span-12 flex gap-3 overflow-x-auto pb-1 -mb-1">
+                    {byBranch.map((row) => (
+                        <Card
+                            key={row.branch_id}
+                            className="min-w-[200px] max-w-[260px] shrink-0 border-muted"
+                        >
+                            <CardHeader className="py-3 pb-1 px-4">
+                                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                    {row.color ? (
+                                        <span
+                                            className="inline-block h-2.5 w-2.5 rounded-full border shrink-0"
+                                            style={{ backgroundColor: row.color }}
+                                            aria-hidden
+                                        />
+                                    ) : null}
+                                    <span className="truncate" title={row.name}>{row.name}</span>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="px-4 pb-3 pt-0 text-sm space-y-1">
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">Pagado</span>
+                                    <span className="font-semibold tabular-nums">${Number(row.total_paid).toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">Pendiente / aprob.</span>
+                                    <span className="font-medium tabular-nums text-amber-700 dark:text-amber-500">${Number(row.total_open).toLocaleString()}</span>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
             <Card className="col-span-1 xl:col-span-5 h-full">
                 <CardHeader>
                     <CardTitle>Evolución Mensual</CardTitle>

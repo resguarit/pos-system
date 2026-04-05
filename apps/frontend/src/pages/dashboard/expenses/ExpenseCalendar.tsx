@@ -28,9 +28,11 @@ interface ExpenseCalendarProps {
         branch_id?: string | number;
         status?: string;
     };
+    /** Sucursales efectivas (selección global + filtro local); vacío = sin filtro por sucursal */
+    branchIds?: number[];
 }
 
-export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalendarProps) {
+export default function ExpenseCalendar({ onDateSelect, filters, branchIds }: ExpenseCalendarProps) {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -55,17 +57,18 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
     const loadExpenses = useCallback(async () => {
         setIsLoading(true);
         try {
-            const params: Record<string, string | number> = {
+            const params: Record<string, string | number | number[]> = {
                 limit: 1000,
                 start_date: format(startDate, 'yyyy-MM-dd'),
                 end_date: format(endDate, 'yyyy-MM-dd'),
             };
 
-            if (filters) {
+            if (branchIds && branchIds.length > 0) {
+                params.branch_ids = branchIds;
+            } else if (filters) {
                 if (filters.branch_id !== 'all' && filters.branch_id != null) {
                     params.branch_id = filters.branch_id;
                 }
-                // Keep status behavior aligned with previous UX for calendar highlights.
             }
 
             const data = await expensesService.getExpenses(params);
@@ -75,7 +78,7 @@ export default function ExpenseCalendar({ onDateSelect, filters }: ExpenseCalend
         } finally {
             setIsLoading(false);
         }
-    }, [filters, startDate, endDate]);
+    }, [filters, branchIds, startDate, endDate]);
 
     useEffect(() => {
         loadExpenses();
