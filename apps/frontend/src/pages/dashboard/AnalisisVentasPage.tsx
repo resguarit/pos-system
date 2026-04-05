@@ -21,7 +21,7 @@ import type { DateRange } from "@/components/ui/date-range-picker"
 import * as XLSX from "xlsx"
 import { sileo } from "sileo"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Cell } from 'recharts'
-import type { StatisticsFilters, SelectOption } from "@/types/statistics.types"
+import type { StatisticsFilters, SelectOption, CustomerStat } from "@/types/statistics.types"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { usePersistentDateRange } from "@/hooks/usePersistentDateRange"
 import {
@@ -34,6 +34,14 @@ import {
   formatHourRange,
   percentOf,
 } from "@/utils/statistics.utils"
+
+/** Evita celdas vacías si el API devuelve nombre null (datos viejos o borde). */
+function displayCustomerStatName(c: CustomerStat): string {
+  const n = typeof c.customer_name === "string" ? c.customer_name.trim() : ""
+  if (n) return n
+  if (c.customer_id != null) return `Cliente #${c.customer_id}`
+  return "Sin cliente"
+}
 
 // ─── Component ───────────────────────────────────────────────────────────
 
@@ -139,7 +147,7 @@ export default function AnalisisVentasPage() {
       // Por Cliente
       if (byCustomer.length > 0) {
         addSheet("Por Cliente", ["Cliente", "Ventas", "Unidades", "Ingresos"],
-          byCustomer.map(c => [c.customer_name, Number(c.total_sales), Number(c.total_units), Number(c.total_revenue)])
+          byCustomer.map(c => [displayCustomerStatName(c), Number(c.total_sales), Number(c.total_units), Number(c.total_revenue)])
         )
       }
 
@@ -384,7 +392,7 @@ export default function AnalisisVentasPage() {
             description="Desglose según los filtros actuales (incluye ventas sin cliente asignado)"
             data={byCustomer.map(c => ({
               id: c.customer_id,
-              name: c.customer_name,
+              name: displayCustomerStatName(c),
               total_sales: c.total_sales,
               total_units: c.total_units,
               total_revenue: c.total_revenue,

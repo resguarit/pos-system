@@ -70,9 +70,11 @@ class StatisticsService
             ->leftJoin('people', 'customers.person_id', '=', 'people.id')
             ->select(
                 'sales_header.customer_id as customer_id',
+                // CONCAT devuelve NULL si first/last son NULL; CONCAT_WS evita eso. Si sigue vacío (huérfano / sin datos), mostrar Cliente #id.
                 DB::raw(
-                    'MAX(CASE WHEN sales_header.customer_id IS NULL '
-                    . "THEN 'Sin cliente' ELSE CONCAT(people.first_name, ' ', people.last_name) END) as customer_name"
+                    'MAX(CASE WHEN sales_header.customer_id IS NULL THEN \'Sin cliente\' ELSE '
+                    . 'COALESCE(NULLIF(TRIM(CONCAT_WS(\' \', people.first_name, people.last_name)), \'\'), '
+                    . "CONCAT('Cliente #', sales_header.customer_id)) END) as customer_name"
                 ),
                 DB::raw('COUNT(DISTINCT sale_items.sale_header_id) as total_sales'),
                 DB::raw('SUM(sale_items.quantity) as total_units'),
