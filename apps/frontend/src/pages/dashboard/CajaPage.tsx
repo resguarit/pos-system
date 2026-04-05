@@ -3,6 +3,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useState, useEffect, useMemo, useRef } from "react"
 import { format, startOfWeek, startOfMonth, subDays } from "date-fns"
+import { Skeleton } from "@/components/ui/loading-states"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -1130,13 +1131,20 @@ export default function CajaPage() {
   // Solo mostrar loading principal si hay una sola sucursal o si es el loading inicial
   if (selectedBranchIdsArray.length === 1 && (isPageLoading || optimizedLoading)) {
     return (
-      <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-        <div className="flex items-center justify-center h-64">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="h-8 w-8 animate-spin" />
-            <p className="text-sm text-muted-foreground">Cargando sistema de caja...</p>
+      <div className="flex-1 space-y-6 p-4 pt-6 md:p-8" aria-busy="true" aria-label="Cargando sistema de caja">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <Skeleton className="h-9 w-56 rounded-md" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-28 rounded-md" />
+            <Skeleton className="h-9 w-36 rounded-md" />
           </div>
         </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Skeleton className="h-36 w-full rounded-xl" />
+          <Skeleton className="h-36 w-full rounded-xl" />
+        </div>
+        <Skeleton className="h-12 w-full max-w-md rounded-md" />
+        <Skeleton className="h-72 w-full rounded-lg" />
       </div>
     )
   }
