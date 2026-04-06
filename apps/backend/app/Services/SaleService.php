@@ -4099,7 +4099,25 @@ class SaleService implements SaleServiceInterface
             if ($line === false) {
                 return;
             }
-            @file_put_contents('/Users/naimguarino/Documents/Resguar IT/POS/pos-system/.cursor/debug-ff7b3d.log', $line . PHP_EOL, FILE_APPEND);
+            $preferredPath = '/Users/naimguarino/Documents/Resguar IT/POS/pos-system/.cursor/debug-ff7b3d.log';
+            $fallbackPath = function_exists('storage_path')
+                ? storage_path('logs/agent-debug-ff7b3d.log')
+                : null;
+
+            $path = $preferredPath;
+            $dir = @dirname($path);
+            if (!is_dir($dir) || !is_writable($dir)) {
+                if ($fallbackPath) {
+                    $path = $fallbackPath;
+                    $dir = @dirname($path);
+                }
+            }
+
+            if ($dir && !is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+
+            @file_put_contents($path, $line . PHP_EOL, FILE_APPEND);
         } catch (\Throwable $t) {
             // swallow
         }
