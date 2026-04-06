@@ -376,14 +376,32 @@ class SaleService implements SaleServiceInterface
                 $receiptTypeForStatus = null;
             }
 
-            if ($this->isBudgetReceiptType($receiptTypeForStatus)) {
+            $isBudgetReceipt = $this->isBudgetReceiptType($receiptTypeForStatus);
+            // #region agent log
+            $this->agentDebugLog([
+                'sessionId' => 'ff7b3d',
+                'runId' => $agentRunId,
+                'hypothesisId' => 'H3',
+                'location' => 'SaleService.php:createSale:receiptType-detection',
+                'message' => 'receiptType detection for presupuesto/scope',
+                'data' => [
+                    'receipt_type_id' => $data['receipt_type_id'] ?? null,
+                    'receipt_type_name' => $receiptTypeForStatus ? ($receiptTypeForStatus->name ?? null) : null,
+                    'receipt_type_afip_code' => $receiptTypeForStatus ? ($receiptTypeForStatus->afip_code ?? null) : null,
+                    'is_budget_receipt' => $isBudgetReceipt,
+                ],
+                'timestamp' => (int) floor(microtime(true) * 1000),
+            ]);
+            // #endregion agent log
+
+            if ($isBudgetReceipt) {
                 $data['status'] = 'pending';
             } else {
                 $data['status'] = 'active';
             }
 
             // Alcance de numeración: presupuesto tiene secuencia propia; el resto comparte secuencia contigua.
-            $data['numbering_scope'] = $this->isBudgetReceiptType($receiptTypeForStatus)
+            $data['numbering_scope'] = $isBudgetReceipt
                 ? SaleNumberingScope::PRESUPUESTO
                 : SaleNumberingScope::SALE;
 
@@ -4109,7 +4127,11 @@ class SaleService implements SaleServiceInterface
         }
 
         $name = trim((string) ($receiptType->name ?? ''));
-        return $name !== '' && mb_strtolower($name) === 'presupuesto';
+        if ($name === '') {
+            return false;
+        }
+        $nameLower = mb_strtolower($name);
+        return $nameLower === 'presupuesto' || mb_strpos($nameLower, 'presupuesto') !== false;
     }
 
     private function agentDebugLog(array $payload): void
