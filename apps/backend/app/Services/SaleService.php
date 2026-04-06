@@ -4133,6 +4133,10 @@ class SaleService implements SaleServiceInterface
             }
 
             @file_put_contents($path, $line . PHP_EOL, FILE_APPEND);
+
+            // Absolute fallback: /tmp + php error_log (helps when Laravel logging is redirected)
+            @file_put_contents('/tmp/agent-debug-ff7b3d.log', $line . PHP_EOL, FILE_APPEND);
+            @error_log('agent-debug-ff7b3d ' . $line);
         } catch (\Throwable $t) {
             // swallow
         }
