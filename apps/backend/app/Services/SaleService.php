@@ -376,14 +376,14 @@ class SaleService implements SaleServiceInterface
                 $receiptTypeForStatus = null;
             }
 
-            if ($receiptTypeForStatus && AfipConstants::isPresupuesto($receiptTypeForStatus->afip_code)) {
+            if ($this->isBudgetReceiptType($receiptTypeForStatus)) {
                 $data['status'] = 'pending';
             } else {
                 $data['status'] = 'active';
             }
 
             // Alcance de numeración: presupuesto tiene secuencia propia; el resto comparte secuencia contigua.
-            $data['numbering_scope'] = ($receiptTypeForStatus && AfipConstants::isPresupuesto($receiptTypeForStatus->afip_code))
+            $data['numbering_scope'] = $this->isBudgetReceiptType($receiptTypeForStatus)
                 ? SaleNumberingScope::PRESUPUESTO
                 : SaleNumberingScope::SALE;
 
@@ -3972,7 +3972,7 @@ class SaleService implements SaleServiceInterface
      */
     private function validateIsBudget(SaleHeader $budget): void
     {
-        if (!$budget->receiptType || !AfipConstants::isPresupuesto($budget->receiptType->afip_code)) {
+        if (!$budget->receiptType || !$this->isBudgetReceiptType($budget->receiptType)) {
             throw new \Exception('El comprobante seleccionado no es un presupuesto.');
         }
     }
@@ -4030,7 +4030,7 @@ class SaleService implements SaleServiceInterface
      */
     private function validateNotBudgetReceiptType(ReceiptType $receiptType): void
     {
-        if (AfipConstants::isPresupuesto($receiptType->afip_code)) {
+        if ($this->isBudgetReceiptType($receiptType)) {
             throw new \Exception('Debe seleccionar un tipo de comprobante diferente a presupuesto.');
         }
     }
@@ -4048,7 +4048,7 @@ class SaleService implements SaleServiceInterface
     {
         $receiptType = ReceiptType::find($receiptTypeId);
 
-        if ($receiptType && AfipConstants::isPresupuesto($receiptType->afip_code)) {
+        if ($this->isBudgetReceiptType($receiptType)) {
             // Presupuesto: secuencia por (sucursal + tipo)
             $lastSale = SaleHeader::where('branch_id', $branchId)
                 ->where('receipt_type_id', $receiptTypeId)
@@ -4058,7 +4058,9 @@ class SaleService implements SaleServiceInterface
             $next = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
         } else {
             // Cualquier otro tipo: secuencia contigua única por sucursal (todas las ventas no-presupuesto)
-            $presupuestoTypeIds = ReceiptType::where('afip_code', AfipConstants::RECEIPT_CODE_PRESUPUESTO)
+            $presupuestoTypeIds = ReceiptType::query()
+                ->where('afip_code', AfipConstants::RECEIPT_CODE_PRESUPUESTO)
+                ->orWhereRaw('LOWER(TRIM(name)) = ?', ['presupuesto'])
                 ->pluck('id')
                 ->all();
             $lastSale = SaleHeader::where('branch_id', $branchId)
@@ -4090,6 +4092,24 @@ class SaleService implements SaleServiceInterface
         // #endregion agent log
 
         return str_pad((string) $next, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT);
+    }
+
+    private function isBudgetReceiptType(?ReceiptType $receiptType): bool
+    {
+        if (!$receiptType) {
+            return false;
+        }
+
+        try {
+            if (AfipConstants::isPresupuesto($receiptType->afip_code ?? null)) {
+                return true;
+            }
+        } catch (\Throwable $t) {
+            // ignore
+        }
+
+        $name = trim((string) ($receiptType->name ?? ''));
+        return $name !== '' && mb_strtolower($name) === 'presupuesto';
     }
 
     private function agentDebugLog(array $payload): void
