@@ -216,6 +216,23 @@ class SaleService implements SaleServiceInterface
     {
         // Se usa una transacción para garantizar que si algo falla, no se guarde nada.
         return DB::transaction(function () use ($data, $registerMovement) {
+            // #region agent log
+            $this->agentDebugLog([
+                'runId' => 'pre-fix',
+                'hypothesisId' => 'A|B|C|D',
+                'location' => 'SaleService.php:createSale:entry',
+                'message' => 'createSale entry (keys + core ids)',
+                'data' => [
+                    'branch_id' => $data['branch_id'] ?? null,
+                    'receipt_type_id' => $data['receipt_type_id'] ?? null,
+                    'customer_id' => $data['customer_id'] ?? null,
+                    'converted_from_budget_id' => $data['converted_from_budget_id'] ?? null,
+                    'incoming_receipt_number_present' => array_key_exists('receipt_number', $data),
+                    'incoming_numbering_scope_present' => array_key_exists('numbering_scope', $data),
+                ],
+            ]);
+            // #endregion agent log
+
             // 0) Validación: No se puede crear un presupuesto desde otro presupuesto
             if (isset($data['converted_from_budget_id']) && $data['converted_from_budget_id']) {
                 $receiptType = ReceiptType::find($data['receipt_type_id'] ?? null);
@@ -368,6 +385,20 @@ class SaleService implements SaleServiceInterface
                 ? SaleNumberingScope::PRESUPUESTO
                 : SaleNumberingScope::SALE;
 
+            // #region agent log
+            $this->agentDebugLog([
+                'runId' => 'pre-fix',
+                'hypothesisId' => 'B',
+                'location' => 'SaleService.php:createSale:numbering_scope',
+                'message' => 'computed numbering_scope',
+                'data' => [
+                    'receipt_type_afip_code' => $receiptTypeForStatus->afip_code ?? null,
+                    'computed_numbering_scope' => $data['numbering_scope'] ?? null,
+                    'is_presupuesto' => (bool) ($receiptTypeForStatus && AfipConstants::isPresupuesto($receiptTypeForStatus->afip_code)),
+                ],
+            ]);
+            // #endregion agent log
+
             // 6) Numeración de comprobante
             // Presupuesto (016): secuencia propia por tipo. Resto: secuencia contigua única por sucursal (todas las ventas).
             $data['receipt_number'] = $this->getNextReceiptNumberForBranch(
@@ -375,12 +406,43 @@ class SaleService implements SaleServiceInterface
                 (int) $data['receipt_type_id']
             );
 
+            // #region agent log
+            $this->agentDebugLog([
+                'runId' => 'pre-fix',
+                'hypothesisId' => 'A|B|D',
+                'location' => 'SaleService.php:createSale:after_next_receipt_number',
+                'message' => 'computed receipt_number',
+                'data' => [
+                    'branch_id' => $data['branch_id'] ?? null,
+                    'receipt_type_id' => $data['receipt_type_id'] ?? null,
+                    'numbering_scope' => $data['numbering_scope'] ?? null,
+                    'receipt_number' => $data['receipt_number'] ?? null,
+                ],
+            ]);
+            // #endregion agent log
+
             // Verificar que el número no exista ya en el mismo alcance (protección contra duplicados y condiciones de carrera)
             $existingSale = SaleHeader::where('branch_id', $data['branch_id'])
                 ->where('numbering_scope', $data['numbering_scope'])
                 ->where('receipt_number', $data['receipt_number'])
                 ->lockForUpdate()
                 ->first();
+
+            // #region agent log
+            $this->agentDebugLog([
+                'runId' => 'pre-fix',
+                'hypothesisId' => 'A|D',
+                'location' => 'SaleService.php:createSale:existing_check',
+                'message' => 'existing sale check for same receipt_number',
+                'data' => [
+                    'found' => (bool) $existingSale,
+                    'existing_id' => $existingSale?->id,
+                    'existing_receipt_type_id' => $existingSale?->receipt_type_id,
+                    'existing_numbering_scope' => $existingSale?->numbering_scope,
+                    'existing_receipt_number' => $existingSale?->receipt_number,
+                ],
+            ]);
+            // #endregion agent log
 
             if ($existingSale) {
                 $nextReceiptNumber = (int) $data['receipt_number'];
@@ -3990,8 +4052,47 @@ class SaleService implements SaleServiceInterface
             $next = $lastSale ? ((int) $lastSale->receipt_number) + 1 : 1;
         }
 
+        // #region agent log
+        $this->agentDebugLog([
+            'runId' => 'pre-fix',
+            'hypothesisId' => 'A|B|D',
+            'location' => 'SaleService.php:getNextReceiptNumberForBranch',
+            'message' => 'next receipt number computation inputs/outputs',
+            'data' => [
+                'branch_id' => $branchId,
+                'receipt_type_id' => $receiptTypeId,
+                'receipt_type_afip_code' => $receiptType?->afip_code,
+                'is_presupuesto' => (bool) ($receiptType && AfipConstants::isPresupuesto($receiptType->afip_code)),
+                'presupuesto_type_ids_count' => isset($presupuestoTypeIds) ? count($presupuestoTypeIds) : null,
+                'last_sale_id' => $lastSale?->id,
+                'last_sale_receipt_type_id' => $lastSale?->receipt_type_id,
+                'last_sale_numbering_scope' => $lastSale?->numbering_scope,
+                'last_sale_receipt_number' => $lastSale?->receipt_number,
+                'next_int' => $next ?? null,
+                'next_padded' => str_pad((string) ($next ?? 0), AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT),
+            ],
+        ]);
+        // #endregion agent log
+
         return str_pad((string) $next, AfipConstants::RECEIPT_NUMBER_PADDING, '0', STR_PAD_LEFT);
     }
+
+    // #region agent log
+    private function agentDebugLog(array $payload): void
+    {
+        try {
+            $payload['sessionId'] = 'ff7b3d';
+            $payload['timestamp'] = $payload['timestamp'] ?? (int) floor(microtime(true) * 1000);
+            @file_put_contents(
+                '/Users/naimguarino/Documents/Resguar IT/POS/pos-system/.cursor/debug-ff7b3d.log',
+                json_encode($payload, JSON_UNESCAPED_SLASHES) . PHP_EOL,
+                FILE_APPEND
+            );
+        } catch (\Throwable $e) {
+            // swallow
+        }
+    }
+    // #endregion agent log
 
     /**
      * Genera el siguiente número de comprobante (delega en getNextReceiptNumberForBranch).
