@@ -386,7 +386,7 @@ class SaleService implements SaleServiceInterface
                 'message' => 'receiptType detection for presupuesto/scope',
                 'data' => [
                     'receipt_type_id' => $data['receipt_type_id'] ?? null,
-                    'receipt_type_name' => $receiptTypeForStatus ? ($receiptTypeForStatus->name ?? null) : null,
+                    'receipt_type_name' => $receiptTypeForStatus ? ($receiptTypeForStatus->description ?? $receiptTypeForStatus->name ?? null) : null,
                     'receipt_type_afip_code' => $receiptTypeForStatus ? ($receiptTypeForStatus->afip_code ?? null) : null,
                     'is_budget_receipt' => $isBudgetReceipt,
                 ],
@@ -4124,7 +4124,7 @@ class SaleService implements SaleServiceInterface
             // Cualquier otro tipo: secuencia contigua única por sucursal (todas las ventas no-presupuesto)
             $presupuestoTypeIds = ReceiptType::query()
                 ->where('afip_code', AfipConstants::RECEIPT_CODE_PRESUPUESTO)
-                ->orWhereRaw('LOWER(TRIM(name)) = ?', ['presupuesto'])
+                ->orWhereRaw('LOWER(TRIM(description)) = ?', ['presupuesto'])
                 ->pluck('id')
                 ->all();
             $lastSale = SaleHeader::where('branch_id', $branchId)
@@ -4172,12 +4172,12 @@ class SaleService implements SaleServiceInterface
             // ignore
         }
 
-        $name = trim((string) ($receiptType->name ?? ''));
-        if ($name === '') {
+        $label = trim((string) ($receiptType->description ?? $receiptType->name ?? ''));
+        if ($label === '') {
             return false;
         }
-        $nameLower = mb_strtolower($name);
-        return $nameLower === 'presupuesto' || mb_strpos($nameLower, 'presupuesto') !== false;
+        $labelLower = mb_strtolower($label);
+        return mb_strpos($labelLower, 'presupuesto') !== false;
     }
 
     private function agentDebugLog(array $payload): void
