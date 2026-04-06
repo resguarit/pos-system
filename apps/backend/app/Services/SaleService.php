@@ -4095,6 +4095,12 @@ class SaleService implements SaleServiceInterface
     private function agentDebugLog(array $payload): void
     {
         try {
+            // Always include the executing file for runtime proof (helps detect wrong deployed path)
+            if (!isset($payload['data']) || !is_array($payload['data'])) {
+                $payload['data'] = [];
+            }
+            $payload['data']['__file'] = __FILE__;
+
             $line = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if ($line === false) {
                 return;
@@ -4115,6 +4121,15 @@ class SaleService implements SaleServiceInterface
 
             if ($dir && !is_dir($dir)) {
                 @mkdir($dir, 0775, true);
+            }
+
+            // Write to laravel.log too (more reliable on prod)
+            try {
+                if (class_exists(\Illuminate\Support\Facades\Log::class)) {
+                    \Illuminate\Support\Facades\Log::info('agent-debug-ff7b3d', $payload);
+                }
+            } catch (\Throwable $ignore) {
+                // ignore
             }
 
             @file_put_contents($path, $line . PHP_EOL, FILE_APPEND);
