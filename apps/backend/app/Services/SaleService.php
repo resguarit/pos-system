@@ -577,7 +577,53 @@ class SaleService implements SaleServiceInterface
             // #endregion agent log
 
             try {
-                $saleHeader->save();
+                $attempts = 0;
+                while (true) {
+                    try {
+                        $saleHeader->save();
+                        break;
+                    } catch (\Throwable $inner) {
+                        $attempts++;
+
+                        $isDuplicate = false;
+                        $msg = $inner->getMessage();
+                        if (is_string($msg) && str_contains($msg, 'Integrity constraint violation: 1062')) {
+                            $isDuplicate = true;
+                        }
+                        if (is_string($msg) && str_contains($msg, 'unique_receipt_per_branch_scope')) {
+                            $isDuplicate = true;
+                        }
+
+                        if (!$isDuplicate || $attempts >= self::RECEIPT_NUMBER_MAX_ATTEMPTS) {
+                            throw $inner;
+                        }
+
+                        // Recalcular/avanzar el número (evita condición de carrera / primer comprobante)
+                        $saleHeader->receipt_number = $this->getNextReceiptNumberForBranch(
+                            (int) ($saleHeader->branch_id ?? 0),
+                            (int) ($saleHeader->receipt_type_id ?? 0)
+                        );
+
+                        // #region agent log
+                        $this->agentDebugLog([
+                            'sessionId' => 'ff7b3d',
+                            'runId' => $agentRunId,
+                            'hypothesisId' => 'H2',
+                            'location' => 'SaleService.php:createSale:save-retry',
+                            'message' => 'retrying SaleHeader save after duplicate key',
+                            'data' => [
+                                'attempt' => $attempts,
+                                'branch_id' => $saleHeader->branch_id ?? null,
+                                'receipt_type_id' => $saleHeader->receipt_type_id ?? null,
+                                'numbering_scope' => $saleHeader->numbering_scope ?? null,
+                                'receipt_number' => $saleHeader->receipt_number ?? null,
+                                'error_message' => $msg,
+                            ],
+                            'timestamp' => (int) floor(microtime(true) * 1000),
+                        ]);
+                        // #endregion agent log
+                    }
+                }
             } catch (\Throwable $e) {
                 // #region agent log
                 $this->agentDebugLog([
