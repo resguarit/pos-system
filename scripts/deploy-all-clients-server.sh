@@ -42,6 +42,43 @@ discover_backend_path() {
 }
 
 # -----------------------------------------------------------------------------
+# Para backends legacy que corren desde public_html/ (raíz) pero tienen el
+# monorepo backend en public_html/apps/backend, sincroniza archivos clave de app/
+# para evitar desfasajes de versión (services/models/constants).
+# -----------------------------------------------------------------------------
+sync_monorepo_to_legacy() {
+  local backend_path="$1"
+
+  local legacy_app="${backend_path}/app"
+  local monorepo_app="${backend_path}/apps/backend/app"
+
+  if [[ ! -d "${legacy_app}" || ! -d "${monorepo_app}" ]]; then
+    return 0
+  fi
+
+  echo "🔄 Sync legacy app/ from monorepo apps/backend/app..."
+
+  mkdir -p "${legacy_app}/Constants" 2>/dev/null || true
+
+  local files_to_sync=(
+    "Services/SaleService.php"
+    "Models/PaymentMethod.php"
+    "Constants/AfipConstants.php"
+    "Constants/SaleNumberingScope.php"
+  )
+
+  for rel_path in "${files_to_sync[@]}"; do
+    local src="${monorepo_app}/${rel_path}"
+    local dst="${legacy_app}/${rel_path}"
+    if [[ -f "${src}" ]]; then
+      mkdir -p "$(dirname "${dst}")" 2>/dev/null || true
+      cp -f "${src}" "${dst}"
+      echo "   ✅ ${rel_path}"
+    fi
+  done
+}
+
+# -----------------------------------------------------------------------------
 # Ejecuta el deploy en un solo backend (pull, composer, migrate, permisos, cache).
 # Exit: 0 si todo bien, 1 si falló migración o composer.
 # -----------------------------------------------------------------------------
@@ -144,6 +181,8 @@ main() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     if deploy_one_client "${backend_path}" "${client_name}"; then
+      # Si es un backend legacy en la raíz, sincronizar archivos críticos desde apps/backend
+      sync_monorepo_to_legacy "${backend_path}"
       echo "✅ ${client_name} OK"
       success_clients+=("${client_name}")
       ok=$((ok + 1))

@@ -39,6 +39,13 @@ jobs:
           echo "🚀 Deploying backend to DIPAG Distribuidora..."
           git fetch origin
           git reset --hard origin/master
+
+          # Legacy root backend (public_html/app) sync from monorepo backend (apps/backend/app)
+          if [ -d "apps/backend/app" ] && [ -d "app" ]; then
+            echo "🔄 Syncing legacy app/ from apps/backend/app..."
+            rsync -a --delete "./apps/backend/app/" "./app/"
+          fi
+
           cd apps/backend
           
           # Detectar usuario del sitio (CyberCP asigna usuario único por sitio)
