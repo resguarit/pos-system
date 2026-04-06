@@ -4100,6 +4100,12 @@ class SaleService implements SaleServiceInterface
                 $payload['data'] = [];
             }
             $payload['data']['__file'] = __FILE__;
+            $payload['data']['__hostname'] = function_exists('gethostname') ? @gethostname() : null;
+            $payload['data']['__cwd'] = function_exists('getcwd') ? @getcwd() : null;
+            $payload['data']['__pid'] = function_exists('getmypid') ? @getmypid() : null;
+            $payload['data']['__http_host'] = $_SERVER['HTTP_HOST'] ?? null;
+            $payload['data']['__server_name'] = $_SERVER['SERVER_NAME'] ?? null;
+            $payload['data']['__request_uri'] = $_SERVER['REQUEST_URI'] ?? null;
 
             $line = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if ($line === false) {
