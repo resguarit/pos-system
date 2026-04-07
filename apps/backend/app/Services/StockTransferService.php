@@ -15,10 +15,23 @@ use Exception;
 class StockTransferService implements StockTransferServiceInterface
 {
     protected $stockService;
+    private const PERMISSION_ALL_BRANCH_TRANSFERS = 'ver_transferencias_todas_sucursales';
 
     public function __construct(StockServiceInterface $stockService)
     {
         $this->stockService = $stockService;
+    }
+
+    /**
+     * If the user has this permission, stock transfers are global-scope (not restricted by branch assignment).
+     */
+    private function userCanAccessAllTransfers(): bool
+    {
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Use the canonical permission check (role->permissions) defined on the User model.
+        return $user->hasPermission(self::PERMISSION_ALL_BRANCH_TRANSFERS);
     }
 
     /**
@@ -33,6 +46,10 @@ class StockTransferService implements StockTransferServiceInterface
             return [];
         }
 
+        if ($this->userCanAccessAllTransfers()) {
+            return [];
+        }
+
         return $user->branches()->pluck('branches.id')->toArray();
     }
 
@@ -44,6 +61,10 @@ class StockTransferService implements StockTransferServiceInterface
      */
     private function hasAccessToTransfer(StockTransfer $transfer): bool
     {
+        if ($this->userCanAccessAllTransfers()) {
+            return true;
+        }
+
         $userBranchIds = $this->getUserBranchIds();
 
         if (empty($userBranchIds)) {
@@ -59,12 +80,14 @@ class StockTransferService implements StockTransferServiceInterface
         $query = StockTransfer::with(['sourceBranch', 'destinationBranch', 'items', 'user', 'acceptedBy']);
 
         // Filter by user's assigned branches
-        $userBranchIds = $this->getUserBranchIds();
-        if (!empty($userBranchIds)) {
-            $query->where(function ($q) use ($userBranchIds) {
-                $q->whereIn('source_branch_id', $userBranchIds)
-                    ->orWhereIn('destination_branch_id', $userBranchIds);
-            });
+        if (!$this->userCanAccessAllTransfers()) {
+            $userBranchIds = $this->getUserBranchIds();
+            if (!empty($userBranchIds)) {
+                $query->where(function ($q) use ($userBranchIds) {
+                    $q->whereIn('source_branch_id', $userBranchIds)
+                        ->orWhereIn('destination_branch_id', $userBranchIds);
+                });
+            }
         }
 
         if ($request->has('source_branch_id')) {

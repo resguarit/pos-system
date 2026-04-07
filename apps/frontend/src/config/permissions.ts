@@ -358,6 +358,7 @@ export const PERMISSIONS_CONFIG = {
     feature: 'transferencias',
     permissions: [
       'ver_transferencias',
+      'ver_transferencias_todas_sucursales',
       'crear_transferencias',
       'editar_transferencias',
       'completar_transferencias',

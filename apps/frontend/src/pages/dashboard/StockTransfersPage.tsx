@@ -65,6 +65,7 @@ export default function StockTransfersPage() {
   const canEdit = hasPermission(PERMISSIONS.EDIT)
   const canComplete = hasPermission(PERMISSIONS.COMPLETE)
   const canCancel = hasPermission(PERMISSIONS.CANCEL)
+  const canViewAllBranchesTransfers = hasPermission('ver_transferencias_todas_sucursales')
 
   const columnConfig = [
     { id: 'number', minWidth: 60, maxWidth: 120, defaultWidth: 80 },
@@ -107,6 +108,9 @@ export default function StockTransfersPage() {
    * This prevents users from completing a transfer when they only have the source branch selected.
    */
   const canCompleteTransfer = (transfer: StockTransfer): boolean => {
+    // Global-scope transfer permission overrides branch selection restrictions
+    if (canViewAllBranchesTransfers) return true
+
     // If no branches selected, user can see/complete all
     if (selectedBranchIds.length === 0) return true
 
@@ -298,7 +302,9 @@ export default function StockTransfersPage() {
       ? true
       : branchFilterNumbers.has(Number(transfer.source_branch_id)) || branchFilterNumbers.has(Number(transfer.destination_branch_id))
 
-    const isGlobalBranchFilterActive = selectedBranchIds.length > 0
+    // The global branch selection (BranchContext) is useful in most pages, but for global-scope
+    // transfer users it would incorrectly hide transfers not involving the selected branch.
+    const isGlobalBranchFilterActive = selectedBranchIds.length > 0 && !canViewAllBranchesTransfers
     const globalBranchIds = new Set(selectedBranchIds.map(Number))
     const matchesGlobalBranchFilter = !isGlobalBranchFilterActive
       ? true

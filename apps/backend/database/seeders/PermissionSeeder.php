@@ -168,6 +168,7 @@ class PermissionSeeder extends Seeder
 
             // Transferencias de Stock
             ['name' => 'ver_transferencias', 'description' => 'Ver transferencias de stock', 'module' => 'transferencias'],
+            ['name' => 'ver_transferencias_todas_sucursales', 'description' => 'Ver transferencias de todas las sucursales (scope global)', 'module' => 'transferencias'],
             ['name' => 'crear_transferencias', 'description' => 'Crear transferencia de stock', 'module' => 'transferencias'],
             ['name' => 'editar_transferencias', 'description' => 'Editar transferencia de stock', 'module' => 'transferencias'],
             ['name' => 'completar_transferencias', 'description' => 'Completar transferencia de stock', 'module' => 'transferencias'],
