@@ -78,6 +78,14 @@ export function StockTransferDialog({
     }
   }, [open]);
 
+  // En modo crear, siempre iniciar con la fecha de hoy al abrir el diálogo
+  // (evita que quede una fecha vieja cargada desde el borrador/localStorage).
+  useEffect(() => {
+    if (open && !isEditMode) {
+      setForm(prev => ({ ...prev, transfer_date: new Date() }));
+    }
+  }, [open, isEditMode, setForm]);
+
   /** Enter en un campo dispara el evento submit del formulario; el botón Guardar está fuera del form. Solo guardamos al hacer clic en Guardar. */
   const suppressNativeFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
