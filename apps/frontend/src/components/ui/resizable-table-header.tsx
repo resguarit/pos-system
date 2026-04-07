@@ -125,7 +125,7 @@ export const ResizableTableCell: React.FC<ResizableTableCellProps> = ({
       className={cn(
         'px-4 py-3 text-sm text-gray-900 border-b border-gray-200',
         isActions &&
-          'sticky right-0 z-20 bg-white border-l border-gray-200 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]',
+          'sticky right-0 z-20 bg-background border-l border-gray-200 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]',
         className
       )}
     >

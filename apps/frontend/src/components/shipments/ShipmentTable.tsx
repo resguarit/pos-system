@@ -295,7 +295,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                 <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente<div onMouseDown={handleResizeStart('cliente')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
                 <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transportista<div onMouseDown={handleResizeStart('transportista')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
                 <th className="relative px-4 pr-8 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origen mercaderia<div onMouseDown={handleResizeStart('origen')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
-                <th className="relative px-4 pr-8 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones<div onMouseDown={handleResizeStart('acciones')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
+                <th className="sticky right-0 z-30 border-l border-gray-200 bg-gray-50 px-4 pr-8 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">Acciones<div onMouseDown={handleResizeStart('acciones')} className="absolute top-0 -right-1 z-20 h-full w-4 cursor-col-resize group" title="Redimensionar columna"><div className="mx-auto h-full w-px bg-gray-300 group-hover:bg-gray-500" /></div></th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -378,7 +378,7 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     </td>
 
                     {/* Acciones */}
-                    <td className="p-4 align-middle text-right">
+                    <td className="sticky right-0 z-20 border-l border-gray-200 bg-white p-4 align-middle text-right shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]">
                       <div className="flex items-center justify-end gap-1">
                         <TooltipProvider>
                           <Tooltip>
