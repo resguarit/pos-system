@@ -12,14 +12,15 @@ import { usePricing } from '@/hooks/usePricing';
 import FormattedNumberInput from '@/components/ui/formatted-number-input';
 import { useEntityContext } from "@/context/EntityContext";
 import { SupplierSearchCombobox } from '@/components/suppliers/SupplierSearchCombobox';
+import { NumberFormatter } from "@/lib/formatters/numberFormatter";
 
 function unwrapProductDetail(res: unknown): Product | null {
   if (res == null || typeof res !== 'object') return null;
   const o = res as Record<string, unknown>;
-  if (typeof o.id === 'number') return o as Product;
+  if (typeof o.id === 'number') return o as unknown as Product;
   const inner = o.data;
   if (inner && typeof inner === 'object' && typeof (inner as Record<string, unknown>).id === 'number') {
-    return inner as Product;
+    return inner as unknown as Product;
   }
   return null;
 }
@@ -101,15 +102,15 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     validatePricing,
     formatPrice,
     formatMarkup,
-    calculateSalePrice
+    calculateSalePrice,
   } = usePricing({
-    unitPrice: typeof product?.unit_price === 'string' ? parseFloat(product.unit_price) :
+    unitPrice: typeof product?.unit_price === 'string' ? NumberFormatter.parseFormattedNumber(product.unit_price) :
       typeof product?.unit_price === 'number' ? product.unit_price : 0,
     currency: product?.currency || 'ARS',
-    markup: typeof product?.markup === 'string' ? parseFloat(product.markup) :
+    markup: typeof product?.markup === 'string' ? NumberFormatter.parseFormattedNumber(product.markup) :
       typeof product?.markup === 'number' ? product.markup : 0,
     ivaRate: product?.iva?.rate ? product.iva.rate / 100 : 0,
-    initialSalePrice: typeof product?.sale_price === 'string' ? parseFloat(product.sale_price) :
+    initialSalePrice: typeof product?.sale_price === 'string' ? NumberFormatter.parseFormattedNumber(product.sale_price) :
       typeof product?.sale_price === 'number' ? product.sale_price : 0
   });
 
@@ -208,12 +209,12 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       fetchCatalogs(controller.signal);
 
       const initialMarkupDecimal = typeof product.markup === 'string'
-        ? parseFloat(product.markup)
+        ? NumberFormatter.parseFormattedNumber(product.markup)
         : typeof product.markup === 'number'
           ? product.markup
           : 0;
       const initialSalePrice = typeof product.sale_price === 'string'
-        ? parseFloat(product.sale_price)
+        ? NumberFormatter.parseFormattedNumber(product.sale_price)
         : typeof product.sale_price === 'number'
           ? product.sale_price
           : 0;
@@ -226,7 +227,7 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
       const initialData: ProductFormData = {
         description: product.description || '',
         unit_price: product.unit_price?.toString() || '0',
-        markup: typeof product.markup === 'string' ? (parseFloat(product.markup) * 100).toFixed(2) :
+        markup: typeof product.markup === 'string' ? (NumberFormatter.parseFormattedNumber(product.markup) * 100).toFixed(2) :
           typeof product.markup === 'number' ? (product.markup * 100).toFixed(2) : '0',
         sale_price: product.sale_price?.toString() || '0',
         category_id:
@@ -469,7 +470,10 @@ export function EditProductDialog({ open, onOpenChange, product, onProductUpdate
     }
 
     // Actualizar cálculos de precios según el campo editado
-    const numericValue = parseFloat(value) || 0;
+    const numericValue =
+      field === 'unit_price'
+        ? NumberFormatter.parseFormattedNumber(value)
+        : (parseFloat(value) || 0);
 
     switch (field) {
       case 'unit_price':

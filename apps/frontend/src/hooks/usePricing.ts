@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useExchangeRate } from '@/hooks/useExchangeRate';
 import { NumberFormatter } from '@/lib/formatters/numberFormatter';
 
@@ -31,6 +31,14 @@ export function usePricing({
   initialSalePrice = 0
 }: UsePricingProps = {}) {
   const { rate: exchangeRate } = useExchangeRate({ fromCurrency: 'USD', toCurrency: 'ARS' });
+
+  const prevExternalRef = useRef<{
+    unitPrice: number;
+    currency: string;
+    markup: number;
+    ivaRate: number;
+    initialSalePrice: number;
+  } | null>(null);
 
   const [pricing, setPricing] = useState<PricingCalculation>({
     unitPrice,
@@ -233,8 +241,21 @@ export function usePricing({
 
   // Actualizar pricing cuando cambien los props externos o el tipo de cambio
   useEffect(() => {
-    // No sobrescribir si el usuario ya ha hecho cambios manuales
-    if (pricing.hasChanged) return;
+    const externalNow = { unitPrice, currency, markup, ivaRate, initialSalePrice };
+    const externalPrev = prevExternalRef.current;
+    const externalChanged =
+      !externalPrev ||
+      externalPrev.unitPrice !== externalNow.unitPrice ||
+      externalPrev.currency !== externalNow.currency ||
+      externalPrev.markup !== externalNow.markup ||
+      externalPrev.ivaRate !== externalNow.ivaRate ||
+      externalPrev.initialSalePrice !== externalNow.initialSalePrice;
+
+    // No sobrescribir si el usuario ya ha hecho cambios manuales,
+    // EXCEPTO cuando cambian los inputs externos (ej. se abre otro producto).
+    if (pricing.hasChanged && !externalChanged) {
+      return;
+    }
 
     // Si hay un precio inicial (precio manual guardado), respetarlo
     const finalSalePrice = initialSalePrice && initialSalePrice > 0
@@ -248,7 +269,18 @@ export function usePricing({
     let finalMarkup = markup;
     const isUsd = currency === 'USD';
     
-    if (initialSalePrice && initialSalePrice > 0 && isUsd && exchangeRate && exchangeRate > 0) {
+    const canDeriveFromSalePrice = initialSalePrice && initialSalePrice > 0 && unitPrice > 0;
+    const impliedMarkupFromSalePrice = canDeriveFromSalePrice
+      ? calculateMarkup(unitPrice, currency, initialSalePrice, ivaRate)
+      : 0;
+
+    const isStoredMarkupInvalidOrZero = !isFinite(markup) || markup === 0;
+    const markupDelta = canDeriveFromSalePrice ? Math.abs(impliedMarkupFromSalePrice - markup) : 0;
+    const isStoredMarkupLikelyWrong = canDeriveFromSalePrice && isFinite(impliedMarkupFromSalePrice) && markupDelta >= 0.05;
+
+    if (canDeriveFromSalePrice && (isStoredMarkupInvalidOrZero || isStoredMarkupLikelyWrong)) {
+      finalMarkup = impliedMarkupFromSalePrice;
+    } else if (initialSalePrice && initialSalePrice > 0 && isUsd && exchangeRate && exchangeRate > 0) {
       finalMarkup = calculateMarkup(unitPrice, currency, initialSalePrice, ivaRate);
     }
 
@@ -275,6 +307,8 @@ export function usePricing({
         hasChanged: false
       };
     });
+
+    prevExternalRef.current = externalNow;
   }, [unitPrice, currency, markup, ivaRate, initialSalePrice, calculateSalePrice, calculateMarkup, exchangeRate, pricing.hasChanged]);
 
   return {

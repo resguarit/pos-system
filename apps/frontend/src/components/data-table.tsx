@@ -39,6 +39,10 @@ interface DataTableProps<TData, TValue> {
   data: TData[]
 }
 
+type StickyMeta = {
+  sticky?: "right" | "left"
+}
+
 export function DataTable<TData, TValue>({
   columns,
   data,
@@ -108,8 +112,19 @@ export function DataTable<TData, TValue>({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
+                  const columnDefMeta = header.column.columnDef.meta as StickyMeta | undefined
+                  const isStickyActions =
+                    header.column.id === "actions" || columnDefMeta?.sticky === "right"
+
                   return (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      className={
+                        isStickyActions
+                          ? "sticky right-0 z-30 border-l bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]"
+                          : undefined
+                      }
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -129,11 +144,24 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const columnDefMeta = cell.column.columnDef.meta as StickyMeta | undefined
+                    const isStickyActions =
+                      cell.column.id === "actions" || columnDefMeta?.sticky === "right"
+
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          isStickyActions
+                            ? "sticky right-0 z-20 border-l bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]"
+                            : undefined
+                        }
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    )
+                  })}
                 </TableRow>
               ))
             ) : (

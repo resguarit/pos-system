@@ -39,6 +39,7 @@ export const ResizableTableHeader: React.FC<ResizableTableHeaderProps> = ({
 }) => {
   const resizeHandleProps = getResizeHandleProps(columnId);
   const columnHeaderProps = getColumnHeaderProps(columnId);
+  const isActions = columnId === 'actions';
 
   const handleClick = () => {
     if (sortable && onSort) {
@@ -51,6 +52,8 @@ export const ResizableTableHeader: React.FC<ResizableTableHeaderProps> = ({
       {...columnHeaderProps}
       className={cn(
         'relative select-none border-b border-gray-200 bg-gray-50 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider',
+        isActions &&
+          'sticky right-0 z-30 border-l border-gray-200 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]',
         sortable && 'cursor-pointer hover:bg-gray-100 transition-colors',
         className
       )}
@@ -114,12 +117,15 @@ export const ResizableTableCell: React.FC<ResizableTableCellProps> = ({
   getColumnCellProps
 }) => { 
   const cellProps = getColumnCellProps(columnId);
+  const isActions = columnId === 'actions';
 
   return (
     <td
       {...cellProps}
       className={cn(
         'px-4 py-3 text-sm text-gray-900 border-b border-gray-200',
+        isActions &&
+          'sticky right-0 z-20 bg-white border-l border-gray-200 shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]',
         className
       )}
     >

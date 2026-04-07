@@ -65,7 +65,11 @@ export function DataTable<T extends Record<string, unknown>>({
                 {column.header}
               </TableHead>
             ))}
-            {actions && <TableHead className="w-[100px]">Acciones</TableHead>}
+            {actions && (
+              <TableHead className="sticky right-0 z-30 w-[100px] border-l bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.15)]">
+                Acciones
+              </TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -81,7 +85,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 </TableCell>
               ))}
               {actions && (
-                <TableCell>
+                <TableCell className="sticky right-0 z-20 border-l bg-background shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.12)]">
                   <div className="flex space-x-2">
                     {actions(item)}
                   </div>
