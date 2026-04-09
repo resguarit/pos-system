@@ -76,6 +76,7 @@ class ComboService implements ComboServiceInterface
                 'description' => $data['description'] ?? null,
                 'discount_type' => $data['discount_type'],
                 'discount_value' => $data['discount_value'],
+                'allow_discount' => $data['allow_discount'] ?? true,
                 'is_active' => $data['is_active'] ?? true,
                 'notes' => $data['notes'] ?? null,
             ]);
@@ -112,6 +113,7 @@ class ComboService implements ComboServiceInterface
                 'description' => $data['description'] ?? $combo->description,
                 'discount_type' => $data['discount_type'] ?? $combo->discount_type,
                 'discount_value' => $data['discount_value'] ?? $combo->discount_value,
+                'allow_discount' => array_key_exists('allow_discount', $data) ? (bool) $data['allow_discount'] : $combo->allow_discount,
                 'is_active' => $data['is_active'] ?? $combo->is_active,
                 'notes' => $data['notes'] ?? $combo->notes,
             ]);

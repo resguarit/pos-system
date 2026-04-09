@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { DateInputDmy } from "@/components/ui/date-input-dmy"
 import {
     AlertTriangle,
     CheckCircle,
@@ -38,7 +39,10 @@ import {
     Copyright,
     Link,
     DollarSign,
+    Wallet,
 } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import ServicePaymentsPeriodPanel from "@/components/services/ServicePaymentsPeriodPanel"
 import ServicesStatusCard from "@/components/cards/ServicesStatusCard"
 import useServices, { ClientService, CreateServiceData } from "@/hooks/useServices"
 import Pagination from "@/components/ui/pagination"
@@ -90,6 +94,7 @@ const getServiceIcon = (name: string) => {
 }
 
 export default function ServicesPage() {
+    const IVA_RATE = 0.21
     const {
         services,
         stats,
@@ -106,9 +111,12 @@ export default function ServicesPage() {
         updateService,
         deleteService,
         renewService,
+        getService,
         getPayments,
         refresh,
     } = useServices()
+
+    const [mainTab, setMainTab] = useState<"list" | "payments">("list")
 
     // View mode
     const [viewMode, setViewMode] = useState<"table" | "cards">("table")
@@ -176,7 +184,8 @@ export default function ServicesPage() {
             customer_id: service.customer_id,
             name: service.name,
             description: service.description || "",
-            amount: parseFloat(service.amount),
+            // In UI we treat this as "sin IVA" for consistency.
+            amount: parseFloat(service.amount_without_iva || service.amount),
             billing_cycle: service.billing_cycle,
             start_date: service.start_date,
             next_due_date: service.next_due_date,
@@ -208,7 +217,10 @@ export default function ServicesPage() {
             customer_id: formData.customer_id,
             name: formData.name,
             description: formData.description,
-            amount: formData.amount,
+            // Persist both variants; keep legacy `amount` as the "con IVA" total.
+            amount: (formData.amount as number) * (1 + IVA_RATE),
+            amount_without_iva: formData.amount as number,
+            amount_with_iva: (formData.amount as number) * (1 + IVA_RATE),
             billing_cycle: formData.billing_cycle,
             status: formData.status,
             ...datePayload,
@@ -237,6 +249,13 @@ export default function ServicesPage() {
         const paymentData = await getPayments(service.id)
         setPayments(paymentData)
         setPaymentsLoading(false)
+    }
+
+    const handleViewServiceById = async (serviceId: number) => {
+        const service = await getService(serviceId)
+        if (service) {
+            await handleViewDetail(service)
+        }
     }
 
     // Renew service
@@ -287,30 +306,35 @@ export default function ServicesPage() {
                         Administra los servicios recurrentes de tus clientes
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
-                    {/* View Toggle */}
-                    <div className="flex items-center border rounded-md">
-                        <Button
-                            variant={viewMode === "table" ? "secondary" : "ghost"}
-                            size="sm"
-                            className="rounded-r-none"
-                            onClick={() => setViewMode("table")}
-                        >
-                            <List className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant={viewMode === "cards" ? "secondary" : "ghost"}
-                            size="sm"
-                            className="rounded-l-none"
-                            onClick={() => setViewMode("cards")}
-                        >
-                            <LayoutGrid className="h-4 w-4" />
-                        </Button>
-                    </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    {mainTab === "list" && (
+                        <>
+                            <div className="flex items-center border rounded-md">
+                                <Button
+                                    variant={viewMode === "table" ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className="rounded-r-none"
+                                    onClick={() => setViewMode("table")}
+                                    title="Vista tabla"
+                                >
+                                    <List className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant={viewMode === "cards" ? "secondary" : "ghost"}
+                                    size="sm"
+                                    className="rounded-l-none"
+                                    onClick={() => setViewMode("cards")}
+                                    title="Vista tarjetas"
+                                >
+                                    <LayoutGrid className="h-4 w-4" />
+                                </Button>
+                            </div>
 
-                    <Button variant="outline" size="icon" onClick={refresh} disabled={loading} title="Refrescar">
-                        <RotateCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                    </Button>
+                            <Button variant="outline" size="icon" onClick={refresh} disabled={loading} title="Refrescar listado">
+                                <RotateCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                            </Button>
+                        </>
+                    )}
 
                     <Button onClick={handleCreate}>
                         <Plus className="mr-2 h-4 w-4" />
@@ -319,6 +343,19 @@ export default function ServicesPage() {
                 </div>
             </div>
 
+            <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "list" | "payments")} className="w-full">
+                <TabsList className="h-auto w-full justify-start gap-1 rounded-lg border bg-muted/40 p-1 sm:w-auto">
+                    <TabsTrigger value="list" className="gap-2 px-4">
+                        <Server className="h-4 w-4 shrink-0" />
+                        Servicios
+                    </TabsTrigger>
+                    <TabsTrigger value="payments" className="gap-2 px-4">
+                        <Wallet className="h-4 w-4 shrink-0" />
+                        Cobros por período
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="list" className="mt-4 flex flex-col space-y-6 outline-none data-[state=inactive]:hidden">
             {/* Stats Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <ServicesStatusCard
@@ -625,6 +662,16 @@ export default function ServicesPage() {
                     )}
                 </div>
             )}
+                </TabsContent>
+
+                <TabsContent value="payments" className="mt-4 outline-none data-[state=inactive]:hidden">
+                    <ServicePaymentsPeriodPanel
+                        active={mainTab === "payments"}
+                        formatCurrency={formatCurrency}
+                        onViewService={handleViewServiceById}
+                    />
+                </TabsContent>
+            </Tabs>
 
             {/* Create/Edit Dialog */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -661,13 +708,19 @@ export default function ServicesPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label>Monto *</Label>
+                                <Label>Monto (sin IVA) *</Label>
                                 <Input
                                     type="number"
                                     value={formData.amount || ""}
                                     onChange={(e) => setFormData((f) => ({ ...f, amount: parseFloat(e.target.value) }))}
                                     placeholder="0.00"
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    Con IVA (21%):{" "}
+                                    <span className="font-medium text-emerald-700">
+                                        {formatCurrency(((formData.amount as number) || 0) * (1 + IVA_RATE))}
+                                    </span>
+                                </p>
                             </div>
                             <div className="space-y-2">
                                 <Label>Ciclo de Facturación</Label>
@@ -710,18 +763,19 @@ export default function ServicesPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>{dateMode === "start_date" ? "Fecha Inicio" : "Proximo Vencimiento"}</Label>
-                                    <Input
-                                        type="date"
-                                        value={dateMode === "start_date" ? (formData.start_date || "") : (formData.next_due_date || "")}
-                                        onChange={(e) =>
-                                            setFormData((f) => ({
-                                                ...f,
-                                                ...(dateMode === "start_date"
-                                                    ? { start_date: e.target.value }
-                                                    : { next_due_date: e.target.value }),
-                                            }))
-                                        }
-                                    />
+                                    {dateMode === "start_date" ? (
+                                        <DateInputDmy
+                                            value={formData.start_date || ""}
+                                            onChange={(nextIso) => setFormData((f) => ({ ...f, start_date: nextIso }))}
+                                            aria-label="Fecha inicio"
+                                        />
+                                    ) : (
+                                        <DateInputDmy
+                                            value={formData.next_due_date || ""}
+                                            onChange={(nextIso) => setFormData((f) => ({ ...f, next_due_date: nextIso }))}
+                                            aria-label="Próximo vencimiento"
+                                        />
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Estado</Label>

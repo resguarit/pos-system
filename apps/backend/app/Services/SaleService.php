@@ -156,10 +156,17 @@ class SaleService implements SaleServiceInterface
             // Base bruta
             $itemSubtotalBase = (float) ($unitPrice * $quantity); // sin redondear todavía
 
-            // Descuento por ítem (opcional)
+            // Descuento por ítem (opcional). Líneas de combo llevan descuento estructural en discount_* aunque el combo no permita descuento adicional.
             $productAllowsDiscount = (bool) ($product->allow_discount ?? true);
-            $discountType = $productAllowsDiscount ? ($item['discount_type'] ?? null) : null; // 'percent' | 'amount' | null
-            $discountValue = $productAllowsDiscount && isset($item['discount_value']) ? (float) $item['discount_value'] : null; // number
+            $isFromCombo = !empty($item['is_from_combo']);
+            $lineAllowsAdditionalDiscount = isset($item['allow_discount']) ? (bool) $item['allow_discount'] : true;
+
+            $canApplyRequestedItemDiscount = $isFromCombo
+                ? true
+                : ($productAllowsDiscount && $lineAllowsAdditionalDiscount);
+
+            $discountType = $canApplyRequestedItemDiscount ? ($item['discount_type'] ?? null) : null; // 'percent' | 'amount' | null
+            $discountValue = $canApplyRequestedItemDiscount && isset($item['discount_value']) ? (float) $item['discount_value'] : null; // number
             $itemDiscountAmount = 0.0;
             if ($discountType && $discountValue !== null) {
                 if ($discountType === 'percent') {
@@ -172,6 +179,8 @@ class SaleService implements SaleServiceInterface
                     $itemDiscountAmount = round($itemSubtotalBase, 2);
                 }
             }
+
+            $allowDiscountForGlobal = $productAllowsDiscount && $lineAllowsAdditionalDiscount;
 
             // Base neta antes de IVA
             $netBase = round($itemSubtotalBase - $itemDiscountAmount, 2);
@@ -196,7 +205,7 @@ class SaleService implements SaleServiceInterface
                 'discount_type' => $discountType,
                 'discount_value' => $discountValue,
                 'discount_amount' => $itemDiscountAmount, // solo descuento explícito del ítem
-                'allow_discount' => $productAllowsDiscount,
+                'allow_discount' => $allowDiscountForGlobal,
                 'iva_rate' => $ivaRate,
                 'iva_id' => $product->iva ? $product->iva->id : null,
                 // Guardamos la base neta como item_subtotal

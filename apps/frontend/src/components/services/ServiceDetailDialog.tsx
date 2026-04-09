@@ -17,9 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Customer, Service, Payment } from "./types"
 import { getServicePaymentStatus } from "@/utils/servicePaymentStatus"
 import { getServiceIcon, getServiceStatusBadge, getCustomerInitial, getInitialColor } from "./utils"
+import { DateInputDmy } from "@/components/ui/date-input-dmy"
 
 interface ServiceEditForm {
     amount: string
+    amount_without_iva: string
+    amount_with_iva: string
     base_price: string
     discount_percentage: string
     discount_notes: string
@@ -70,6 +73,14 @@ export function ServiceDetailDialog({
     onOpenPaymentDialog,
     onBackToCustomerDetail
 }: ServiceDetailDialogProps) {
+    const IVA_RATE = 0.21
+
+    const parseMoney = (value: string): number => {
+        const n = parseFloat(value)
+        return Number.isFinite(n) ? n : 0
+    }
+
+    const formatMoney = (n: number): string => (Math.round(n * 100) / 100).toFixed(2)
 
     if (!selectedCustomer || !selectedService) return null
 
@@ -153,7 +164,7 @@ export function ServiceDetailDialog({
 
                                     {/* Base Price */}
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs">Precio Base</Label>
+                                        <Label className="text-xs">Precio Base (sin IVA)</Label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
                                             <Input
@@ -161,8 +172,61 @@ export function ServiceDetailDialog({
                                                 step="0.01"
                                                 className="pl-7"
                                                 value={serviceEditForm.base_price}
-                                                onChange={(e) => setServiceEditForm(prev => ({ ...prev, base_price: e.target.value }))}
+                                                onChange={(e) => setServiceEditForm(prev => {
+                                                    const base_price = e.target.value
+                                                    const base = parseMoney(base_price)
+                                                    const discountPct = parseMoney(prev.discount_percentage)
+                                                    const withoutIva = base - (base * discountPct / 100)
+                                                    return {
+                                                        ...prev,
+                                                        base_price,
+                                                        amount_without_iva: formatMoney(withoutIva),
+                                                        amount_with_iva: formatMoney(withoutIva * (1 + IVA_RATE))
+                                                    }
+                                                })}
                                             />
+                                        </div>
+                                    </div>
+
+                                    {/* Amount without IVA */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Precio final (sin IVA)</Label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                            <Input
+                                                type="text"
+                                                readOnly
+                                                className="pl-7 bg-white"
+                                                value={formatMoney(calculateEditDiscountedPrice())}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Amount with IVA */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs">Precio con IVA (21%)</Label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                className="pl-7 pr-20"
+                                                value={serviceEditForm.amount_with_iva}
+                                                onChange={(e) => setServiceEditForm(prev => ({ ...prev, amount_with_iva: e.target.value }))}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-xs"
+                                                onClick={() => setServiceEditForm(prev => ({
+                                                    ...prev,
+                                                    amount_with_iva: formatMoney(calculateEditDiscountedPrice() * (1 + IVA_RATE))
+                                                }))}
+                                            >
+                                                Calcular
+                                            </Button>
                                         </div>
                                     </div>
 
@@ -177,7 +241,18 @@ export function ServiceDetailDialog({
                                                 max="100"
                                                 className="pr-7"
                                                 value={serviceEditForm.discount_percentage}
-                                                onChange={(e) => setServiceEditForm(prev => ({ ...prev, discount_percentage: e.target.value }))}
+                                                onChange={(e) => setServiceEditForm(prev => {
+                                                    const discount_percentage = e.target.value
+                                                    const base = parseMoney(prev.base_price)
+                                                    const discountPct = parseMoney(discount_percentage)
+                                                    const withoutIva = base - (base * discountPct / 100)
+                                                    return {
+                                                        ...prev,
+                                                        discount_percentage,
+                                                        amount_without_iva: formatMoney(withoutIva),
+                                                        amount_with_iva: formatMoney(withoutIva * (1 + IVA_RATE))
+                                                    }
+                                                })}
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
                                         </div>
@@ -187,9 +262,14 @@ export function ServiceDetailDialog({
                                     <div className="col-span-2 p-3 bg-white rounded-lg border">
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm text-gray-600">Precio Final:</span>
-                                            <span className="text-lg font-bold text-green-600">
-                                                ${calculateEditDiscountedPrice().toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                                            </span>
+                                            <div className="text-right">
+                                                <div className="text-lg font-bold text-green-600">
+                                                    ${calculateEditDiscountedPrice().toLocaleString('es-AR', { minimumFractionDigits: 2 })} <span className="text-xs font-medium text-gray-500">(sin IVA)</span>
+                                                </div>
+                                                <div className="text-sm font-semibold text-emerald-700">
+                                                    ${(calculateEditDiscountedPrice() * (1 + IVA_RATE)).toLocaleString('es-AR', { minimumFractionDigits: 2 })} <span className="text-xs font-medium text-gray-500">(con IVA)</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -250,10 +330,10 @@ export function ServiceDetailDialog({
                                     {/* Next Due Date */}
                                     <div className="col-span-2 space-y-1.5">
                                         <Label className="text-xs">Próximo Vencimiento</Label>
-                                        <Input
-                                            type="date"
-                                            value={serviceEditForm.next_due_date ? serviceEditForm.next_due_date.split('T')[0] : ''}
-                                            onChange={(e) => setServiceEditForm(prev => ({ ...prev, next_due_date: e.target.value }))}
+                                        <DateInputDmy
+                                            value={serviceEditForm.next_due_date ? serviceEditForm.next_due_date.split("T")[0] : ""}
+                                            onChange={(nextIso) => setServiceEditForm(prev => ({ ...prev, next_due_date: nextIso }))}
+                                            aria-label="Próximo vencimiento"
                                         />
                                     </div>
                                 </div>
@@ -329,9 +409,14 @@ export function ServiceDetailDialog({
                                         </div>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-2xl font-bold text-gray-900">
-                                            ${parseFloat(selectedService.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                                        </p>
+                                        <div className="text-2xl font-bold text-gray-900">
+                                            ${parseFloat(selectedService.amount_without_iva || selectedService.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}{" "}
+                                            <span className="text-xs font-medium text-gray-500">(sin IVA)</span>
+                                        </div>
+                                        <div className="text-sm font-semibold text-emerald-700">
+                                            ${parseFloat(selectedService.amount_with_iva || selectedService.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}{" "}
+                                            <span className="text-xs font-medium text-gray-500">(con IVA)</span>
+                                        </div>
                                         {selectedService.discount_percentage && parseFloat(selectedService.discount_percentage) > 0 && (
                                             <div className="flex items-center gap-2 justify-end mt-1">
                                                 <span className="text-xs text-gray-400 line-through">

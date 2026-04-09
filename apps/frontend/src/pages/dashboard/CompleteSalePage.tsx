@@ -101,7 +101,7 @@ export default function CompleteSalePage() {
   const [selectedTaxIdentityId, setSelectedTaxIdentityId] = useState<number | null>(null)
 
   const isItemDiscountAllowed = useCallback((item: CartItem) => {
-    return item.allow_discount !== false
+    return !((item as any).allow_discount === false || (item as any).allow_discount === 0 || (item as any).allow_discount === '0')
   }, [])
 
   // Hook personalizado para búsqueda de clientes
@@ -153,7 +153,11 @@ export default function CompleteSalePage() {
 
   useEffect(() => {
     setCart((prev) => prev.map((item) => {
-      if (item.allow_discount === false && (item.discount_type || (item.discount_value ?? 0) > 0)) {
+      if (
+        (((item as any).allow_discount === false || (item as any).allow_discount === 0 || (item as any).allow_discount === '0')) &&
+        !item.is_from_combo &&
+        (item.discount_type || (item.discount_value ?? 0) > 0)
+      ) {
         return {
           ...item,
           discount_type: undefined,
@@ -459,14 +463,23 @@ export default function CompleteSalePage() {
                 }
               : undefined
 
+          const includeLineDiscount =
+            item.discount_type &&
+            (item.discount_value ?? 0) > 0 &&
+            (item.is_from_combo || isItemDiscountAllowed(item))
+
+          const blocksAdditionalDiscount =
+            (item as any).allow_discount === false || (item as any).allow_discount === 0 || (item as any).allow_discount === '0'
+
           return {
             product_id: productId,
             quantity: item.quantity,
             unit_price: Number(item.price || 0),
-            ...(item.discount_type && (item.discount_value ?? 0) > 0
-              && isItemDiscountAllowed(item)
+            ...(includeLineDiscount
               ? { discount_type: item.discount_type, discount_value: Number(item.discount_value) }
               : {}),
+            ...(item.is_from_combo ? { is_from_combo: true } : {}),
+            ...(blocksAdditionalDiscount ? { allow_discount: false } : {}),
             ...(scaleMeta ? { scale_barcode_meta: scaleMeta } : {}),
           }
         }),
@@ -1065,7 +1078,7 @@ export default function CompleteSalePage() {
                   await processSale()
                 }}
                 disabled={isProcessingSale}
-                className="flex-1 bg-green-600 hover:bg-green-700"
+                className="flex-1"
               >
                 {isProcessingSale ? (
                   <>

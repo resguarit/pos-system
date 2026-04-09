@@ -1,5 +1,6 @@
 import React from "react";
-import { type SaleHeader, type SaleItem } from "@/types/sale";
+import { type SaleHeader } from "@/types/sale";
+import { ARCA_CODES } from "@/lib/constants/arcaCodes";
 
 interface ThermalTicketContentProps {
     sale: SaleHeader;
@@ -21,14 +22,34 @@ interface ThermalTicketContentProps {
 
 const ThermalTicketContent: React.FC<ThermalTicketContentProps> = ({
     sale,
-    formatDate,
     companyDetails,
 }) => {
+    type AnyRecord = Record<string, unknown>
+    const asRecord = (v: unknown): AnyRecord => (v && typeof v === "object" ? (v as AnyRecord) : {})
+    const asNumber = (v: unknown, fallback = 0): number => {
+        const n = typeof v === "number" ? v : Number(v)
+        return Number.isFinite(n) ? n : fallback
+    }
+    const asString = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : v == null ? fallback : String(v))
+
     // Normalizar venta y datos de sucursal del backend
-    const s: any = (sale as any)?.data ?? sale;
-    const branch: any = (s?.branch && typeof s.branch === 'object') ? s.branch : null;
-    const backendCompanyName = branch?.description || branch?.name || '';
-    const backendAddress = branch?.address || '';
+    const saleWrapper = sale as unknown as { data?: unknown }
+    const s = (saleWrapper?.data ?? sale) as SaleHeader
+    const sRec = asRecord(s)
+    const branchRaw = sRec.branch
+    const branch = branchRaw && typeof branchRaw === "object" ? asRecord(branchRaw) : null
+    const backendCompanyName = branch ? asString(branch.description || branch.name) : ""
+    const backendAddress = branch ? asString(branch.address) : ""
+
+    const receiptAfipCode: string | null =
+        (asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id ?? null) != null
+            ? String(asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id)
+            : null
+    const receiptDescription: string = String(
+        asRecord(sRec.receipt_type).description || asRecord(sRec.receiptType).description || asRecord(sRec.receiptType).name || ''
+    ).toLowerCase()
+    const isFacturaX: boolean =
+        receiptAfipCode === ARCA_CODES.FACTURA_X || receiptDescription.includes('factura x')
 
     // Valores de empresa a mostrar (igual que blade: usa company_name o branch description)
     const companyName = companyDetails.name || backendCompanyName || 'SUCURSAL';
@@ -82,11 +103,13 @@ const ThermalTicketContent: React.FC<ThermalTicketContentProps> = ({
 
             {/* Items - igual que blade: descripción arriba, números abajo */}
             {s.items && s.items.length > 0 ? (
-                s.items.map((item: SaleItem, index: number) => {
-                    const qty = Number((item as any).quantity) || 0;
-                    const unitPrice = Number((item as any).unit_price) || 0;
-                    const lineTotal = Number((item as any).item_total) || 0;
-                    const description = (item as any).product?.description || 'Item';
+                (Array.isArray(sRec.items) ? (sRec.items as unknown[]) : []).map((rawItem, index: number) => {
+                    const itemRec = asRecord(rawItem)
+                    const productRec = asRecord(itemRec.product)
+                    const qty = asNumber(itemRec.quantity, 0)
+                    const unitPrice = asNumber(itemRec.unit_price, 0)
+                    const lineTotal = asNumber(itemRec.item_total, 0)
+                    const description = asString(productRec.description, 'Item')
 
                     return (
                         <div key={index}>
@@ -111,19 +134,21 @@ const ThermalTicketContent: React.FC<ThermalTicketContentProps> = ({
 
             {/* Totales - igual que blade */}
             <div className="text-[10px]">
-                <div className="flex justify-end">
-                    <span className="text-right">Subtotal:</span>
-                    <span className="text-right font-mono ml-2">{formatMoney(s?.subtotal || 0)}</span>
-                </div>
-                {(s?.discount_amount || 0) > 0 && (
+                {!isFacturaX && (
+                    <div className="flex justify-end">
+                        <span className="text-right">Subtotal:</span>
+                        <span className="text-right font-mono ml-2">{formatMoney(asNumber(sRec.subtotal, 0))}</span>
+                    </div>
+                )}
+                {asNumber(sRec.discount_amount, 0) > 0 && (
                     <div className="flex justify-end">
                         <span className="text-right">Descuento:</span>
-                        <span className="text-right font-mono ml-2">-{formatMoney(s?.discount_amount || 0)}</span>
+                        <span className="text-right font-mono ml-2">-{formatMoney(asNumber(sRec.discount_amount, 0))}</span>
                     </div>
                 )}
                 <div className="flex justify-end text-[12px] font-bold pt-[5px]">
                     <span className="text-right">TOTAL:</span>
-                    <span className="text-right font-mono ml-2">{formatMoney(s?.total || 0)}</span>
+                    <span className="text-right font-mono ml-2">{formatMoney(asNumber(sRec.total, 0))}</span>
                 </div>
             </div>
 

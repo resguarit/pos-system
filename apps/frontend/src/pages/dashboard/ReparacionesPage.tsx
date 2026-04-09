@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useBranch } from "@/context/BranchContext";
+import { useNavigate } from "react-router-dom";
 import {
     CalendarDays,
     Clock,
@@ -33,14 +34,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { MultiSelectCombobox, type Option } from "@/components/ui/multi-select-combobox";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { useResizableColumns } from "@/hooks/useResizableColumns";
 import { ResizableTableHeader, ResizableTableCell } from "@/components/ui/resizable-table-header";
 import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper";
 import RepairsStatusCard from "@/components/cards/RepairsStatusCard";
 import RepairKanbanView from "@/components/RepairKanbanView";
-import NewRepairDialog from "@/components/modals/NewRepairDialog";
-import RepairDetailDialogV2 from "@/components/modals/RepairDetailDialogV2";
 import { useRepairs } from "@/hooks/useRepairs";
 import type { Repair, RepairStatus, RepairPriority } from "@/types/repairs";
 import { cn } from "@/lib/utils";
@@ -68,7 +68,8 @@ const PRIORITY_BADGE_COLORS: Record<RepairPriority, string> = {
 
 export default function ReparacionesPage() {
     const { hasPermission } = useAuth();
-    const { selectedBranchIds } = useBranch();
+    useBranch();
+    const navigate = useNavigate();
 
     // View mode: table or kanban
     const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
@@ -83,11 +84,7 @@ export default function ReparacionesPage() {
         filters,
         setFilters,
         fetchKanban,
-        createRepair,
-        updateRepair,
         updateStatus,
-        addNote,
-        getRepair,
         downloadPdf,
         downloadReceptionCertificate,
         downloadNoRepairCertificate,
@@ -122,14 +119,6 @@ export default function ReparacionesPage() {
     // Date filter using DateRangePicker
     const [dateRange, setDateRange] = usePersistentDateRange("dateRange");
 
-    // Dialog states
-    const [createDialogOpen, setCreateDialogOpen] = useState(false);
-    const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-    const [selectedRepair, setSelectedRepair] = useState<Repair | null>(null);
-    const [detailLoading, setDetailLoading] = useState(false);
-    const [editMode, setEditMode] = useState(false);
-    const [detailInitialTab, setDetailInitialTab] = useState<"details" | "financials" | "notes">("details");
-
     // Apply date range to filters
     useEffect(() => {
         if (dateRange?.from) {
@@ -154,79 +143,36 @@ export default function ReparacionesPage() {
         }
     }, [viewMode, fetchKanban]);
 
-    const openDetail = async (repair: Repair, tab: "details" | "financials" | "notes", editable: boolean) => {
-        setDetailLoading(true);
-        setDetailDialogOpen(true);
-        setEditMode(editable);
-        setDetailInitialTab(tab);
-        try {
-            const fullRepair = await getRepair(repair.id);
-            setSelectedRepair(fullRepair);
-        } finally {
-            setDetailLoading(false);
-        }
-    };
+    // Keep kanban in sync with filters
+    useEffect(() => {
+        if (viewMode !== "kanban") return;
+        fetchKanban();
+    }, [
+        viewMode,
+        filters.search,
+        filters.status,
+        filters.statuses,
+        filters.priority,
+        filters.payment_status,
+        filters.insurer_id,
+        filters.technician_id,
+        filters.from_date,
+        filters.to_date,
+        fetchKanban,
+    ]);
 
     // View repair detail
     const handleView = async (repair: Repair) => {
-        await openDetail(repair, "details", false);
+        navigate(`/dashboard/reparaciones/${repair.id}`, { state: { edit: false, tab: "details" } });
     };
 
     // Edit repair
     const handleEdit = async (repair: Repair) => {
-        await openDetail(repair, "details", true);
+        navigate(`/dashboard/reparaciones/${repair.id}`, { state: { edit: true, tab: "details" } });
     };
 
     const handleNotesQuickAccess = async (repair: Repair) => {
-        await openDetail(repair, "notes", false);
-    };
-
-    // Save repair changes (including staged notes)
-    const handleSaveRepair = async (data: Partial<Repair>, notes?: string[]) => {
-        if (!selectedRepair) return;
-        // updateRepair will throw on error
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await updateRepair(selectedRepair.id, data as any);
-
-        // ALWAYS refresh from server to ensure data consistency (especially for is_no_repair, no_repair_reason, etc)
-        const refreshed = await getRepair(selectedRepair.id);
-        if (refreshed) {
-            setSelectedRepair(refreshed);
-
-            // Save any staged notes after main update
-            if (notes && notes.length > 0) {
-                for (const note of notes) {
-                    await addNote(selectedRepair.id, note);
-                }
-                // Refresh again to get the new notes
-                const finalRefresh = await getRepair(selectedRepair.id);
-                if (finalRefresh) setSelectedRepair(finalRefresh);
-            }
-
-            setEditMode(false);
-            refresh(); // Refresh the list too
-        }
-    };
-
-    const handleQuickAddNote = async (note: string): Promise<boolean> => {
-        if (!selectedRepair) return false;
-        const saved = await addNote(selectedRepair.id, note);
-        if (saved) {
-            const refreshed = await getRepair(selectedRepair.id);
-            setSelectedRepair(refreshed);
-            refresh();
-        }
-        return saved;
-    };
-
-    // Create repair
-    const handleCreateRepair = async (data: Parameters<typeof createRepair>[0]) => {
-        const repair = await createRepair(data);
-        if (repair) {
-            refresh();
-            return true;
-        }
-        return false;
+        navigate(`/dashboard/reparaciones/${repair.id}`, { state: { edit: false, tab: "notes" } });
     };
 
     // Status change (from Kanban)
@@ -263,11 +209,8 @@ export default function ReparacionesPage() {
         })}`;
     };
 
-    // Get branch ID for creating repairs
-    const branchId =
-        selectedBranchIds && selectedBranchIds[0] && selectedBranchIds[0] !== "all"
-            ? selectedBranchIds[0]
-            : null;
+    const statusOptions: Option[] = options.statuses.map((s) => ({ label: s, value: s }));
+    const selectedStatuses = filters.statuses ?? (filters.status && filters.status !== "all" ? [filters.status] : []);
 
     return (
         <BranchRequiredWrapper
@@ -305,7 +248,11 @@ export default function ReparacionesPage() {
                         </Button>
 
                         {hasPermission("crear_reparaciones") && (
-                            <Button onClick={() => setCreateDialogOpen(true)}>
+                            <Button
+                                onClick={() => {
+                                    navigate("/dashboard/reparaciones/nuevo");
+                                }}
+                            >
                                 <Plus className="mr-2 h-4 w-4" />
                                 Nueva Reparación
                             </Button>
@@ -358,25 +305,44 @@ export default function ReparacionesPage() {
                                 onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
                             />
                         </div>
+                        <div className="w-full md:w-[280px]">
+                            <MultiSelectCombobox
+                                options={statusOptions}
+                                selected={selectedStatuses}
+                                onChange={(next) => {
+                                    setFilters((f) => ({
+                                        ...f,
+                                        statuses: next.length > 0 ? (next as RepairStatus[]) : undefined,
+                                        // Limpia el legacy single-status para evitar estados mezclados.
+                                        status: undefined,
+                                    }));
+                                }}
+                                placeholder="Estado"
+                                searchPlaceholder="Buscar estado..."
+                                emptyMessage="No se encontraron estados"
+                                className="h-9 min-h-9 py-2 bg-background"
+                                triggerIcon="chevron-down"
+                                aria-label="Filtrar por estado"
+                                showSelectedBadges={false}
+                                selectedSummary={(count) => `${count} estados`}
+                            />
+                        </div>
                         <Select
-                            value={filters.status || "all"}
+                            value={filters.payment_status || "all"}
                             onValueChange={(v) =>
                                 setFilters((f) => ({
                                     ...f,
-                                    status: v === "all" ? undefined : (v as RepairStatus),
+                                    payment_status: v as "all" | "pending" | "paid",
                                 }))
                             }
                         >
                             <SelectTrigger className="w-[200px]">
-                                <SelectValue placeholder="Estado" />
+                                <SelectValue placeholder="Pago" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">Todos los estados</SelectItem>
-                                {options.statuses.map((s) => (
-                                    <SelectItem key={s} value={s}>
-                                        {s}
-                                    </SelectItem>
-                                ))}
+                                <SelectItem value="all">Todos los pagos</SelectItem>
+                                <SelectItem value="pending">Pendiente de pago</SelectItem>
+                                <SelectItem value="paid">Pagado</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select
@@ -678,44 +644,6 @@ export default function ReparacionesPage() {
                         loading={loading}
                     />
                 )}
-
-                {/* Dialogs */}
-                <NewRepairDialog
-                    open={createDialogOpen}
-                    onOpenChange={setCreateDialogOpen}
-                    onSubmit={handleCreateRepair}
-                    branchId={branchId}
-                    options={options}
-                />
-
-                <RepairDetailDialogV2
-                    open={detailDialogOpen}
-                    onOpenChange={(open) => {
-                        setDetailDialogOpen(open);
-                        if (!open) {
-                            setSelectedRepair(null);
-                            setEditMode(false);
-                        }
-                    }}
-                    repair={selectedRepair}
-                    loading={detailLoading}
-                    editMode={editMode}
-                    onSave={handleSaveRepair}
-                    onCancelEdit={() => setEditMode(false)}
-                    onPaymentSuccess={() => refresh()}
-                    onQuickAddNote={handleQuickAddNote}
-                    defaultTab={detailInitialTab}
-                    onDownloadPdf={
-                        selectedRepair ? () => handleDownloadPdf(selectedRepair) : undefined
-                    }
-                    onDownloadReceptionCertificate={
-                        selectedRepair ? () => handleDownloadReceptionCertificate(selectedRepair) : undefined
-                    }
-                    onDownloadNoRepairCertificate={
-                        selectedRepair ? () => handleDownloadNoRepairCertificate(selectedRepair) : undefined
-                    }
-                    options={options}
-                />
 
             </div>
         </BranchRequiredWrapper>

@@ -131,6 +131,7 @@ class UpdateCustomerRequest extends FormRequest
             'active' => ['nullable', 'boolean'],
             'credit_limit' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'services_charge_with_iva_default' => ['nullable', 'boolean'],
             // Tax identities array (optional - for multiple CUITs per customer)
             'tax_identities' => ['nullable', 'array'],
             'tax_identities.*.id' => ['nullable', 'integer', 'exists:customer_tax_identities,id'],

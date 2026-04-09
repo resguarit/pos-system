@@ -18,6 +18,7 @@ import type { PaymentMethod, ReceiptType } from '@/types/sale'
 import type { CartItem } from '@/types/combo'
 import { useSaleTotals } from '@/hooks/useSaleTotals'
 import { cn } from "@/lib/utils"
+import { useSystemConfigContext } from "@/context/SystemConfigContext"
 import {
     Command,
     CommandEmpty,
@@ -47,6 +48,7 @@ interface ManualItem {
 // Actually, I'll essentially treat them as CartItems.
 
 export default function OpenDetailInvoicePage() {
+    const { config } = useSystemConfigContext()
     const navigate = useNavigate()
     const { request } = useApi()
     const { selectedBranch } = useBranch()
@@ -570,7 +572,13 @@ export default function OpenDetailInvoicePage() {
                             </div>
                         </CardContent>
                         <CardContent>
-                            <Button className="w-full" disabled={isProcessing} onClick={handleProcessSale}>
+                            <Button
+                                variant="default"
+                                className="w-full font-semibold shadow-md hover:shadow-lg h-10 sm:h-11 lg:h-12 text-sm sm:text-base text-white hover:opacity-90"
+                                disabled={isProcessing}
+                                onClick={handleProcessSale}
+                                style={{ backgroundColor: config?.primary_color || '#3B82F6' }}
+                            >
                                 {isProcessing ? "Procesando..." : "Finalizar Venta"}
                             </Button>
                         </CardContent>

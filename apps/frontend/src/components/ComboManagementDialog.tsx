@@ -13,12 +13,32 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Trash2, Plus, Search, Barcode, X } from 'lucide-react';
 import { sileo } from "sileo"
 import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
 import { createCombo, updateCombo } from '@/lib/api/comboService';
 import type { Combo, ComboItemForm } from '@/types/combo';
 import type { Product } from '@/types/product';
+
+const toArrayFromApi = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  const obj = payload as { data?: unknown };
+  const inner = obj.data;
+  if (Array.isArray(inner)) return inner;
+  if (inner && typeof inner === "object") {
+    const innerObj = inner as { data?: unknown };
+    if (Array.isArray(innerObj.data)) return innerObj.data;
+  }
+  return [];
+};
+
+const getErrorMessage = (error: unknown): string | undefined => {
+  if (!error || typeof error !== "object") return undefined;
+  const maybe = error as { message?: unknown };
+  return typeof maybe.message === "string" ? maybe.message : undefined;
+};
 
 export interface ComboGroupForm {
   name: string;
@@ -43,6 +63,8 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
   const [description, setDescription] = useState('');
   const [discountType, setDiscountType] = useState<'percentage' | 'fixed_amount'>('percentage');
   const [discountValue, setDiscountValue] = useState(0);
+  /** Permite aplicar descuentos extra del POS (por ítem o global) además del precio promocional del combo */
+  const [allowDiscount, setAllowDiscount] = useState(true);
   const [items, setItems] = useState<ComboItemForm[]>([]);
   const [groups, setGroups] = useState<ComboGroupForm[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -61,34 +83,83 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
   } = useDebouncedSearch<Product>({
     endpoint: '/products',
     extraParams: { per_page: '20' },
-    extractData: (res: any) => {
-      const data = res?.data?.data || res?.data || (Array.isArray(res) ? res : []);
-      return (Array.isArray(data) ? data : []).map((product: any) => ({
-        id: parseInt(product.id),
-        description: product.name || product.description || '',
-        code: product.code || product.sku || product.id.toString(),
-        measure_id: product.measure_id || 1,
-        unit_price: product.unit_price || product.sale_price || '0',
-        currency: product.currency || 'ARS',
-        markup: product.markup || '0',
-        category_id: product.category_id || 1,
-        iva_id: product.iva_id || 1,
-        image_id: product.image_id || null,
-        supplier_id: product.supplier_id || 1,
-        status: product.status || true,
-        web: product.web || false,
-        observaciones: product.observaciones || null,
-        created_at: product.created_at || new Date().toISOString(),
-        updated_at: product.updated_at || new Date().toISOString(),
-        deleted_at: product.deleted_at || null,
-        sale_price: product.sale_price || parseFloat(product.unit_price) || 0,
-        measure: product.measure || { id: 1, name: 'Unidad', created_at: '', updated_at: '', deleted_at: null },
-        category: product.category || { id: 1, name: 'General', description: '', parent_id: null, created_at: '', updated_at: '', deleted_at: null },
-        iva: product.iva || { id: 1, name: 'IVA', rate: 0, created_at: '', updated_at: '', deleted_at: null },
-        supplier: product.supplier || { id: 1, name: 'General', contact_name: null, phone: '', email: '', cuit: '', address: '', status: 'active', created_at: '', updated_at: '', deleted_at: null },
-        stocks: product.stocks || []
-      }));
-    }
+    extractData: (res: unknown) => {
+      const list = toArrayFromApi(res);
+
+      return list.map((raw) => {
+        const product = raw as Record<string, unknown>;
+        const idValue = product.id;
+        const id = typeof idValue === "number" ? idValue : parseInt(String(idValue ?? "0"), 10);
+
+        const unitPriceRaw = product.unit_price ?? product.sale_price ?? "0";
+        const salePriceRaw = product.sale_price ?? parseFloat(String(product.unit_price ?? "0")) ?? 0;
+
+        return {
+          id,
+          description: String((product.name ?? product.description ?? "") || ""),
+          code: String((product.code ?? product.sku ?? id) || ""),
+          scale_plu: (product.scale_plu as string | null | undefined) ?? null,
+          measure_id: Number(product.measure_id ?? 1),
+          unit_price: String(unitPriceRaw ?? "0"),
+          currency: (product.currency === "USD" ? "USD" : "ARS") as Product["currency"],
+          markup: String(product.markup ?? "0"),
+          category_id: Number(product.category_id ?? 1),
+          iva_id: Number(product.iva_id ?? 1),
+          image_id: (product.image_id as number | null) ?? null,
+          supplier_id: Number(product.supplier_id ?? 1),
+          status: (product.status as boolean | number) ?? true,
+          web: (product.web as boolean | number) ?? false,
+          allow_discount: product.allow_discount as boolean | undefined,
+          observaciones: (product.observaciones as string | null) ?? null,
+          created_at: String(product.created_at ?? new Date().toISOString()),
+          updated_at: String(product.updated_at ?? new Date().toISOString()),
+          deleted_at: (product.deleted_at as string | null) ?? null,
+          sale_price: Number(salePriceRaw || 0),
+          measure:
+            (product.measure as Product["measure"]) ?? {
+              id: 1,
+              name: "Unidad",
+              created_at: "",
+              updated_at: "",
+              deleted_at: null,
+            },
+          category:
+            (product.category as Product["category"]) ?? {
+              id: 1,
+              name: "General",
+              description: "",
+              parent_id: null,
+              created_at: "",
+              updated_at: "",
+              deleted_at: null,
+            },
+          iva:
+            (product.iva as Product["iva"]) ?? {
+              id: 1,
+              name: "IVA",
+              rate: 0,
+              created_at: "",
+              updated_at: "",
+              deleted_at: null,
+            },
+          supplier:
+            (product.supplier as Product["supplier"]) ?? {
+              id: 1,
+              name: "General",
+              contact_name: null,
+              phone: "",
+              email: "",
+              cuit: "",
+              address: "",
+              status: "active",
+              created_at: "",
+              updated_at: "",
+              deleted_at: null,
+            },
+          stocks: (product.stocks as Product["stocks"]) ?? [],
+        } satisfies Product;
+      });
+    },
   });
 
   const isEditing = !!combo;
@@ -100,6 +171,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
         setDescription(combo.description || '');
         setDiscountType(combo.discount_type);
         setDiscountValue(combo.discount_value);
+        setAllowDiscount(combo.allow_discount !== false);
 
         const mappedItems = combo.combo_items?.map(item => ({
           product_id: item.product_id,
@@ -129,6 +201,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     setDescription('');
     setDiscountType('percentage');
     setDiscountValue(0);
+    setAllowDiscount(true);
     setItems([]);
     setGroups([]);
     setSelectedProduct(null);
@@ -238,7 +311,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
     if (addTarget === `group-${index}`) setAddTarget('fixed');
   };
 
-  const updateGroup = (index: number, field: keyof ComboGroupForm, value: any) => {
+  const updateGroup = <K extends keyof ComboGroupForm>(index: number, field: K, value: ComboGroupForm[K]) => {
     setGroups(prev => prev.map((g, i) => i === index ? { ...g, [field]: value } : g));
   };
 
@@ -290,6 +363,7 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
         description: description.trim(),
         discount_type: discountType,
         discount_value: discountValue,
+        allow_discount: allowDiscount,
         items: items.map(item => ({
           product_id: item.product_id,
           quantity: item.quantity
@@ -311,9 +385,9 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
 
       onSaved();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving combo:', error);
-      sileo.error({ title: error.message || 'Error al guardar combo' });
+      sileo.error({ title: getErrorMessage(error) || 'Error al guardar combo' });
     } finally {
       setLoading(false);
     }
@@ -383,6 +457,17 @@ export const ComboManagementDialog: React.FC<ComboManagementDialogProps> = ({
                 placeholder={discountType === 'percentage' ? 'Ej: 20' : 'Ej: 1000'}
               />
             </div>
+          </div>
+
+          <div className="flex items-center space-x-2 rounded-md border border-border p-3">
+            <Checkbox
+              id="combo-allow-discount"
+              checked={allowDiscount}
+              onCheckedChange={(v) => setAllowDiscount(v === true)}
+            />
+            <Label htmlFor="combo-allow-discount" className="text-sm font-normal leading-snug cursor-pointer">
+              Permitir descuentos adicionales en el POS (por ítem o descuento global). Desmarcá si el combo ya incluye la promoción y no querés sumar otro descuento.
+            </Label>
           </div>
 
           {/* Agregar productos */}

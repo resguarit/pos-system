@@ -67,6 +67,16 @@ class RepairService implements RepairServiceInterface
             $query->where('status', $filters['status']);
         }
 
+        if (!empty($filters['statuses'])) {
+            $statuses = $filters['statuses'];
+            if (is_string($statuses)) {
+                $statuses = array_filter(array_map('trim', explode(',', $statuses)));
+            }
+            if (is_array($statuses) && count($statuses) > 0) {
+                $query->whereIn('status', $statuses);
+            }
+        }
+
         if (!empty($filters['priority'])) {
             $query->where('priority', $filters['priority']);
         }
@@ -89,6 +99,21 @@ class RepairService implements RepairServiceInterface
 
         if (!empty($filters['insurer_id'])) {
             $query->where('insurer_id', $filters['insurer_id']);
+        }
+
+        // Payment filter (is_paid) - accept 1/0, true/false, "true"/"false"
+        if (array_key_exists('is_paid', $filters) && $filters['is_paid'] !== null && $filters['is_paid'] !== '') {
+            $raw = $filters['is_paid'];
+            $normalized = null;
+            if ($raw === true || $raw === 1 || $raw === '1' || $raw === 'true' || $raw === 'TRUE') {
+                $normalized = true;
+            } elseif ($raw === false || $raw === 0 || $raw === '0' || $raw === 'false' || $raw === 'FALSE') {
+                $normalized = false;
+            }
+
+            if ($normalized !== null) {
+                $query->where('is_paid', $normalized);
+            }
         }
 
         // Date range: intake_date (from_date/to_date)
@@ -212,8 +237,8 @@ class RepairService implements RepairServiceInterface
     }
 
     /**
-     * Mark a repair as paid and register cash movement
-     * 
+     * Mark a repair as paid and register cash movement (unless sale price is zero / sin cargo).
+     *
      * @param int $id Repair ID
      * @param array $data Payment data containing payment_method_id, amount_paid, branch_id
      * @return Repair Updated repair with payment info
@@ -224,12 +249,15 @@ class RepairService implements RepairServiceInterface
         return DB::transaction(function () use ($id, $data) {
             $repair = Repair::findOrFail($id);
 
-            // Validate repair is not already paid
             if ($repair->is_paid) {
                 throw new \Exception('Esta reparación ya fue marcada como cobrada');
             }
 
-            // Validate required fields
+            $salePrice = (float) ($repair->sale_price ?? 0);
+            if ($salePrice <= 0.01) {
+                return $this->markAsPaidWithoutCash($repair, $data);
+            }
+
             if (empty($data['payment_method_id']) || empty($data['branch_id'])) {
                 throw new \Exception('Se requieren el método de pago y la sucursal');
             }
@@ -239,7 +267,6 @@ class RepairService implements RepairServiceInterface
                 throw new \Exception('El monto a cobrar debe ser mayor a 0');
             }
 
-            // Find open cash register for the branch
             $cashRegister = \App\Models\CashRegister::where('branch_id', $data['branch_id'])
                 ->where('status', 'open')
                 ->latest()
@@ -249,7 +276,6 @@ class RepairService implements RepairServiceInterface
                 throw new \Exception('No se encontró una caja abierta en la sucursal seleccionada');
             }
 
-            // Find or create movement type for repair payment
             $movementType = \App\Models\MovementType::firstOrCreate(
                 ['name' => 'Pago de reparación'],
                 [
@@ -261,7 +287,6 @@ class RepairService implements RepairServiceInterface
                 ]
             );
 
-            // Create cash movement
             $customerName = $repair->customer->person->full_name ?? 'Cliente';
             $cashMovement = \App\Models\CashMovement::create([
                 'cash_register_id' => $cashRegister->id,
@@ -274,7 +299,6 @@ class RepairService implements RepairServiceInterface
                 'reference_id' => $repair->id,
             ]);
 
-            // Update repair with payment info
             $repair->update([
                 'is_paid' => true,
                 'amount_paid' => $amount,
@@ -284,12 +308,35 @@ class RepairService implements RepairServiceInterface
                 'cash_movement_id' => $cashMovement->id,
             ]);
 
-            // Update cash register calculated fields
             $cashRegister->updateCalculatedFields();
 
-            // Load relationships for response
             return $repair->load(['paymentMethod', 'cashMovement']);
         });
+    }
+
+    /**
+     * Sin ingreso: precio de venta ~0. No movimiento de caja.
+     */
+    private function markAsPaidWithoutCash(Repair $repair, array $data): Repair
+    {
+        $paymentMethodId = isset($data['payment_method_id']) ? (int) $data['payment_method_id'] : null;
+        if (!$paymentMethodId) {
+            $sinCargo = \App\Models\PaymentMethod::where('name', 'Sin cargo')->first();
+            if (!$sinCargo) {
+                throw new \Exception('No está configurado el método de pago "Sin cargo". Ejecute los seeders o créelo en el sistema.');
+            }
+            $paymentMethodId = $sinCargo->id;
+        }
+
+        $repair->update([
+            'is_paid' => true,
+            'amount_paid' => 0,
+            'payment_method_id' => $paymentMethodId,
+            'paid_at' => now(),
+            'cash_movement_id' => null,
+        ]);
+
+        return $repair->load(['paymentMethod', 'cashMovement']);
     }
 
     private function generateCode(): string

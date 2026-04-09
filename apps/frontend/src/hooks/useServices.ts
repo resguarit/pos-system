@@ -7,6 +7,8 @@ export interface ClientService {
     name: string;
     description: string | null;
     amount: string;
+    amount_without_iva?: string | null;
+    amount_with_iva?: string | null;
     billing_cycle: "monthly" | "annual" | "one_time";
     start_date: string;
     next_due_date: string | null;
@@ -21,6 +23,7 @@ export interface ClientService {
             last_name: string;
             email: string | null;
         };
+        services_charge_with_iva_default?: boolean;
     };
 }
 
@@ -55,6 +58,8 @@ export type CreateServiceData = {
     name: string;
     description?: string;
     amount: number;
+    amount_without_iva?: number | null;
+    amount_with_iva?: number | null;
     billing_cycle: "monthly" | "annual" | "one_time";
     start_date?: string;
     next_due_date?: string | null;

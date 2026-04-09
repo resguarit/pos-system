@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge"
 import { NumberFormatter } from "@/lib/formatters/numberFormatter"
 import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { DateInputDmy } from "@/components/ui/date-input-dmy"
 
 interface ServiceType {
     id: number
@@ -70,6 +71,7 @@ export default function AssignServiceDialog({
     onOpenChange,
     onSuccess,
 }: AssignServiceDialogProps) {
+    const IVA_RATE = 0.21
     // State for service types
     const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([])
     const [loadingServiceTypes, setLoadingServiceTypes] = useState(false)
@@ -390,7 +392,11 @@ export default function AssignServiceDialog({
                     service_type_id: parseInt(service.service_type_id),
                     name: service.name,
                     description: service.description || null,
-                    amount: parseFloat(service.amount),
+                    // `amount` is legacy (still used by some UI). We store the "con IVA" total there,
+                    // while also persisting both explicit variants.
+                    amount: parseFloat(service.amount) * (1 + IVA_RATE),
+                    amount_without_iva: parseFloat(service.amount),
+                    amount_with_iva: parseFloat(service.amount) * (1 + IVA_RATE),
                     base_price: service.base_price ? parseFloat(service.base_price) : null,
                     discount_percentage: service.discount_percentage ? parseFloat(service.discount_percentage) : 0,
                     discount_notes: service.discount_notes || null,
@@ -425,6 +431,10 @@ export default function AssignServiceDialog({
         return NumberFormatter.formatCurrency(num, { showCurrency: false })
     }
 
+    const formatCurrencyFromNumber = (num: number): string => {
+        return NumberFormatter.formatCurrency(num, { showCurrency: false })
+    }
+
     // Validate service
     const validateService = (service: ServiceFormItem): string | null => {
         if (!service.name?.trim()) {
@@ -456,8 +466,11 @@ export default function AssignServiceDialog({
     return (
         <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
             <DialogContent className={cn(
-                "max-h-[90vh] overflow-y-auto transition-all duration-300",
-                newCustomerOpen ? "sm:max-w-3xl md:max-w-4xl" : "sm:max-w-lg md:max-w-xl"
+                // Make the dialog more "square" and keep dropdowns usable:
+                // - Larger width on desktop
+                // - Scroll inside content, not on the dialog container (so popovers aren't cramped)
+                "w-[95vw] sm:w-full sm:max-w-4xl max-h-[92vh] overflow-visible transition-all duration-300",
+                newCustomerOpen ? "md:max-w-4xl" : "md:max-w-4xl"
             )}>
                 {newCustomerOpen ? (
                     <div className="p-1">
@@ -479,7 +492,7 @@ export default function AssignServiceDialog({
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="grid gap-5 py-4">
+                        <div className="grid gap-5 py-4 overflow-y-auto max-h-[78vh] pr-1">
                             {/* Customer Selector */}
                             {/* Customer Selector (Search Input) */}
                             <div className="grid gap-2">
@@ -545,42 +558,39 @@ export default function AssignServiceDialog({
                                 )}
                             </div>
 
-                            <div className="grid gap-2">
-                                <Label>Servicios a Asignar</Label>
-                                <div className="relative">
-                                    <button
-                                        type="button"
-                                        onClick={() => { if (!loadingServiceTypes) setServiceTypeOpen(!serviceTypeOpen); }}
-                                        className={cn(
-                                            "w-full flex items-center justify-between bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                                            "hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
-                                            loadingServiceTypes && "text-gray-400 cursor-not-allowed opacity-60",
-                                            !loadingServiceTypes && "text-gray-700"
-                                        )}
-                                        disabled={loadingServiceTypes}
-                                    >
-                                        <div className="flex items-center gap-2 truncate">
-                                            <Package className="h-4 w-4 flex-shrink-0" />
-                                            <span className="truncate">
-                                                {loadingServiceTypes ? "Cargando..." :
-                                                    formData.service_type_ids.length > 0
-                                                        ? `${formData.service_type_ids.length} servicios seleccionados`
-                                                        : "Seleccionar servicios..."}
-                                            </span>
-                                        </div>
-                                        <ChevronDown className={cn(
-                                            "h-4 w-4 transition-transform flex-shrink-0 ml-2",
-                                            serviceTypeOpen && "rotate-180"
-                                        )} />
-                                    </button>
+                            <div className="grid gap-4 md:grid-cols-2 md:items-start">
+                                {/* Left: service selector */}
+                                <div className="grid gap-2">
+                                    <Label>Servicios a Asignar</Label>
+                                    <div className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => { if (!loadingServiceTypes) setServiceTypeOpen(!serviceTypeOpen); }}
+                                            className={cn(
+                                                "w-full flex items-center justify-between bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                                                "hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
+                                                loadingServiceTypes && "text-gray-400 cursor-not-allowed opacity-60",
+                                                !loadingServiceTypes && "text-gray-700"
+                                            )}
+                                            disabled={loadingServiceTypes}
+                                        >
+                                            <div className="flex items-center gap-2 truncate">
+                                                <Package className="h-4 w-4 flex-shrink-0" />
+                                                <span className="truncate">
+                                                    {loadingServiceTypes ? "Cargando..." :
+                                                        formData.service_type_ids.length > 0
+                                                            ? `${formData.service_type_ids.length} servicios seleccionados`
+                                                            : "Seleccionar servicios..."}
+                                                </span>
+                                            </div>
+                                            <ChevronDown className={cn(
+                                                "h-4 w-4 transition-transform flex-shrink-0 ml-2",
+                                                serviceTypeOpen && "rotate-180"
+                                            )} />
+                                        </button>
 
-                                    {serviceTypeOpen && (
-                                        <>
-                                            <div
-                                                className="fixed inset-0 z-40"
-                                                onClick={() => setServiceTypeOpen(false)}
-                                            />
-                                            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-hidden flex flex-col">
+                                        {serviceTypeOpen && (
+                                            <div className="mt-2 w-full bg-white border border-gray-300 rounded-lg shadow-sm max-h-[65vh] overflow-hidden flex flex-col">
                                                 <div className="flex items-center justify-between px-3 py-2 border-b bg-gray-50/50">
                                                     <span className="text-xs text-gray-500 font-medium">
                                                         {loadingExisting ? "Verificando servicios..." : `Disponibles (${availableServiceTypes.length})`}
@@ -632,7 +642,15 @@ export default function AssignServiceDialog({
                                                                             {serviceType.name}
                                                                         </div>
                                                                         <div className="text-xs text-gray-500 truncate">
-                                                                            ${serviceType.price} / {getBillingCycleLabel(serviceType.billing_cycle)}
+                                                                            <span className="font-medium">
+                                                                                ${formatCurrency(serviceType.price)} <span className="text-[10px]">(sin IVA)</span>
+                                                                            </span>{" "}
+                                                                            <span className="text-gray-400">•</span>{" "}
+                                                                            <span className="font-medium text-emerald-700">
+                                                                                ${formatCurrencyFromNumber((parseFloat(serviceType.price) || 0) * (1 + IVA_RATE))}{" "}
+                                                                                <span className="text-[10px] text-gray-500">(con IVA)</span>
+                                                                            </span>{" "}
+                                                                            <span className="text-gray-400">•</span> {getBillingCycleLabel(serviceType.billing_cycle)}
                                                                         </div>
                                                                     </div>
                                                                 </button>
@@ -641,34 +659,43 @@ export default function AssignServiceDialog({
                                                     )}
                                                 </div>
                                             </div>
-                                        </>
+                                        )}
+                                    </div>
+
+                                    {formData.service_type_ids.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mt-1">
+                                            {formData.services.map((service, idx) => (
+                                                <Badge key={idx} variant="secondary" className="text-xs">
+                                                    {service.name}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {!formData.customer_id && (
+                                        <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                                            <Info className="h-3 w-3" />
+                                            Selecciona un cliente primero para ver los servicios disponibles
+                                        </p>
                                     )}
                                 </div>
-                                {formData.service_type_ids.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mt-1">
-                                        {formData.services.map((service, idx) => (
-                                            <Badge key={idx} variant="secondary" className="text-xs">
-                                                {service.name}
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                )}
-                                {!formData.customer_id && (
-                                    <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
-                                        <Info className="h-3 w-3" />
-                                        Selecciona un cliente primero para ver los servicios disponibles
-                                    </p>
-                                )}
-                            </div>
 
-                            <div className="space-y-4">
-                                {formData.services.length === 0 ? (
-                                    <div className="text-center p-8 border border-dashed rounded-lg bg-gray-50">
-                                        <Package className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                                        <p className="text-sm text-gray-500">Selecciona servicios arriba para configurarlos</p>
+                                {/* Right: selected services with own scroll */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-sm font-semibold">Servicios seleccionados</Label>
+                                        <span className="text-xs text-gray-500">
+                                            {formData.services.length}
+                                        </span>
                                     </div>
-                                ) : (
-                                    formData.services.map((service, index) => {
+                                    <div className="max-h-[55vh] overflow-y-auto pr-1 space-y-4">
+                                        {formData.services.length === 0 ? (
+                                            <div className="text-center p-8 border border-dashed rounded-lg bg-gray-50">
+                                                <Package className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                                                <p className="text-sm text-gray-500">Selecciona servicios para configurarlos</p>
+                                            </div>
+                                        ) : (
+                                            formData.services.map((service, index) => {
                                         const discount = parseFloat(service.discount_percentage) || 0
                                         const hasDiscount = discount > 0
                                         const validationError = validateService(service)
@@ -741,7 +768,7 @@ export default function AssignServiceDialog({
                                                             {/* Base Price */}
                                                             <div className="flex flex-col gap-1.5">
                                                                 <Label htmlFor={`base-price-${index}`} className="text-xs font-medium flex items-center gap-1 h-5">
-                                                                    Precio Base <span className="text-red-500">*</span>
+                                                                    Precio base (sin IVA) <span className="text-red-500">*</span>
                                                                 </Label>
                                                                 <div className="relative">
                                                                     <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -755,6 +782,22 @@ export default function AssignServiceDialog({
                                                                         className={cn("h-9 pl-7", validationError && parseFloat(service.base_price || "0") <= 0 && "border-red-300")}
                                                                         placeholder="0.00"
                                                                         aria-invalid={parseFloat(service.base_price || "0") <= 0}
+                                                                    />
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Base Price with IVA (read-only) */}
+                                                            <div className="flex flex-col gap-1.5">
+                                                                <Label className="text-xs font-medium flex items-center gap-1 h-5">
+                                                                    Precio base (con IVA 21%)
+                                                                </Label>
+                                                                <div className="relative">
+                                                                    <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                                                    <Input
+                                                                        type="text"
+                                                                        readOnly
+                                                                        value={formatCurrencyFromNumber((parseFloat(service.base_price || "0") || 0) * (1 + IVA_RATE))}
+                                                                        className="h-9 pl-7 bg-white"
                                                                     />
                                                                 </div>
                                                             </div>
@@ -799,9 +842,13 @@ export default function AssignServiceDialog({
                                                         {/* Final Amount Display */}
                                                         <div className="pt-2 border-t border-gray-300">
                                                             <div className="flex items-center justify-between">
-                                                                <Label className="text-xs font-semibold text-gray-700">Monto Final</Label>
-                                                                <span className="text-base font-bold text-gray-900">
-                                                                    {formatCurrency(service.amount || "0")}
+                                                                <Label className="text-xs font-semibold text-gray-700">Monto final (sin IVA)</Label>
+                                                                <span className="text-base font-bold text-gray-900">{formatCurrency(service.amount || "0")}</span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between mt-1">
+                                                                <Label className="text-xs font-semibold text-emerald-700">Monto final (con IVA)</Label>
+                                                                <span className="text-base font-bold text-emerald-700">
+                                                                    {formatCurrencyFromNumber((parseFloat(service.amount || "0") || 0) * (1 + IVA_RATE))}
                                                                 </span>
                                                             </div>
                                                             {hasDiscount && (
@@ -856,12 +903,15 @@ export default function AssignServiceDialog({
                                                 </div>
                                             </div>
                                         )
-                                    })
-                                )}
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
 
-                                {/* Global Date Mode */}
-                                {formData.services.length > 0 && (
-                                    <div className="grid gap-3 border-t pt-4 mt-2">
+                            {/* Global Date Mode */}
+                            {formData.services.length > 0 && (
+                                <div className="grid gap-3 border-t pt-4 mt-2">
                                         <div className="flex items-center gap-2">
                                             <Calendar className="h-4 w-4 text-gray-600" />
                                             <Label className="text-sm font-semibold">Fecha de facturacion</Label>
@@ -900,23 +950,25 @@ export default function AssignServiceDialog({
                                         </RadioGroup>
 
                                         {formData.date_mode === "start_date" ? (
-                                            <Input
-                                                id="start_date"
-                                                type="date"
-                                                value={formData.start_date}
-                                                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                                                className="h-9 max-w-xs"
-                                                aria-label="Fecha de inicio para todos los servicios"
-                                            />
+                                            <div className="max-w-xs">
+                                                <DateInputDmy
+                                                    id="start_date"
+                                                    value={formData.start_date}
+                                                    onChange={(nextIso) => setFormData({ ...formData, start_date: nextIso })}
+                                                    aria-label="Fecha de inicio para todos los servicios"
+                                                    className="h-9"
+                                                />
+                                            </div>
                                         ) : (
-                                            <Input
-                                                id="next_due_date"
-                                                type="date"
-                                                value={formData.next_due_date}
-                                                onChange={(e) => setFormData({ ...formData, next_due_date: e.target.value })}
-                                                className="h-9 max-w-xs"
-                                                aria-label="Fecha de vencimiento para todos los servicios"
-                                            />
+                                            <div className="max-w-xs">
+                                                <DateInputDmy
+                                                    id="next_due_date"
+                                                    value={formData.next_due_date}
+                                                    onChange={(nextIso) => setFormData({ ...formData, next_due_date: nextIso })}
+                                                    aria-label="Fecha de vencimiento para todos los servicios"
+                                                    className="h-9"
+                                                />
+                                            </div>
                                         )}
 
                                         <p className="text-xs text-gray-500">
@@ -924,9 +976,8 @@ export default function AssignServiceDialog({
                                                 ? "Todos los servicios seleccionados comenzaran en esta fecha"
                                                 : "Usaremos esta fecha como vencimiento inicial para todos los servicios"}
                                         </p>
-                                    </div>
-                                )}
-                            </div>
+                                </div>
+                            )}
                         </div>
 
                         <DialogFooter className="gap-2 sm:gap-0">

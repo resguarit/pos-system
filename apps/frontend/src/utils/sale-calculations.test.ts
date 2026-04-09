@@ -147,6 +147,60 @@ describe('calculateSaleTotals - allow_discount flag', () => {
         expect(totals.total).toBe(1090)
     })
 
+    it('should still apply combo structural discount when allow_discount is false (is_from_combo)', () => {
+        const items: CartItem[] = [
+            createTestCartItem({
+                id: 'combo-1-1',
+                product_id: 1,
+                price: 100,
+                price_with_iva: 100,
+                sale_price: 90,
+                iva_rate: 0,
+                discount_type: 'percent' as const,
+                discount_value: 10,
+                allow_discount: false,
+                is_from_combo: true,
+            })
+        ]
+
+        const totals = calculateSaleTotals(items, { type: '', value: '' })
+
+        expect(totals.totalItemDiscount).toBe(10)
+        expect(totals.subtotalNet).toBe(90)
+        expect(totals.total).toBe(90)
+    })
+
+    it('should exclude combo lines without allow_discount from global discount base', () => {
+        const items: CartItem[] = [
+            createTestCartItem({
+                id: 'combo-1-1',
+                product_id: 1,
+                price: 100,
+                price_with_iva: 100,
+                sale_price: 90,
+                iva_rate: 0,
+                discount_type: 'percent' as const,
+                discount_value: 10,
+                allow_discount: false,
+                is_from_combo: true,
+            }),
+            createTestCartItem({
+                id: '2',
+                product_id: 2,
+                price: 100,
+                price_with_iva: 100,
+                sale_price: 100,
+                iva_rate: 0,
+                allow_discount: true,
+            }),
+        ]
+
+        const totals = calculateSaleTotals(items, { type: 'percent', value: '10' })
+
+        expect(totals.globalDiscountAmount).toBe(10)
+        expect(totals.total).toBe(180)
+    })
+
     it('should exclude non-discountable products from payment discount base', () => {
         const items: CartItem[] = [
             createTestCartItem({

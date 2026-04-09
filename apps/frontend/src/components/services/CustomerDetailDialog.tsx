@@ -169,15 +169,13 @@ export function CustomerDetailDialog({
 
                                                 {/* Price & Discount Info */}
                                                 <div className="text-right shrink-0">
-                                                    <div className="flex items-baseline gap-2 justify-end">
-                                                        <span className="text-lg font-bold text-gray-900">
-                                                            ${parseFloat(service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                                                        </span>
-                                                        {hasDiscount && (
-                                                            <span className="text-xs text-gray-400 line-through">
-                                                                ${parseFloat(service.base_price || service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                                                            </span>
-                                                        )}
+                                                    <div className="text-lg font-bold text-gray-900">
+                                                        ${parseFloat(service.amount_without_iva || service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}{" "}
+                                                        <span className="text-[10px] font-medium text-gray-500">(sin IVA)</span>
+                                                    </div>
+                                                    <div className="text-xs font-semibold text-emerald-700">
+                                                        ${parseFloat(service.amount_with_iva || service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}{" "}
+                                                        <span className="text-[10px] font-medium text-gray-500">(con IVA)</span>
                                                     </div>
                                                     {hasDiscount && (
                                                         <div className="flex items-center gap-1 justify-end mt-0.5">

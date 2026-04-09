@@ -56,6 +56,8 @@ class SaleController extends Controller
             'items.*.unit_price' => 'nullable|numeric|min:0',
             'items.*.discount_type' => 'nullable|in:percent,amount',
             'items.*.discount_value' => 'nullable|numeric|min:0',
+            'items.*.allow_discount' => 'nullable|boolean',
+            'items.*.is_from_combo' => 'nullable|boolean',
             'items.*.scale_barcode_meta' => 'nullable|array',
             'items.*.scale_barcode_meta.barcode' => 'nullable|string|max:32',
             'items.*.scale_barcode_meta.plu' => 'nullable|string|max:20',

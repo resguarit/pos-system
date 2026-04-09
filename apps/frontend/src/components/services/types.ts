@@ -5,6 +5,8 @@ export interface Service {
     next_due_date: string | null
     billing_cycle: string
     amount: string
+    amount_without_iva?: string | null
+    amount_with_iva?: string | null
     next_billing_cycle?: string | null
     next_amount?: string | null
     service_type?: {
@@ -30,6 +32,7 @@ export type ClientService = Service
 
 export interface Customer {
     id: number
+    services_charge_with_iva_default?: boolean
     person: {
         first_name: string
         last_name: string

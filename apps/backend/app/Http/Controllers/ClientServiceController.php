@@ -52,6 +52,8 @@ class ClientServiceController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
+            'amount_without_iva' => 'nullable|numeric|min:0',
+            'amount_with_iva' => 'nullable|numeric|min:0',
             'billing_cycle' => 'required|in:monthly,annual,one_time',
             'start_date' => 'required_without:next_due_date|date',
             'next_due_date' => 'nullable|date',
@@ -88,6 +90,14 @@ class ClientServiceController extends Controller
             }
         }
 
+        // Legacy compatibility: if caller only sends amount, keep IVA fields in sync.
+        if (!array_key_exists('amount_without_iva', $validated) || $validated['amount_without_iva'] === null) {
+            $validated['amount_without_iva'] = $validated['amount'] ?? null;
+        }
+        if (!array_key_exists('amount_with_iva', $validated) || $validated['amount_with_iva'] === null) {
+            $validated['amount_with_iva'] = $validated['amount'] ?? null;
+        }
+
         $service = ClientService::create($validated);
 
         return response()->json($service, 201);
@@ -106,11 +116,23 @@ class ClientServiceController extends Controller
             'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'amount' => 'sometimes|numeric|min:0',
+            'amount_without_iva' => 'nullable|numeric|min:0',
+            'amount_with_iva' => 'nullable|numeric|min:0',
             'billing_cycle' => 'sometimes|in:monthly,annual,one_time',
             'start_date' => 'sometimes|date',
             'next_due_date' => 'nullable|date',
             'status' => 'sometimes|in:active,suspended,cancelled',
         ]);
+
+        // Legacy compatibility: if caller updates amount but not IVA fields, keep IVA fields in sync.
+        if (array_key_exists('amount', $validated)) {
+            if (!array_key_exists('amount_without_iva', $validated)) {
+                $validated['amount_without_iva'] = $validated['amount'];
+            }
+            if (!array_key_exists('amount_with_iva', $validated)) {
+                $validated['amount_with_iva'] = $validated['amount'];
+            }
+        }
 
         $service->update($validated);
 

@@ -9,6 +9,7 @@ use App\Http\Resources\RepairResource;
 use App\Http\Resources\RepairNoteResource;
 use App\Http\Requests\Repairs\StoreRepairRequest;
 use App\Http\Requests\Repairs\UpdateRepairRequest;
+use App\Models\Repair;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class RepairController extends Controller
@@ -286,11 +287,22 @@ class RepairController extends Controller
     public function markAsPaid(Request $request, int $id): RepairResource|JsonResponse
     {
         try {
-            $validated = $request->validate([
-                'payment_method_id' => 'required|integer|exists:payment_methods,id',
-                'amount_paid' => 'nullable|numeric|min:0.01|max:999999999.99',
-                'branch_id' => 'required|integer|exists:branches,id',
-            ]);
+            $repair = Repair::findOrFail($id);
+            $isFreePrice = (float) ($repair->sale_price ?? 0) <= 0.01;
+
+            $validated = $request->validate(
+                $isFreePrice
+                    ? [
+                        'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
+                        'amount_paid' => 'nullable|numeric|min:0|max:999999999.99',
+                        'branch_id' => 'nullable|integer|exists:branches,id',
+                    ]
+                    : [
+                        'payment_method_id' => 'required|integer|exists:payment_methods,id',
+                        'amount_paid' => 'nullable|numeric|min:0.01|max:999999999.99',
+                        'branch_id' => 'required|integer|exists:branches,id',
+                    ]
+            );
 
             $repair = $this->repairs->markAsPaid($id, $validated);
             return new RepairResource($repair);

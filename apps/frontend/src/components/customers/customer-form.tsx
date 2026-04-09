@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { useEntityContext } from "@/context/EntityContext"
 import { Button } from "@/components/ui/button"
+import { SubmitButton } from "@/components/ui/submit-button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,7 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, Loader2, Save, Plus, Trash2, ChevronDown } from "lucide-react"
 import useApi from "@/hooks/useApi"
-import { useFiscalConditions, type FiscalCondition } from "@/hooks/useFiscalConditions"
+import { useFiscalConditions } from "@/hooks/useFiscalConditions"
 import { Link } from "react-router-dom"
 import { sileo } from "sileo"
 import { Separator } from "@/components/ui/separator"
@@ -156,8 +157,9 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
           description: "Verificá tu conexión e intentá de nuevo.",
         })
       }
-    } catch (err: any) {
-      if (err?.name === 'AbortError' || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+    } catch (err: unknown) {
+      const maybeErr = err as { name?: unknown; code?: unknown }
+      if (maybeErr?.name === 'AbortError' || maybeErr?.name === 'CanceledError' || maybeErr?.code === 'ERR_CANCELED') {
         // Abort/Canceled: ocurre al cerrar el formulario; no mostrar toast de error
         return;
       }
@@ -517,19 +519,14 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
               </h2>
             </div>
             {!viewOnly && (
-              <Button type="submit" onClick={handleSubmit} disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {customerId ? "Actualizando..." : "Creando..."}
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    {customerId ? "Guardar Cambios" : "Crear Cliente"}
-                  </>
-                )}
-              </Button>
+              <SubmitButton
+                form="customer-form"
+                isLoading={isLoading}
+                loadingText={customerId ? "Actualizando..." : "Creando..."}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                {customerId ? "Guardar Cambios" : "Crear Cliente"}
+              </SubmitButton>
             )}
           </div>
           {isLoading && !customerData ? (
@@ -537,7 +534,7 @@ export default function CustomerForm({ customerId, viewOnly = false, customerDat
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <form onSubmit={handleSubmit}>
+            <form id="customer-form" onSubmit={handleSubmit}>
               <Tabs defaultValue="personal" className="space-y-4">
                 <TabsList>
                   <TabsTrigger value="personal">Información Personal</TabsTrigger>

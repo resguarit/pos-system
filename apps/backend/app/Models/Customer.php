@@ -21,10 +21,12 @@ class Customer extends Model
         'email',
         'active',
         'notes',
+        'services_charge_with_iva_default',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'services_charge_with_iva_default' => 'boolean',
     ];
 
     /**
@@ -130,7 +132,7 @@ class Customer extends Model
 
         // Extract customer data
         $customerData = [];
-        foreach (['email', 'active', 'notes'] as $field) {
+        foreach (['email', 'active', 'notes', 'services_charge_with_iva_default'] as $field) {
             if (isset($data[$field])) {
                 $customerData[$field] = $data[$field];
             }

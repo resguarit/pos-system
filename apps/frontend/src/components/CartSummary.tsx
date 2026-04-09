@@ -58,8 +58,9 @@ export const CartSummary = ({
       </div>
 
       <Button 
-        className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" 
-        size="sm" 
+        variant="default"
+        className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer font-semibold shadow-md hover:shadow-lg h-10 sm:h-11 lg:h-12 text-sm sm:text-base hover:opacity-90"
+        size="default"
         disabled={isDisabled} 
         onClick={onCompleteSale}
         aria-label="Completar venta"

@@ -185,6 +185,8 @@ class ClientServiceController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'amount' => 'required|numeric|min:0',
+            'amount_without_iva' => 'nullable|numeric|min:0',
+            'amount_with_iva' => 'nullable|numeric|min:0',
             'base_price' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_notes' => 'nullable|string|max:500',
@@ -199,6 +201,14 @@ class ClientServiceController extends Controller
         }
 
         $data = $validator->validated();
+
+        // Legacy compatibility: if the caller only sends `amount`, keep IVA fields in sync.
+        if (!array_key_exists('amount_without_iva', $data) || $data['amount_without_iva'] === null) {
+            $data['amount_without_iva'] = $data['amount'] ?? null;
+        }
+        if (!array_key_exists('amount_with_iva', $data) || $data['amount_with_iva'] === null) {
+            $data['amount_with_iva'] = $data['amount'] ?? null;
+        }
 
         if (!isset($data['start_date']) && isset($data['next_due_date'])) {
             $data['start_date'] = $this->calculateStartDateFromNextDueDate(
@@ -247,6 +257,8 @@ class ClientServiceController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'description' => 'nullable|string',
             'amount' => 'sometimes|required|numeric|min:0',
+            'amount_without_iva' => 'nullable|numeric|min:0',
+            'amount_with_iva' => 'nullable|numeric|min:0',
             'base_price' => 'nullable|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_notes' => 'nullable|string|max:500',
@@ -263,6 +275,16 @@ class ClientServiceController extends Controller
         }
 
         $data = $validator->validated();
+
+        // Legacy compatibility: if the caller only updates `amount`, keep IVA fields in sync.
+        if (array_key_exists('amount', $data)) {
+            if (!array_key_exists('amount_without_iva', $data)) {
+                $data['amount_without_iva'] = $data['amount'];
+            }
+            if (!array_key_exists('amount_with_iva', $data)) {
+                $data['amount_with_iva'] = $data['amount'];
+            }
+        }
 
         // Apply all changes immediately
         // Clear any deferred changes when updating directly
@@ -525,6 +547,90 @@ class ClientServiceController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Paginated list of service payments in a date range (reporting).
+     */
+    public function listPayments(Request $request)
+    {
+        $validated = $request->validate([
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $from = ! empty($validated['from_date'])
+            ? Carbon::parse($validated['from_date'])->startOfDay()
+            : Carbon::now()->startOfMonth()->startOfDay();
+
+        $to = ! empty($validated['to_date'])
+            ? Carbon::parse($validated['to_date'])->endOfDay()
+            : Carbon::now()->endOfMonth()->endOfDay();
+
+        if ($from->greaterThan($to)) {
+            return response()->json([
+                'message' => 'La fecha inicial debe ser anterior o igual a la fecha final.',
+            ], 422);
+        }
+
+        $perPage = min(max((int) $request->input('per_page', 20), 1), 100);
+
+        $query = ClientServicePayment::query()
+            ->with(['service.customer.person'])
+            ->whereDate('payment_date', '>=', $from->toDateString())
+            ->whereDate('payment_date', '<=', $to->toDateString());
+
+        if (! empty($validated['search'])) {
+            $term = trim($validated['search']);
+            $query->whereHas('service', function ($q) use ($term) {
+                $q->where('name', 'like', '%'.$term.'%')
+                    ->orWhereHas('customer.person', function ($q2) use ($term) {
+                        $q2->where('first_name', 'like', '%'.$term.'%')
+                            ->orWhere('last_name', 'like', '%'.$term.'%');
+                    });
+            });
+        }
+
+        $totalAmount = (float) (clone $query)->sum('amount');
+
+        $paginator = $query
+            ->orderByDesc('payment_date')
+            ->orderByDesc('id')
+            ->paginate($perPage);
+
+        $data = $paginator->getCollection()->map(function (ClientServicePayment $payment) {
+            $service = $payment->service;
+            $person = $service?->customer?->person;
+
+            return [
+                'id' => $payment->id,
+                'payment_date' => $payment->payment_date->format('Y-m-d'),
+                'amount' => (string) $payment->amount,
+                'notes' => $payment->notes,
+                'client_service_id' => $payment->client_service_id,
+                'service_name' => $service?->name,
+                'billing_cycle' => $service?->billing_cycle,
+                'customer_id' => $service?->customer_id,
+                'customer_display_name' => $person
+                    ? trim(($person->first_name ?? '').' '.($person->last_name ?? ''))
+                    : null,
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => $data,
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'summary' => [
+                'total_amount' => round($totalAmount, 2),
+                'period_from' => $from->toDateString(),
+                'period_to' => $to->toDateString(),
+            ],
+        ]);
     }
 
     /**

@@ -2,6 +2,7 @@ import { ShoppingCart, X, Minus, Plus, Trash2, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { ComboDisplayInfo } from "@/types/combo";
 
 interface CartItem {
   id: string;
@@ -19,7 +20,7 @@ interface CartItem {
   discount_value?: number;
   is_combo?: boolean;
   combo_id?: number;
-  combo_details?: any;
+  combo_data?: ComboDisplayInfo;
   is_from_combo?: boolean;
   combo_name?: string;
   original_combo_price?: number;
@@ -218,8 +219,9 @@ export const Cart = ({
         </div>
 
         <Button 
-          className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" 
-          size="sm" 
+          variant="default"
+          className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer font-semibold shadow-md hover:shadow-lg h-10 sm:h-11 lg:h-12 text-sm sm:text-base hover:opacity-90"
+          size="default"
           disabled={!hasItems} 
           onClick={onCompleteSale}
           aria-label="Completar venta"

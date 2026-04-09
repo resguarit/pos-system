@@ -23,6 +23,7 @@ import { useCombosInPOS } from "@/hooks/useCombosInPOS"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { CartFloatingButton } from "@/components/pos/CartFloatingButton"
 import type { Combo, CartItem } from "@/types/combo"
+import type { Product } from "@/types/product"
 import { matchesWildcard } from "@/utils/searchUtils"
 import { usePosCategories } from "@/hooks/usePosCategories"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -83,8 +84,13 @@ export default function POSPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [cart, setCart] = useState<CartItem[]>([])
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [products, setProducts] = useState<any[]>([])
+  type PosProduct = Product & {
+    barcode?: string | number
+    allow_discount?: boolean | number | string
+    iva?: { rate?: number } | null
+    name?: string
+  }
+  const [products, setProducts] = useState<PosProduct[]>([])
   // Mapa de stock por producto en la sucursal seleccionada
   const [stocksMap, setStocksMap] = useState<Record<number, { current: number; min: number }>>({})
 
@@ -197,8 +203,7 @@ export default function POSPage() {
 
   // fetchCategories ya no es necesario: usePosCategories se encarga
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mapProductForPos = useCallback((p: any) => {
+  const mapProductForPos = useCallback((p: PosProduct) => {
     const salePriceWithIva = p.sale_price || 0;
     const ivaRate = p.iva?.rate || 0;
 
@@ -226,7 +231,7 @@ export default function POSPage() {
       const productData = Array.isArray(response) ? response :
         Array.isArray(response?.data?.data) ? response.data.data :
           Array.isArray(response?.data) ? response.data : [];
-      const mappedProducts = productData.map(mapProductForPos);
+      const mappedProducts = (productData as PosProduct[]).map(mapProductForPos);
       setProducts(mappedProducts)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (err) {
@@ -288,7 +293,7 @@ export default function POSPage() {
         ? response.data
         : []
 
-    return data.map(mapProductForPos)
+    return (data as PosProduct[]).map(mapProductForPos)
   }, [request, mapProductForPos, selectedBranch?.id])
 
   // Función estable para recargar productos cuando se actualice la tasa de cambio
@@ -313,48 +318,64 @@ export default function POSPage() {
   useEffect(() => {
     // Si viene un presupuesto para editar, cargarlo
     if (location.state?.budgetToEdit) {
-      const budget = location.state.budgetToEdit
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mappedItems = budget.items?.map((item: any) => {
-        const ivaRate = item.product?.iva?.rate || 0
-        const priceNet = Number(item.unit_price)
+      const budget = location.state.budgetToEdit as {
+        id?: unknown
+        receipt_number?: unknown
+        branch_id?: unknown
+        payments?: unknown
+        total?: unknown
+        customer_data?: unknown
+        items?: unknown
+      }
+
+      const items = Array.isArray(budget.items) ? (budget.items as unknown[]) : []
+
+      const mappedItems = items
+        .map((raw) => {
+          const item = raw as Record<string, unknown>
+          const product = (item.product as Record<string, unknown> | undefined) ?? {}
+          const iva = (product.iva as Record<string, unknown> | undefined) ?? {}
+
+          const ivaRate = Number(iva.rate ?? 0) || 0
+          const priceNet = Number(item.unit_price ?? 0)
         // Calcular precio bruto aproximado (o usar el del producto si coincide)
         const priceGross = priceNet * (1 + ivaRate / 100)
 
         return {
-          id: item.product_id.toString(),
-          product_id: item.product_id,
-          code: item.product?.code || '',
-          name: item.product?.description || '',
+          id: String(item.product_id ?? ""),
+          product_id: Number(item.product_id ?? 0),
+          code: String(product.code ?? ""),
+          name: String(product.description ?? ""),
           price: priceNet,
           price_with_iva: priceGross,
           sale_price: priceGross, // Precio base para mostrar
           iva_rate: ivaRate,
-          quantity: Number(item.quantity),
+          quantity: Number(item.quantity ?? 0),
           image: '',
           currency: 'ARS',
-          allow_discount: item.product?.allow_discount !== false,
-          discount_type: item.product?.allow_discount === false ? undefined : item.discount_type,
-          discount_value: item.product?.allow_discount === false ? undefined : Number(item.discount_value),
+          allow_discount: product.allow_discount !== false,
+          discount_type: product.allow_discount === false ? undefined : (item.discount_type as CartItem["discount_type"]),
+          discount_value: product.allow_discount === false ? undefined : Number(item.discount_value ?? 0),
           is_from_combo: false,
         }
-      }) || []
+        })
+        .filter((x): x is CartItem => Boolean(x.id))
 
       if (mappedItems.length > 0) {
         setCart(mappedItems)
         sileo.success({
-          title: `Presupuesto ${budget.receipt_number || `#${budget.id}`} cargado`,
+          title: `Presupuesto ${String(budget.receipt_number ?? (budget.id != null ? `#${String(budget.id)}` : ""))} cargado`,
           description: 'Se han cargado los ítems del presupuesto.'
         })
-        setConvertedFromBudgetId(budget.id)
+        setConvertedFromBudgetId(typeof budget.id === "number" ? budget.id : null)
 
         // Auto-navigate to completion page
         navigate("/dashboard/pos/completar-venta", {
           state: {
             cart: mappedItems,
-            branchId: budget.branch_id || selectedBranch?.id,
-            convertedFromBudgetId: budget.id,
-            convertedFromBudgetNumber: budget.receipt_number || `#${budget.id}`,
+            branchId: (typeof budget.branch_id === "number" ? budget.branch_id : selectedBranch?.id),
+            convertedFromBudgetId: typeof budget.id === "number" ? budget.id : null,
+            convertedFromBudgetNumber: String(budget.receipt_number ?? (budget.id != null ? `#${String(budget.id)}` : "")),
             convertedFromBudgetPayments: budget.payments,
             convertedFromBudgetTotal: budget.total,
             // Pasar datos del cliente del presupuesto original
@@ -514,10 +535,11 @@ export default function POSPage() {
       const resp = await request({ method: 'GET', url: `/stocks?branch_id=${selectedBranch.id}` })
       const data = Array.isArray(resp) ? resp : resp?.data ?? []
       const map: Record<number, { current: number; min: number }> = {}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data.forEach((s: any) => {
+      data.forEach((raw) => {
+        const s = raw as Record<string, unknown>
+        const product = (s.product as Record<string, unknown> | undefined) ?? {}
         // s puede venir como objeto plano o dentro de data
-        const pid = Number(s.product_id ?? s.product?.id)
+        const pid = Number(s.product_id ?? product.id)
         if (!isNaN(pid)) {
           map[pid] = {
             current: Number(s.current_stock ?? 0),
@@ -676,6 +698,13 @@ export default function POSPage() {
       // Calcular el factor de descuento proporcional
       const discountFactor = totalBasePrice > 0 ? totalDiscount / totalBasePrice : 0;
 
+      const comboAllowsAdditionalDiscount =
+        !(
+          (combo as unknown as { allow_discount?: unknown }).allow_discount === false ||
+          (combo as unknown as { allow_discount?: unknown }).allow_discount === 0 ||
+          (combo as unknown as { allow_discount?: unknown }).allow_discount === "0"
+        );
+
       // Agregar cada producto del combo al carrito con descuento aplicado
       const comboItems = itemsBreakdown.map((item) => {
         // Calcular precio con descuento proporcional aplicado
@@ -701,6 +730,7 @@ export default function POSPage() {
           // Campos de descuento para el formulario de venta
           discount_type: 'percent' as const,
           discount_value: itemDiscountPercentage,
+          allow_discount: comboAllowsAdditionalDiscount,
           // Campos específicos para identificar que viene de un combo
           is_from_combo: true,
           combo_id: combo.id,
@@ -800,11 +830,9 @@ export default function POSPage() {
 
         if (serverResults.length > 0 && productSearchMode === 'local-cache') {
           setProducts(prev => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const existingIds = new Set(prev.map((p: any) => p.id))
+            const existingIds = new Set(prev.map((p) => p.id))
             const newProducts = serverResults.filter(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (p: any) => !existingIds.has(p.id)
+              (p) => !existingIds.has(p.id)
             )
             return newProducts.length > 0 ? [...prev, ...newProducts] : prev
           })
@@ -872,11 +900,9 @@ export default function POSPage() {
         // Cachear resultados para próximas búsquedas
         if (serverResults.length > 0 && productSearchMode === 'local-cache') {
           setProducts(prev => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const existingIds = new Set(prev.map((p: any) => p.id))
+            const existingIds = new Set(prev.map((p) => p.id))
             const newProducts = serverResults.filter(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              (p: any) => !existingIds.has(p.id)
+              (p) => !existingIds.has(p.id)
             )
             return newProducts.length > 0 ? [...prev, ...newProducts] : prev
           })
@@ -1095,7 +1121,12 @@ export default function POSPage() {
           </div>
         </div>
 
-        <Button className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer" size="sm" disabled={cart.length === 0} onClick={() => {
+        <Button
+          variant="default"
+          className="mt-3 sm:mt-4 lg:mt-6 w-full cursor-pointer font-semibold shadow-md hover:shadow-lg h-10 sm:h-11 lg:h-12 text-sm sm:text-base hover:opacity-90"
+          size="default"
+          disabled={cart.length === 0}
+          onClick={() => {
           navigate("/dashboard/pos/completar-venta", { state: { cart, branchId: selectedBranch?.id, convertedFromBudgetId } })
           if (isMobile) setCartSheetOpen(false)
         }}>

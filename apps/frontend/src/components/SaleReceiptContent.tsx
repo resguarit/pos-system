@@ -1,5 +1,6 @@
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { type SaleHeader, type SaleItem } from "@/types/sale";
+import { type SaleHeader } from "@/types/sale";
+import { ARCA_CODES } from "@/lib/constants/arcaCodes";
 
 interface SaleReceiptContentProps {
   sale: SaleHeader;
@@ -27,17 +28,29 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
   formatCurrency,
   companyDetails,
 }) => {
+  type AnyRecord = Record<string, unknown>
+
+  const asRecord = (v: unknown): AnyRecord => (v && typeof v === "object" ? (v as AnyRecord) : {})
+  const asNumber = (v: unknown, fallback = 0): number => {
+    const n = typeof v === "number" ? v : Number(v)
+    return Number.isFinite(n) ? n : fallback
+  }
+  const asString = (v: unknown, fallback = ""): string => (typeof v === "string" ? v : v == null ? fallback : String(v))
+
   // Normalizar venta y datos de sucursal del backend
-  const s: any = (sale as any)?.data ?? sale;
-  const branch: any = (s?.branch && typeof s.branch === 'object') ? s.branch : null;
-  const backendCompanyName = branch?.description || branch?.name || '';
-  const backendRazonSocial = branch?.razonSocial || '';
-  const backendAddress = branch?.address || '';
-  const backendPhone = branch?.phone || '';
-  const backendEmail = branch?.email || '';
-  const backendCuit = branch?.cuit || '';
-  const backendIibb = branch?.iibb || '';
-  const backendStartDate = branch?.startDate || '';
+  const saleWrapper = sale as unknown as { data?: unknown }
+  const s = (saleWrapper?.data ?? sale) as SaleHeader
+  const sRec = asRecord(s)
+  const branchRaw = sRec.branch
+  const branch = (branchRaw && typeof branchRaw === "object" ? asRecord(branchRaw) : null)
+  const backendCompanyName = branch ? asString(branch.description || branch.name) : ""
+  const backendRazonSocial = branch ? asString(branch.razonSocial) : ""
+  const backendAddress = branch ? asString(branch.address) : ""
+  const backendPhone = branch ? asString(branch.phone) : ""
+  const backendEmail = branch ? asString(branch.email) : ""
+  const backendCuit = branch ? asString(branch.cuit) : ""
+  const backendIibb = branch ? asString(branch.iibb) : ""
+  const backendStartDate = branch ? asString(branch.startDate) : ""
 
   // Valores de empresa a mostrar (sin guiones por defecto)
   const companyCuit = (backendCuit || companyDetails.cuit || '').toString().trim();
@@ -46,27 +59,43 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
 
   // Derivar nombre del cliente desde backend si no llega por prop
   const derivedCustomerName = customerName || (
-    s?.customer?.person
+    (s.customer?.person
       ? `${s.customer.person.first_name || ''} ${s.customer.person.last_name || ''}`.trim()
-      : s?.customer?.business_name || 'Consumidor Final'
+      : s.customer?.business_name || 'Consumidor Final')
   );
 
   // Derivar CUIT/CUIL del cliente con prioridad backend
-  const derivedCustomerCuit = customerCuit || s?.customer?.person?.cuit || s?.sale_document_number || s?.customer?.cuit || 'N/A';
+  const derivedCustomerCuit =
+    customerCuit ||
+    s.customer?.person?.cuit ||
+    asString(sRec.sale_document_number) ||
+    asString(asRecord(sRec.customer).cuit) ||
+    "N/A";
 
   const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
+  const receiptAfipCode: string | null =
+    (asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id ?? null) != null
+      ? String(asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id)
+      : null
+  const receiptDescription: string = String(
+    asRecord(sRec.receipt_type).description || asRecord(sRec.receiptType).description || asRecord(sRec.receiptType).name || ''
+  ).toLowerCase()
+  const isFacturaX: boolean =
+    receiptAfipCode === ARCA_CODES.FACTURA_X || receiptDescription.includes('factura x')
+
   // Descuentos: calcular por ítem desde tipo/valor y derivar global-only desde cabecera
-  const itemsArray: any[] = Array.isArray(s?.items) ? s.items : []
-  const computePerItemOriginalDiscount = (it: any) => {
+  const itemsArray: unknown[] = Array.isArray(sRec.items) ? (sRec.items as unknown[]) : []
+  const computePerItemOriginalDiscount = (it: unknown) => {
+    const itemRec = asRecord(it)
     // Preferir el monto persistido por ítem si existe
-    const persisted = Number(it?.discount_amount ?? 0)
+    const persisted = asNumber(itemRec.discount_amount, 0)
     if (!isNaN(persisted) && persisted > 0) return round2(persisted)
-    const qty = Number(it?.quantity || 0)
-    const unit = Number(it?.unit_price || 0)
+    const qty = asNumber(itemRec.quantity, 0)
+    const unit = asNumber(itemRec.unit_price, 0)
     const base = qty * unit
-    const t = it?.discount_type
-    const v = Number(it?.discount_value ?? 0)
+    const t = itemRec.discount_type
+    const v = asNumber(itemRec.discount_value, 0)
     let disc = 0
     if (t && v > 0) {
       disc = t === 'percent' ? base * (v / 100) : v
@@ -74,8 +103,8 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
     disc = Math.max(0, Math.min(disc, base))
     return round2(disc)
   }
-  const sumItemOriginalDiscount: number = itemsArray.reduce((acc: number, it: any) => acc + computePerItemOriginalDiscount(it), 0)
-  const totalDiscountApplied: number = Math.round(Number(s?.discount_amount) || 0)
+  const sumItemOriginalDiscount: number = itemsArray.reduce((acc: number, it) => acc + computePerItemOriginalDiscount(it), 0)
+  const totalDiscountApplied: number = Math.round(asNumber(sRec.discount_amount, 0))
   const globalOnlyDiscount: number = Math.max(0, totalDiscountApplied - sumItemOriginalDiscount)
   const hasGlobalDiscount: boolean = globalOnlyDiscount > 0
 
@@ -93,10 +122,10 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
         </div>
         <div className="text-left sm:text-right">
           <h1 className="text-xl sm:text-2xl font-bold uppercase mb-1">
-            {s?.receipt_type?.description || s?.receiptType?.description || s?.receiptType?.name || "Comprobante"}
+            {asString(asRecord(sRec.receipt_type).description || asRecord(sRec.receiptType).description || asRecord(sRec.receiptType).name || "Comprobante")}
           </h1>
           <p className="font-semibold">
-            Nº: {s?.receipt_number || s?.id}
+            Nº: {asString(sRec.receipt_number || s.id)}
           </p>
           <p>Fecha: {formatDate(s?.date)}</p>
           {companyCuit && (<p>CUIT: {companyCuit}</p>)}
@@ -132,16 +161,30 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {s.items && s.items.length > 0 ? (
-              s.items.map((item: SaleItem, index: number) => (
-                <TableRow key={(item as any).id || `row-${index}`}>
-                  <TableCell>{(item as any).description || (item as any).product?.description || 'Producto sin descripción'}</TableCell>
-                  <TableCell className="text-right">{(item as any).quantity || 0}</TableCell>
-                  <TableCell className="text-right">{formatCurrency((item as any).unit_price || 0)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(computePerItemOriginalDiscount(item))}</TableCell>
-                  <TableCell className="text-right">{formatCurrency((item as any).item_subtotal || (((item as any).quantity || 0) * ((item as any).unit_price || 0) - computePerItemOriginalDiscount(item)))}</TableCell>
-                </TableRow>
-              ))
+            {itemsArray.length > 0 ? (
+              itemsArray.map((rawItem, index: number) => {
+                const itemRec = asRecord(rawItem)
+                const productRec = asRecord(itemRec.product)
+                const idKey = itemRec.id
+                const key = typeof idKey === "number" || typeof idKey === "string" ? idKey : `row-${index}`
+
+                const qty = asNumber(itemRec.quantity, 0)
+                const unit = asNumber(itemRec.unit_price, 0)
+                const discount = computePerItemOriginalDiscount(rawItem)
+                const computedSubtotal = qty * unit - discount
+                const subtotal = asNumber(itemRec.item_subtotal, computedSubtotal)
+                const description = asString(itemRec.description || productRec.description || "Producto sin descripción")
+
+                return (
+                  <TableRow key={key}>
+                    <TableCell>{description}</TableCell>
+                    <TableCell className="text-right">{qty}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(unit)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(discount)}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(subtotal)}</TableCell>
+                  </TableRow>
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-muted-foreground">
@@ -156,10 +199,12 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
       {/* Totals Section */}
       <div className="flex justify-end">
         <div className="w-full sm:w-64">
-          <div className="flex justify-between py-1">
-            <span>Subtotal:</span>
-            <span>{formatCurrency(s?.subtotal || 0)}</span>
-          </div>
+          {!isFacturaX && (
+            <div className="flex justify-between py-1">
+              <span>Subtotal:</span>
+              <span>{formatCurrency(asNumber(sRec.subtotal, 0))}</span>
+            </div>
+          )}
           {sumItemOriginalDiscount > 0 && (
             <div className="flex justify-between py-1">
               <span>Desc. Ítems:</span>
@@ -172,34 +217,42 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
               <span>-{formatCurrency(globalOnlyDiscount)}</span>
             </div>
           )}
-          {s?.saleIvas && s.saleIvas.length > 0 ? (
-            s.saleIvas.map((ivaDetail: any, index: number) => (
-              <div key={index} className="flex justify-between py-1">
-                <span>IVA ({ivaDetail.iva?.percentage || ivaDetail.iva?.rate || '0'}%):</span>
-                <span>{formatCurrency(ivaDetail.iva_amount || 0)}</span>
+          {!isFacturaX && (
+            Array.isArray(sRec.saleIvas) && (sRec.saleIvas as unknown[]).length > 0 ? (
+              (sRec.saleIvas as unknown[]).map((rawIva, index: number) => {
+                const ivaDetail = asRecord(rawIva)
+                const iva = asRecord(ivaDetail.iva)
+                const rate = asString(iva.percentage ?? iva.rate ?? "0")
+                const amount = asNumber(ivaDetail.iva_amount, 0)
+                return (
+                  <div key={index} className="flex justify-between py-1">
+                    <span>IVA ({rate}%):</span>
+                    <span>{formatCurrency(amount)}</span>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="flex justify-between py-1">
+                <span>IVA:</span>
+                <span>{formatCurrency(asNumber(sRec.total_iva_amount, 0))}</span>
               </div>
-            ))
-          ) : (
-            <div className="flex justify-between py-1">
-              <span>IVA:</span>
-              <span>{formatCurrency(s?.total_iva_amount || 0)}</span>
-            </div>
+            )
           )}
-          {(s?.iibb || 0) > 0 && (
+          {asNumber(sRec.iibb, 0) > 0 && (
             <div className="flex justify-between py-1">
               <span>IIBB:</span>
-              <span>{formatCurrency(s?.iibb || 0)}</span>
+              <span>{formatCurrency(asNumber(sRec.iibb, 0))}</span>
             </div>
           )}
-          {(s?.internal_tax || 0) > 0 && (
+          {asNumber(sRec.internal_tax, 0) > 0 && (
             <div className="flex justify-between py-1">
               <span>Imp. Internos:</span>
-              <span>{formatCurrency(s?.internal_tax || 0)}</span>
+              <span>{formatCurrency(asNumber(sRec.internal_tax, 0))}</span>
             </div>
           )}
           <div className="flex justify-between py-1 border-t font-bold mt-1">
             <span>TOTAL:</span>
-            <span>{formatCurrency(s?.total || 0)}</span>
+            <span>{formatCurrency(asNumber(sRec.total, 0))}</span>
           </div>
         </div>
       </div>

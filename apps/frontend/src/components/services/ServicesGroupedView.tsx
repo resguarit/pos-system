@@ -1,15 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import type React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CheckCircle, ChevronDown, ChevronUp, Clock, DollarSign, RefreshCw, Search, Users, XCircle } from "lucide-react"
 import api from "@/lib/api"
@@ -19,6 +16,7 @@ import { getBillingCycleConfig } from "@/utils/billingCycleUtils"
 import { formatPrice } from "@/lib/utils/currency"
 import { getServicePaymentStatus } from "@/utils/servicePaymentStatus"
 import { sileo } from "sileo"
+import { PaymentRegistrationDialog } from "@/components/services/PaymentRegistrationDialog"
 interface ServiceType {
     id: number
     name: string
@@ -34,6 +32,7 @@ interface Customer {
         email?: string
         phone?: string
     }
+    services_charge_with_iva_default?: boolean
 }
 
 interface Branch {
@@ -47,6 +46,16 @@ interface PaymentMethod {
     is_active: boolean
 }
 
+interface PaymentForm {
+    service_id: string
+    amount: string
+    payment_date: string
+    notes: string
+    renew_service: boolean
+    branch_id: string
+    payment_method_id: string
+}
+
 interface ClientService {
     id: number
     service_type_id?: number | null
@@ -55,6 +64,8 @@ interface ClientService {
     next_due_date: string | null
     billing_cycle: string
     amount: string
+    amount_without_iva?: string | null
+    amount_with_iva?: string | null
     customer?: Customer
     service_type?: ServiceType | null
 }
@@ -85,7 +96,7 @@ const getLastPage = (payload: unknown) => {
     return typeof data?.last_page === "number" ? data.last_page : 1
 }
 
-const getServiceStatusBadge = (status: string, service: ClientService) => {
+const getServiceStatusBadge = (status: string) => {
     switch (status) {
         case "expired":
             return { label: "Vencido", className: "bg-red-100 text-red-700 border-red-200", icon: XCircle }
@@ -125,7 +136,7 @@ const getGroupStats = (services: ClientService[]) => {
     return services.reduce(
         (acc, service) => {
             const paymentStatus = getServicePaymentStatus(service)
-            const amount = parseFloat(service.amount) || 0
+            const amount = parseFloat(service.amount_with_iva || service.amount) || 0
 
             if (paymentStatus === "expired") {
                 acc.expired += 1
@@ -158,7 +169,8 @@ export default function ServicesGroupedView() {
     const [userBranches, setUserBranches] = useState<Branch[]>([])
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
     const [paymentLoading, setPaymentLoading] = useState(false)
-    const [paymentForm, setPaymentForm] = useState({
+    const [paymentForm, setPaymentForm] = useState<PaymentForm>({
+        service_id: "",
         amount: "",
         payment_date: new Date().toISOString().split("T")[0],
         notes: "",
@@ -244,6 +256,7 @@ export default function ServicesGroupedView() {
         const defaultMethodId = methods.length === 1 ? methods[0]?.id.toString() : ""
 
         setPaymentForm({
+            service_id: service.id.toString(),
             amount: service.amount || "",
             payment_date: new Date().toISOString().split("T")[0],
             notes: "",
@@ -503,15 +516,15 @@ export default function ServicesGroupedView() {
                                             <div className="grid gap-3">
                                                 {group.services.map((service) => {
                                                     const paymentStatus = getServicePaymentStatus(service)
-                                                    const badge = getServiceStatusBadge(paymentStatus, service)
+                                                    const badge = getServiceStatusBadge(paymentStatus)
                                                     const BadgeIcon = badge.icon
                                                     const cycleConfig = getBillingCycleConfig(service.billing_cycle)
                                                     const pendingAmount =
                                                         paymentStatus === "expired" || paymentStatus === "due_soon"
-                                                            ? parseFloat(service.amount) || 0
+                                                            ? parseFloat(service.amount_with_iva || service.amount) || 0
                                                             : 0
                                                     const dueDate = service.next_due_date
-                                                        ? format(new Date(service.next_due_date), "dd MMM yyyy", { locale: es })
+                                                        ? format(new Date(service.next_due_date), "dd/MM/yyyy", { locale: es })
                                                         : "Sin vencimiento"
 
                                                     return (
@@ -550,8 +563,15 @@ export default function ServicesGroupedView() {
                                                                 )}
                                                             </div>
                                                             <div className="flex items-center justify-between gap-2 md:justify-end">
-                                                                <div className="text-sm font-semibold text-gray-900">
-                                                                    {formatPrice(service.amount)}
+                                                                <div className="text-right">
+                                                                    <div className="text-sm font-semibold text-gray-900">
+                                                                        {formatPrice(service.amount_without_iva || service.amount)}{" "}
+                                                                        <span className="text-[10px] font-medium text-gray-500">(sin IVA)</span>
+                                                                    </div>
+                                                                    <div className="text-xs font-semibold text-emerald-700">
+                                                                        {formatPrice(service.amount_with_iva || service.amount)}{" "}
+                                                                        <span className="text-[10px] font-medium text-gray-500">(con IVA)</span>
+                                                                    </div>
                                                                 </div>
                                                                 {(paymentStatus === "expired" || paymentStatus === "due_soon") && (
                                                                     <Button
@@ -561,7 +581,7 @@ export default function ServicesGroupedView() {
                                                                         onClick={() => handleOpenPaymentDialog(service)}
                                                                     >
                                                                         <DollarSign className="h-3.5 w-3.5 mr-1" />
-                                                                        Cobrar
+                                                                        Registrar pago
                                                                     </Button>
                                                                 )}
                                                             </div>
@@ -577,146 +597,50 @@ export default function ServicesGroupedView() {
                     })}
                 </div>
             )}
-            <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-                <DialogContent className="sm:max-w-[420px]">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <DollarSign className="h-5 w-5 text-violet-600" />
-                            Cobrar servicio
-                        </DialogTitle>
-                        <DialogDescription>
-                            {paymentService
-                                ? `Registrar pago para ${getCustomerName(paymentService)}`
-                                : "Selecciona un servicio"}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    {paymentService && (
-                        <div className="space-y-4 py-4">
-                            {userBranches.length > 1 && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="branch">Sucursal</Label>
-                                    <Select
-                                        value={paymentForm.branch_id}
-                                        onValueChange={(value) => setPaymentForm((prev) => ({ ...prev, branch_id: value }))}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar sucursal" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {userBranches.map((branch) => (
-                                                <SelectItem key={branch.id} value={branch.id.toString()}>
-                                                    {branch.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <Label htmlFor="amount">Monto</Label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                                    <Input
-                                        id="amount"
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        className="pl-7"
-                                        value={paymentForm.amount}
-                                        onChange={(event) =>
-                                            setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="payment_date">Fecha de pago</Label>
-                                <Input
-                                    id="payment_date"
-                                    type="date"
-                                    value={paymentForm.payment_date}
-                                    onChange={(event) =>
-                                        setPaymentForm((prev) => ({ ...prev, payment_date: event.target.value }))
-                                    }
-                                />
-                            </div>
-
-                            {paymentMethods.length > 0 && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="payment_method">Metodo de pago</Label>
-                                    <Select
-                                        value={paymentForm.payment_method_id}
-                                        onValueChange={(value) =>
-                                            setPaymentForm((prev) => ({ ...prev, payment_method_id: value }))
-                                        }
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Seleccionar metodo" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {paymentMethods.map((method) => (
-                                                <SelectItem key={method.id} value={method.id.toString()}>
-                                                    {method.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <Label htmlFor="notes">Notas (opcional)</Label>
-                                <Textarea
-                                    id="notes"
-                                    rows={2}
-                                    value={paymentForm.notes}
-                                    onChange={(event) =>
-                                        setPaymentForm((prev) => ({ ...prev, notes: event.target.value }))
-                                    }
-                                />
-                            </div>
-
-                            <div className="flex items-center space-x-2 pt-1">
-                                <Checkbox
-                                    id="renew_service"
-                                    checked={paymentForm.renew_service}
-                                    onCheckedChange={(checked) =>
-                                        setPaymentForm((prev) => ({ ...prev, renew_service: checked as boolean }))
-                                    }
-                                />
-                                <Label htmlFor="renew_service" className="text-sm font-normal cursor-pointer">
-                                    Renovar servicio despues del pago
-                                </Label>
-                            </div>
-                        </div>
-                    )}
-
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setPaymentDialogOpen(false)}
-                            disabled={paymentLoading}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            className="bg-violet-600 hover:bg-violet-700 text-white"
-                            onClick={handleRegisterPayment}
-                            disabled={paymentLoading || !paymentForm.amount}
-                        >
-                            {paymentLoading ? (
-                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                                <DollarSign className="h-4 w-4 mr-2" />
-                            )}
-                            Cobrar
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <PaymentRegistrationDialog
+                open={paymentDialogOpen}
+                onOpenChange={setPaymentDialogOpen}
+                paymentCustomer={
+                    paymentService
+                        ? {
+                              id: paymentService.customer?.id || 0,
+                              services_charge_with_iva_default: paymentService.customer?.services_charge_with_iva_default,
+                              person: {
+                                  first_name: paymentService.customer?.person?.first_name || "",
+                                  last_name: paymentService.customer?.person?.last_name || "",
+                                  email: paymentService.customer?.person?.email,
+                                  phone: paymentService.customer?.person?.phone,
+                              },
+                              client_services: [
+                                  {
+                                      id: paymentService.id,
+                                      name: paymentService.name,
+                                      status: paymentService.status,
+                                      next_due_date: paymentService.next_due_date,
+                                      billing_cycle: paymentService.billing_cycle,
+                                      amount: paymentService.amount,
+                                      amount_without_iva: paymentService.amount_without_iva ?? null,
+                                      amount_with_iva: paymentService.amount_with_iva ?? null,
+                                      service_type: paymentService.service_type
+                                          ? {
+                                                id: paymentService.service_type.id,
+                                                name: paymentService.service_type.name,
+                                                billing_cycle: paymentService.service_type.billing_cycle,
+                                                price: paymentService.service_type.price,
+                                          }
+                                          : null,
+                                  },
+                              ],
+                          }
+                        : null
+                }
+                userBranches={userBranches}
+                paymentMethods={paymentMethods}
+                paymentForm={paymentForm}
+                setPaymentForm={setPaymentForm}
+                paymentLoading={paymentLoading}
+                handleRegisterPayment={handleRegisterPayment}
+            />
         </div>
     )
 }

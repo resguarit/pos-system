@@ -20,12 +20,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getBillingCycleLabel } from "@/utils/billingCycleUtils"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { DateInputDmy } from "@/components/ui/date-input-dmy"
 
 interface ClientService {
     id: number
     name: string
     description: string | null
     amount: string
+    amount_without_iva?: string | null
+    amount_with_iva?: string | null
     billing_cycle: 'monthly' | 'annual' | 'one_time'
     start_date: string
     next_due_date: string | null
@@ -45,6 +48,7 @@ interface ClientServicesListProps {
 }
 
 export default function ClientServicesList({ customerId, viewOnly = false }: ClientServicesListProps) {
+    const IVA_RATE = 0.21
     const { request } = useApi()
     const [services, setServices] = useState<ClientService[]>([])
     const [isLoading, setIsLoading] = useState(true)
@@ -135,7 +139,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
         setFormData({
             name: service.name,
             description: service.description || "",
-            amount: service.amount,
+            amount: service.amount_without_iva || service.amount,
             billing_cycle: service.billing_cycle,
             start_date: service.start_date.split('T')[0],
             next_due_date: service.next_due_date ? service.next_due_date.split('T')[0] : "",
@@ -199,7 +203,10 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
             const payload = {
                 name: formData.name,
                 description: formData.description,
-                amount: formData.amount,
+                // amount input is "sin IVA" in UI; persist both.
+                amount: String((parseFloat(formData.amount || "0") || 0) * (1 + IVA_RATE)),
+                amount_without_iva: String(parseFloat(formData.amount || "0") || 0),
+                amount_with_iva: String((parseFloat(formData.amount || "0") || 0) * (1 + IVA_RATE)),
                 billing_cycle: formData.billing_cycle,
                 status: formData.status,
                 customer_id: customerId,
@@ -359,7 +366,7 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
-                                <Label htmlFor="amount">Monto ($)</Label>
+                                <Label htmlFor="amount">Monto (sin IVA)</Label>
                                 <Input
                                     id="amount"
                                     type="number"
@@ -368,6 +375,12 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                                     onChange={e => setFormData({ ...formData, amount: e.target.value })}
                                     required
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    Con IVA (21%):{" "}
+                                    <span className="font-medium text-emerald-700">
+                                        ${((parseFloat(formData.amount || "0") || 0) * (1 + IVA_RATE)).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </p>
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="billing_cycle">Ciclo</Label>
@@ -412,19 +425,21 @@ export default function ClientServicesList({ customerId, viewOnly = false }: Cli
                                     <Label htmlFor={formData.date_mode === "start_date" ? "start_date" : "next_due_date"}>
                                         {formData.date_mode === "start_date" ? "Fecha Inicio" : "Proximo Vencimiento"}
                                     </Label>
-                                    <Input
-                                        id={formData.date_mode === "start_date" ? "start_date" : "next_due_date"}
-                                        type="date"
-                                        value={formData.date_mode === "start_date" ? formData.start_date : formData.next_due_date}
-                                        onChange={e =>
-                                            setFormData({
-                                                ...formData,
-                                                ...(formData.date_mode === "start_date"
-                                                    ? { start_date: e.target.value }
-                                                    : { next_due_date: e.target.value })
-                                            })
-                                        }
-                                    />
+                                    {formData.date_mode === "start_date" ? (
+                                        <DateInputDmy
+                                            id="start_date"
+                                            value={formData.start_date}
+                                            onChange={(nextIso) => setFormData({ ...formData, start_date: nextIso })}
+                                            aria-label="Fecha inicio"
+                                        />
+                                    ) : (
+                                        <DateInputDmy
+                                            id="next_due_date"
+                                            value={formData.next_due_date}
+                                            onChange={(nextIso) => setFormData({ ...formData, next_due_date: nextIso })}
+                                            aria-label="Próximo vencimiento"
+                                        />
+                                    )}
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="status">Estado</Label>

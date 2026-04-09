@@ -46,6 +46,9 @@ export const calculateSaleTotals = (
   cart: CartItem[],
   globalDiscount: GlobalDiscount = { type: '', value: '' }
 ): SaleTotals => {
+  const allowsAdditionalDiscount = (v: unknown) =>
+    !(v === false || v === 0 || v === '0');
+
   // 1. Aplicar descuentos por ítem
   const prepared = cart.map((item) => {
     const unitWithIva = Number(item.price_with_iva || item.sale_price || 0)
@@ -69,12 +72,20 @@ export const calculateSaleTotals = (
       baseWithoutIva = unitWithoutIva * qty
     }
 
-    const itemAllowsDiscount = item.allow_discount !== false
+    const itemAllowsAdditionalDiscount = allowsAdditionalDiscount((item as { allow_discount?: unknown }).allow_discount)
+    const isComboLine = item.is_from_combo === true
 
     let itemDiscountOnBase = 0
     const discountValue = Number(item.discount_value ?? 0)
 
-    if (itemAllowsDiscount && item.discount_type && discountValue > 0) {
+    // Líneas de combo: el descuento del ítem refleja el precio promocional del combo (siempre se aplica).
+    // Descuento extra manual/global solo si allow_discount !== false.
+    const applyLineDiscount =
+      item.discount_type &&
+      discountValue > 0 &&
+      (isComboLine || itemAllowsAdditionalDiscount)
+
+    if (applyLineDiscount) {
       if (item.discount_type === 'percent') {
         itemDiscountOnBase = baseWithoutIva * (discountValue / 100)
       } else {
@@ -101,7 +112,7 @@ export const calculateSaleTotals = (
   const subtotalWithIva = roundToTwoDecimals(subtotalAfterItemDiscounts + totalIva)
   const discountableSubtotalWithIva = roundToTwoDecimals(
     prepared
-      .filter((x) => x.item.allow_discount !== false)
+      .filter((x) => allowsAdditionalDiscount((x.item as { allow_discount?: unknown }).allow_discount))
       .reduce((sum, x) => sum + x.netBase + (x.netBase * ((x.item.iva_rate || 0) / 100)), 0)
   )
   let globalDiscountAmount = 0

@@ -84,10 +84,10 @@ type UpdateRepairData = Partial<CreateRepairData> & {
     sale_id?: number;
 };
 
-type MarkAsPaidData = {
-    payment_method_id: number;
+export type MarkAsPaidData = {
+    payment_method_id?: number;
     amount_paid?: number;
-    branch_id: number;
+    branch_id?: number;
 };
 
 type MarkAsNoRepairData = {
@@ -128,12 +128,21 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
 
     // Build query params from filters
     const buildParams = useCallback((currentFilters?: RepairFilters) => {
-        const params: Record<string, string | number> = { per_page: perPage };
+        const params: Record<string, unknown> = { per_page: perPage };
         const f = currentFilters || filtersRef.current;
 
         if (f.search?.trim()) params.search = f.search.trim();
-        if (f.status && f.status !== "all") params.status = f.status;
+        // Multi-status filter (preferred)
+        if (Array.isArray(f.statuses) && f.statuses.length > 0) {
+            params.statuses = f.statuses;
+        } else if (f.status && f.status !== "all") {
+            // Legacy single-status filter
+            params.status = f.status;
+        }
         if (f.priority && f.priority !== "all") params.priority = f.priority;
+        if (f.payment_status && f.payment_status !== "all") {
+            params.is_paid = f.payment_status === "paid" ? 1 : 0;
+        }
         if (f.technician_id) params.technician_id = f.technician_id;
         // Fix for 0 IDs or falsy checks: check for undefined
         if (f.insurer_id !== undefined && f.insurer_id !== null) params.insurer_id = f.insurer_id;
@@ -327,7 +336,6 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
                     data: paymentData,
                 });
                 const repair = (resp as { data?: Repair })?.data || (resp as Repair);
-                sileo.success({ title: "Pago registrado en caja" });
                 return repair;
             } catch (err) {
                 const error = err as { response?: { data?: { error?: string } } };
@@ -524,7 +532,9 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         return () => controller.abort();
     }, [
         filters.status,
+        filters.statuses,
         filters.priority,
+        filters.payment_status,
         filters.insurer_id,
         filters.technician_id,
         filters.from_date,

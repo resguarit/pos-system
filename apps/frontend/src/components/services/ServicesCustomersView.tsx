@@ -57,6 +57,8 @@ export default function ServicesCustomersView() {
     const [serviceEditMode, setServiceEditMode] = useState(false)
     const [serviceEditForm, setServiceEditForm] = useState({
         amount: "",
+        amount_without_iva: "",
+        amount_with_iva: "",
         base_price: "",
         discount_percentage: "",
         discount_notes: "",
@@ -73,6 +75,7 @@ export default function ServicesCustomersView() {
     // Payment dialog
     const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
     const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null)
+    const [paymentReturnTo, setPaymentReturnTo] = useState<"customer" | "service" | null>(null)
     const [userBranches, setUserBranches] = useState<Branch[]>([])
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
 
@@ -130,6 +133,13 @@ export default function ServicesCustomersView() {
         }
     }
 
+    // Si el usuario cambia búsqueda/filtros, volver a la primera página
+    // (evita "no hay resultados" solo porque estabas en otra página).
+    useEffect(() => {
+        setCurrentPage(1)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, filterStatus])
+
     useEffect(() => {
         fetchServiceTypes()
         fetchCustomers()
@@ -185,12 +195,17 @@ export default function ServicesCustomersView() {
         }
     }
 
-    const handleEnterServiceEditMode = (customer?: Customer, service?: Service) => {
+    const handleEnterServiceEditMode = (_customer?: Customer, service?: Service) => {
         const tgtService = service || selectedService
         if (!tgtService) return
 
+        const amountWithoutIva = tgtService.amount_without_iva || tgtService.amount || ""
+        const amountWithIva = tgtService.amount_with_iva || tgtService.amount || ""
+
         setServiceEditForm({
             amount: tgtService.amount,
+            amount_without_iva: amountWithoutIva,
+            amount_with_iva: amountWithIva,
             base_price: tgtService.base_price || tgtService.amount,
             discount_percentage: tgtService.discount_percentage || "0",
             discount_notes: tgtService.discount_notes || "",
@@ -277,7 +292,10 @@ export default function ServicesCustomersView() {
             }
 
             const payload = {
-                amount: calculateEditDiscountedPrice().toFixed(2),
+                // Legacy `amount` stays in sync for existing UI/logic.
+                amount: serviceEditForm.amount_with_iva || serviceEditForm.amount_without_iva || calculateEditDiscountedPrice().toFixed(2),
+                amount_without_iva: serviceEditForm.amount_without_iva || calculateEditDiscountedPrice().toFixed(2),
+                amount_with_iva: serviceEditForm.amount_with_iva || (calculateEditDiscountedPrice() * 1.21).toFixed(2),
                 base_price: serviceEditForm.base_price,
                 discount_percentage: serviceEditForm.discount_percentage,
                 discount_notes: serviceEditForm.discount_notes,
@@ -410,6 +428,15 @@ export default function ServicesCustomersView() {
     }
 
     const handleOpenPaymentDialog = async (customer: Customer, preselectedServiceId?: number) => {
+        const returnTarget: "customer" | "service" | null =
+            serviceDetailOpen ? "service" : detailOpen ? "customer" : null
+        setPaymentReturnTo(returnTarget)
+
+        // Avoid "modal on top of modal" UX: close other dialogs before opening payment.
+        setDetailOpen(false)
+        setServiceDetailOpen(false)
+        setServiceEditMode(false)
+
         setPaymentCustomer(customer)
 
         const branchesPromise = fetchUserBranches()
@@ -430,9 +457,17 @@ export default function ServicesCustomersView() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const defaultMethod = methods?.find((m: any) => m.name.toLowerCase().includes('efectivo')) || methods?.[0]
 
+        const defaultChargeWithIva = Boolean(customer.services_charge_with_iva_default)
+        const defaultAmount = (() => {
+            if (!selectedService) return ""
+            const withoutIva = selectedService.amount_without_iva || selectedService.amount || ""
+            const withIva = selectedService.amount_with_iva || selectedService.amount || ""
+            return defaultChargeWithIva ? withIva : withoutIva
+        })()
+
         setPaymentForm({
             service_id: selectedService?.id.toString() || "",
-            amount: selectedService?.amount || "",
+            amount: defaultAmount,
             payment_date: new Date().toISOString().split("T")[0],
             notes: "",
             renew_service: true,
@@ -491,6 +526,11 @@ export default function ServicesCustomersView() {
                 : undefined
 
             if (mergedService && paymentCustomer) {
+                // Keep the service detail dialog in sync without needing reopen.
+                if (serviceDetailOpen && selectedService?.id === mergedService.id) {
+                    setSelectedService(mergedService)
+                }
+
                 setCustomers(prevCustomers =>
                     prevCustomers.map(c => {
                         if (c.id === paymentCustomer.id) {
@@ -658,7 +698,14 @@ export default function ServicesCustomersView() {
 
             <PaymentRegistrationDialog
                 open={paymentDialogOpen}
-                onOpenChange={setPaymentDialogOpen}
+                onOpenChange={(open) => {
+                    setPaymentDialogOpen(open)
+                    if (!open) {
+                        if (paymentReturnTo === "customer") setDetailOpen(true)
+                        else if (paymentReturnTo === "service") setServiceDetailOpen(true)
+                        setPaymentReturnTo(null)
+                    }
+                }}
                 paymentCustomer={paymentCustomer}
                 userBranches={userBranches}
                 paymentMethods={paymentMethods}

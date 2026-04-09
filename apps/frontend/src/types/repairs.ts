@@ -95,8 +95,12 @@ export type RepairPriority = typeof RepairPriority[keyof typeof RepairPriority];
 
 export type RepairFilters = {
   search?: string;
+  /** Selección múltiple de estados (si está vacío/undefined = todos). */
+  statuses?: RepairStatus[];
+  /** Legacy: filtro de un solo estado (se mantiene por compatibilidad). */
   status?: RepairStatus | "all";
   priority?: RepairPriority | "all";
+  payment_status?: "all" | "pending" | "paid";
   technician_id?: number;
   branch_id?: number | string;
   from_date?: string;

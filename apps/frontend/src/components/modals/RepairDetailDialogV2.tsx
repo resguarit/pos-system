@@ -50,8 +50,8 @@ import useApi from "@/hooks/useApi";
 import { sileo } from "sileo"
 import { useBranches } from "@/hooks/useBranches";
 import { useRepairs } from "@/hooks/useRepairs";
+import { useCustomerSearch, type CustomerOption as SearchCustomerOption } from "@/hooks/useCustomerSearch";
 
-type CustomerOption = { id: number; name: string };
 type UserOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
 type PaymentMethodOption = { id: number; name: string };
@@ -74,7 +74,7 @@ const PRIORITY_COLORS: Record<RepairPriority, string> = {
     Baja: "bg-green-100 text-green-800 border-green-200",
 };
 
-type RepairDetailDialogV2Props = {
+export type RepairDetailDialogV2Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     repair: Repair | null;
@@ -87,6 +87,7 @@ type RepairDetailDialogV2Props = {
     onQuickAddNote?: (note: string) => Promise<boolean>;
     defaultTab?: "details" | "financials" | "notes";
     onDownloadNoRepairCertificate?: () => void;
+    onPaymentSuccess?: () => void;
     options?: { statuses: RepairStatus[]; priorities: RepairPriority[]; insurers?: Insurer[] };
 };
 
@@ -114,6 +115,10 @@ function formatDateTime(dateString: string | null | undefined): string {
     } catch {
         return dateString;
     }
+}
+
+function isFreeRepairPrice(salePrice: number | null | undefined): boolean {
+    return (salePrice ?? 0) <= 0.01;
 }
 
 export default function RepairDetailDialogV2({
@@ -204,9 +209,14 @@ export default function RepairDetailDialogV2({
     }, [open, defaultTab]);
 
     // Customer search
-    const [customerSearch, setCustomerSearch] = useState("");
-    const [customerOptions, setCustomerOptions] = useState<CustomerOption[]>([]);
-    const [showCustomerOptions, setShowCustomerOptions] = useState(false);
+    const {
+        customerSearch,
+        customerOptions,
+        showCustomerOptions,
+        setCustomerSearch,
+        setSelectedCustomer,
+        setShowCustomerOptions,
+    } = useCustomerSearch();
 
     // Technician search
     const [technicianSearch, setTechnicianSearch] = useState("");
@@ -215,26 +225,6 @@ export default function RepairDetailDialogV2({
 
     // Categories
     const [categories, setCategories] = useState<CategoryOption[]>([]);
-
-    const fetchCustomers = useCallback(async () => {
-        try {
-            const resp = await request({
-                method: "GET",
-                url: "/customers",
-                params: { limit: 100 },
-            });
-            const data = Array.isArray(resp?.data) ? resp.data : Array.isArray(resp) ? resp : [];
-            const mapped: CustomerOption[] = data.map((c: { id: number; person?: { first_name?: string; last_name?: string }; name?: string }) => ({
-                id: c.id,
-                name: c.person
-                    ? `${c.person.first_name || ""} ${c.person.last_name || ""}`.trim()
-                    : c.name || `Cliente #${c.id}`,
-            }));
-            setCustomerOptions(mapped);
-        } catch (error) {
-            console.error("Error fetching customers:", error);
-        }
-    }, [request]);
 
     const fetchTechnicians = useCallback(async () => {
         try {
@@ -272,11 +262,10 @@ export default function RepairDetailDialogV2({
 
     useEffect(() => {
         if (editMode) {
-            fetchCustomers();
             fetchTechnicians();
             fetchCategories();
         }
-    }, [editMode, fetchCustomers, fetchTechnicians, fetchCategories]);
+    }, [editMode, fetchTechnicians, fetchCategories]);
 
     useEffect(() => {
         if (editMode && repair) {
@@ -303,12 +292,26 @@ export default function RepairDetailDialogV2({
                 is_no_repair: repair.is_no_repair ?? false,
                 no_repair_reason: repair.no_repair_reason ?? "",
             });
-            setCustomerSearch(repair.customer?.name || "");
+            const initialCustomerName = repair.customer?.name || "";
+            setCustomerSearch(initialCustomerName);
+            if (repair.customer?.id) {
+                const selected: SearchCustomerOption = {
+                    id: repair.customer.id,
+                    name: initialCustomerName || `Cliente ${repair.customer.id}`,
+                    dni: null,
+                    cuit: null,
+                    fiscal_condition_id: null,
+                    fiscal_condition_name: null,
+                };
+                setSelectedCustomer(selected);
+            } else {
+                setSelectedCustomer(null);
+            }
             setTechnicianSearch(repair.technician?.name || "");
             setStagedNotes([]);
             setErrors({});
         }
-    }, [editMode, repair]);
+    }, [editMode, repair, setCustomerSearch, setSelectedCustomer]);
 
     const handleSave = async () => {
         if (!onSave) return;
@@ -490,19 +493,25 @@ export default function RepairDetailDialogV2({
                                                                 onBlur={() => setTimeout(() => setShowCustomerOptions(false), 200)}
                                                                 placeholder="Buscar cliente..."
                                                             />
-                                                            {showCustomerOptions && customerOptions.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase())).length > 0 && (
+                                                            {showCustomerOptions && customerOptions.length > 0 && (
                                                                 <div className="absolute left-0 right-0 border rounded bg-white mt-1 max-h-40 overflow-auto z-50 shadow">
-                                                                    {customerOptions.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase())).map((customer) => (
+                                                                    {customerOptions.map((customer) => (
                                                                         <div
                                                                             key={customer.id}
                                                                             className="p-2 cursor-pointer hover:bg-gray-100"
                                                                             onMouseDown={() => {
                                                                                 setEditData((d) => ({ ...d, customer_id: customer.id }));
                                                                                 setCustomerSearch(customer.name);
+                                                                                setSelectedCustomer(customer);
                                                                                 setShowCustomerOptions(false);
                                                                             }}
                                                                         >
-                                                                            {customer.name}
+                                                                            <div className="flex items-baseline justify-between gap-3">
+                                                                                <span className="text-sm font-medium">{customer.name}</span>
+                                                                                <span className="text-xs text-muted-foreground">
+                                                                                    {customer.dni || customer.cuit || ""}
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -885,6 +894,70 @@ export default function RepairDetailDialogV2({
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                    </CardContent>
+                                                </Card>
+                                            ) : isFreeRepairPrice(repair.sale_price) ? (
+                                                <Card className="border-slate-200 shadow-sm">
+                                                    <CardContent className="py-4 space-y-4">
+                                                        <div className="flex items-center justify-between">
+                                                            <h4 className="font-semibold text-sm">Sin cargo</h4>
+                                                            <Badge variant="outline" className="text-slate-700 border-slate-200">
+                                                                No impacta en caja
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            El precio de venta es $0. Podés marcar la reparación como cobrada sin registrar
+                                                            movimiento en caja.
+                                                        </p>
+                                                        {paymentError && (
+                                                            <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                                                                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                                                <span>{paymentError}</span>
+                                                            </div>
+                                                        )}
+                                                        <Button
+                                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                            disabled={isProcessingPayment}
+                                                            onClick={async () => {
+                                                                setIsProcessingPayment(true);
+                                                                setPaymentError(null);
+                                                                try {
+                                                                    const result = await markAsPaid(repair.id, {});
+                                                                    if (result) {
+                                                                        sileo.success({
+                                                                            title: "Reparación marcada como cobrada (sin cargo).",
+                                                                        });
+                                                                        setShowPaymentForm(false);
+                                                                        onPaymentSuccess?.();
+                                                                        onOpenChange(false);
+                                                                    } else {
+                                                                        setPaymentError(
+                                                                            "No se pudo confirmar el estado de cobro."
+                                                                        );
+                                                                    }
+                                                                } catch (error: unknown) {
+                                                                    const message =
+                                                                        error instanceof Error
+                                                                            ? error.message
+                                                                            : "Error al registrar";
+                                                                    setPaymentError(message);
+                                                                } finally {
+                                                                    setIsProcessingPayment(false);
+                                                                }
+                                                            }}
+                                                        >
+                                                            {isProcessingPayment ? (
+                                                                <>
+                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                    Procesando...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                                    Marcar como cobrada (sin cargo)
+                                                                </>
+                                                            )}
+                                                        </Button>
                                                     </CardContent>
                                                 </Card>
                                             ) : showPaymentForm ? (

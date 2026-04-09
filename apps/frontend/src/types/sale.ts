@@ -34,6 +34,10 @@ export interface SaleItem {
   unit_price: number
   discount_type?: 'percent' | 'amount'
   discount_value?: number
+  /** Línea generada desde un combo desglosado en productos */
+  is_from_combo?: boolean
+  /** false = no participa en descuento global ni descuento adicional del ítem (precio promocional del combo ya aplicado) */
+  allow_discount?: boolean
   scale_barcode_meta?: ScaleBarcodeMetaPayload
 }
 

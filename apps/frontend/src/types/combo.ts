@@ -7,6 +7,8 @@ export interface Combo {
   description?: string;
   discount_type: 'percentage' | 'fixed_amount';
   discount_value: number;
+  /** Si es false, en el POS no se aplica descuento extra (por ítem ni global) sobre el precio ya promocional del combo. */
+  allow_discount?: boolean;
   is_active: boolean;
   notes?: string;
   created_at: string;
@@ -121,6 +123,7 @@ export interface CreateComboRequest {
   description?: string;
   discount_type: 'percentage' | 'fixed_amount';
   discount_value: number;
+  allow_discount?: boolean;
   is_active?: boolean;
   items?: ComboItemRequest[];
   groups?: ComboGroupRequest[];

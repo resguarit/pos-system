@@ -18,6 +18,7 @@ class ComboFactory extends Factory
             'description' => $this->faker->sentence(),
             'discount_type' => $this->faker->randomElement(['percentage', 'fixed_amount']),
             'discount_value' => $this->faker->randomFloat(2, 5, 50),
+            'allow_discount' => true,
             'is_active' => true,
             'notes' => $this->faker->optional()->paragraph(),
         ];

@@ -52,6 +52,8 @@ import VerUsuarioPage from '@/pages/dashboard/VerUsuarioPage'
 import ViewCategoryPage from '@/pages/dashboard/categories/ViewCategoryPage'
 
 import ReparacionesPage from '@/pages/dashboard/ReparacionesPage'
+import ReparacionDetallePage from '@/pages/dashboard/ReparacionDetallePage'
+import NuevaReparacionPage from '@/pages/dashboard/NuevaReparacionPage'
 import CombosPage from '@/pages/dashboard/CombosPage'
 import ShipmentsPage from '@/pages/shipments/ShipmentsPage'
 import ViewShipmentPage from '@/pages/shipments/ViewShipmentPage'
@@ -126,6 +128,8 @@ function App() {
           {features.roles && <Route path="roles/:id/ver" element={<ProtectedRoute permissions={['ver_roles']}><VerRolPage /></ProtectedRoute>} />}
           {features.roles && <Route path="roles/nuevo" element={<ProtectedRoute permissions={['crear_roles']}><NuevoRolPage /></ProtectedRoute>} />}
           {features.repairs && <Route path="reparaciones" element={<ProtectedRoute permissions={['ver_reparaciones']}><ReparacionesPage /></ProtectedRoute>} />}
+          {features.repairs && <Route path="reparaciones/nuevo" element={<ProtectedRoute permissions={['crear_reparaciones']}><NuevaReparacionPage /></ProtectedRoute>} />}
+          {features.repairs && <Route path="reparaciones/:id" element={<ProtectedRoute permissions={['ver_reparaciones']}><ReparacionDetallePage /></ProtectedRoute>} />}
 
           {features.sucursales && <Route path="sucursales" element={<ProtectedRoute permissions={['ver_sucursales']}><SucursalesPage /></ProtectedRoute>} />}
           {features.sucursales && <Route path="sucursales/:id/editar" element={<ProtectedRoute permissions={['editar_sucursales']}><EditarSucursalPage /></ProtectedRoute>} />}

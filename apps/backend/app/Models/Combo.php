@@ -20,12 +20,14 @@ class Combo extends Model
         'description',
         'discount_type',
         'discount_value',
+        'allow_discount',
         'is_active',
         'notes',
     ];
 
     protected $casts = [
         'discount_value' => 'float',
+        'allow_discount' => 'boolean',
         'is_active' => 'boolean',
     ];
 
@@ -160,7 +162,7 @@ class Combo extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'description', 'discount_type', 'discount_value', 'is_active', 'notes'])
+            ->logOnly(['name', 'description', 'discount_type', 'discount_value', 'allow_discount', 'is_active', 'notes'])
             ->useLogName('combo')
             ->logOnlyDirty();
     }
