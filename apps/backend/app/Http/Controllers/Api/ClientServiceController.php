@@ -559,6 +559,7 @@ class ClientServiceController extends Controller
             'to_date' => ['nullable', 'date'],
             'search' => ['nullable', 'string', 'max:255'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'include_expired_services' => ['nullable', 'in:0,1,true,false'],
         ]);
 
         $from = ! empty($validated['from_date'])
@@ -581,6 +582,18 @@ class ClientServiceController extends Controller
             ->with(['service.customer.person'])
             ->whereDate('payment_date', '>=', $from->toDateString())
             ->whereDate('payment_date', '<=', $to->toDateString());
+
+        $includeExpiredRaw = $request->input('include_expired_services', '0');
+        $includeExpired = in_array((string) $includeExpiredRaw, ['1', 'true', 'TRUE'], true);
+
+        if (! $includeExpired) {
+            $today = Carbon::now()->toDateString();
+            $query->whereHas('service', function ($q) use ($today) {
+                $q->where('status', 'active')
+                    ->whereNotNull('next_due_date')
+                    ->whereDate('next_due_date', '>=', $today);
+            });
+        }
 
         if (! empty($validated['search'])) {
             $term = trim($validated['search']);
@@ -629,6 +642,80 @@ class ClientServiceController extends Controller
                 'total_amount' => round($totalAmount, 2),
                 'period_from' => $from->toDateString(),
                 'period_to' => $to->toDateString(),
+            ],
+        ]);
+    }
+
+    /**
+     * Report: services that are expiring soon or already expired.
+     */
+    public function expiring(Request $request)
+    {
+        $validated = $request->validate([
+            'mode' => ['nullable', 'in:due_soon,expired'],
+            'days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $mode = $validated['mode'] ?? 'due_soon';
+        $days = (int) ($validated['days'] ?? 30);
+        $perPage = min(max((int) $request->input('per_page', 10), 1), 100);
+
+        $today = Carbon::now()->startOfDay();
+        $end = $today->copy()->addDays($days)->endOfDay();
+
+        $query = ClientService::query()
+            ->with(['customer.person', 'serviceType', 'lastPayment'])
+            ->where('status', 'active')
+            ->whereNotNull('next_due_date');
+
+        if ($mode === 'expired') {
+            $query->whereDate('next_due_date', '<', $today->toDateString());
+        } else {
+            $query->whereDate('next_due_date', '>=', $today->toDateString())
+                ->whereDate('next_due_date', '<=', $end->toDateString());
+        }
+
+        if (! empty($validated['search'])) {
+            $term = trim($validated['search']);
+            $query->where(function ($q) use ($term) {
+                $q->where('name', 'like', '%'.$term.'%')
+                    ->orWhereHas('customer.person', function ($q2) use ($term) {
+                        $q2->where('first_name', 'like', '%'.$term.'%')
+                            ->orWhere('last_name', 'like', '%'.$term.'%')
+                            ->orWhere('email', 'like', '%'.$term.'%');
+                    });
+            });
+        }
+
+        $paginator = $query
+            ->orderBy('next_due_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->paginate($perPage);
+
+        $data = $paginator->getCollection()->map(function (ClientService $service) {
+            $person = $service->customer?->person;
+            return [
+                'id' => $service->id,
+                'customer_id' => $service->customer_id,
+                'customer_display_name' => $person ? trim(($person->first_name ?? '').' '.($person->last_name ?? '')) : null,
+                'service_name' => $service->name,
+                'billing_cycle' => $service->billing_cycle,
+                'next_due_date' => $service->next_due_date?->format('Y-m-d'),
+                'amount' => (string) $service->amount,
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => $data,
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'summary' => [
+                'mode' => $mode,
+                'days' => $mode === 'due_soon' ? $days : null,
             ],
         ]);
     }

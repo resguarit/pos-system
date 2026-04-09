@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TableSkeletonBodyRows } from "@/components/ui/loading-states"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DateInputDmy } from "@/components/ui/date-input-dmy"
 import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
@@ -105,6 +106,8 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
 
     const {
         activePreset,
+        includeExpiredServices,
+        setIncludeExpiredServices,
         fromDate,
         setFromDate,
         toDate,
@@ -230,6 +233,19 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
                             autoComplete="off"
                         />
                     </div>
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-4">
+                    <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
+                        <Checkbox
+                            checked={includeExpiredServices}
+                            onCheckedChange={(checked) => setIncludeExpiredServices(Boolean(checked))}
+                        />
+                        <span>Incluir servicios vencidos</span>
+                        <span className="text-xs text-muted-foreground">
+                            (según el vencimiento actual del servicio)
+                        </span>
+                    </label>
                 </div>
             </div>
 

@@ -58,9 +58,21 @@ export function PaymentRegistrationDialog({
         return Number.isFinite(n) ? n : null
     }
 
+    const formatMoneyAr = (n: number): string =>
+        n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
     const formatAmount = (n: number): string => {
         // keep the raw input as string for <input type="number" />
         return (Math.round(n * 100) / 100).toFixed(2)
+    }
+
+    const getServiceAmounts = (service: ClientService | undefined | null) => {
+        const withoutIva = parseAmount(service?.amount_without_iva) ?? parseAmount(service?.amount) ?? 0
+        const withIva =
+            parseAmount(service?.amount_with_iva) ??
+            (Number.isFinite(withoutIva) ? withoutIva * (1 + IVA_RATE) : 0)
+
+        return { withoutIva, withIva }
     }
 
     const computeAmountForService = (service: ClientService | undefined | null, chargeWithIva: boolean): string => {
@@ -151,13 +163,42 @@ export function PaymentRegistrationDialog({
                                         }))
                                     }}
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccionar servicio" />
+                                    <SelectTrigger className="h-auto py-2">
+                                        {(() => {
+                                            const selected = paymentCustomer.client_services?.find(
+                                                (s: ClientService) => s.id.toString() === paymentForm.service_id
+                                            )
+                                            if (!selected) {
+                                                return <SelectValue placeholder="Seleccionar servicio" />
+                                            }
+                                            const { withoutIva, withIva } = getServiceAmounts(selected)
+                                            return (
+                                                <div className="flex w-full flex-col items-start text-left">
+                                                    <span className="w-full truncate font-medium">{selected.name}</span>
+                                                    <span className="w-full truncate text-xs text-gray-500">
+                                                        ${formatMoneyAr(withoutIva)} (sin IVA) · ${formatMoneyAr(withIva)} (con IVA)
+                                                    </span>
+                                                </div>
+                                            )
+                                        })()}
                                     </SelectTrigger>
                                     <SelectContent>
                                         {paymentCustomer.client_services?.map((service: ClientService) => (
                                             <SelectItem key={service.id} value={service.id.toString()}>
-                                                {service.name} - ${parseFloat(service.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                                                {(() => {
+                                                    const { withoutIva, withIva } = getServiceAmounts(service)
+                                                    return (
+                                                        <>
+                                                            <span className="font-medium">{service.name}</span>{" "}
+                                                            <span className="text-gray-500">
+                                                                — ${formatMoneyAr(withoutIva)}{" "}
+                                                                <span className="text-[10px]">(sin IVA)</span> · $
+                                                                {formatMoneyAr(withIva)}{" "}
+                                                                <span className="text-[10px]">(con IVA)</span>
+                                                            </span>
+                                                        </>
+                                                    )
+                                                })()}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

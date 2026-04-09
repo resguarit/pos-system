@@ -9,6 +9,7 @@ import ServicesConfigView from "@/components/services/ServicesConfigView"
 import AssignServiceDialog from "@/components/services/AssignServiceDialog"
 import ServicesGroupedView from "@/components/services/ServicesGroupedView"
 import ServicePaymentsPeriodPanel from "@/components/services/ServicePaymentsPeriodPanel"
+import ServiceExpiringPanel from "@/components/services/ServiceExpiringPanel"
 
 export default function ServicesManagementPage() {
     const [activeTab, setActiveTab] = useState("customers")
@@ -83,7 +84,10 @@ export default function ServicesManagementPage() {
 
                 {/* Tab 3: Reporte de cobros por período */}
                 <TabsContent value="payments" className="mt-4">
-                    <ServicePaymentsPeriodPanel active={activeTab === "payments"} formatCurrency={formatCurrency} />
+                    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+                        <ServiceExpiringPanel active={activeTab === "payments"} formatCurrency={formatCurrency} />
+                        <ServicePaymentsPeriodPanel active={activeTab === "payments"} formatCurrency={formatCurrency} />
+                    </div>
                 </TabsContent>
 
                 {/* Tab 3: Configuración de Servicios (CRUD) */}

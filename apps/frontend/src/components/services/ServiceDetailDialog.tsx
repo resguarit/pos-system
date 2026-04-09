@@ -188,45 +188,20 @@ export function ServiceDetailDialog({
                                         </div>
                                     </div>
 
-                                    {/* Amount without IVA */}
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Precio final (sin IVA)</Label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-                                            <Input
-                                                type="text"
-                                                readOnly
-                                                className="pl-7 bg-white"
-                                                value={formatMoney(calculateEditDiscountedPrice())}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* Amount with IVA */}
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Precio con IVA (21%)</Label>
-                                        <div className="relative">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                className="pl-7 pr-20"
-                                                value={serviceEditForm.amount_with_iva}
-                                                onChange={(e) => setServiceEditForm(prev => ({ ...prev, amount_with_iva: e.target.value }))}
-                                            />
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-xs"
-                                                onClick={() => setServiceEditForm(prev => ({
-                                                    ...prev,
-                                                    amount_with_iva: formatMoney(calculateEditDiscountedPrice() * (1 + IVA_RATE))
-                                                }))}
-                                            >
-                                                Calcular
-                                            </Button>
+                                    {/* Final Price Preview */}
+                                    <div className="col-span-2 p-3 bg-white rounded-lg border">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-600">Precio Final:</span>
+                                            <div className="text-right">
+                                                <div className="text-lg font-bold text-green-600">
+                                                    ${calculateEditDiscountedPrice().toLocaleString('es-AR', { minimumFractionDigits: 2 })}{" "}
+                                                    <span className="text-xs font-medium text-gray-500">(sin IVA)</span>
+                                                </div>
+                                                <div className="text-sm font-semibold text-emerald-700">
+                                                    ${(calculateEditDiscountedPrice() * (1 + IVA_RATE)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}{" "}
+                                                    <span className="text-xs font-medium text-gray-500">(con IVA)</span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -255,21 +230,6 @@ export function ServiceDetailDialog({
                                                 })}
                                             />
                                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">%</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Final Price Preview */}
-                                    <div className="col-span-2 p-3 bg-white rounded-lg border">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm text-gray-600">Precio Final:</span>
-                                            <div className="text-right">
-                                                <div className="text-lg font-bold text-green-600">
-                                                    ${calculateEditDiscountedPrice().toLocaleString('es-AR', { minimumFractionDigits: 2 })} <span className="text-xs font-medium text-gray-500">(sin IVA)</span>
-                                                </div>
-                                                <div className="text-sm font-semibold text-emerald-700">
-                                                    ${(calculateEditDiscountedPrice() * (1 + IVA_RATE)).toLocaleString('es-AR', { minimumFractionDigits: 2 })} <span className="text-xs font-medium text-gray-500">(con IVA)</span>
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
 

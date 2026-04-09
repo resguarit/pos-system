@@ -53,6 +53,8 @@ import api from "@/lib/api"
 import { sileo } from "sileo"
 import { getBillingCycleLabel, getBillingCycleBadgeStyles } from "@/utils/billingCycleUtils"
 
+const IVA_RATE = 0.21
+
 // Iconos disponibles para servicios
 const SERVICE_ICONS = [
     { id: 'globe', icon: Globe, label: 'Dominio', color: 'text-blue-500' },
@@ -142,6 +144,9 @@ export default function ServicesConfigView() {
         icon: "",
         is_active: true,
     })
+
+    const formatMoneyAr = (n: number): string =>
+        n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
     const fetchServiceTypes = async () => {
         try {
@@ -475,7 +480,7 @@ export default function ServicesConfigView() {
                         {/* Precio y Ciclo */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="price">Precio *</Label>
+                                <Label htmlFor="price">Precio (sin IVA) *</Label>
                                 <Input
                                     id="price"
                                     type="number"
@@ -485,6 +490,12 @@ export default function ServicesConfigView() {
                                     onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                                     placeholder="0.00"
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                    Con IVA (21%):{" "}
+                                    <span className="font-medium text-emerald-700">
+                                        ${formatMoneyAr((parseFloat(formData.price || "0") || 0) * (1 + IVA_RATE))}
+                                    </span>
+                                </p>
                             </div>
 
                             <div className="space-y-2">

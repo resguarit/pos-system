@@ -413,6 +413,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         // Stats route - must be before {id} routes
         Route::get('/stats', [ApiClientServiceController::class, 'stats']);
         Route::get('/customers-with-services', [ApiClientServiceController::class, 'customersWithServices']);
+        Route::get('/expiring', [ApiClientServiceController::class, 'expiring']);
         Route::get('/payments', [ApiClientServiceController::class, 'listPayments']);
 
         // General access if needed, or mostly via customer

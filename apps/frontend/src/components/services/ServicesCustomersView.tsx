@@ -293,9 +293,9 @@ export default function ServicesCustomersView() {
 
             const payload = {
                 // Legacy `amount` stays in sync for existing UI/logic.
-                amount: serviceEditForm.amount_with_iva || serviceEditForm.amount_without_iva || calculateEditDiscountedPrice().toFixed(2),
                 amount_without_iva: serviceEditForm.amount_without_iva || calculateEditDiscountedPrice().toFixed(2),
                 amount_with_iva: serviceEditForm.amount_with_iva || (calculateEditDiscountedPrice() * 1.21).toFixed(2),
+                amount: serviceEditForm.amount_with_iva || (calculateEditDiscountedPrice() * 1.21).toFixed(2),
                 base_price: serviceEditForm.base_price,
                 discount_percentage: serviceEditForm.discount_percentage,
                 discount_notes: serviceEditForm.discount_notes,

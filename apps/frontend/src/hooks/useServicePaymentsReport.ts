@@ -31,6 +31,7 @@ export function useServicePaymentsReport(options: Options) {
     const { request } = useApi()
 
     const [activePreset, setActivePreset] = useState<"this_month" | "previous_month" | "custom">("this_month")
+    const [includeExpiredServices, setIncludeExpiredServices] = useState(false)
     const [fromDate, setFromDateState] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"))
     const [toDate, setToDateState] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"))
     const [search, setSearch] = useState("")
@@ -49,6 +50,10 @@ export function useServicePaymentsReport(options: Options) {
         }, 300)
         return () => clearTimeout(t)
     }, [search])
+
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [includeExpiredServices])
 
     const setFromDate = useCallback((v: string) => {
         setFromDateState(v)
@@ -89,6 +94,7 @@ export function useServicePaymentsReport(options: Options) {
                         from_date: fromDate,
                         to_date: toDate,
                         search: debouncedSearch || undefined,
+                        include_expired_services: includeExpiredServices ? 1 : 0,
                         page: currentPage,
                         per_page: perPage,
                     },
@@ -116,7 +122,7 @@ export function useServicePaymentsReport(options: Options) {
                 setLoading(false)
             }
         },
-        [request, fromDate, toDate, debouncedSearch, currentPage, perPage]
+        [request, fromDate, toDate, debouncedSearch, includeExpiredServices, currentPage, perPage]
     )
 
     useEffect(() => {
@@ -132,6 +138,8 @@ export function useServicePaymentsReport(options: Options) {
 
     return {
         activePreset,
+        includeExpiredServices,
+        setIncludeExpiredServices,
         fromDate,
         setFromDate,
         toDate,
