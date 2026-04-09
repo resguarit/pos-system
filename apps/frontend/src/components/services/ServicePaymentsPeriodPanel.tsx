@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TableSkeletonBodyRows } from "@/components/ui/loading-states"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Checkbox } from "@/components/ui/checkbox"
 import { DateInputDmy } from "@/components/ui/date-input-dmy"
 import { Label } from "@/components/ui/label"
 import { format } from "date-fns"
@@ -106,8 +105,6 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
 
     const {
         activePreset,
-        includeExpiredServices,
-        setIncludeExpiredServices,
         fromDate,
         setFromDate,
         toDate,
@@ -135,19 +132,19 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
         )}`
 
     return (
-        <div className="space-y-6">
-            <Card className="border border-emerald-200/70 bg-card">
-                <CardHeader className="space-y-2 pb-3">
+        <div className="space-y-4">
+            <Card className="border border-emerald-200/70 bg-card min-h-[176px]">
+                <CardHeader className="space-y-2 pb-3 min-h-[122px]">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                             <Receipt className="h-5 w-5 text-emerald-700" />
                             <CardTitle className="text-base sm:text-lg text-foreground">Total cobrado en el período</CardTitle>
                         </div>
                         {summary && (
-                            <p className="text-xs text-muted-foreground leading-snug">{periodLabel}</p>
+                            <p className="min-h-[16px] text-xs text-muted-foreground leading-snug">{periodLabel}</p>
                         )}
                     </div>
-                    <CardDescription>
+                    <CardDescription className="min-h-[40px]">
                         Suma de todos los pagos registrados de servicios recurrentes (incluye todas las páginas del listado).
                     </CardDescription>
                 </CardHeader>
@@ -166,10 +163,10 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
                         size="sm"
                         onClick={applyPresetThisMonth}
                         className={cn(
-                            "gap-1.5",
+                            "w-[120px] justify-center gap-1.5",
                             activePreset === "this_month"
-                                ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700 ring-2 ring-emerald-300"
-                                : "bg-background"
+                                ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                                : "border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
                         )}
                         aria-pressed={activePreset === "this_month"}
                     >
@@ -182,9 +179,10 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
                         size="sm"
                         onClick={applyPresetPreviousMonth}
                         className={cn(
+                            "w-[120px] justify-center",
                             activePreset === "previous_month"
-                                ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:border-emerald-700 ring-2 ring-emerald-300"
-                                : "bg-background"
+                                ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                                : "border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground"
                         )}
                         aria-pressed={activePreset === "previous_month"}
                     >
@@ -233,19 +231,6 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
                             autoComplete="off"
                         />
                     </div>
-                </div>
-
-                <div className="sm:col-span-2 lg:col-span-4">
-                    <label className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm">
-                        <Checkbox
-                            checked={includeExpiredServices}
-                            onCheckedChange={(checked) => setIncludeExpiredServices(Boolean(checked))}
-                        />
-                        <span>Incluir servicios vencidos</span>
-                        <span className="text-xs text-muted-foreground">
-                            (según el vencimiento actual del servicio)
-                        </span>
-                    </label>
                 </div>
             </div>
 

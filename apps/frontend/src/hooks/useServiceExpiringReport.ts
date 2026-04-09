@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import useApi from "@/hooks/useApi"
+import { endOfMonth, format, startOfMonth, addMonths } from "date-fns"
 import { sileo } from "sileo"
 
 export type ServiceExpiringMode = "due_soon" | "expired"
@@ -19,6 +20,10 @@ export type ServiceExpiringRow = {
 type Summary = {
     mode: ServiceExpiringMode
     days: number | null
+    include_expired: boolean | null
+    total_amount: number
+    period_from: string | null
+    period_to: string
 }
 
 type Options = {
@@ -31,7 +36,10 @@ export function useServiceExpiringReport(options: Options) {
     const { request } = useApi()
 
     const [mode, setMode] = useState<ServiceExpiringMode>("due_soon")
-    const [days, setDays] = useState(30)
+    const [activePreset, setActivePreset] = useState<"this_month" | "next_month" | "custom">("this_month")
+    const [fromDate, setFromDateState] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"))
+    const [toDate, setToDateState] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"))
+    const [includeExpired, setIncludeExpired] = useState(false)
     const [search, setSearch] = useState("")
     const [debouncedSearch, setDebouncedSearch] = useState("")
 
@@ -53,7 +61,35 @@ export function useServiceExpiringReport(options: Options) {
 
     useEffect(() => {
         setCurrentPage(1)
-    }, [mode, days])
+    }, [mode, fromDate, toDate, includeExpired])
+
+    const setFromDate = useCallback((v: string) => {
+        setFromDateState(v)
+        setActivePreset("custom")
+        setCurrentPage(1)
+    }, [])
+
+    const setToDate = useCallback((v: string) => {
+        setToDateState(v)
+        setActivePreset("custom")
+        setCurrentPage(1)
+    }, [])
+
+    const applyPresetThisMonth = useCallback(() => {
+        const now = new Date()
+        setFromDateState(format(startOfMonth(now), "yyyy-MM-dd"))
+        setToDateState(format(endOfMonth(now), "yyyy-MM-dd"))
+        setActivePreset("this_month")
+        setCurrentPage(1)
+    }, [])
+
+    const applyPresetNextMonth = useCallback(() => {
+        const next = addMonths(new Date(), 1)
+        setFromDateState(format(startOfMonth(next), "yyyy-MM-dd"))
+        setToDateState(format(endOfMonth(next), "yyyy-MM-dd"))
+        setActivePreset("next_month")
+        setCurrentPage(1)
+    }, [])
 
     const fetchList = useCallback(
         async (signal?: AbortSignal) => {
@@ -65,7 +101,9 @@ export function useServiceExpiringReport(options: Options) {
                     url: "/client-services/expiring",
                     params: {
                         mode,
-                        days: mode === "due_soon" ? days : undefined,
+                        from_date: fromDate,
+                        to_date: toDate,
+                        include_expired: mode === "due_soon" ? (includeExpired ? 1 : 0) : undefined,
                         search: debouncedSearch || undefined,
                         page: currentPage,
                         per_page: perPage,
@@ -90,7 +128,7 @@ export function useServiceExpiringReport(options: Options) {
                 setLoading(false)
             }
         },
-        [active, request, mode, days, debouncedSearch, currentPage, perPage]
+        [active, request, mode, fromDate, toDate, includeExpired, debouncedSearch, currentPage, perPage]
     )
 
     useEffect(() => {
@@ -107,8 +145,15 @@ export function useServiceExpiringReport(options: Options) {
     return {
         mode,
         setMode,
-        days,
-        setDays,
+        activePreset,
+        applyPresetThisMonth,
+        applyPresetNextMonth,
+        fromDate,
+        setFromDate,
+        toDate,
+        setToDate,
+        includeExpired,
+        setIncludeExpired,
         search,
         setSearch,
         rows,

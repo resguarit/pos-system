@@ -84,9 +84,13 @@ export default function ServicesManagementPage() {
 
                 {/* Tab 3: Reporte de cobros por período */}
                 <TabsContent value="payments" className="mt-4">
-                    <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
-                        <ServiceExpiringPanel active={activeTab === "payments"} formatCurrency={formatCurrency} />
-                        <ServicePaymentsPeriodPanel active={activeTab === "payments"} formatCurrency={formatCurrency} />
+                    <div className="grid gap-4 lg:grid-cols-2 lg:items-start lg:[grid-template-columns:minmax(0,1fr)_minmax(0,1fr)]">
+                        <div className="min-w-0">
+                            <ServiceExpiringPanel active={activeTab === "payments"} formatCurrency={formatCurrency} />
+                        </div>
+                        <div className="min-w-0">
+                            <ServicePaymentsPeriodPanel active={activeTab === "payments"} formatCurrency={formatCurrency} />
+                        </div>
                     </div>
                 </TabsContent>
 

@@ -559,7 +559,6 @@ class ClientServiceController extends Controller
             'to_date' => ['nullable', 'date'],
             'search' => ['nullable', 'string', 'max:255'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
-            'include_expired_services' => ['nullable', 'in:0,1,true,false'],
         ]);
 
         $from = ! empty($validated['from_date'])
@@ -582,18 +581,6 @@ class ClientServiceController extends Controller
             ->with(['service.customer.person'])
             ->whereDate('payment_date', '>=', $from->toDateString())
             ->whereDate('payment_date', '<=', $to->toDateString());
-
-        $includeExpiredRaw = $request->input('include_expired_services', '0');
-        $includeExpired = in_array((string) $includeExpiredRaw, ['1', 'true', 'TRUE'], true);
-
-        if (! $includeExpired) {
-            $today = Carbon::now()->toDateString();
-            $query->whereHas('service', function ($q) use ($today) {
-                $q->where('status', 'active')
-                    ->whereNotNull('next_due_date')
-                    ->whereDate('next_due_date', '>=', $today);
-            });
-        }
 
         if (! empty($validated['search'])) {
             $term = trim($validated['search']);
@@ -653,28 +640,54 @@ class ClientServiceController extends Controller
     {
         $validated = $request->validate([
             'mode' => ['nullable', 'in:due_soon,expired'],
-            'days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date'],
             'search' => ['nullable', 'string', 'max:255'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'include_expired' => ['nullable', 'in:0,1,true,false'],
         ]);
 
         $mode = $validated['mode'] ?? 'due_soon';
-        $days = (int) ($validated['days'] ?? 30);
         $perPage = min(max((int) $request->input('per_page', 10), 1), 100);
+        $includeExpiredRaw = $request->input('include_expired', '0');
+        $includeExpired = in_array((string) $includeExpiredRaw, ['1', 'true', 'TRUE'], true);
 
         $today = Carbon::now()->startOfDay();
-        $end = $today->copy()->addDays($days)->endOfDay();
+
+        $from = ! empty($validated['from_date'])
+            ? Carbon::parse($validated['from_date'])->startOfDay()
+            : Carbon::now()->startOfMonth()->startOfDay();
+
+        $to = ! empty($validated['to_date'])
+            ? Carbon::parse($validated['to_date'])->endOfDay()
+            : Carbon::now()->endOfMonth()->endOfDay();
+
+        if ($from->greaterThan($to)) {
+            return response()->json([
+                'message' => 'La fecha inicial debe ser anterior o igual a la fecha final.',
+            ], 422);
+        }
 
         $query = ClientService::query()
             ->with(['customer.person', 'serviceType', 'lastPayment'])
             ->where('status', 'active')
             ->whereNotNull('next_due_date');
 
+        // "Por vencer": services to collect within a selected period.
+        // Always apply upper bound (<= to). Lower bound depends on include_expired.
         if ($mode === 'expired') {
-            $query->whereDate('next_due_date', '<', $today->toDateString());
+            // Expired within the selected period.
+            $query->whereDate('next_due_date', '<', $today->toDateString())
+                ->whereDate('next_due_date', '>=', $from->toDateString())
+                ->whereDate('next_due_date', '<=', $to->toDateString());
         } else {
-            $query->whereDate('next_due_date', '>=', $today->toDateString())
-                ->whereDate('next_due_date', '<=', $end->toDateString());
+            $query->whereDate('next_due_date', '<=', $to->toDateString());
+
+            if (! $includeExpired) {
+                // Strictly "in period and not already expired".
+                $query->whereDate('next_due_date', '>=', $from->toDateString())
+                    ->whereDate('next_due_date', '>=', $today->toDateString());
+            }
         }
 
         if (! empty($validated['search'])) {
@@ -688,6 +701,8 @@ class ClientServiceController extends Controller
                     });
             });
         }
+
+        $totalToCollect = (float) (clone $query)->sum('amount');
 
         $paginator = $query
             ->orderBy('next_due_date', 'asc')
@@ -715,7 +730,11 @@ class ClientServiceController extends Controller
             'total' => $paginator->total(),
             'summary' => [
                 'mode' => $mode,
-                'days' => $mode === 'due_soon' ? $days : null,
+                'days' => null,
+                'include_expired' => $mode === 'due_soon' ? $includeExpired : null,
+                'total_amount' => round($totalToCollect, 2),
+                'period_from' => $from->toDateString(),
+                'period_to' => $to->toDateString(),
             ],
         ]);
     }
