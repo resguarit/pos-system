@@ -613,8 +613,7 @@ export default function ShipmentsPage() {
     const reference = payload.shipment?.reference || (shipmentId ? `#${shipmentId}` : '');
 
     sileo.success({
-      title: 'Nuevo envio',
-      description: reference ? `Ingreso ${reference}` : 'Se creo un nuevo envio.',
+      title: reference ? `Nuevo envío (Ingreso ${reference})` : 'Se ha creado un nuevo envío',
     });
 
     playNotificationSound(soundEnabled);
