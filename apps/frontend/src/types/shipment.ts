@@ -5,6 +5,8 @@ export interface Shipment {
   status?: string;
   priority?: string;
   estimated_delivery_date?: string;
+  estimated_delivery_window_start?: string;
+  estimated_delivery_window_end?: string;
   actual_delivery_date?: string;
   shipping_address?: string;
   shipping_city?: string;
@@ -12,7 +14,7 @@ export interface Shipment {
   shipping_postal_code?: string;
   shipping_country?: string;
   notes?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   current_stage_id: number;
   version?: number;
   created_by: number;
@@ -36,7 +38,7 @@ export interface ShipmentStage {
   name: string;
   description?: string;
   order: number;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   is_active: boolean;
   color?: string;
   created_at: string;
@@ -49,7 +51,7 @@ export interface ShipmentEvent {
   user_id?: number;
   from_stage_id?: number;
   to_stage_id?: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   ip?: string;
   user_agent?: string;
   created_at: string;
@@ -80,20 +82,35 @@ export interface CreateShipmentRequest {
   shipping_country?: string;
   priority?: string;
   estimated_delivery_date?: string;
+  estimated_delivery_window_start?: string;
+  estimated_delivery_window_end?: string;
   notes?: string;
   shipping_cost?: number;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MoveShipmentRequest {
   stage_id: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   version: number;
 }
 
 export interface UpdateShipmentRequest {
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   version: number;
   shipping_cost?: number;
+  shipping_address?: string;
+  shipping_city?: string;
+  shipping_state?: string | null;
+  shipping_postal_code?: string | null;
+  shipping_country?: string | null;
+  priority?: string | null;
+  estimated_delivery_date?: string | null;
+  estimated_delivery_window_start?: string | null;
+  estimated_delivery_window_end?: string | null;
+  notes?: string | null;
+  current_stage_id?: number;
+  sale_ids?: number[];
 }
 
 export interface PayShipmentRequest {
@@ -106,7 +123,7 @@ export interface UpsertShipmentStageRequest {
   name: string;
   description?: string;
   order?: number;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
   is_active?: boolean;
 }
 

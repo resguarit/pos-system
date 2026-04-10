@@ -71,6 +71,45 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
     }).format(amount);
   };
 
+  const formatDeliveryWindow = (
+    startDateString?: string | null,
+    endDateString?: string | null,
+    fallbackDateString?: string | null
+  ): string => {
+    const dateValue = startDateString || fallbackDateString;
+    if (!dateValue) return '-';
+
+    const startDate = new Date(dateValue);
+    if (Number.isNaN(startDate.getTime())) return '-';
+
+    if (endDateString) {
+      const endDate = new Date(endDateString);
+      if (Number.isNaN(endDate.getTime())) return '-';
+
+      const startPart = new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(startDate);
+      const endPart = new Intl.DateTimeFormat('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(endDate);
+      return `${startPart} - ${endPart}`;
+    }
+
+    return new Intl.DateTimeFormat('es-AR', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(startDate);
+  };
+
   type SalePaymentLike = {
     id: number;
     amount: number | string;
@@ -116,6 +155,11 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
       </Dialog>
     );
   }
+
+  const estimatedWindowStart = shipment.estimated_delivery_window_start || shipment.metadata?.estimated_delivery_window_start;
+  const estimatedWindowEnd = shipment.estimated_delivery_window_end || shipment.metadata?.estimated_delivery_window_end;
+  const legacyEstimatedDate = shipment.estimated_delivery_date || shipment.metadata?.estimated_delivery_date;
+  const hasEstimatedWindow = Boolean(estimatedWindowStart || estimatedWindowEnd || legacyEstimatedDate);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -240,13 +284,15 @@ const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ shipmentId, open, onOpe
                   </div>
                 </div>
 
-                {/* Fecha Estimada de Entrega */}
-                {shipment.estimated_delivery_date && (
+                {/* Rango Estimado de Entrega */}
+                {hasEstimatedWindow && (
                   <div className="flex items-start gap-3">
                     <Calendar className="h-5 w-5 text-blue-600 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">Fecha Estimada de Entrega</p>
-                      <p className="text-base font-medium text-blue-700">{formatDate(shipment.estimated_delivery_date)}</p>
+                      <p className="text-sm font-medium text-muted-foreground">Entrega Estimada</p>
+                      <p className="text-base font-medium text-blue-700">
+                        {formatDeliveryWindow(estimatedWindowStart, estimatedWindowEnd, legacyEstimatedDate)}
+                      </p>
                     </div>
                   </div>
                 )}

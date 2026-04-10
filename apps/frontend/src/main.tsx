@@ -18,6 +18,7 @@ import EnterSubmitProvider from "@/components/enter-submit-provider"
 import { CartProvider } from "@/context/CartContext"
 import { NewPurchaseOrderProvider } from "@/contexts/new-purchase-order-context"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import NotificationsBootstrap from "@/components/shipments/NotificationsBootstrap"
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -37,6 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                               <ErrorBoundary>
                                 <App />
                               </ErrorBoundary>
+                              <NotificationsBootstrap />
                               <Toaster position="top-right" options={{ fill: "#171717", styles: { title: "text-white!", description: "text-white/75!" } }} />
                               <EnterSubmitProvider />
                             </NewPurchaseOrderProvider>

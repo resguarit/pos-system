@@ -11,6 +11,7 @@ export interface User {
   email: string;
   username: string;
   active: boolean;
+  font_scale?: number;
   person?: {
     id: number;
     first_name: string;

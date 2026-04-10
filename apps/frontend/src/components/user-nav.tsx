@@ -1,4 +1,4 @@
-import { LogOut } from "lucide-react"
+import { LogOut, Type } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -6,13 +6,16 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from "@/context/AuthContext"
+import { sileo } from "sileo"
 
 export function UserNav() {
-  const { user, logout } = useAuth()
+  const { user, logout, updateFontScale } = useAuth()
 
   const displayName = user?.username || user?.email || "Usuario"
   const displayEmail = user?.email || ""
@@ -23,6 +26,24 @@ export function UserNav() {
     const parts = base.trim().split(/\s+/)
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
     return base.slice(0, 2).toUpperCase()
+  }
+
+  const selectedFontScale = String(user?.font_scale ?? 1)
+
+  const handleFontScaleChange = async (value: string) => {
+    const scale = Number(value)
+    if (Number.isNaN(scale)) return
+
+    // Apply immediately for better UX while persisting in backend.
+    document.documentElement.style.setProperty("--app-font-scale", String(scale))
+
+    try {
+      await updateFontScale(scale)
+    } catch (error) {
+      sileo.error({ title: "No se pudo guardar el tamaño de letra" })
+      document.documentElement.style.setProperty("--app-font-scale", String(user?.font_scale ?? 1))
+      console.error(error)
+    }
   }
 
   return (
@@ -44,6 +65,18 @@ export function UserNav() {
             )}
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="font-normal text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Type className="h-3.5 w-3.5" />
+            <span>Tamaño de letra</span>
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={selectedFontScale} onValueChange={handleFontScaleChange}>
+          <DropdownMenuRadioItem value="0.9">Pequeña</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="1">Normal</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="1.1">Grande</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="cursor-pointer" onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />

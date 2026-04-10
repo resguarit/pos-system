@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ShipmentCreated;
 use App\Http\Requests\CreateShipmentRequest;
 use App\Http\Requests\MoveShipmentRequest;
 use App\Http\Requests\UpdateShipmentRequest;
@@ -39,6 +40,7 @@ class ShipmentController extends Controller
     {
         try {
             $shipment = $this->shipmentService->create($request->validated(), Auth::user());
+            event(new ShipmentCreated($shipment, Auth::user()));
 
             return response()->json([
                 'success' => true,
@@ -58,7 +60,18 @@ class ShipmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $filters = $request->only(['stage_id', 'reference', 'created_from', 'created_to', 'per_page']);
+            $filters = $request->only([
+                'stage_id',
+                'reference',
+                'created_from',
+                'created_to',
+                'per_page',
+                'priority',
+                'city',
+                'customer',
+                'transporter',
+                'branch_id',
+            ]);
             $shipments = $this->shipmentService->getShipments(Auth::user(), $filters);
 
             // Calcular estadísticas para una sola sucursal

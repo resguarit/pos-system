@@ -14,6 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__ . '/../routes/console.php',
         health: '/up',
     )
+    ->withBroadcasting(
+        __DIR__ . '/../routes/channels.php',
+        ['middleware' => ['auth:sanctum']],
+    )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'cash.open' => \App\Http\Middleware\CheckCashRegisterOpen::class,
@@ -71,7 +75,7 @@ return Application::configure(basePath: dirname(__DIR__))
                         $isAllowed = true;
                     } elseif (!empty($allowedPatterns)) {
                         foreach ($allowedPatterns as $pattern) {
-                            if (preg_match('#^' . $pattern . '$#', $origin)) {
+                            if (preg_match($pattern, $origin)) {
                                 $isAllowed = true;
                                 break;
                             }
@@ -109,7 +113,7 @@ return Application::configure(basePath: dirname(__DIR__))
                     $isAllowed = true;
                 } elseif (!empty($allowedPatterns)) {
                     foreach ($allowedPatterns as $pattern) {
-                        if (preg_match('#^' . $pattern . '$#', $origin)) {
+                        if (preg_match($pattern, $origin)) {
                             $isAllowed = true;
                             break;
                         }

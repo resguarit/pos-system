@@ -226,6 +226,7 @@ class UserController extends Controller
                 'email' => $user->email,
                 'username' => $user->username,
                 'active' => $user->active,
+                'font_scale' => (float) ($user->font_scale ?? 1),
                 'person' => $user->person ? [
                     'id' => $user->person->id,
                     'first_name' => $user->person->first_name,
@@ -245,6 +246,28 @@ class UserController extends Controller
                 'updated_at' => $user->updated_at,
             ],
             'permissions' => $permissions
+        ]);
+    }
+
+    /**
+     * Actualiza preferencias del usuario autenticado.
+     */
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'font_scale' => 'required|numeric|min:0.9|max:1.1',
+        ]);
+
+        /** @var User $user */
+        $user = $request->user();
+        $user->font_scale = round((float) $validated['font_scale'], 2);
+        $user->save();
+
+        return response()->json([
+            'message' => 'Preferencias actualizadas correctamente',
+            'data' => [
+                'font_scale' => (float) $user->font_scale,
+            ],
         ]);
     }
 

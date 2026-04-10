@@ -199,6 +199,7 @@ php artisan db:seed      # Seed database
 El sistema está preparado para desplegarse en múltiples clientes. **No hay referencias hardcodeadas** más allá del logo configurable.
 
 📖 **[Ver Guía Completa de Deployment Multi-Cliente](./docs/MULTI_CLIENT_DEPLOYMENT.md)**
+📖 **[Ver Guía de Notificaciones (Realtime + Push)](./docs/notifications-deployment.md)**
 
 Para deployment usando **CyberPanel Git**, la guía incluye instrucciones paso a paso.
 

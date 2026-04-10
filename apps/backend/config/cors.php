@@ -40,6 +40,8 @@ $allowedOrigins = array_merge($allowedOrigins, [
     'https://localhost:5173',
     'http://127.0.0.1:5173',
     'https://127.0.0.1:5173',
+    // LAN dev (Vite shown "Network" URL)
+    'http://192.168.1.42:5173',
 ]);
 
 // Add inferred production frontend origins (apex + www) if available
@@ -53,27 +55,30 @@ $allowedOrigins = array_values(array_unique($allowedOrigins));
 
 // Build allowed origins patterns
 $allowedOriginsPatterns = [
-    '^(http|https)://(localhost|127\\.0\\.0\\.1):5173$',
+    '#^(http|https)://(localhost|127\\.0\\.0\\.1):5173$#',
+    // Allow Vite dev server from local network (192.168.x.x:5173)
+    '#^https?://192\\.168\\.\\d+\\.\\d+:5173$#',
 ];
 
 // Add domain pattern if domain is not localhost
 if ($frontendDomain !== 'localhost' && $frontendDomain !== '127.0.0.1') {
     $domainPattern = str_replace('.', '\\.', $frontendDomain);
     // Allow apex domain and www
-    $allowedOriginsPatterns[] = '^https?://(www\\.)?' . $domainPattern . '$';
+    $allowedOriginsPatterns[] = '#^https?://(www\\.)?' . $domainPattern . '$#';
     // Allow any subdomain
-    $allowedOriginsPatterns[] = '^https?://.*\\.' . $domainPattern . '$';
+    $allowedOriginsPatterns[] = '#^https?://.*\\.' . $domainPattern . '$#';
 }
 
 // Add inferred domain patterns (apex + www + subdomains)
 if (is_string($inferredFrontendDomain) && $inferredFrontendDomain !== '' && $inferredFrontendDomain !== 'localhost' && $inferredFrontendDomain !== '127.0.0.1') {
     $inferredPattern = str_replace('.', '\\.', $inferredFrontendDomain);
-    $allowedOriginsPatterns[] = '^https?://(www\\.)?' . $inferredPattern . '$';
-    $allowedOriginsPatterns[] = '^https?://.*\\.' . $inferredPattern . '$';
+    $allowedOriginsPatterns[] = '#^https?://(www\\.)?' . $inferredPattern . '$#';
+    $allowedOriginsPatterns[] = '#^https?://.*\\.' . $inferredPattern . '$#';
 }
 
 return [
-    'paths' => ['api/*', 'storage/*', 'sanctum/csrf-cookie'],
+    // NOTE: `broadcasting/auth` is not under `api/*` but is needed for Reverb/Echo.
+    'paths' => ['api/*', 'broadcasting/auth', 'storage/*', 'sanctum/csrf-cookie'],
     'allowed_methods' => ['*'],
     'allowed_origins' => $allowedOrigins,
     'allowed_origins_patterns' => $allowedOriginsPatterns,

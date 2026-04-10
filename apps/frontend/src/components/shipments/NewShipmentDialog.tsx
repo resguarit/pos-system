@@ -31,7 +31,8 @@ interface NewShipmentForm {
   shipping_postal_code: string;
   shipping_country: string;
   priority: string;
-  estimated_delivery_date: string;
+  estimated_delivery_window_start: string;
+  estimated_delivery_window_end: string;
   notes: string;
   shipping_cost: string;
   transportista_id?: number;
@@ -40,6 +41,34 @@ interface NewShipmentForm {
   branch_id?: number;
   origin_branch_id?: number;
 }
+
+const parseDateTimeLocal = (value: string): Date | null => {
+  if (!value) return null;
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const validateDeliveryWindow = (start: string, end: string): string | null => {
+  if (!start && !end) {
+    return null;
+  }
+
+  if (!start || !end) {
+    return 'Debes completar inicio y fin del rango estimado.';
+  }
+
+  const startDate = parseDateTimeLocal(start);
+  const endDate = parseDateTimeLocal(end);
+  if (!startDate || !endDate) {
+    return 'La fecha y hora del rango estimado no es válida.';
+  }
+
+  if (endDate.getTime() <= startDate.getTime()) {
+    return 'La fecha y hora de fin debe ser posterior al inicio.';
+  }
+
+  return null;
+};
 
 export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
   open,
@@ -58,7 +87,8 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
     shipping_postal_code: '',
     shipping_country: 'Argentina',
     priority: 'normal',
-    estimated_delivery_date: '',
+    estimated_delivery_window_start: '',
+    estimated_delivery_window_end: '',
     notes: '',
     shipping_cost: '',
     transportista_id: undefined,
@@ -142,7 +172,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       setFoundSales([]);
       clearCustomers();
     }
-  }, [open, stages]);
+  }, [open, stages, selectedBranchIds, clearCustomers]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -166,8 +196,22 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
       return;
     }
 
+    if (!newShipmentForm.transportista_id) {
+      sileo.error({ title: 'El transportista es obligatorio' });
+      return;
+    }
+
     if (!newShipmentForm.shipping_address) {
       sileo.error({ title: 'La dirección es obligatoria' });
+      return;
+    }
+
+    const deliveryWindowError = validateDeliveryWindow(
+      newShipmentForm.estimated_delivery_window_start,
+      newShipmentForm.estimated_delivery_window_end
+    );
+    if (deliveryWindowError) {
+      sileo.error({ title: deliveryWindowError });
       return;
     }
 
@@ -179,7 +223,11 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
         shipping_postal_code: newShipmentForm.shipping_postal_code || null,
         shipping_country: newShipmentForm.shipping_country || 'Argentina',
         priority: newShipmentForm.priority || 'normal',
-        estimated_delivery_date: newShipmentForm.estimated_delivery_date || null,
+        estimated_delivery_date: newShipmentForm.estimated_delivery_window_start
+          ? newShipmentForm.estimated_delivery_window_start.split('T')[0]
+          : null,
+        estimated_delivery_window_start: newShipmentForm.estimated_delivery_window_start || null,
+        estimated_delivery_window_end: newShipmentForm.estimated_delivery_window_end || null,
         notes: newShipmentForm.notes || null,
       };
 
@@ -205,7 +253,11 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
         shipping_postal_code: newShipmentForm.shipping_postal_code || undefined,
         shipping_country: newShipmentForm.shipping_country || undefined,
         priority: newShipmentForm.priority || undefined,
-        estimated_delivery_date: newShipmentForm.estimated_delivery_date || undefined,
+        estimated_delivery_date: newShipmentForm.estimated_delivery_window_start
+          ? newShipmentForm.estimated_delivery_window_start.split('T')[0]
+          : undefined,
+        estimated_delivery_window_start: newShipmentForm.estimated_delivery_window_start || undefined,
+        estimated_delivery_window_end: newShipmentForm.estimated_delivery_window_end || undefined,
         notes: newShipmentForm.notes || undefined,
         shipping_cost: newShipmentForm.shipping_cost ? parseFloat(newShipmentForm.shipping_cost) : undefined,
         branch_id: branchId,
@@ -225,7 +277,8 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
         shipping_postal_code: '',
         shipping_country: 'Argentina',
         priority: 'normal',
-        estimated_delivery_date: '',
+        estimated_delivery_window_start: '',
+        estimated_delivery_window_end: '',
         notes: '',
         shipping_cost: '',
         transportista_id: undefined,
@@ -366,6 +419,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
               <label className="text-sm font-bold text-slate-700 flex items-center gap-2">
                 <Package className="h-4 w-4 text-primary" />
                 Transportista
+                <span className="text-red-500">*</span>
               </label>
               <Autocomplete
                 options={transporters.map(t => ({
@@ -384,7 +438,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Dirección *</label>
+                <label className="text-sm font-medium">
+                  Dirección <span className="text-red-500">*</span>
+                </label>
                 <Input
                   value={newShipmentForm.shipping_address}
                   onChange={(e) => setNewShipmentForm(prev => ({ ...prev, shipping_address: e.target.value }))}
@@ -427,6 +483,7 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
               <label className="text-base font-semibold flex items-center gap-2">
                 <Package className="h-5 w-5 text-primary" />
                 Pedidos en este Envío
+                <span className="text-red-500">*</span>
                 <Badge variant="secondary" className="ml-2">
                   {selectedSales.length}
                 </Badge>
@@ -562,7 +619,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 border-t pt-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Estado del Envío *</label>
+              <label className="text-sm font-medium">
+                Estado del Envío <span className="text-red-500">*</span>
+              </label>
               <Select
                 value={newShipmentForm.stage_id?.toString() || ''}
                 onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, stage_id: parseInt(value) }))}
@@ -623,7 +682,9 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
 
             {selectedBranchIds.length > 1 ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Sucursal *</label>
+                <label className="text-sm font-medium">
+                  Sucursal <span className="text-red-500">*</span>
+                </label>
                 <Select
                   value={newShipmentForm.branch_id?.toString() || ''}
                   onValueChange={(value) => setNewShipmentForm(prev => ({ ...prev, branch_id: parseInt(value) }))}
@@ -646,16 +707,29 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
             ) : <div className="hidden md:block"></div>}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                Entrega Estimada
+                Inicio Estimado
               </label>
               <Input
                 type="datetime-local"
-                value={newShipmentForm.estimated_delivery_date}
-                onChange={(e) => setNewShipmentForm(prev => ({ ...prev, estimated_delivery_date: e.target.value }))}
+                value={newShipmentForm.estimated_delivery_window_start}
+                onChange={(e) => setNewShipmentForm(prev => ({ ...prev, estimated_delivery_window_start: e.target.value }))}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                Fin Estimado
+              </label>
+              <Input
+                type="datetime-local"
+                value={newShipmentForm.estimated_delivery_window_end}
+                onChange={(e) => setNewShipmentForm(prev => ({ ...prev, estimated_delivery_window_end: e.target.value }))}
                 className="rounded-xl"
               />
             </div>

@@ -31,6 +31,7 @@ class User extends Authenticatable
         'role_id',
         'hidden',
         'last_login_at',
+        'font_scale',
     ];
 
     /**
@@ -55,6 +56,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'active' => 'boolean',
             'last_login_at' => 'datetime',
+            'font_scale' => 'float',
         ];
     }
 
@@ -80,6 +82,11 @@ class User extends Authenticatable
     public function branches()
     {
         return $this->belongsToMany(Branch::class, 'branch_user');
+    }
+
+    public function pushSubscriptions()
+    {
+        return $this->hasMany(PushSubscription::class);
     }
 
     /**

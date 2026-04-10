@@ -15,6 +15,7 @@ interface AuthContextType {
   isLoading: boolean; // Alias para compatibilidad
   login: (token: string) => Promise<void>;
   logout: () => void;
+  updateFontScale: (fontScale: number) => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasAnyPermission: (permissions: string[]) => boolean;
 }
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 /**
  * Hook para usar el contexto de autenticación fácilmente.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -47,7 +49,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    * Cierra la sesión, limpia TODO el localStorage de la aplicación y redirige al login.
    * Se usa useCallback para evitar que la función se recree innecesariamente.
    */
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
 
     // ¡ACCIÓN DE LIMPIEZA!
@@ -59,7 +61,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // removeAuthToken();
 
     navigate('/login', { replace: true });
-  };
+  }, [navigate]);
+
+  const updateFontScale = useCallback(async (fontScale: number) => {
+    const normalized = Number(fontScale.toFixed(2));
+
+    await api.patch('/profile/preferences', { font_scale: normalized });
+
+    setUser(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        font_scale: normalized,
+      };
+    });
+  }, []);
 
   /**
    * Carga el perfil del usuario si existe un token.
@@ -83,6 +99,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Establecer el usuario directamente
       setUser(userWithPermissions);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("No se pudo cargar el perfil:", error);
 
@@ -161,6 +178,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     return permissions.some(permission => user.permissions.includes(permission));
   };
+
+  useEffect(() => {
+    const scale = user?.font_scale ?? 1;
+    document.documentElement.style.setProperty('--app-font-scale', String(scale));
+  }, [user?.font_scale]);
 
   /**
    * Al montar el componente, intenta cargar el perfil del usuario.
@@ -271,6 +293,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       isLoading: loading, // Alias para compatibilidad
       login,
       logout,
+      updateFontScale,
       hasPermission,
       hasAnyPermission
     }}>

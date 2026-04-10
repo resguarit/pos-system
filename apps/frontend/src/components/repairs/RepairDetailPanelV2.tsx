@@ -292,6 +292,7 @@ export default function RepairDetailPanelV2({
                 device: repair.device,
                 serial_number: repair.serial_number,
                 issue_description: repair.issue_description,
+                initial_notes: repair.initial_notes,
                 diagnosis: repair.diagnosis,
                 cost: repair.cost,
                 sale_price: repair.sale_price,
@@ -645,6 +646,18 @@ export default function RepairDetailPanelV2({
                                             </div>
 
                                             <div className="space-y-2">
+                                                <Label>Accesorios (comprobante)</Label>
+                                                <Textarea
+                                                    value={editData.initial_notes ?? repair.initial_notes ?? ""}
+                                                    onChange={(e) =>
+                                                        setEditData((d) => ({ ...d, initial_notes: e.target.value }))
+                                                    }
+                                                    rows={2}
+                                                    placeholder='Ej: Cargador, funda, chip, memoria, "sin accesorios"...'
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
                                                 <Label>Diagnóstico Técnico</Label>
                                                 <Textarea
                                                     value={editData.diagnosis ?? repair.diagnosis ?? ""}
@@ -937,6 +950,18 @@ export default function RepairDetailPanelV2({
                                                         <div className="flex-1">
                                                             <Label className="text-xs text-muted-foreground">Problema reportado</Label>
                                                             <p className="text-sm mt-1">{repair.issue_description}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="p-2 bg-slate-100 rounded-full mt-0.5">
+                                                            <Package className="h-4 w-4 text-slate-600" />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <Label className="text-xs text-muted-foreground">Accesorios (comprobante)</Label>
+                                                            <p className="text-sm mt-1 text-muted-foreground italic">
+                                                                {repair.initial_notes || "NO"}
+                                                            </p>
                                                         </div>
                                                     </div>
 

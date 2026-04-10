@@ -9,6 +9,7 @@ use App\Models\Shipment;
 use App\Models\ShipmentStage;
 use App\Models\User;
 use App\Models\SaleHeader;
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -54,6 +55,13 @@ class ShipmentService implements ShipmentServiceInterface
             $branchId = $data['branch_id'] ?? $user->branches()->first()?->id;
 
             // Create shipment
+            $estimatedDeliveryWindowStart = $data['estimated_delivery_window_start'] ?? null;
+            $estimatedDeliveryWindowEnd = $data['estimated_delivery_window_end'] ?? null;
+            $estimatedDeliveryDate = $data['estimated_delivery_date'] ?? null;
+            if ($estimatedDeliveryWindowStart) {
+                $estimatedDeliveryDate = Carbon::parse($estimatedDeliveryWindowStart)->toDateString();
+            }
+
             $shipment = Shipment::create([
                 'reference' => $reference,
                 'metadata' => $data['metadata'] ?? [],
@@ -66,7 +74,9 @@ class ShipmentService implements ShipmentServiceInterface
                 'shipping_postal_code' => $data['shipping_postal_code'] ?? null,
                 'shipping_country' => $data['shipping_country'] ?? null,
                 'priority' => $data['priority'] ?? 'normal',
-                'estimated_delivery_date' => $data['estimated_delivery_date'] ?? null,
+                'estimated_delivery_date' => $estimatedDeliveryDate,
+                'estimated_delivery_window_start' => $estimatedDeliveryWindowStart,
+                'estimated_delivery_window_end' => $estimatedDeliveryWindowEnd,
                 'notes' => $data['notes'] ?? null,
                 'shipping_cost' => $data['shipping_cost'] ?? 0,
                 'is_paid' => false,
@@ -111,6 +121,31 @@ class ShipmentService implements ShipmentServiceInterface
 
         if (isset($filters['reference'])) {
             $query->where('reference', 'like', '%' . $filters['reference'] . '%');
+        }
+
+        if (isset($filters['priority'])) {
+            $query->where('priority', $filters['priority']);
+        }
+
+        if (isset($filters['city'])) {
+            $query->where('shipping_city', 'like', '%' . $filters['city'] . '%');
+        }
+
+        if (isset($filters['customer'])) {
+            $query->whereHas('sales', function ($q) use ($filters) {
+                $q->where('customer_id', intval($filters['customer']));
+            });
+        }
+
+        if (isset($filters['transporter'])) {
+            $query->whereRaw(
+                'CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, "$.transportista_id")) AS UNSIGNED) = ?',
+                [intval($filters['transporter'])]
+            );
+        }
+
+        if (isset($filters['branch_id'])) {
+            $query->where('branch_id', intval($filters['branch_id']));
         }
 
         if (isset($filters['created_from'])) {
@@ -224,6 +259,15 @@ class ShipmentService implements ShipmentServiceInterface
             }
             if (isset($data['estimated_delivery_date'])) {
                 $updateData['estimated_delivery_date'] = $data['estimated_delivery_date'];
+            }
+            if (array_key_exists('estimated_delivery_window_start', $data)) {
+                $updateData['estimated_delivery_window_start'] = $data['estimated_delivery_window_start'];
+                $updateData['estimated_delivery_date'] = $data['estimated_delivery_window_start']
+                    ? Carbon::parse($data['estimated_delivery_window_start'])->toDateString()
+                    : null;
+            }
+            if (array_key_exists('estimated_delivery_window_end', $data)) {
+                $updateData['estimated_delivery_window_end'] = $data['estimated_delivery_window_end'];
             }
             if (isset($data['notes'])) {
                 $updateData['notes'] = $data['notes'];

@@ -46,6 +46,7 @@ use App\Http\Controllers\ExpenseReminderController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\StatisticsController;
+use App\Http\Controllers\PushSubscriptionController;
 
 // Rutas públicas (sin autenticación)
 Route::post('/login', [AuthController::class, 'login'])->name('login');
@@ -66,6 +67,7 @@ Route::middleware('auth:sanctum')->get('/auth/me', function (Request $request) {
 // Rutas para usuario autenticado
 Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
     Route::get('/profile', [UserController::class, 'getProfile']);
+    Route::patch('/profile/preferences', [UserController::class, 'updatePreferences']);
     Route::get('/my-branches', [UserController::class, 'getMyBranches']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
@@ -742,6 +744,12 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         });
 
         Route::middleware('has_permission:editar_configuracion_sistema')->post('/visibility', [ShipmentController::class, 'configureVisibility']);
+    });
+
+    Route::prefix('push-subscriptions')->group(function () {
+        Route::get('/', [PushSubscriptionController::class, 'index']);
+        Route::post('/', [PushSubscriptionController::class, 'store']);
+        Route::delete('/', [PushSubscriptionController::class, 'destroy']);
     });
 
     // Audit Routes - Rate limited to 60 requests per minute

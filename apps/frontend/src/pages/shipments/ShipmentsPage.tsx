@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { Shipment, ShipmentStage, Customer } from '@/types/shipment';
@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft, Loader2, ChevronDown } from 'lucide-react';
+import { Plus, Package, Clock, TrendingUp, CheckCircle, AlertCircle, Search, Filter, X, Calendar, RefreshCcw, ArrowLeft, Loader2, ChevronDown, Bell, Volume2, VolumeX } from 'lucide-react';
 import { sileo } from "sileo"
 import SelectBranchPlaceholder from '@/components/ui/select-branch-placeholder';
 import Pagination from '@/components/ui/pagination';
@@ -26,6 +26,9 @@ import { DatePickerWithRange, DateRange } from '@/components/ui/date-range-picke
 import { Autocomplete } from '@/components/ui/autocomplete';
 import { useTransporters } from '@/hooks/useTransporters';
 import { usePersistentState } from '@/hooks/usePersistentState';
+import { onShipmentNotification, subscribeToPushNotifications, unsubscribeFromPushNotifications } from '@/lib/pushNotifications';
+import { playNotificationSound } from '@/lib/notificationSound';
+import { subscribeToShipmentCreated } from '@/lib/realtimeShipments';
 /**
  * Clasificación de Estados de Envío basada en el campo 'order' del stage:
  * - order = 1: Pendiente (Pendiente)
@@ -64,6 +67,10 @@ export default function ShipmentsPage() {
   const [showEditShipment, setShowEditShipment] = useState(false);
   const [editingShipmentId, setEditingShipmentId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = usePersistentState<string>('searchTerm', '');
+  const [soundEnabled, setSoundEnabled] = usePersistentState<boolean>('shipmentSoundEnabled', true);
+  const [pushEnabled, setPushEnabled] = usePersistentState<boolean>('shipmentPushEnabled', false);
+  const [subscribingPush, setSubscribingPush] = useState(false);
+  const lastNotifiedShipmentRef = useRef<{ id: number; at: number } | null>(null);
 
   // Estados de paginación
   const [currentPage, setCurrentPage] = usePersistentState<number>('currentPage', 1);
@@ -153,13 +160,27 @@ export default function ShipmentsPage() {
         const shipmentsData = Array.isArray(shipmentsResponse.data)
           ? shipmentsResponse.data
           : [];
+
+        // Si la página actual queda fuera de rango por filtros, volver a la primera.
+        const meta = shipmentsResponse.meta;
+        if (
+          page > 1 &&
+          shipmentsData.length === 0 &&
+          meta &&
+          typeof meta.total === 'number' &&
+          meta.total > 0
+        ) {
+          setCurrentPage(1);
+          return;
+        }
+
         setShipments(shipmentsData);
 
         // Guardar información de paginación
-        if (shipmentsResponse.meta) {
-          setCurrentPage(shipmentsResponse.meta.current_page || 1);
-          setTotalPages(shipmentsResponse.meta.last_page || 1);
-          setTotalItems(shipmentsResponse.meta.total || 0);
+        if (meta) {
+          setCurrentPage(meta.current_page || 1);
+          setTotalPages(meta.last_page || 1);
+          setTotalItems(meta.total || 0);
         }
 
         // Guardar estadísticas del backend
@@ -332,22 +353,6 @@ export default function ShipmentsPage() {
       // Opcional: Auto-refrescar si se desea comportamiento inmediato al limpiar
     }
   };
-
-  if (!hasPermission('ver_envios')) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Sin permisos</h3>
-          <p className="text-gray-600">No tienes permisos para ver envíos.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Render condicional al inicio del componente
-  if (selectedBranchIdsArray.length === 0) {
-    return <SelectBranchPlaceholder />
-  }
 
   const handleFilterChange = (key: Exclude<keyof ShipmentFilters, 'stage_id'>, value: string) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -557,11 +562,93 @@ export default function ShipmentsPage() {
     }
   };
 
+  const handleTogglePushNotifications = async () => {
+    try {
+      setSubscribingPush(true);
+
+      if (pushEnabled) {
+        await unsubscribeFromPushNotifications();
+        setPushEnabled(false);
+        sileo.success({ title: 'Notificaciones desactivadas' });
+        return;
+      }
+
+      const singleBranchId = selectedBranchIdsArray.length === 1 ? selectedBranchIdsArray[0] : undefined;
+      const subscribed = await subscribeToPushNotifications(singleBranchId);
+      if (!subscribed) {
+        sileo.error({ title: 'No se pudo activar notificaciones push' });
+        return;
+      }
+
+      setPushEnabled(true);
+      sileo.success({ title: 'Notificaciones activadas' });
+    } catch (error) {
+      console.error('Push subscription error:', error);
+      sileo.error({ title: 'Error al activar notificaciones' });
+    } finally {
+      setSubscribingPush(false);
+    }
+  };
+
   // Función de paginación
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
     fetchData(newPage);
   };
+
+  const handleIncomingShipment = useCallback((payload: { shipment?: { id: number; reference?: string } }) => {
+    const shipmentId = payload.shipment?.id;
+    const now = Date.now();
+
+    // Dedupe: ignore if we already notified for this shipment within a 10s window.
+    // This prevents double-firing from WebSocket + Push arriving at different times.
+    if (shipmentId && lastNotifiedShipmentRef.current?.id === shipmentId && now - lastNotifiedShipmentRef.current.at < 10_000) {
+      return;
+    }
+
+    if (shipmentId) {
+      lastNotifiedShipmentRef.current = { id: shipmentId, at: now };
+    }
+
+    const reference = payload.shipment?.reference || (shipmentId ? `#${shipmentId}` : '');
+
+    sileo.success({
+      title: 'Nuevo envio',
+      description: reference ? `Ingreso ${reference}` : 'Se creo un nuevo envio.',
+    });
+
+    playNotificationSound(soundEnabled);
+    void fetchData(currentPage);
+  }, [currentPage, fetchData, soundEnabled]);
+
+  useEffect(() => {
+    const unsubscribe = onShipmentNotification((payload) => handleIncomingShipment(payload));
+
+    return unsubscribe;
+  }, [handleIncomingShipment]);
+
+  useEffect(() => {
+    const unsubscribeRealtime = subscribeToShipmentCreated(selectedBranchIdsArray, (payload) => {
+      handleIncomingShipment(payload);
+    });
+
+    return unsubscribeRealtime;
+  }, [handleIncomingShipment, selectedBranchIdsArray]);
+
+  if (!hasPermission('ver_envios')) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Sin permisos</h3>
+          <p className="text-gray-600">No tienes permisos para ver envíos.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedBranchIdsArray.length === 0) {
+    return <SelectBranchPlaceholder />
+  }
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
@@ -601,6 +688,18 @@ export default function ShipmentsPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant={pushEnabled ? "default" : "outline"}
+            onClick={handleTogglePushNotifications}
+            disabled={subscribingPush}
+          >
+            <Bell className="mr-2 h-4 w-4" />
+            {pushEnabled ? 'Notificaciones activas' : 'Activar notificaciones'}
+          </Button>
+          <Button variant="outline" onClick={() => setSoundEnabled(!soundEnabled)}>
+            {soundEnabled ? <Volume2 className="mr-2 h-4 w-4" /> : <VolumeX className="mr-2 h-4 w-4" />}
+            {soundEnabled ? 'Sonido activo' : 'Sonido apagado'}
+          </Button>
           <Button variant="outline" onClick={handleRefresh}>
             <RefreshCcw className="mr-2 h-4 w-4" />
             Actualizar
@@ -688,6 +787,7 @@ export default function ShipmentsPage() {
             }))}
             value={filters.transporter}
             onValueChange={(val) => {
+              setCurrentPage(1);
               handleFilterChange('transporter', val);
             }}
             placeholder={loadingTransporters ? "Cargando transportistas..." : "Filtro: Todo el personal"}

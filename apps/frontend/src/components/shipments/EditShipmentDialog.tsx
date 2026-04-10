@@ -32,7 +32,8 @@ interface EditShipmentForm {
   shipping_postal_code: string;
   shipping_country: string;
   priority: string;
-  estimated_delivery_date: string;
+  estimated_delivery_window_start: string;
+  estimated_delivery_window_end: string;
   notes: string;
   shipping_cost: string;
   transportista_id?: number;
@@ -40,6 +41,50 @@ interface EditShipmentForm {
   stage_id?: number;
   origin_branch_id?: number;
 }
+
+const parseDateTimeLocal = (value: string): Date | null => {
+  if (!value) return null;
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime()) ? null : parsedDate;
+};
+
+const toDateTimeLocalValue = (value?: string | Date | null): string => {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+
+const addHoursToLocalDateTime = (value: string, hours: number): string => {
+  const parsedDate = parseDateTimeLocal(value);
+  if (!parsedDate) return '';
+  parsedDate.setHours(parsedDate.getHours() + hours);
+  return toDateTimeLocalValue(parsedDate);
+};
+
+const validateDeliveryWindow = (start: string, end: string): string | null => {
+  if (!start && !end) {
+    return null;
+  }
+
+  if (!start || !end) {
+    return 'Debes completar inicio y fin del rango estimado.';
+  }
+
+  const startDate = parseDateTimeLocal(start);
+  const endDate = parseDateTimeLocal(end);
+  if (!startDate || !endDate) {
+    return 'La fecha y hora del rango estimado no es válida.';
+  }
+
+  if (endDate.getTime() <= startDate.getTime()) {
+    return 'La fecha y hora de fin debe ser posterior al inicio.';
+  }
+
+  return null;
+};
 
 export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   open,
@@ -51,6 +96,7 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
   const { request } = useApi();
   const { hasPermission } = useAuth();
   const { branches, allBranches } = useBranch();
+
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [shipment, setShipment] = useState<Shipment | null>(null);
@@ -84,7 +130,8 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
     shipping_postal_code: '',
     shipping_country: 'Argentina',
     priority: 'normal',
-    estimated_delivery_date: '',
+    estimated_delivery_window_start: '',
+    estimated_delivery_window_end: '',
     notes: '',
     shipping_cost: '',
     transportista_id: undefined,
@@ -112,6 +159,17 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
         const customerId = shipmentData.sales && shipmentData.sales.length > 0
           ? shipmentData.sales[0].customer_id
           : undefined;
+        const estimatedWindowStart = shipmentData.estimated_delivery_window_start
+          || (shipmentData.metadata?.estimated_delivery_window_start as string)
+          || shipmentData.estimated_delivery_date
+          || (shipmentData.metadata?.estimated_delivery_date as string)
+          || null;
+        const estimatedWindowEnd = shipmentData.estimated_delivery_window_end
+          || (shipmentData.metadata?.estimated_delivery_window_end as string)
+          || null;
+        const estimatedWindowStartInput = toDateTimeLocalValue(estimatedWindowStart);
+        const estimatedWindowEndInput = toDateTimeLocalValue(estimatedWindowEnd)
+          || (estimatedWindowStartInput ? addHoursToLocalDateTime(estimatedWindowStartInput, 1) : '');
 
         // Poblar el formulario
         setEditForm({
@@ -121,13 +179,14 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
           shipping_postal_code: shipmentData.shipping_postal_code || '',
           shipping_country: shipmentData.shipping_country || 'Argentina',
           priority: shipmentData.priority || 'normal',
-          estimated_delivery_date: shipmentData.estimated_delivery_date ? shipmentData.estimated_delivery_date.slice(0, 16) : '',
+          estimated_delivery_window_start: estimatedWindowStartInput,
+          estimated_delivery_window_end: estimatedWindowEndInput,
           notes: shipmentData.notes || '',
           shipping_cost: shipmentData.shipping_cost ? shipmentData.shipping_cost.toString() : '',
-          transportista_id: shipmentData.metadata?.transportista_id,
+          transportista_id: shipmentData.metadata?.transportista_id as number | undefined,
           cliente_id: customerId,
           stage_id: shipmentData.current_stage_id,
-          origin_branch_id: shipmentData.metadata?.origin_branch_id ?? shipmentData.branch_id,
+          origin_branch_id: (shipmentData.metadata?.origin_branch_id as number | undefined) ?? shipmentData.branch_id,
         });
 
         // Inicializar ventas seleccionadas
@@ -257,10 +316,19 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
       setShipment(null);
       clearCustomers();
     }
-  }, [open, fetchShipmentData]);
+  }, [open, fetchShipmentData, clearCustomers]);
 
   const handleUpdateShipment = async () => {
     if (!shipmentId) return;
+
+    const deliveryWindowError = validateDeliveryWindow(
+      editForm.estimated_delivery_window_start,
+      editForm.estimated_delivery_window_end
+    );
+    if (deliveryWindowError) {
+      sileo.error({ title: deliveryWindowError });
+      return;
+    }
 
     try {
       setLoading(true);
@@ -270,7 +338,11 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
         shipping_postal_code: editForm.shipping_postal_code || null,
         shipping_country: editForm.shipping_country || 'Argentina',
         priority: editForm.priority || 'normal',
-        estimated_delivery_date: editForm.estimated_delivery_date || null,
+        estimated_delivery_date: editForm.estimated_delivery_window_start
+          ? editForm.estimated_delivery_window_start.split('T')[0]
+          : null,
+        estimated_delivery_window_start: editForm.estimated_delivery_window_start || null,
+        estimated_delivery_window_end: editForm.estimated_delivery_window_end || null,
         notes: editForm.notes || null,
         transportista_id: editForm.transportista_id || null,
         cliente_id: editForm.cliente_id || null,
@@ -284,7 +356,11 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
         shipping_postal_code: editForm.shipping_postal_code || null,
         shipping_country: editForm.shipping_country || null,
         priority: editForm.priority || null,
-        estimated_delivery_date: editForm.estimated_delivery_date || null,
+        estimated_delivery_date: editForm.estimated_delivery_window_start
+          ? editForm.estimated_delivery_window_start.split('T')[0]
+          : null,
+        estimated_delivery_window_start: editForm.estimated_delivery_window_start || null,
+        estimated_delivery_window_end: editForm.estimated_delivery_window_end || null,
         notes: editForm.notes || null,
         shipping_cost: editForm.shipping_cost !== '' ? parseFloat(editForm.shipping_cost) : 0,
         metadata: metadata,
@@ -698,16 +774,29 @@ export const EditShipmentDialog: React.FC<EditShipmentDialogProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end pt-2">
             <div className="space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                Entrega Estimada
+                Inicio Estimado
               </label>
               <Input
                 type="datetime-local"
-                value={editForm.estimated_delivery_date}
-                onChange={(e) => setEditForm(prev => ({ ...prev, estimated_delivery_date: e.target.value }))}
+                value={editForm.estimated_delivery_window_start}
+                onChange={(e) => setEditForm(prev => ({ ...prev, estimated_delivery_window_start: e.target.value }))}
+                className="rounded-xl"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                Fin Estimado
+              </label>
+              <Input
+                type="datetime-local"
+                value={editForm.estimated_delivery_window_end}
+                onChange={(e) => setEditForm(prev => ({ ...prev, estimated_delivery_window_end: e.target.value }))}
                 className="rounded-xl"
               />
             </div>

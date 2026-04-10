@@ -133,6 +133,11 @@ jobs:
       env:
         VITE_API_URL: ${{ secrets.CLIENT_HELADITOS_API_URL || secrets.VITE_API_URL }}
         VITE_FEATURES: ${{ secrets.CLIENT_HELADITOS_FEATURES_JSON }}
+        VITE_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+        VITE_REVERB_APP_KEY: ${{ secrets.REVERB_APP_KEY || 'pos-system-key' }}
+        VITE_REVERB_HOST: ${{ secrets.CLIENT_HELADITOS_REVERB_HOST }}
+        VITE_REVERB_PORT: '443'
+        VITE_REVERB_SCHEME: 'https'
         
     - name: Deploy Frontend to VPS
       uses: appleboy/scp-action@v0.1.7

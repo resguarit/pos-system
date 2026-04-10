@@ -46,6 +46,7 @@ class UpdateRepairRequest extends FormRequest
             'device' => ['sometimes', 'string', 'max:255'],
             'serial_number' => ['nullable', 'string', 'max:255'],
             'issue_description' => ['sometimes', 'string', 'max:2000'],
+            'initial_notes' => ['nullable', 'string', 'max:2000'],
             'diagnosis' => ['nullable', 'string', 'max:2000'],
             'priority' => ['sometimes', Rule::in(self::VALID_PRIORITIES)],
             'status' => ['sometimes', Rule::in(self::VALID_STATUSES)],
@@ -97,6 +98,10 @@ class UpdateRepairRequest extends FormRequest
             // Issue Description
             'issue_description.string' => 'La descripción del problema debe ser texto.',
             'issue_description.max' => 'La descripción del problema es demasiado larga. Máximo permitido: 2000 caracteres.',
+
+            // Initial Notes
+            'initial_notes.string' => 'Los accesorios/observaciones iniciales deben ser texto.',
+            'initial_notes.max' => 'Los accesorios/observaciones iniciales son demasiado largos. Máximo permitido: 2000 caracteres.',
 
             // Diagnosis
             'diagnosis.string' => 'El diagnóstico debe ser texto.',

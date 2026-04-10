@@ -67,6 +67,45 @@ const ViewShipmentPage: React.FC = () => {
     }).format(amount);
   };
 
+  const formatDeliveryWindow = (
+    startDateString?: string | null,
+    endDateString?: string | null,
+    fallbackDateString?: string | null
+  ): string => {
+    const dateValue = startDateString || fallbackDateString;
+    if (!dateValue) return '-';
+
+    const startDate = new Date(dateValue);
+    if (Number.isNaN(startDate.getTime())) return '-';
+
+    if (endDateString) {
+      const endDate = new Date(endDateString);
+      if (Number.isNaN(endDate.getTime())) return '-';
+
+      const startPart = new Intl.DateTimeFormat('es-AR', {
+        day: '2-digit',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(startDate);
+      const endPart = new Intl.DateTimeFormat('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(endDate);
+      return `${startPart} - ${endPart}`;
+    }
+
+    return new Intl.DateTimeFormat('es-AR', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(startDate);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -103,6 +142,10 @@ const ViewShipmentPage: React.FC = () => {
   };
 
   const clientInfo = getClientInfo();
+  const estimatedWindowStart = shipment.estimated_delivery_window_start || shipment.metadata?.estimated_delivery_window_start;
+  const estimatedWindowEnd = shipment.estimated_delivery_window_end || shipment.metadata?.estimated_delivery_window_end;
+  const legacyEstimatedDate = shipment.estimated_delivery_date || shipment.metadata?.estimated_delivery_date;
+  const hasEstimatedWindow = Boolean(estimatedWindowStart || estimatedWindowEnd || legacyEstimatedDate);
 
   return (
     <div className="flex flex-col h-screen w-full p-6 space-y-6 overflow-y-auto">
@@ -224,12 +267,12 @@ const ViewShipmentPage: React.FC = () => {
                   <p className="text-sm text-muted-foreground">País</p>
                   <p className="text-sm font-medium">{shipment.metadata?.shipping_country || 'Argentina'}</p>
                 </div>
-                {shipment.metadata?.estimated_delivery_date && (
+                {hasEstimatedWindow && (
                   <div>
-                    <p className="text-sm text-muted-foreground">Fecha Estimada de Entrega</p>
+                    <p className="text-sm text-muted-foreground">Entrega Estimada</p>
                     <p className="text-sm font-medium flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
-                      {formatDate(shipment.metadata.estimated_delivery_date)}
+                      {formatDeliveryWindow(estimatedWindowStart, estimatedWindowEnd, legacyEstimatedDate)}
                     </p>
                   </div>
                 )}

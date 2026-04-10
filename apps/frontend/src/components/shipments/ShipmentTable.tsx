@@ -95,19 +95,53 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  const formatDeliveryDate = (dateString?: string) => {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      // Validar si la fecha es válida
-      if (isNaN(date.getTime())) return '-';
+  const formatDeliveryWindow = (
+    startDateString?: string | null,
+    endDateString?: string | null,
+    fallbackDateString?: string | null
+  ) => {
+    const dateValue = startDateString || fallbackDateString;
+    if (!dateValue) return '-';
 
-      return new Intl.DateTimeFormat('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).format(date);
+    try {
+      const startDate = new Date(dateValue);
+      if (Number.isNaN(startDate.getTime())) return '-';
+
+      const formatDay = (date: Date) =>
+        new Intl.DateTimeFormat('es-AR', {
+          day: '2-digit',
+          month: 'short',
+        }).format(date);
+
+      const formatHour = (date: Date) =>
+        new Intl.DateTimeFormat('es-AR', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        }).format(date);
+
+      const isDateOnlyValue = (value?: string | null) => Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+
+      if (endDateString) {
+        const endDate = new Date(endDateString);
+        if (Number.isNaN(endDate.getTime())) return '-';
+
+        const sameDay = startDate.getFullYear() === endDate.getFullYear()
+          && startDate.getMonth() === endDate.getMonth()
+          && startDate.getDate() === endDate.getDate();
+
+        if (sameDay) {
+          return `${formatDay(startDate)} de ${formatHour(startDate)} a ${formatHour(endDate)}`;
+        }
+
+        return `${formatDay(startDate)} ${formatHour(startDate)} a ${formatDay(endDate)} ${formatHour(endDate)}`;
+      }
+
+      if (isDateOnlyValue(dateValue)) {
+        return formatDay(startDate);
+      }
+
+      return `${formatDay(startDate)} ${formatHour(startDate)}`;
     } catch {
       return '-';
     }
@@ -181,7 +215,11 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
                     </div>
                     <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-1">
                       <Clock className="w-2.5 h-2.5" />
-                      Est. {formatDeliveryDate(shipment.metadata?.estimated_delivery_date || shipment.estimated_delivery_date)}
+                      Est. {formatDeliveryWindow(
+                        shipment.estimated_delivery_window_start || shipment.metadata?.estimated_delivery_window_start,
+                        shipment.estimated_delivery_window_end || shipment.metadata?.estimated_delivery_window_end,
+                        shipment.estimated_delivery_date || shipment.metadata?.estimated_delivery_date
+                      )}
                     </div>
                   </div>
                   <Badge
@@ -311,7 +349,11 @@ const ShipmentTable: React.FC<ShipmentTableProps> = ({
 
                     {/* Entrega Estimada */}
                     <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                      {formatDeliveryDate(shipment.metadata?.estimated_delivery_date || shipment.estimated_delivery_date)}
+                      {formatDeliveryWindow(
+                        shipment.estimated_delivery_window_start || shipment.metadata?.estimated_delivery_window_start,
+                        shipment.estimated_delivery_window_end || shipment.metadata?.estimated_delivery_window_end,
+                        shipment.estimated_delivery_date || shipment.metadata?.estimated_delivery_date
+                      )}
                     </td>
 
                     {/* Estado */}
