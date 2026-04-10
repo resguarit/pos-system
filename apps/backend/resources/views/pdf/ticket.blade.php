@@ -164,8 +164,9 @@
         <table style="font-size: 10px;">
             @php
                 $afipCode = $sale->receiptType->afip_code ?? null;
-                $receiptDesc = strtolower($sale->receiptType->description ?? $sale->receiptType->name ?? '');
-                $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptDesc, 'factura x');
+                $receiptName = strtolower($sale->receiptType->name ?? '');
+                $receiptDesc = strtolower($sale->receiptType->description ?? '');
+                $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptName, 'factura x') || str_contains($receiptDesc, 'factura x');
             @endphp
             @if(!$isFacturaX)
             <tr>
