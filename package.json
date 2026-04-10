@@ -21,9 +21,11 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:reverb\" \"npm run dev:queue\"",
     "dev:frontend": "cd apps/frontend && npm run dev",
     "dev:backend": "cd apps/backend && php artisan serve",
+    "dev:reverb": "cd apps/backend && php artisan reverb:start",
+    "dev:queue": "cd apps/backend && php artisan queue:work",
     "build": "npm run build:frontend",
     "build:frontend": "cd apps/frontend && npm run build",
     "install:all": "npm install && cd apps/frontend && npm install && cd ../backend && composer install",

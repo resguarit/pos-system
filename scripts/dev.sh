@@ -129,6 +129,8 @@ start_dev() {
     print_success "Dependencies verified. Starting development servers..."
     print_status "Frontend will be available at http://localhost:5173"
     print_status "Backend API will be available at http://localhost:8000"
+    print_status "Reverb (WebSockets) will be running automatically"
+    print_status "Queue Worker will process background jobs automatically"
     print_status "Press Ctrl+C to stop all servers"
     
     # Start both frontend and backend in parallel
@@ -188,6 +190,10 @@ clean_servers() {
     pkill -f "vite" 2>/dev/null || true
     # Kill any running PHP artisan serve processes
     pkill -f "php artisan serve" 2>/dev/null || true
+    # Kill any running PHP artisan reverb processes
+    pkill -f "php artisan reverb" 2>/dev/null || true
+    # Kill any running PHP artisan queue processes
+    pkill -f "php artisan queue:work" 2>/dev/null || true
     
     print_success "Previous servers cleaned"
 }

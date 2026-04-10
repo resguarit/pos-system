@@ -713,12 +713,41 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                 Inicio Estimado
               </label>
-              <Input
-                type="datetime-local"
-                value={newShipmentForm.estimated_delivery_window_start}
-                onChange={(e) => setNewShipmentForm(prev => ({ ...prev, estimated_delivery_window_start: e.target.value }))}
-                className="rounded-xl"
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={newShipmentForm.estimated_delivery_window_start ? newShipmentForm.estimated_delivery_window_start.split('T')[0] : ''}
+                  onChange={(e) => setNewShipmentForm(prev => ({
+                    ...prev,
+                    estimated_delivery_window_start: e.target.value ? `${e.target.value}T${prev.estimated_delivery_window_start?.split('T')[1] || '09:00'}` : ''
+                  }))}
+                  className="rounded-xl flex-1"
+                />
+                <Select
+                  value={newShipmentForm.estimated_delivery_window_start ? newShipmentForm.estimated_delivery_window_start.split('T')[1]?.slice(0, 5) : ''}
+                  onValueChange={(val) => {
+                    let datePart = newShipmentForm.estimated_delivery_window_start?.split('T')[0];
+                    if (!datePart) {
+                      const d = new Date();
+                      datePart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    }
+                    setNewShipmentForm(prev => ({ ...prev, estimated_delivery_window_start: `${datePart}T${val}` }));
+                  }}
+                >
+                  <SelectTrigger className="rounded-xl w-[100px]">
+                    <SelectValue placeholder="Hora" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const h = Math.floor(i / 2).toString().padStart(2, '0');
+                      const m = (i % 2 === 0) ? '00' : '30';
+                      return `${h}:${m}`;
+                    }).map(t => (
+                      <SelectItem key={`start-${t}`} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -726,12 +755,41 @@ export const NewShipmentDialog: React.FC<NewShipmentDialogProps> = ({
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                 Fin Estimado
               </label>
-              <Input
-                type="datetime-local"
-                value={newShipmentForm.estimated_delivery_window_end}
-                onChange={(e) => setNewShipmentForm(prev => ({ ...prev, estimated_delivery_window_end: e.target.value }))}
-                className="rounded-xl"
-              />
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={newShipmentForm.estimated_delivery_window_end ? newShipmentForm.estimated_delivery_window_end.split('T')[0] : ''}
+                  onChange={(e) => setNewShipmentForm(prev => ({
+                    ...prev,
+                    estimated_delivery_window_end: e.target.value ? `${e.target.value}T${prev.estimated_delivery_window_end?.split('T')[1] || '18:00'}` : ''
+                  }))}
+                  className="rounded-xl flex-1"
+                />
+                <Select
+                  value={newShipmentForm.estimated_delivery_window_end ? newShipmentForm.estimated_delivery_window_end.split('T')[1]?.slice(0, 5) : ''}
+                  onValueChange={(val) => {
+                    let datePart = newShipmentForm.estimated_delivery_window_end?.split('T')[0];
+                    if (!datePart) {
+                      const d = new Date();
+                      datePart = newShipmentForm.estimated_delivery_window_start?.split('T')[0] || `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    }
+                    setNewShipmentForm(prev => ({ ...prev, estimated_delivery_window_end: `${datePart}T${val}` }));
+                  }}
+                >
+                  <SelectTrigger className="rounded-xl w-[100px]">
+                    <SelectValue placeholder="Hora" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[200px]">
+                    {Array.from({ length: 48 }, (_, i) => {
+                      const h = Math.floor(i / 2).toString().padStart(2, '0');
+                      const m = (i % 2 === 0) ? '00' : '30';
+                      return `${h}:${m}`;
+                    }).map(t => (
+                      <SelectItem key={`end-${t}`} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
