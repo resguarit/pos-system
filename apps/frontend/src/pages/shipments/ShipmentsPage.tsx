@@ -699,9 +699,8 @@ export default function ShipmentsPage() {
             {soundEnabled ? <Volume2 className="mr-2 h-4 w-4" /> : <VolumeX className="mr-2 h-4 w-4" />}
             {soundEnabled ? 'Sonido activo' : 'Sonido apagado'}
           </Button>
-          <Button variant="outline" onClick={handleRefresh}>
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Actualizar
+          <Button variant="outline" size="icon" title="Actualizar envíos" onClick={handleRefresh}>
+            <RefreshCcw className="h-4 w-4" />
           </Button>
           <Button variant="outline" onClick={() => navigate('/dashboard/envios/etapas')}>
             <TrendingUp className="mr-2 h-4 w-4" />
