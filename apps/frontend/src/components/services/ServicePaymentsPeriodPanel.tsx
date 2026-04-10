@@ -133,8 +133,8 @@ export default function ServicePaymentsPeriodPanel({ active, formatCurrency, onV
 
     return (
         <div className="space-y-4">
-            <Card className="border border-emerald-200/70 bg-card min-h-[176px]">
-                <CardHeader className="space-y-2 pb-3 min-h-[122px]">
+            <Card className="border border-emerald-200/70 bg-card h-[176px]">
+                <CardHeader className="space-y-2 pb-3 h-[122px]">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                             <Receipt className="h-5 w-5 text-emerald-700" />

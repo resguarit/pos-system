@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
     Loader2,
     FileText,
@@ -41,6 +43,7 @@ import {
     Banknote,
     CheckCircle2,
     ArrowLeft,
+    CalendarIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Repair, RepairNote, RepairPriority, RepairStatus, Insurer } from "@/types/repairs";
@@ -119,6 +122,17 @@ function formatDateTime(dateString: string | null | undefined): string {
 
 function isFreeRepairPrice(salePrice: number | null | undefined): boolean {
     return (salePrice ?? 0) <= 0.01;
+}
+
+function isoToDate(iso: string | null | undefined): Date | undefined {
+    if (!iso) return undefined;
+    const datePart = String(iso).split("T")[0];
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+    if (!m) return undefined;
+    const [, y, mm, dd] = m;
+    const dt = new Date(Number(y), Number(mm) - 1, Number(dd));
+    if (Number.isNaN(dt.getTime())) return undefined;
+    return dt;
 }
 
 export default function RepairDetailDialogV2({
@@ -604,7 +618,38 @@ export default function RepairDetailDialogV2({
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label>Fecha Estimada</Label>
-                                                        <Input type="date" value={editData.estimated_date ?? repair.estimated_date ?? ""} onChange={(e) => setEditData((d) => ({ ...d, estimated_date: e.target.value }))} />
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    className={cn(
+                                                                        "w-full justify-start text-left font-normal",
+                                                                        !(editData.estimated_date ?? repair.estimated_date) && "text-muted-foreground"
+                                                                    )}
+                                                                >
+                                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                                    {(() => {
+                                                                        const iso = (editData.estimated_date ?? repair.estimated_date) as string | undefined;
+                                                                        const dt = isoToDate(iso);
+                                                                        return dt ? format(dt, "dd/MM/yy", { locale: es }) : <span>Seleccione fecha</span>;
+                                                                    })()}
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0">
+                                                                <Calendar
+                                                                    mode="single"
+                                                                    selected={isoToDate((editData.estimated_date ?? repair.estimated_date) as string | undefined)}
+                                                                    onSelect={(date) => {
+                                                                        if (!date) return;
+                                                                        const iso = format(date, "yyyy-MM-dd");
+                                                                        setEditData((d) => ({ ...d, estimated_date: iso }));
+                                                                    }}
+                                                                    initialFocus
+                                                                    locale={es}
+                                                                />
+                                                            </PopoverContent>
+                                                        </Popover>
                                                     </div>
                                                 </div>
 

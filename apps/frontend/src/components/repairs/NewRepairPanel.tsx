@@ -22,7 +22,11 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import CustomerForm from "@/components/customers/customer-form";
-import { format as formatDateFn, parse } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format as formatDateFn } from "date-fns";
+import { es } from "date-fns/locale";
 
 type UserOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
@@ -75,24 +79,15 @@ const defaultForm: NewRepairForm = {
     device_age: "",
 };
 
-function isoToDdMmYy(iso: string): string {
-    if (!iso) return "";
-    try {
-        return formatDateFn(new Date(iso), "dd/MM/yy");
-    } catch {
-        return "";
-    }
-}
-
-function ddMmYyToIso(input: string): string | null {
-    const v = input.trim();
-    if (!v) return null;
-    // Accept both dd/MM/yy and dd/MM/yyyy
-    const parsedShort = parse(v, "dd/MM/yy", new Date());
-    if (!Number.isNaN(parsedShort.getTime())) return formatDateFn(parsedShort, "yyyy-MM-dd");
-    const parsedLong = parse(v, "dd/MM/yyyy", new Date());
-    if (!Number.isNaN(parsedLong.getTime())) return formatDateFn(parsedLong, "yyyy-MM-dd");
-    return null;
+function isoToDate(iso: string): Date | undefined {
+    if (!iso) return undefined;
+    const datePart = iso.split("T")[0];
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+    if (!m) return undefined;
+    const [, y, mm, dd] = m;
+    const dt = new Date(Number(y), Number(mm) - 1, Number(dd));
+    if (Number.isNaN(dt.getTime())) return undefined;
+    return dt;
 }
 
 type NewRepairPanelProps = {
@@ -255,18 +250,6 @@ export default function NewRepairPanel({
 
         setSubmitting(true);
         try {
-            // Normalize date inputs to ISO
-            const intakeIso = form.intake_date;
-            const estimatedIso = form.estimated_date;
-            if (intakeIso && !/^\d{4}-\d{2}-\d{2}$/.test(intakeIso)) {
-                const parsed = ddMmYyToIso(intakeIso);
-                if (parsed) setForm((f) => ({ ...f, intake_date: parsed }));
-            }
-            if (estimatedIso && !/^\d{4}-\d{2}-\d{2}$/.test(estimatedIso)) {
-                const parsed = ddMmYyToIso(estimatedIso);
-                if (parsed) setForm((f) => ({ ...f, estimated_date: parsed }));
-            }
-
             const payload: Parameters<typeof onSubmit>[0] = {
                 customer_id: form.customer_id!,
                 branch_id: typeof branchId === "string" ? parseInt(branchId, 10) : branchId,
@@ -282,8 +265,8 @@ export default function NewRepairPanel({
             if (form.initial_notes.trim()) payload.initial_notes = form.initial_notes.trim();
             if (form.cost) payload.cost = parseFloat(form.cost);
             if (form.sale_price) payload.sale_price = parseFloat(form.sale_price);
-            if (form.estimated_date) payload.estimated_date = /^\d{4}-\d{2}-\d{2}$/.test(form.estimated_date) ? form.estimated_date : (ddMmYyToIso(form.estimated_date) ?? undefined);
-            if (form.intake_date) payload.intake_date = /^\d{4}-\d{2}-\d{2}$/.test(form.intake_date) ? form.intake_date : (ddMmYyToIso(form.intake_date) ?? undefined);
+            if (form.estimated_date) payload.estimated_date = form.estimated_date;
+            if (form.intake_date) payload.intake_date = form.intake_date;
             if (form.category_id) payload.category_id = form.category_id;
 
             if (form.is_siniestro) {
@@ -697,31 +680,73 @@ export default function NewRepairPanel({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="intake">Fecha de Recibido</Label>
-                        <Input
-                            id="intake"
-                            inputMode="numeric"
-                            placeholder="dd/mm/yy"
-                            value={/^\d{4}-\d{2}-\d{2}$/.test(form.intake_date) ? isoToDdMmYy(form.intake_date) : form.intake_date}
-                            onChange={(e) => setForm((f) => ({ ...f, intake_date: e.target.value }))}
-                            onBlur={() => {
-                                const parsed = ddMmYyToIso(form.intake_date);
-                                if (parsed) setForm((f) => ({ ...f, intake_date: parsed }));
-                            }}
-                        />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className={cn(
+                                        "w-full justify-start text-left font-normal",
+                                        !form.intake_date && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {form.intake_date ? (
+                                        formatDateFn(isoToDate(form.intake_date)!, "dd/MM/yy", { locale: es })
+                                    ) : (
+                                        <span>Seleccione fecha</span>
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={isoToDate(form.intake_date)}
+                                    onSelect={(date) => {
+                                        if (!date) return;
+                                        const iso = formatDateFn(date, "yyyy-MM-dd");
+                                        setForm((f) => ({ ...f, intake_date: iso }));
+                                    }}
+                                    initialFocus
+                                    locale={es}
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="estimated">Fecha Estimada</Label>
-                        <Input
-                            id="estimated"
-                            inputMode="numeric"
-                            placeholder="dd/mm/yy"
-                            value={/^\d{4}-\d{2}-\d{2}$/.test(form.estimated_date) ? isoToDdMmYy(form.estimated_date) : form.estimated_date}
-                            onChange={(e) => setForm((f) => ({ ...f, estimated_date: e.target.value }))}
-                            onBlur={() => {
-                                const parsed = ddMmYyToIso(form.estimated_date);
-                                if (parsed) setForm((f) => ({ ...f, estimated_date: parsed }));
-                            }}
-                        />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className={cn(
+                                        "w-full justify-start text-left font-normal",
+                                        !form.estimated_date && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {form.estimated_date ? (
+                                        formatDateFn(isoToDate(form.estimated_date)!, "dd/MM/yy", { locale: es })
+                                    ) : (
+                                        <span>Seleccione fecha</span>
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={isoToDate(form.estimated_date)}
+                                    onSelect={(date) => {
+                                        if (!date) return;
+                                        const iso = formatDateFn(date, "yyyy-MM-dd");
+                                        setForm((f) => ({ ...f, estimated_date: iso }));
+                                    }}
+                                    initialFocus
+                                    locale={es}
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                 </div>
 

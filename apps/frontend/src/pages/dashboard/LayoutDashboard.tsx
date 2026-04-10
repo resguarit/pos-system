@@ -57,7 +57,7 @@ export default function DashboardLayout() {
         <div className="flex flex-1 flex-col overflow-hidden bg-white">
           <DashboardHeader />
           <main className="flex-1 overflow-hidden bg-white">
-            <div className="h-full overflow-y-auto">
+            <div className="h-full overflow-y-auto [scrollbar-gutter:stable]">
               <Outlet />
             </div>
           </main>

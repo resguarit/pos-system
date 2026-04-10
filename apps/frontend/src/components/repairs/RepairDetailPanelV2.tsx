@@ -25,7 +25,7 @@ import {
     Monitor,
     Hash,
     Wrench,
-    Calendar,
+    Calendar as CalendarLucide,
     Clock,
     AlertTriangle,
     Package,
@@ -37,13 +37,16 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Repair, RepairNote, RepairPriority, RepairStatus, Insurer } from "@/types/repairs";
-import { format, parse } from "date-fns";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import useApi from "@/hooks/useApi";
 import { sileo } from "sileo";
 import { useBranches } from "@/hooks/useBranches";
 import { useRepairs } from "@/hooks/useRepairs";
 import { useCustomerSearch, type CustomerOption as SearchCustomerOption } from "@/hooks/useCustomerSearch";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
 
 type UserOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
@@ -114,23 +117,15 @@ function isFreeRepairPrice(salePrice: number | null | undefined): boolean {
     return (salePrice ?? 0) <= 0.01;
 }
 
-function isoToDdMmYy(iso: string): string {
-    if (!iso) return "";
-    try {
-        return format(new Date(iso), "dd/MM/yy", { locale: es });
-    } catch {
-        return "";
-    }
-}
-
-function ddMmYyToIso(input: string): string | null {
-    const v = input.trim();
-    if (!v) return null;
-    const parsedShort = parse(v, "dd/MM/yy", new Date(), { locale: es });
-    if (!Number.isNaN(parsedShort.getTime())) return format(parsedShort, "yyyy-MM-dd");
-    const parsedLong = parse(v, "dd/MM/yyyy", new Date(), { locale: es });
-    if (!Number.isNaN(parsedLong.getTime())) return format(parsedLong, "yyyy-MM-dd");
-    return null;
+function isoToDate(iso: string | null | undefined): Date | undefined {
+    if (!iso) return undefined;
+    const datePart = String(iso).split("T")[0];
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+    if (!m) return undefined;
+    const [, y, mm, dd] = m;
+    const dt = new Date(Number(y), Number(mm) - 1, Number(dd));
+    if (Number.isNaN(dt.getTime())) return undefined;
+    return dt;
 }
 
 export default function RepairDetailPanelV2({
@@ -190,6 +185,14 @@ export default function RepairDetailPanelV2({
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [paymentError, setPaymentError] = useState<string | null>(null);
 
+    const sortedRepairNotes = (repair?.notes ?? [])
+        .slice()
+        .sort((a, b) => {
+            const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0;
+            return bTime - aTime;
+        });
+
     useEffect(() => {
         if (!open) return;
         setActiveTab(defaultTab);
@@ -206,19 +209,15 @@ export default function RepairDetailPanelV2({
                     url: "/payment-methods",
                     params: { limit: 100 },
                 });
-                const data = Array.isArray(resp?.data) ? resp.data : [];
+                const data: unknown[] = Array.isArray(resp?.data) ? resp.data : [];
                 const mapped: PaymentMethodOption[] = data
-                    .filter(
-                        (item): item is PaymentMethodOption =>
-                            typeof item === "object" &&
-                            item !== null &&
-                            "id" in item &&
-                            "name" in item
-                    )
-                    .map((item) => ({
-                        id: Number(item.id),
-                        name: String(item.name),
-                    }));
+                    .filter((item: unknown): item is { id: unknown; name: unknown } => {
+                        return typeof item === "object" && item !== null && "id" in item && "name" in item;
+                    })
+                    .map((item) => {
+                        const it = item as { id: unknown; name: unknown };
+                        return { id: Number(it.id), name: String(it.name) };
+                    });
                 setPaymentMethods(mapped);
             } catch (error) {
                 console.error("Error fetching payment methods:", error);
@@ -656,7 +655,7 @@ export default function RepairDetailPanelV2({
                                                 />
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                                 <div className="space-y-2">
                                                     <Label>Estado</Label>
                                                     <Select
@@ -698,23 +697,78 @@ export default function RepairDetailPanelV2({
                                                     </Select>
                                                 </div>
                                                 <div className="space-y-2">
+                                                    <Label>Fecha de Recibido</Label>
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                className={cn(
+                                                                    "w-full justify-start text-left font-normal",
+                                                                    !(editData.intake_date ?? repair.intake_date) &&
+                                                                    "text-muted-foreground"
+                                                                )}
+                                                            >
+                                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                                {(() => {
+                                                                    const iso = (editData.intake_date ?? repair.intake_date) as
+                                                                        | string
+                                                                        | undefined;
+                                                                    const dt = isoToDate(iso);
+                                                                    return dt ? format(dt, "dd/MM/yy", { locale: es }) : <span>Seleccione fecha</span>;
+                                                                })()}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0">
+                                                            <Calendar
+                                                                mode="single"
+                                                                selected={isoToDate((editData.intake_date ?? repair.intake_date) as string | undefined)}
+                                                                onSelect={(date) => {
+                                                                    if (!date) return;
+                                                                    const iso = format(date, "yyyy-MM-dd");
+                                                                    setEditData((d) => ({ ...d, intake_date: iso }));
+                                                                }}
+                                                                initialFocus
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                </div>
+                                                <div className="space-y-2">
                                                     <Label>Fecha Estimada</Label>
-                                                    <Input
-                                                        inputMode="numeric"
-                                                        placeholder="dd/mm/yy"
-                                                        value={(() => {
-                                                            const v = String(editData.estimated_date ?? repair.estimated_date ?? "");
-                                                            return /^\d{4}-\d{2}-\d{2}$/.test(v) ? isoToDdMmYy(v) : v;
-                                                        })()}
-                                                        onChange={(e) =>
-                                                            setEditData((d) => ({ ...d, estimated_date: e.target.value }))
-                                                        }
-                                                        onBlur={() => {
-                                                            const v = String(editData.estimated_date ?? "");
-                                                            const parsed = ddMmYyToIso(v);
-                                                            if (parsed) setEditData((d) => ({ ...d, estimated_date: parsed }));
-                                                        }}
-                                                    />
+                                                    <Popover>
+                                                        <PopoverTrigger asChild>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                className={cn(
+                                                                    "w-full justify-start text-left font-normal",
+                                                                    !(editData.estimated_date ?? repair.estimated_date) &&
+                                                                    "text-muted-foreground"
+                                                                )}
+                                                            >
+                                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                                {(() => {
+                                                                    const iso = (editData.estimated_date ?? repair.estimated_date) as
+                                                                        | string
+                                                                        | undefined;
+                                                                    const dt = isoToDate(iso);
+                                                                    return dt ? format(dt, "dd/MM/yy", { locale: es }) : <span>Seleccione fecha</span>;
+                                                                })()}
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0">
+                                                            <Calendar
+                                                                mode="single"
+                                                                selected={isoToDate((editData.estimated_date ?? repair.estimated_date) as string | undefined)}
+                                                                onSelect={(date) => {
+                                                                    if (!date) return;
+                                                                    const iso = format(date, "yyyy-MM-dd");
+                                                                    setEditData((d) => ({ ...d, estimated_date: iso }));
+                                                                }}
+                                                                initialFocus
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
                                                 </div>
                                             </div>
 
@@ -930,7 +984,7 @@ export default function RepairDetailPanelV2({
                                                         </div>
                                                         <div className="space-y-1.5">
                                                             <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                                                                <Calendar className="h-3 w-3" /> Ingreso
+                                                                <CalendarLucide className="h-3 w-3" /> Ingreso
                                                             </Label>
                                                             <p className="text-sm font-medium">{formatDate(repair.intake_date)}</p>
                                                         </div>
@@ -1363,7 +1417,7 @@ export default function RepairDetailPanelV2({
                                                 </CardContent>
                                             </Card>
                                         ))}
-                                        {repair.notes?.map((note: RepairNote) => (
+                                        {sortedRepairNotes.map((note: RepairNote) => (
                                             <Card key={note.id}>
                                                 <CardContent className="py-2">
                                                     <div className="flex justify-between items-start mb-1">

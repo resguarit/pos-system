@@ -119,8 +119,8 @@ export default function ServiceExpiringPanel({ active, formatCurrency }: Props) 
                 {/* Header removed per UX request */}
 
                 {/* Total (nemesis of Cobros) */}
-                <Card className="border min-h-[176px]">
-                    <CardHeader className="space-y-2 pb-3 min-h-[122px]">
+                <Card className="border h-[176px]">
+                    <CardHeader className="space-y-2 pb-3 h-[122px]">
                         <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                                 <CalendarClock className="h-5 w-5 text-emerald-700" />
