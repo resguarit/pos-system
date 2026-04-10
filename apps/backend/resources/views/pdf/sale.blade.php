@@ -191,7 +191,9 @@
     @php
         $totalFinal = (float) $sale->total;
         $afipCode = $sale->receiptType->afip_code ?? null;
-        $isInternalOnlyReceipt = \App\Constants\AfipConstants::isInternalOnlyReceipt($afipCode);
+        $receiptDesc = strtolower($sale->receiptType->description ?? $sale->receiptType->name ?? '');
+        $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptDesc, 'factura x');
+        $isInternalOnlyReceipt = \App\Constants\AfipConstants::isInternalOnlyReceipt($afipCode) || $isFacturaX;
     @endphp
     <table class="totals-table">
         @if(!$isInternalOnlyReceipt)

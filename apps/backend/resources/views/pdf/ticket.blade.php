@@ -162,10 +162,17 @@
         <div class="divider"></div>
 
         <table style="font-size: 10px;">
+            @php
+                $afipCode = $sale->receiptType->afip_code ?? null;
+                $receiptDesc = strtolower($sale->receiptType->description ?? $sale->receiptType->name ?? '');
+                $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptDesc, 'factura x');
+            @endphp
+            @if(!$isFacturaX)
             <tr>
                 <td class="right">Subtotal:</td>
                 <td class="right mono">${{ number_format($sale->subtotal, 2, ',', '.') }}</td>
             </tr>
+            @endif
             @if($sale->discount_amount > 0)
                 <tr>
                     <td class="right">Descuento:</td>
