@@ -190,16 +190,20 @@
     </table>
     @php
         $totalFinal = (float) $sale->total;
+        $afipCode = $sale->receiptType->afip_code ?? null;
+        $isInternalOnlyReceipt = \App\Constants\AfipConstants::isInternalOnlyReceipt($afipCode);
     @endphp
     <table class="totals-table">
-        <tr>
-            <td class="right bold">Subtotal:</td>
-            <td class="right">${{ number_format($subtotalBeforeDiscount, 2, ',', '.') }}</td>
-        </tr>
-        <tr>
-            <td class="right bold">IVA:</td>
-            <td class="right">${{ number_format($totalIvaCalculated, 2, ',', '.') }}</td>
-        </tr>
+        @if(!$isInternalOnlyReceipt)
+            <tr>
+                <td class="right bold">Subtotal:</td>
+                <td class="right">${{ number_format($subtotalBeforeDiscount, 2, ',', '.') }}</td>
+            </tr>
+            <tr>
+                <td class="right bold">IVA:</td>
+                <td class="right">${{ number_format($totalIvaCalculated, 2, ',', '.') }}</td>
+            </tr>
+        @endif
         @if($sale->discount_amount > 0)
         <tr>
             <td class="right bold">Descuentos:</td>
