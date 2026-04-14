@@ -1514,6 +1514,23 @@ class SaleService implements SaleServiceInterface
         
         $useSdk = !$isInternalOnly;
 
+        // #region agent log
+        Log::info('AGENT_DEBUG_PDF', [
+            'sessionId' => 'fb6b2f',
+            'hypothesisId' => 'H1-H5',
+            'location' => 'SaleService::downloadPdf',
+            'saleId' => $sale->id,
+            'format' => $format,
+            'receiptTypeId' => $sale->receipt_type_id,
+            'afipCodeRaw' => $afipCode,
+            'afipCodeNormalized' => AfipConstants::normalizeReceiptTypeCode($afipCode),
+            'isFacturaX' => $isFacturaX,
+            'isPresupuesto' => $isPresupuesto,
+            'isInternalOnly' => $isInternalOnly,
+            'useSdk' => $useSdk,
+        ]);
+        // #endregion
+
         if ($useSdk) {
             return $this->downloadPdfViaSdk($sale, $format);
         }

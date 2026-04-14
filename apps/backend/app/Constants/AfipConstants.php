@@ -123,31 +123,55 @@ final class AfipConstants
      * Indica si el tipo de comprobante exige un cliente con CUIT válido.
      * Solo Factura A (001) lo exige; B/C/M/FCE permiten consumidor final.
      */
-    public static function receiptRequiresCuit(?string $afipCode): bool
+    public static function receiptRequiresCuit(string|int|null $afipCode): bool
     {
-        return $afipCode !== null && (string) $afipCode === self::RECEIPT_CODE_FACTURA_A;
+        $n = self::normalizeReceiptTypeCode($afipCode);
+
+        return $n !== null && $n === self::RECEIPT_CODE_FACTURA_A;
+    }
+
+    /**
+     * Normaliza código de tipo de comprobante (solo dígitos; ceros a la izquierda hasta 3 si el valor numérico es menor a 100).
+     * Alineado al front: 17 → 017; códigos ≥ 100 (p. ej. 201) se mantienen.
+     */
+    public static function normalizeReceiptTypeCode(string|int|null $afipCode): ?string
+    {
+        if ($afipCode === null || $afipCode === '') {
+            return null;
+        }
+        $digits = preg_replace('/[^0-9]/', '', (string) $afipCode);
+        if ($digits === '') {
+            return null;
+        }
+        $n = (int) $digits;
+
+        return $n < 100 ? str_pad((string) $n, 3, '0', STR_PAD_LEFT) : $digits;
     }
 
     /**
      * Indica si el tipo de comprobante es presupuesto (solo uso interno).
      */
-    public static function isPresupuesto(?string $afipCode): bool
+    public static function isPresupuesto(string|int|null $afipCode): bool
     {
-        return $afipCode !== null && (string) $afipCode === self::RECEIPT_CODE_PRESUPUESTO;
+        $n = self::normalizeReceiptTypeCode($afipCode);
+
+        return $n !== null && $n === self::RECEIPT_CODE_PRESUPUESTO;
     }
 
     /**
      * Indica si el tipo de comprobante es Factura X (solo uso interno del sistema).
      */
-    public static function isFacturaX(?string $afipCode): bool
+    public static function isFacturaX(string|int|null $afipCode): bool
     {
-        return $afipCode !== null && (string) $afipCode === self::RECEIPT_CODE_FACTURA_X;
+        $n = self::normalizeReceiptTypeCode($afipCode);
+
+        return $n !== null && $n === self::RECEIPT_CODE_FACTURA_X;
     }
 
     /**
      * Comprobantes de solo uso interno: no se autorizan con AFIP (Presupuesto, Factura X).
      */
-    public static function isInternalOnlyReceipt(?string $afipCode): bool
+    public static function isInternalOnlyReceipt(string|int|null $afipCode): bool
     {
         return self::isPresupuesto($afipCode) || self::isFacturaX($afipCode);
     }
