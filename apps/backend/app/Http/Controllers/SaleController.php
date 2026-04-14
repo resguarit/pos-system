@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Exception;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use App\Constants\AfipConstants;
 use App\Models\Category;
 use App\Models\ReceiptType;
@@ -264,25 +263,6 @@ class SaleController extends Controller
     public function downloadPdf(Request $request, $id)
     {
         try {
-            // Debug: Log the incoming request
-            Log::info('SaleController downloadPdf called', [
-                'sale_id' => $id,
-                'query_format' => $request->query('format'),
-                'all_query' => $request->query(),
-                'url' => $request->fullUrl(),
-            ]);
-
-            // #region agent log
-            Log::info('AGENT_DEBUG_PDF', [
-                'sessionId' => 'fb6b2f',
-                'hypothesisId' => 'H2',
-                'location' => 'SaleController::downloadPdf',
-                'saleId' => (int) $id,
-                'format' => $request->query('format', 'standard'),
-                'url' => $request->fullUrl(),
-            ]);
-            // #endregion
-
             $sale = \App\Models\SaleHeader::with([
                 'items.product.iva',
                 'branch',
