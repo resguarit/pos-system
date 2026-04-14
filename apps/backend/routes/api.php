@@ -151,9 +151,10 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             Route::get('/export/stock-count', [ProductController::class, 'exportStockCountList']);
             Route::get('/inventory-value', [ProductController::class, 'getInventoryValue']);
             Route::get('/by-categories', [ProductController::class, 'getProductsByCategories']);
-            Route::get('/{id}', [ProductController::class, 'show']);
+            Route::get('/{id}', [ProductController::class, 'show'])->whereNumber('id');
             Route::get('/{id}/traceability', [\App\Http\Controllers\ProductTraceabilityController::class, 'getHistory'])
-                ->middleware('has_permission:ver_trazabilidad_producto');
+                ->middleware('has_permission:ver_trazabilidad_producto')
+                ->whereNumber('id');
         });
 
         Route::middleware('has_permission:crear_productos')->post('/', [ProductController::class, 'store']);
