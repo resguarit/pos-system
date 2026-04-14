@@ -1505,7 +1505,14 @@ class SaleService implements SaleServiceInterface
         ])->findOrFail($id);
 
         $afipCode = $sale->receiptType->afip_code ?? null;
-        $useSdk = !AfipConstants::isInternalOnlyReceipt($afipCode);
+        $receiptName = strtolower($sale->receiptType->name ?? '');
+        $receiptDesc = strtolower($sale->receiptType->description ?? '');
+        
+        $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptName, 'factura x') || str_contains($receiptDesc, 'factura x');
+        $isPresupuesto = \App\Constants\AfipConstants::isPresupuesto($afipCode) || str_contains($receiptName, 'presupuesto') || str_contains($receiptDesc, 'presupuesto');
+        $isInternalOnly = \App\Constants\AfipConstants::isInternalOnlyReceipt($afipCode) || $isFacturaX || $isPresupuesto;
+        
+        $useSdk = !$isInternalOnly;
 
         if ($useSdk) {
             return $this->downloadPdfViaSdk($sale, $format);
@@ -1585,7 +1592,14 @@ class SaleService implements SaleServiceInterface
         }
 
         $afipCode = $sale->receiptType->afip_code ?? null;
-        if (AfipConstants::isInternalOnlyReceipt($afipCode)) {
+        $receiptName = strtolower($sale->receiptType->name ?? '');
+        $receiptDesc = strtolower($sale->receiptType->description ?? '');
+        
+        $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptName, 'factura x') || str_contains($receiptDesc, 'factura x');
+        $isPresupuesto = \App\Constants\AfipConstants::isPresupuesto($afipCode) || str_contains($receiptName, 'presupuesto') || str_contains($receiptDesc, 'presupuesto');
+        $isInternalOnly = \App\Constants\AfipConstants::isInternalOnlyReceipt($afipCode) || $isFacturaX || $isPresupuesto;
+        
+        if ($isInternalOnly) {
             return null;
         }
 
