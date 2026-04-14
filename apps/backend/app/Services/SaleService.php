@@ -1526,6 +1526,7 @@ class SaleService implements SaleServiceInterface
      */
     private function downloadPdfViaBlade(SaleHeader $sale, string $format): \Illuminate\Http\Response
     {
+        $sale->loadMissing(['receiptType']);
         $template = $format === 'thermal' ? 'pdf.ticket' : 'pdf.sale';
         $pdf = Pdf::loadView($template, ['sale' => $sale]);
 

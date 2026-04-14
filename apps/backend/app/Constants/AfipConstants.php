@@ -177,6 +177,29 @@ final class AfipConstants
     }
 
     /**
+     * PDF venta (Blade A4/ticket): ocultar filas Subtotal y desglose IVA para comprobantes internos.
+     * Usa código AFIP normalizado y, por si el código en DB falla, nombre/descripción (Factura X, Presupuesto).
+     *
+     * @param object{name?: string|null, description?: string|null, afip_code?: string|int|null}|null $receiptType
+     */
+    public static function salePdfShouldHideSubtotalAndIva(?object $receiptType): bool
+    {
+        if ($receiptType === null) {
+            return false;
+        }
+        $afip = $receiptType->afip_code ?? null;
+        if (self::isInternalOnlyReceipt($afip)) {
+            return true;
+        }
+        $name = strtolower((string) ($receiptType->name ?? ''));
+        $desc = strtolower((string) ($receiptType->description ?? ''));
+        $haystack = $name . ' ' . $desc;
+
+        return str_contains($haystack, 'factura x')
+            || str_contains($haystack, 'presupuesto');
+    }
+
+    /**
      * Normaliza y valida CUIT: solo dígitos, longitud 11.
      */
     public static function isValidCuit(?string $cuit): bool

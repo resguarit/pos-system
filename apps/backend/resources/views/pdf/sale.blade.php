@@ -190,14 +190,10 @@
     </table>
     @php
         $totalFinal = (float) $sale->total;
-        $afipCode = $sale->receiptType->afip_code ?? null;
-        $receiptName = strtolower($sale->receiptType->name ?? '');
-        $receiptDesc = strtolower($sale->receiptType->description ?? '');
-        $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptName, 'factura x') || str_contains($receiptDesc, 'factura x');
-        $isInternalOnlyReceipt = \App\Constants\AfipConstants::isInternalOnlyReceipt($afipCode) || $isFacturaX;
+        $hideSubtotalIva = \App\Constants\AfipConstants::salePdfShouldHideSubtotalAndIva($sale->receiptType);
     @endphp
     <table class="totals-table">
-        @if(!$isInternalOnlyReceipt)
+        @if(!$hideSubtotalIva)
             <tr>
                 <td class="right bold">Subtotal:</td>
                 <td class="right">${{ number_format($subtotalBeforeDiscount, 2, ',', '.') }}</td>

@@ -163,12 +163,9 @@
 
         <table style="font-size: 10px;">
             @php
-                $afipCode = $sale->receiptType->afip_code ?? null;
-                $receiptName = strtolower($sale->receiptType->name ?? '');
-                $receiptDesc = strtolower($sale->receiptType->description ?? '');
-                $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptName, 'factura x') || str_contains($receiptDesc, 'factura x');
+                $hideSubtotal = \App\Constants\AfipConstants::salePdfShouldHideSubtotalAndIva($sale->receiptType);
             @endphp
-            @if(!$isFacturaX)
+            @if(!$hideSubtotal)
             <tr>
                 <td class="right">Subtotal:</td>
                 <td class="right mono">${{ number_format($sale->subtotal, 2, ',', '.') }}</td>
