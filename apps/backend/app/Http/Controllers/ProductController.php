@@ -846,4 +846,27 @@ class ProductController extends Controller
         return $updatedCount;
     }
 
+    /**
+     * Obtiene el valor total del inventario con desglose por categoría y sucursal.
+     */
+    public function getInventoryValue(Request $request)
+    {
+        $filters = [
+            'branch_ids' => $request->query('branch_ids'),
+            'category_ids' => $request->query('category_ids'),
+            'supplier_ids' => $request->query('supplier_ids'),
+        ];
+
+        // Convertir strings a arrays si es necesario
+        foreach ($filters as $key => $value) {
+            if (is_string($value)) {
+                $filters[$key] = explode(',', $value);
+            }
+        }
+
+        $inventoryValue = $this->productService->getInventoryValue($filters);
+
+        return response()->json($inventoryValue);
+    }
+
 }

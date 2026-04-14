@@ -193,9 +193,10 @@ final class AfipConstants
         }
         $name = strtolower((string) ($receiptType->name ?? ''));
         $desc = strtolower((string) ($receiptType->description ?? ''));
-        $haystack = $name . ' ' . $desc;
+        // Strip all whitespace characters (including non-breaking spaces \xA0) to make the match bulletproof.
+        $haystack = preg_replace('/\s+/u', '', $name . $desc);
 
-        return str_contains($haystack, 'factura x')
+        return str_contains($haystack, 'facturax')
             || str_contains($haystack, 'presupuesto');
     }
 

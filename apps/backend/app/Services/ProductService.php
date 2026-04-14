@@ -653,4 +653,115 @@ class ProductService implements ProductServiceInterface
                 return $currentPrice;
         }
     }
+
+    /**
+     * Calcula el valor total del inventario.
+     * 
+     * @param array $filters Filtros opcionales (branch_ids, category_ids, supplier_ids)
+     * @return array Resumen del valor del inventario
+     */
+    public function getInventoryValue(array $filters = []): array
+    {
+        $query = Stock::query()
+            ->where('stocks.current_stock', '>', 0)
+            ->join('products', 'stocks.product_id', '=', 'products.id')
+            ->where('products.status', true)
+            ->whereNull('products.deleted_at')
+            ->select(
+                DB::raw('SUM(stocks.current_stock * products.sale_price) as total_value'),
+                DB::raw('SUM(stocks.current_stock * products.unit_price) as total_cost_value'),
+                DB::raw('SUM(stocks.current_stock) as total_units'),
+                DB::raw('COUNT(DISTINCT products.id) as product_count')
+            );
+
+        // Aplicar filtros
+        if (!empty($filters['branch_ids'])) {
+            $query->whereIn('stocks.branch_id', $filters['branch_ids']);
+        }
+
+        if (!empty($filters['category_ids'])) {
+            $query->whereIn('products.category_id', $filters['category_ids']);
+        }
+
+        if (!empty($filters['supplier_ids'])) {
+            $query->whereIn('products.supplier_id', $filters['supplier_ids']);
+        }
+
+        $result = $query->first();
+
+        // Calcular desglose por categoría
+        $byCategory = Stock::query()
+            ->where('stocks.current_stock', '>', 0)
+            ->join('products', 'stocks.product_id', '=', 'products.id')
+            ->join('categories', 'products.category_id', '=', 'categories.id')
+            ->where('products.status', true)
+            ->whereNull('products.deleted_at')
+            ->select(
+                'categories.id as category_id',
+                'categories.name as category_name',
+                DB::raw('SUM(stocks.current_stock * products.sale_price) as value'),
+                DB::raw('SUM(stocks.current_stock * products.unit_price) as cost_value'),
+                DB::raw('SUM(stocks.current_stock) as units'),
+                DB::raw('COUNT(DISTINCT products.id) as product_count')
+            );
+
+        if (!empty($filters['branch_ids'])) {
+            $byCategory->whereIn('stocks.branch_id', $filters['branch_ids']);
+        }
+
+        if (!empty($filters['category_ids'])) {
+            $byCategory->whereIn('products.category_id', $filters['category_ids']);
+        }
+
+        if (!empty($filters['supplier_ids'])) {
+            $byCategory->whereIn('products.supplier_id', $filters['supplier_ids']);
+        }
+
+        $byCategory = $byCategory
+            ->groupBy('categories.id', 'categories.name')
+            ->orderBy('value', 'desc')
+            ->get();
+
+        // Calcular desglose por sucursal
+        $byBranch = Stock::query()
+            ->where('stocks.current_stock', '>', 0)
+            ->join('products', 'stocks.product_id', '=', 'products.id')
+            ->join('branches', 'stocks.branch_id', '=', 'branches.id')
+            ->where('products.status', true)
+            ->whereNull('products.deleted_at')
+            ->select(
+                'branches.id as branch_id',
+                'branches.description as branch_name',
+                DB::raw('SUM(stocks.current_stock * products.sale_price) as value'),
+                DB::raw('SUM(stocks.current_stock * products.unit_price) as cost_value'),
+                DB::raw('SUM(stocks.current_stock) as units'),
+                DB::raw('COUNT(DISTINCT products.id) as product_count')
+            );
+
+        if (!empty($filters['branch_ids'])) {
+            $byBranch->whereIn('stocks.branch_id', $filters['branch_ids']);
+        }
+
+        if (!empty($filters['category_ids'])) {
+            $byBranch->whereIn('products.category_id', $filters['category_ids']);
+        }
+
+        if (!empty($filters['supplier_ids'])) {
+            $byBranch->whereIn('products.supplier_id', $filters['supplier_ids']);
+        }
+
+        $byBranch = $byBranch
+            ->groupBy('branches.id', 'branches.description')
+            ->orderBy('value', 'desc')
+            ->get();
+
+        return [
+            'total_value' => (float) $result->total_value,
+            'total_cost_value' => (float) $result->total_cost_value,
+            'total_units' => (int) $result->total_units,
+            'product_count' => (int) $result->product_count,
+            'by_category' => $byCategory,
+            'by_branch' => $byBranch,
+        ];
+    }
 }

@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator, Filter, ChevronUp, History } from "lucide-react"
+import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator, Filter, ChevronUp, History, Package, DollarSign, TrendingUp, Layers, Box } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { NewProductButton } from "@/components/new-product-button"
 import { AddStockButton } from "@/components/add-stock-button"
 import { EditProductDialog } from "@/components/edit-product-dialog"
@@ -114,6 +115,15 @@ export default function InventarioPage() {
   const [sortBy, setSortBy] = useState<'stock' | 'description' | 'category'>('stock')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [supplierFilterQuery, setSupplierFilterQuery] = useState("")
+  const [inventoryValue, setInventoryValue] = useState<{
+    total_value: number
+    total_cost_value: number
+    total_units: number
+    product_count: number
+    by_category: any[]
+    by_branch: any[]
+  } | null>(null)
+  const { request: requestInventoryValue, loading: loadingInventoryValue } = useApi()
 
   const availableSubcategories = categories.filter((c) => String(c.parent_id) === selectedCategoryId)
 
@@ -129,6 +139,7 @@ export default function InventarioPage() {
       { id: 'stock', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
       { id: 'stock-min-max', minWidth: 100, maxWidth: 180, defaultWidth: 120 },
       { id: 'stock-status', minWidth: 100, maxWidth: 180, defaultWidth: 120 },
+      { id: 'inventory-value', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
     ] : []),
     { id: 'status', minWidth: 80, maxWidth: 120, defaultWidth: 100 },
     { id: 'branch', minWidth: 120, maxWidth: 200, defaultWidth: 150 },
@@ -279,12 +290,57 @@ export default function InventarioPage() {
   }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, categories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, sortBy, sortDirection]);
 
   const refreshData = useCallback(() => {
-    // If we are on page > 1 and refresh, we might want to stay on page or go to 1. 
+    // If we are on page > 1 and refresh, we might want to stay on page or go to 1.
     // Usually stay.
     const controller = new AbortController();
     fetchProducts(controller.signal);
+    fetchInventoryValue();
     return () => controller.abort();
   }, [fetchProducts]);
+
+  const fetchInventoryValue = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+
+      if (selectedBranchIds.length > 0) {
+        selectedBranchIds.forEach(id => params.append('branch_ids[]', String(id)));
+      }
+
+      const activeCategoryIds: string[] = [];
+      if (selectedSubcategoryId !== 'all') {
+        activeCategoryIds.push(selectedSubcategoryId);
+      } else if (selectedCategoryId !== 'all') {
+        const parentId = Number(selectedCategoryId);
+        const childIds = categories
+          .filter((c) => c.parent_id === parentId)
+          .map((c) => String(c.id));
+        activeCategoryIds.push(selectedCategoryId, ...childIds);
+      }
+
+      if (activeCategoryIds.length > 0) {
+        activeCategoryIds.forEach(id => params.append('category_ids[]', id));
+      }
+
+      if (selectedSuppliers.length > 0) {
+        selectedSuppliers.forEach(id => params.append('supplier_ids[]', id));
+      }
+
+      const response = await requestInventoryValue({
+        method: 'GET',
+        url: `/products/inventory-value?${params.toString()}`,
+      });
+
+      console.log('Inventory value response:', response);
+
+      if (response) {
+        setInventoryValue(response);
+      } else {
+        console.error('No response data from /products/inventory-value');
+      }
+    } catch (err) {
+      console.error('Error al cargar valor del inventario:', err);
+    }
+  }, [requestInventoryValue, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, selectedSuppliers, selectedProductStatus, categories]);
 
   useExchangeRateUpdates(refreshData);
 
@@ -453,12 +509,13 @@ export default function InventarioPage() {
 
     if (initialDataLoaded) {
       fetchProducts(signal)
+      fetchInventoryValue()
     }
 
     return () => {
       controller.abort()
     }
-  }, [initialDataLoaded, fetchProducts])
+  }, [initialDataLoaded, fetchProducts, fetchInventoryValue])
 
   useEffect(() => {
     // Debounce search and filter changes could be good, but for now simple effect
@@ -467,12 +524,13 @@ export default function InventarioPage() {
 
     if (initialDataLoaded) {
       fetchProducts(signal)
+      fetchInventoryValue()
     }
 
     return () => {
       controller.abort()
     }
-  }, [initialDataLoaded, fetchProducts])
+  }, [initialDataLoaded, fetchProducts, fetchInventoryValue])
 
   // Reset page when filters change (except page itself)
   useEffect(() => {
@@ -492,8 +550,9 @@ export default function InventarioPage() {
   useEffect(() => {
     if (!initialDataLoaded) return
     setPage(1)
+    fetchInventoryValue()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only run when filters change, not on initialDataLoaded
-  }, [selectedBranchIds, selectedCategoryId, selectedSubcategoryId, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView])
+  }, [selectedBranchIds, selectedCategoryId, selectedSubcategoryId, selectedStockStatuses, selectedSuppliers, selectedProductStatus, searchQuery, perBranchView, fetchInventoryValue])
 
   // Remove client-side applyFilters logic
 
@@ -873,6 +932,87 @@ export default function InventarioPage() {
             </div>
           </div>
 
+          {/* Inventory Value Summary Cards */}
+          {loadingInventoryValue ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 animate-pulse min-h-[120px]">
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3 mb-4"></div>
+                  <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-2"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                </div>
+              ))}
+            </div>
+          ) : inventoryValue ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Inversión en Stock</CardTitle>
+                  <Package className="h-4 w-4 text-emerald-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl xl:text-2xl font-bold truncate tracking-tight" title={formatSalePrice(inventoryValue.total_cost_value)}>
+                    {formatSalePrice(inventoryValue.total_cost_value)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Costo de reposición
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Valor de Venta</CardTitle>
+                  <DollarSign className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl xl:text-2xl font-bold truncate tracking-tight" title={formatSalePrice(inventoryValue.total_value)}>
+                    {formatSalePrice(inventoryValue.total_value)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ingreso potencial
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Ganancia Estimada</CardTitle>
+                  <TrendingUp className="h-4 w-4 text-amber-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl xl:text-2xl font-bold truncate tracking-tight" title={inventoryValue.total_cost_value > 0 ? formatSalePrice(inventoryValue.total_value - inventoryValue.total_cost_value) : formatSalePrice(0)}>
+                    {inventoryValue.total_cost_value > 0 ? formatSalePrice(inventoryValue.total_value - inventoryValue.total_cost_value) : formatSalePrice(0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {inventoryValue.total_cost_value > 0 ? (((inventoryValue.total_value - inventoryValue.total_cost_value) / inventoryValue.total_cost_value) * 100).toFixed(1) : "0.0"}% de margen global
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Unidades en Stock</CardTitle>
+                  <Layers className="h-4 w-4 text-indigo-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl xl:text-2xl font-bold truncate tracking-tight" title={Number(inventoryValue.total_units).toLocaleString('es-AR')}>
+                    {Number(inventoryValue.total_units).toLocaleString('es-AR')}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cantidad física
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                No se pudo cargar el valor del inventario. Verifica que haya productos con stock.
+              </p>
+            </div>
+          )}
+
           {/* Search bar and filter toggle */}
           <div className="flex w-full flex-col gap-2">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -1168,6 +1308,13 @@ export default function InventarioPage() {
                                 >
                                   Estado Stock
                                 </ResizableTableHeader>
+                                <ResizableTableHeader
+                                  columnId="inventory-value"
+                                  getResizeHandleProps={getResizeHandleProps}
+                                  getColumnHeaderProps={getColumnHeaderProps}
+                                >
+                                  Valor Inventario
+                                </ResizableTableHeader>
                               </>
                             )}
                             <ResizableTableHeader
@@ -1261,6 +1408,13 @@ export default function InventarioPage() {
                                       className={!p.status ? "opacity-60" : ""}
                                     >
                                       <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                    </ResizableTableCell>
+                                    <ResizableTableCell
+                                      columnId="inventory-value"
+                                      getColumnCellProps={getColumnCellProps}
+                                      className={`hidden lg:table-cell ${!p.status ? "text-gray-500" : ""}`}
+                                    >
+                                      <span className="truncate block">{formatSalePrice((stock.current_stock || 0) * p.sale_price)}</span>
                                     </ResizableTableCell>
                                   </>
                                 )}
@@ -1433,6 +1587,13 @@ export default function InventarioPage() {
                             >
                               Estado Stock
                             </ResizableTableHeader>
+                            <ResizableTableHeader
+                              columnId="inventory-value"
+                              getResizeHandleProps={getResizeHandleProps}
+                              getColumnHeaderProps={getColumnHeaderProps}
+                            >
+                              Valor Inventario
+                            </ResizableTableHeader>
                           </>
                         )}
                         <ResizableTableHeader
@@ -1527,6 +1688,13 @@ export default function InventarioPage() {
                                     className={!product.status ? "opacity-60" : ""}
                                   >
                                     <Badge variant="outline" className={`${stockStatus.variant} truncate`}>{stockStatus.label}</Badge>
+                                  </ResizableTableCell>
+                                  <ResizableTableCell
+                                    columnId="inventory-value"
+                                    getColumnCellProps={getColumnCellProps}
+                                    className={`hidden lg:table-cell ${!product.status ? "text-gray-500" : ""}`}
+                                  >
+                                    <span className="truncate block">{formatSalePrice((stock.current || 0) * product.sale_price)}</span>
                                   </ResizableTableCell>
                                 </>
                               )}
