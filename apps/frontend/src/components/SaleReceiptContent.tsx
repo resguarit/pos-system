@@ -1,6 +1,7 @@
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { type SaleHeader } from "@/types/sale";
 import { ARCA_CODES } from "@/lib/constants/arcaCodes";
+import { normalizeArcaReceiptCode } from "@/utils/arcaReceiptTypes";
 
 interface SaleReceiptContentProps {
   sale: SaleHeader;
@@ -75,9 +76,9 @@ const SaleReceiptContent: React.FC<SaleReceiptContentProps> = ({
   const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
   const receiptAfipCode: string | null =
-    (asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id ?? null) != null
-      ? String(asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id)
-      : null
+    normalizeArcaReceiptCode(
+      asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_code ?? null
+    )
   const receiptDescription: string = String(
     asRecord(sRec.receipt_type).description || asRecord(sRec.receiptType).description || asRecord(sRec.receiptType).name || ''
   ).toLowerCase()

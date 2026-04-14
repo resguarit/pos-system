@@ -1514,31 +1514,6 @@ class SaleService implements SaleServiceInterface
         
         $useSdk = !$isInternalOnly;
 
-        // #region agent log
-        $agentDebugLine = json_encode([
-            'sessionId' => 'fb6b2f',
-            'runId' => 'pre-fix',
-            'hypothesisId' => 'H1-H4',
-            'location' => 'SaleService::downloadPdf',
-            'message' => 'PDF branch and receipt flags',
-            'data' => [
-                'saleId' => $sale->id,
-                'receiptTypeId' => $sale->receipt_type_id,
-                'afipCode' => $afipCode,
-                'afipCodeLen' => $afipCode !== null ? strlen((string) $afipCode) : null,
-                'receiptName' => $receiptName,
-                'receiptDesc' => $receiptDesc,
-                'isFacturaX' => $isFacturaX,
-                'isPresupuesto' => $isPresupuesto,
-                'isInternalOnly' => $isInternalOnly,
-                'useSdk' => $useSdk,
-            ],
-            'timestamp' => (int) (microtime(true) * 1000),
-        ]) . "\n";
-        @file_put_contents(storage_path('logs/debug-fb6b2f.log'), $agentDebugLine, FILE_APPEND | LOCK_EX);
-        @file_put_contents(dirname(base_path(), 2) . '/.cursor/debug-fb6b2f.log', $agentDebugLine, FILE_APPEND | LOCK_EX);
-        // #endregion
-
         if ($useSdk) {
             return $this->downloadPdfViaSdk($sale, $format);
         }

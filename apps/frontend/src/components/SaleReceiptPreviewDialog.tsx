@@ -85,7 +85,13 @@ const SaleReceiptPreviewDialog: React.FC<SaleReceiptPreviewDialogProps> = ({
     sale?.receipt_type && typeof sale.receipt_type === "object" && "afip_code" in sale.receipt_type
       ? (sale.receipt_type as { afip_code?: string }).afip_code
       : (sale as SaleHeader & { receipt_type_code?: string })?.receipt_type_code;
-  const isInternalOnly = isInternalOnlyReceiptType(arcaCode);
+  const receiptLabel =
+    typeof sale?.receipt_type === "string"
+      ? sale.receipt_type
+      : (sale?.receipt_type as { description?: string; name?: string } | null)?.description ??
+        (sale?.receipt_type as { description?: string; name?: string } | null)?.name ??
+        null;
+  const isInternalOnly = isInternalOnlyReceiptType(arcaCode, receiptLabel);
   const useSdkPreview = !isInternalOnly && !!sale?.id;
 
   useEffect(() => {

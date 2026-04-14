@@ -165,12 +165,41 @@ export function getCondicionIvaName(code: number | null | undefined): string {
 }
 
 /**
- * Comprobantes de solo uso interno: no se autorizan con ARCA (Presupuesto, Factura X).
+ * Normaliza código de tipo de comprobante para comparar con ARCA_CODES.
+ * Ej.: 17 → 017; 201 se mantiene (códigos ≥ 100 sin pad extra).
  */
-export function isInternalOnlyReceiptType(afipCode: string | number | null | undefined): boolean {
-  if (afipCode == null) return false
-  const code = String(afipCode)
-  return code === ARCA_CODES.PRESUPUESTO || code === ARCA_CODES.FACTURA_X
+export function normalizeArcaReceiptCode(afipCode: string | number | null | undefined): string | null {
+  if (afipCode == null || afipCode === '') return null
+  const digits = String(afipCode).replace(/\D/g, '')
+  if (digits === '') return null
+  const n = parseInt(digits, 10)
+  if (!Number.isFinite(n)) return null
+  return n < 100 ? String(n).padStart(3, '0') : digits
+}
+
+/**
+ * Comprobantes de solo uso interno: no se autorizan con ARCA (Presupuesto, Factura X).
+ * Opcionalmente usa la descripción/etiqueta visible (p. ej. cuando la lista manda receipt_type como string).
+ */
+export function isInternalOnlyReceiptType(
+  afipCode: string | number | null | undefined,
+  description?: string | null
+): boolean {
+  const norm = normalizeArcaReceiptCode(afipCode)
+  if (norm === ARCA_CODES.PRESUPUESTO || norm === ARCA_CODES.FACTURA_X) return true
+  const d = (description ?? '').toLowerCase()
+  return d.includes('presupuesto') || d.includes('factura x')
+}
+
+/**
+ * Ocultar desglose Subtotal + IVA en vista previa/recibo (alineado a pdf/sale.blade.php).
+ */
+export function shouldHideReceiptSubtotalAndIvaLines(params: {
+  afipCode?: string | number | null
+  /** Lista: receipt_type string; detalle: description o name */
+  receiptLabel?: string | null
+}): boolean {
+  return isInternalOnlyReceiptType(params.afipCode, params.receiptLabel)
 }
 
 /**

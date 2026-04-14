@@ -1,6 +1,7 @@
 import React from "react";
 import { type SaleHeader } from "@/types/sale";
 import { ARCA_CODES } from "@/lib/constants/arcaCodes";
+import { normalizeArcaReceiptCode } from "@/utils/arcaReceiptTypes";
 
 interface ThermalTicketContentProps {
     sale: SaleHeader;
@@ -41,10 +42,9 @@ const ThermalTicketContent: React.FC<ThermalTicketContentProps> = ({
     const backendCompanyName = branch ? asString(branch.description || branch.name) : ""
     const backendAddress = branch ? asString(branch.address) : ""
 
-    const receiptAfipCode: string | null =
-        (asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id ?? null) != null
-            ? String(asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_id)
-            : null
+    const receiptAfipCode: string | null = normalizeArcaReceiptCode(
+        asRecord(sRec.receipt_type).afip_code ?? asRecord(sRec.receiptType).afip_code ?? sRec.receipt_type_code ?? null
+    )
     const receiptDescription: string = String(
         asRecord(sRec.receipt_type).description || asRecord(sRec.receiptType).description || asRecord(sRec.receiptType).name || ''
     ).toLowerCase()

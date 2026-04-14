@@ -195,11 +195,6 @@
         $receiptDesc = strtolower($sale->receiptType->description ?? '');
         $isFacturaX = \App\Constants\AfipConstants::isFacturaX($afipCode) || str_contains($receiptName, 'factura x') || str_contains($receiptDesc, 'factura x');
         $isInternalOnlyReceipt = \App\Constants\AfipConstants::isInternalOnlyReceipt($afipCode) || $isFacturaX;
-        // #region agent log
-        $agentDebugLineBlade = json_encode(['sessionId' => 'fb6b2f', 'runId' => 'pre-fix', 'hypothesisId' => 'H5', 'location' => 'pdf/sale.blade.php', 'message' => 'Blade totals visibility flags', 'data' => ['saleId' => $sale->id ?? null, 'receiptTypeId' => $sale->receipt_type_id ?? null, 'afipCode' => $afipCode, 'receiptDesc' => $receiptDesc, 'isFacturaX' => $isFacturaX, 'isInternalOnlyReceipt' => $isInternalOnlyReceipt, 'showSubtotalIva' => !$isInternalOnlyReceipt], 'timestamp' => (int) (microtime(true) * 1000)]) . "\n";
-        file_put_contents(storage_path('logs/debug-fb6b2f.log'), $agentDebugLineBlade, FILE_APPEND | LOCK_EX);
-        file_put_contents(dirname(base_path(), 2) . '/.cursor/debug-fb6b2f.log', $agentDebugLineBlade, FILE_APPEND | LOCK_EX);
-        // #endregion
     @endphp
     <table class="totals-table">
         @if(!$isInternalOnlyReceipt)
