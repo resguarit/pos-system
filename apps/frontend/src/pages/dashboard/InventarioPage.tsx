@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator, Filter, ChevronUp, History, Package, DollarSign, TrendingUp, Layers, Box } from "lucide-react"
+import { Search, RefreshCw, Pencil, Trash2, Eye, ChevronDown, Download, Calculator, Filter, ChevronUp, History, Package, DollarSign, TrendingUp, Layers } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { NewProductButton } from "@/components/new-product-button"
 import { AddStockButton } from "@/components/add-stock-button"
@@ -120,7 +120,9 @@ export default function InventarioPage() {
     total_cost_value: number
     total_units: number
     product_count: number
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     by_category: any[]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     by_branch: any[]
   } | null>(null)
   const { request: requestInventoryValue, loading: loadingInventoryValue } = useApi()
@@ -289,15 +291,6 @@ export default function InventarioPage() {
     }
   }, [request, page, perPage, searchQuery, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, categories, selectedStockStatuses, selectedSuppliers, selectedProductStatus, sortBy, sortDirection]);
 
-  const refreshData = useCallback(() => {
-    // If we are on page > 1 and refresh, we might want to stay on page or go to 1.
-    // Usually stay.
-    const controller = new AbortController();
-    fetchProducts(controller.signal);
-    fetchInventoryValue();
-    return () => controller.abort();
-  }, [fetchProducts]);
-
   const fetchInventoryValue = useCallback(async () => {
     try {
       const params = new URLSearchParams();
@@ -340,7 +333,16 @@ export default function InventarioPage() {
     } catch (err) {
       console.error('Error al cargar valor del inventario:', err);
     }
-  }, [requestInventoryValue, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, selectedSuppliers, selectedProductStatus, categories]);
+  }, [requestInventoryValue, selectedBranchIds, selectedCategoryId, selectedSubcategoryId, selectedSuppliers, categories]);
+
+  const refreshData = useCallback(() => {
+    // If we are on page > 1 and refresh, we might want to stay on page or go to 1.
+    // Usually stay.
+    const controller = new AbortController();
+    fetchProducts(controller.signal);
+    fetchInventoryValue();
+    return () => controller.abort();
+  }, [fetchProducts, fetchInventoryValue]);
 
   useExchangeRateUpdates(refreshData);
 
