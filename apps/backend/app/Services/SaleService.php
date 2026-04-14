@@ -1505,24 +1505,26 @@ class SaleService implements SaleServiceInterface
         ])->findOrFail($id);
 
         $afipCode = $sale->receiptType->afip_code ?? null;
-        $isInternalOnly = \App\Constants\AfipConstants::salePdfShouldHideSubtotalAndIva($sale->receiptType);
-        $useSdk = !$isInternalOnly;
+        $hideSubtotalIva = \App\Constants\AfipConstants::salePdfShouldHideSubtotalAndIva($sale->receiptType);
 
-        if ($useSdk) {
+        if (!$hideSubtotalIva) {
             return $this->downloadPdfViaSdk($sale, $format);
         }
 
-        return $this->downloadPdfViaBlade($sale, $format);
+        return $this->downloadPdfViaBlade($sale, $format, $hideSubtotalIva);
     }
 
     /**
      * Genera el PDF usando plantillas Blade (Presupuesto y Factura X).
      */
-    private function downloadPdfViaBlade(SaleHeader $sale, string $format): \Illuminate\Http\Response
+    private function downloadPdfViaBlade(SaleHeader $sale, string $format, bool $hideSubtotalIva = false): \Illuminate\Http\Response
     {
         $sale->loadMissing(['receiptType']);
         $template = $format === 'thermal' ? 'pdf.ticket' : 'pdf.sale';
-        $pdf = Pdf::loadView($template, ['sale' => $sale]);
+        $pdf = Pdf::loadView($template, [
+            'sale' => $sale,
+            'hideSubtotalIva' => $hideSubtotalIva
+        ]);
 
         return $pdf->download($this->pdfFilename($sale));
     }

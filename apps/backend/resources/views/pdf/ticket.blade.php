@@ -163,9 +163,10 @@
 
         <table style="font-size: 10px;">
             @php
-                $hideSubtotal = \App\Constants\AfipConstants::salePdfShouldHideSubtotalAndIva($sale->receiptType);
+                // Use the passed variable if it exists, otherwise fallback to the static check
+                $hideLabels = $hideSubtotalIva ?? \App\Constants\AfipConstants::salePdfShouldHideSubtotalAndIva($sale->receiptType);
             @endphp
-            @if(!$hideSubtotal)
+            @if(!$hideLabels)
             <tr>
                 <td class="right">Subtotal:</td>
                 <td class="right mono">${{ number_format($sale->subtotal, 2, ',', '.') }}</td>
