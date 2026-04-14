@@ -160,7 +160,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::middleware('has_permission:crear_productos')->post('/', [ProductController::class, 'store']);
 
         Route::middleware('has_permission:editar_productos')->group(function () {
-            Route::put('/{id}', [ProductController::class, 'update']);
+            Route::put('/{id}', [ProductController::class, 'update'])->whereNumber('id');
 
             // Bulk updates
             Route::middleware('has_permission:actualizar_precios_masivo')->group(function () {
@@ -170,7 +170,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             });
         });
 
-        Route::middleware('has_permission:eliminar_productos')->delete('/{id}', [ProductController::class, 'destroy']);
+        Route::middleware('has_permission:eliminar_productos')->delete('/{id}', [ProductController::class, 'destroy'])->whereNumber('id');
     });
 
     // Product Cost History Routes
