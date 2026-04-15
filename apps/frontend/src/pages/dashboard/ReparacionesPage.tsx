@@ -524,7 +524,12 @@ export default function ReparacionesPage() {
                                                         columnId="payment"
                                                         getColumnCellProps={getColumnCellProps}
                                                     >
-                                                        {rep.is_paid ? (
+                                                        {rep.status === "Cancelado" ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="h-2 w-2 rounded-full bg-slate-400" />
+                                                                <span className="text-xs font-medium text-slate-600">Cancelada</span>
+                                                            </div>
+                                                        ) : rep.is_paid ? (
                                                             <div className="flex items-center gap-2">
                                                                 <div className="h-2 w-2 rounded-full bg-green-500" />
                                                                 <span className="text-xs font-medium text-green-700">Cobrado</span>

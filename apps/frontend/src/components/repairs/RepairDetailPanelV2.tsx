@@ -1149,9 +1149,29 @@ export default function RepairDetailPanelV2({
                                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-gray-100">
                                                             <Banknote className="h-5 w-5 text-gray-400" />
                                                         </div>
-                                                        <div>
-                                                            <p className="font-semibold text-gray-500">No disponible</p>
-                                                            <p className="text-sm text-gray-400">Esta reparación está cancelada</p>
+                                                        <div className="space-y-1">
+                                                            <p className="font-semibold text-gray-600">Reparación cancelada</p>
+                                                            {repair.is_paid ? (
+                                                                <div className="text-xs space-y-0.5">
+                                                                    <p className="text-gray-600 font-medium">Cobrada previamente</p>
+                                                                    <p className="text-gray-500">
+                                                                        <span className="font-medium">Monto:</span>{" "}
+                                                                        {formatCurrency(repair.amount_paid)}
+                                                                    </p>
+                                                                    <p className="text-gray-500">
+                                                                        <span className="font-medium">Método:</span>{" "}
+                                                                        {repair.payment_method?.name || "—"}
+                                                                    </p>
+                                                                    {repair.paid_at && (
+                                                                        <p className="text-gray-500">
+                                                                            <span className="font-medium">Fecha:</span>{" "}
+                                                                            {formatDateTime(repair.paid_at)}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-sm text-gray-500">Sin cobro registrado</p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </CardContent>

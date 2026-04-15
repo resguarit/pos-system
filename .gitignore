@@ -157,3 +157,4 @@ public/images/logo.jpg
 *.pem
 *.p12
 
+apps/frontend/.agents/skills/vitest/references/features-snapshots.md

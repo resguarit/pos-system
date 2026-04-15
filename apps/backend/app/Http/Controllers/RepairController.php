@@ -11,6 +11,7 @@ use App\Http\Requests\Repairs\StoreRepairRequest;
 use App\Http\Requests\Repairs\UpdateRepairRequest;
 use App\Models\Repair;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Validation\Rule;
 
 class RepairController extends Controller
 {
@@ -75,7 +76,7 @@ class RepairController extends Controller
     public function updateStatus(Request $request, int $id): RepairResource|JsonResponse
     {
         $validated = $request->validate([
-            'status' => 'required|in:Pendiente de recepción,Recibido,En diagnóstico,Reparación Interna,Reparación Externa,Esperando repuestos,Terminado,Entregado,Cancelado',
+            'status' => ['required', Rule::in(UpdateRepairRequest::VALID_STATUSES)],
         ]);
 
         $repair = $this->repairs->find($id);

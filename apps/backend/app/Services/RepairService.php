@@ -173,7 +173,37 @@ class RepairService implements RepairServiceInterface
     public function updateStatus(int $id, string $status): Repair
     {
         $repair = Repair::findOrFail($id);
+
+        $wasCancelled = $repair->status === 'Cancelado';
+        $wasPaid = (bool) $repair->is_paid;
+        $paidAmount = (float) ($repair->amount_paid ?? 0);
+        $paidAt = $repair->paid_at;
+        $paymentMethodName = $repair->paymentMethod?->name;
+
         $repair->update(['status' => $status]);
+
+        if ($status === 'Cancelado' && !$wasCancelled) {
+            $paidStatusMessage = $wasPaid
+                ? 'Estado de cobro al cancelar: COBRADA.'
+                : 'Estado de cobro al cancelar: SIN COBRO REGISTRADO.';
+
+            $details = [];
+            if ($wasPaid) {
+                $details[] = 'Monto: $' . number_format($paidAmount, 2, ',', '.');
+                if (!empty($paymentMethodName)) {
+                    $details[] = 'Método: ' . $paymentMethodName;
+                }
+                if (!empty($paidAt)) {
+                    $details[] = 'Fecha cobro: ' . $paidAt->format('d/m/Y H:i');
+                }
+            }
+
+            $repair->notes()->create([
+                'user_id' => auth()->id(),
+                'note' => trim('Reparación cancelada. ' . $paidStatusMessage . ' ' . implode(' | ', $details)),
+            ]);
+        }
+
         return $repair;
     }
 
