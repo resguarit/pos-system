@@ -31,6 +31,10 @@ class Repair extends Model
         'estimated_date',
         'cost',
         'sale_price',
+        'sale_price_without_iva',
+        'iva_percentage',
+        'sale_price_with_iva',
+        'charge_with_iva',
         'initial_notes',
         'delivered_at',
         'no_repair_at',
@@ -42,8 +46,10 @@ class Repair extends Model
         'policy_number',
         'device_age',
         'is_paid',
+        'payment_status',
         'payment_method_id',
         'amount_paid',
+        'total_paid',
         'paid_at',
         'cash_movement_id',
     ];
@@ -63,11 +69,21 @@ class Repair extends Model
         'no_repair_at' => 'datetime',
         'cost' => 'decimal:2',
         'sale_price' => 'decimal:2',
+        'sale_price_without_iva' => 'decimal:2',
+        'iva_percentage' => 'decimal:2',
+        'sale_price_with_iva' => 'decimal:2',
+        'charge_with_iva' => 'boolean',
         'is_no_repair' => 'boolean',
         'is_siniestro' => 'boolean',
         'is_paid' => 'boolean',
+        'payment_status' => 'string',
         'amount_paid' => 'decimal:2',
+        'total_paid' => 'decimal:2',
         'paid_at' => 'datetime',
+    ];
+
+    protected $appends = [
+        'pending_amount',
     ];
 
     // Boot method to handle automatic timestamps
@@ -133,5 +149,24 @@ class Repair extends Model
     public function cashMovement()
     {
         return $this->belongsTo(CashMovement::class);
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(RepairPayment::class)->latest('id');
+    }
+
+    public function getPendingAmountAttribute(): float
+    {
+        $chargeAmount = (float) ($this->charge_with_iva === false
+            ? ($this->sale_price_without_iva ?? 0)
+            : ($this->sale_price_with_iva ?? $this->sale_price ?? 0)
+        );
+
+        $paidAmount = $this->relationLoaded('payments')
+            ? (float) $this->payments->where('is_reversed', false)->sum('amount')
+            : (float) ($this->total_paid ?? $this->amount_paid ?? 0);
+
+        return max(0, round($chargeAmount - $paidAmount, 2));
     }
 }

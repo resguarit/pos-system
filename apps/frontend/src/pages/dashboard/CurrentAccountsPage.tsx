@@ -40,7 +40,8 @@ export default function CurrentAccountsPage() {
   const [searchTerm, setSearchTerm] = usePersistentState('searchTerm', '');
   const [statusFilter, setStatusFilter] = usePersistentState('statusFilter', '');
   const [balanceFilter, setBalanceFilter] = usePersistentState('balanceFilter', '');
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isModuleEnabled } = usePermissions();
+  const repairsEnabled = isModuleEnabled('repairs');
 
   // Manejar filtro inicial desde URL
   useEffect(() => {
@@ -187,6 +188,9 @@ export default function CurrentAccountsPage() {
     }
 
     const stats = statistics;
+    const salesDebt = stats.debt_breakdown?.sales.amount ?? stats.total_current_balance;
+    const repairsDebt = repairsEnabled ? (stats.debt_breakdown?.repairs.amount ?? 0) : 0;
+    const displayTotalDebt = repairsEnabled ? stats.total_current_balance : salesDebt;
 
     return (
       <>
@@ -198,11 +202,19 @@ export default function CurrentAccountsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {CurrentAccountUtils.formatCurrency(stats.total_current_balance)}
+              {CurrentAccountUtils.formatCurrency(displayTotalDebt)}
             </div>
             <p className="text-xs text-gray-600 mt-1">
               Total adeudado por clientes
             </p>
+            {stats.debt_breakdown && (
+              <div className="mt-3 space-y-1 text-xs text-gray-600">
+                <p>Ventas: {CurrentAccountUtils.formatCurrency(salesDebt)}</p>
+                {repairsEnabled && (
+                  <p>Reparaciones: {CurrentAccountUtils.formatCurrency(repairsDebt)}</p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 

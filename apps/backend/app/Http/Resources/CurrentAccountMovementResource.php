@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -63,10 +64,12 @@ class CurrentAccountMovementResource extends JsonResource
             'branch' => $this->when(true, function () {
                 $metadata = is_array($this->metadata) ? $this->metadata : [];
                 if (!empty($metadata['payment_branch_id'])) {
+                    $branch = Branch::find((int) $metadata['payment_branch_id']);
+
                     return [
                         'id' => (int) $metadata['payment_branch_id'],
-                        'description' => $metadata['payment_branch_description'] ?? null,
-                        'color' => $metadata['payment_branch_color'] ?? null,
+                        'description' => $metadata['payment_branch_description'] ?? $branch?->description,
+                        'color' => $metadata['payment_branch_color'] ?? $branch?->color,
                     ];
                 }
                 if ($this->sale && $this->sale->branch) {

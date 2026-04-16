@@ -588,6 +588,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::get('/{accountId}/movement-filters', [CurrentAccountController::class, 'movementFilters']);
         Route::post('/movements', [CurrentAccountController::class, 'createMovement']);
         Route::get('/{accountId}/balance', [CurrentAccountController::class, 'balance']);
+        Route::get('/{accountId}/pending-items', [CurrentAccountController::class, 'pendingItems']);
         Route::get('/{accountId}/pending-sales', [CurrentAccountController::class, 'pendingSales']);
 
         // Operaciones financieras
@@ -682,6 +683,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             Route::patch('/{id}/assign', [RepairController::class, 'assign'])->whereNumber('id');
             Route::post('/{id}/notes', [RepairController::class, 'addNote'])->whereNumber('id');
             Route::post('/{id}/mark-as-paid', [RepairController::class, 'markAsPaid'])->whereNumber('id');
+            Route::post('/{id}/mark-as-unpaid', [RepairController::class, 'markAsUnpaid'])->whereNumber('id');
             Route::post('/{id}/no-repair', [RepairController::class, 'markNoRepair'])->whereNumber('id');
         });
     });

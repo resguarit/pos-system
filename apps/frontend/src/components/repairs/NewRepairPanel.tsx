@@ -27,6 +27,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format as formatDateFn } from "date-fns";
 import { es } from "date-fns/locale";
+import { resolveRepairPricing } from "@/utils/repairPricing";
 
 type UserOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
@@ -44,7 +45,9 @@ type NewRepairForm = {
     status: RepairStatus;
     initial_notes: string;
     cost: string;
-    sale_price: string;
+    sale_price_without_iva: string;
+    iva_percentage: string;
+    sale_price_with_iva: string;
     estimated_date: string;
     intake_date: string;
     // Siniestro fields
@@ -68,7 +71,9 @@ const defaultForm: NewRepairForm = {
     status: "Recibido",
     initial_notes: "",
     cost: "",
-    sale_price: "",
+    sale_price_without_iva: "",
+    iva_percentage: "21",
+    sale_price_with_iva: "",
     intake_date: new Date().toISOString().split("T")[0],
     estimated_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     is_siniestro: false,
@@ -107,6 +112,10 @@ type NewRepairPanelProps = {
         initial_notes?: string;
         cost?: number;
         sale_price?: number;
+        sale_price_without_iva?: number;
+        iva_percentage?: number;
+        sale_price_with_iva?: number;
+        charge_with_iva?: boolean;
         estimated_date?: string;
         intake_date?: string;
         is_siniestro?: boolean;
@@ -151,6 +160,17 @@ export default function NewRepairPanel({
 
     const [isCreatingInsurer, setIsCreatingInsurer] = useState(false);
     const [newInsurerName, setNewInsurerName] = useState("");
+
+    const parseNumberInput = (value: string): number | null => {
+        if (!value.trim()) return null;
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const resolvedPricing = resolveRepairPricing({
+        sale_price_without_iva: parseNumberInput(form.sale_price_without_iva),
+        iva_percentage: parseNumberInput(form.iva_percentage) ?? 21,
+    });
 
     // Reset when panel closes
     useEffect(() => {
@@ -264,7 +284,13 @@ export default function NewRepairPanel({
             if (form.technician_id) payload.technician_id = form.technician_id;
             if (form.initial_notes.trim()) payload.initial_notes = form.initial_notes.trim();
             if (form.cost) payload.cost = parseFloat(form.cost);
-            if (form.sale_price) payload.sale_price = parseFloat(form.sale_price);
+            if (form.sale_price_without_iva.trim()) {
+                payload.sale_price_without_iva = resolvedPricing.sale_price_without_iva;
+                payload.iva_percentage = resolvedPricing.iva_percentage;
+                payload.sale_price_with_iva = resolvedPricing.sale_price_with_iva;
+                payload.sale_price = resolvedPricing.sale_price_with_iva;
+                payload.charge_with_iva = true;
+            }
             if (form.estimated_date) payload.estimated_date = form.estimated_date;
             if (form.intake_date) payload.intake_date = form.intake_date;
             if (form.category_id) payload.category_id = form.category_id;
@@ -803,16 +829,37 @@ export default function NewRepairPanel({
                                     />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="salePrice">Precio de Venta</Label>
+                        <Label htmlFor="salePrice">Precio base (sin IVA)</Label>
                                     <Input
                                         id="salePrice"
                                         type="number"
                                         step="0.01"
                                         min="0"
                                         placeholder="0.00"
-                                        value={form.sale_price}
-                                        onChange={(e) => setForm((f) => ({ ...f, sale_price: e.target.value }))}
+                                        value={form.sale_price_without_iva}
+                                        onChange={(e) => setForm((f) => ({ ...f, sale_price_without_iva: e.target.value }))}
                                     />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label>IVA aplicado</Label>
+                        <div className="flex h-10 items-center justify-between rounded-md border border-input bg-muted/30 px-3">
+                            <span className="text-sm text-muted-foreground">La reparación usa IVA fijo</span>
+                            <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-xs font-semibold text-white">21%</span>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="salePriceWithIva">Precio con IVA (calculado)</Label>
+                        <Input
+                            id="salePriceWithIva"
+                            type="number"
+                            step="0.01"
+                            value={resolvedPricing.sale_price_with_iva}
+                            readOnly
+                            disabled
+                        />
                     </div>
                 </div>
 

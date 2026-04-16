@@ -42,7 +42,10 @@ export interface CurrentAccount {
   };
   credit_limit: number | null;
   current_balance: number;
-  total_pending_debt: number; // Total de ventas pendientes (saldo adeudado)
+  total_pending_debt: number;
+  sales_pending_debt?: number;
+  repairs_pending_debt?: number;
+  debt_breakdown?: CurrentAccountDebtBreakdown;
   available_credit: number | null;
   credit_usage_percentage: number | null;
   status: 'active' | 'suspended' | 'closed';
@@ -55,6 +58,17 @@ export interface CurrentAccount {
   updated_at: string;
   movements_count?: number;
   recent_movements?: CurrentAccountMovement[];
+}
+
+export interface CurrentAccountDebtBreakdownItem {
+  amount: number;
+  count: number;
+}
+
+export interface CurrentAccountDebtBreakdown {
+  total: number;
+  sales: CurrentAccountDebtBreakdownItem;
+  repairs: CurrentAccountDebtBreakdownItem;
 }
 
 export interface CurrentAccountMovement {
@@ -78,7 +92,7 @@ export interface CurrentAccountMovement {
   };
   balance_before: number;
   balance_after: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   user_id?: number;
   user?: {
     id: number;
@@ -133,7 +147,7 @@ export interface CreateMovementData {
   description: string;
   reference?: string;
   sale_id?: number;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   movement_date?: string;
   cash_register_id?: number;
   payment_method_id?: number;
@@ -144,7 +158,7 @@ export interface ProcessPaymentData {
   description: string;
   movement_type_id?: number;
   reference?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ProcessCreditPurchaseData {
@@ -153,7 +167,7 @@ export interface ProcessCreditPurchaseData {
   movement_type_id?: number;
   sale_id?: number;
   reference?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateCreditLimitData {
@@ -189,12 +203,14 @@ export interface MovementFilters {
 export interface CurrentAccountStatistics {
   account_id: number;
   current_balance: number;
+  total_pending_debt?: number;
   credit_limit: number | null;
   available_credit: number;
   credit_usage_percentage: number;
   status: string;
   status_text: string;
   last_movement_at?: string;
+  debt_breakdown?: CurrentAccountDebtBreakdown;
   total_movements_30_days: number;
   total_inflows_30_days: number;
   total_outflows_30_days: number;
@@ -210,6 +226,7 @@ export interface GeneralStatistics {
   at_limit_accounts: number;
   total_credit_limit: number | null;
   total_current_balance: number;
+  debt_breakdown?: CurrentAccountDebtBreakdown;
   total_available_credit: number | null;
   average_credit_limit: number | null;
   average_current_balance: number;
@@ -300,6 +317,24 @@ export interface PendingSale {
   pending_amount: number;
   payment_status: 'pending' | 'partial' | 'paid';
   branch_id: number;
+}
+
+export interface PendingDebtItem {
+  kind: 'sale' | 'repair';
+  id: number;
+  code: string;
+  date: string;
+  total: number;
+  paid_amount: number;
+  pending_amount: number;
+  payment_status: 'pending' | 'partial' | 'paid';
+  branch_id?: number | null;
+  branch?: {
+    id: number;
+    description?: string | null;
+    color?: string | null;
+  } | null;
+  source_label: string;
 }
 
 export interface SalePayment {

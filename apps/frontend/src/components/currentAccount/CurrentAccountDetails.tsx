@@ -21,7 +21,7 @@ import {
   Play,
   RefreshCw
 } from 'lucide-react';
-import { CurrentAccount, CurrentAccountMovement, PendingSale, PaginatedResponse } from '@/types/currentAccount';
+import { CurrentAccount, CurrentAccountMovement, PendingDebtItem, PaginatedResponse } from '@/types/currentAccount';
 import { CurrentAccountService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
 import { InfinitySymbol } from '@/components/ui/InfinitySymbol';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -29,7 +29,7 @@ import { useCurrentAccountActions } from '@/hooks/useCurrentAccountActions';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { PaymentDialog } from './PaymentDialog';
-import { PendingSalesTable } from './PendingSalesTable';
+import { PendingDebtItemsTable } from './PendingDebtItemsTable';
 import { BatchUpdatePricesDialog } from './BatchUpdatePricesDialog';
 import { CheckboxMultiSelect, type CheckboxOption } from '@/components/ui/checkbox-multi-select';
 
@@ -45,7 +45,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   const [movements, setMovements] = useState<CurrentAccountMovement[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMovements, setLoadingMovements] = useState(false);
-  const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
+  const [pendingDebtItems, setPendingDebtItems] = useState<PendingDebtItem[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [totalMovements, setTotalMovements] = useState(0);
@@ -77,7 +77,8 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     storageKey: 'current-account-movements-columns',
   });
 
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isModuleEnabled } = usePermissions();
+  const repairsEnabled = isModuleEnabled('repairs');
   const { suspendAccount, reactivateAccount } = useCurrentAccountActions();
 
 
@@ -125,7 +126,7 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   const handleSuccess = () => {
     // Recargar datos cuando se crea un movimiento o se registra un pago
     loadAccountDetails();
-    loadPendingSales();
+    loadPendingDebtItems();
     loadMovements();
     // Notificar al componente padre para refrescar las estadísticas de las cards
     if (onStatsRefresh) {
@@ -136,20 +137,20 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
   const handleDataRefresh = () => {
     // Recargar solo los datos necesarios sin cerrar el diálogo
     loadAccountDetails();
-    loadPendingSales();
+    loadPendingDebtItems();
     // Notificar al componente padre para refrescar las estadísticas de las cards
     if (onStatsRefresh) {
       onStatsRefresh();
     }
   };
 
-  const loadPendingSales = React.useCallback(async () => {
+  const loadPendingDebtItems = React.useCallback(async () => {
     try {
-      const sales = await CurrentAccountService.getPendingSales(accountId);
-      setPendingSales(sales);
+      const items = await CurrentAccountService.getPendingDebtItems(accountId);
+      setPendingDebtItems(items);
     } catch (error) {
-      console.error('Error loading pending sales:', error);
-      sileo.error({ title: 'Error al cargar ventas pendientes' });
+      console.error('Error loading pending debt items:', error);
+      sileo.error({ title: 'Error al cargar pendientes' });
     }
   }, [accountId]);
 
@@ -179,11 +180,11 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
 
   useEffect(() => {
     loadAccountDetails();
-    loadPendingSales();
+    loadPendingDebtItems();
     loadFilters();
     setCurrentPage(1); // Resetear a página 1 al cambiar de cuenta
     scrollPositionRef.current = 0; // Resetear posición del scroll al cambiar de cuenta
-  }, [accountId, loadAccountDetails, loadPendingSales, loadFilters]);
+  }, [accountId, loadAccountDetails, loadPendingDebtItems, loadFilters]);
 
   useEffect(() => {
     if (accountId) {
@@ -259,12 +260,20 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
     );
   }
 
-  // Total pending debt is already calculated in account.total_pending_debt
-
-  // const balanceDescription = getOutstandingBalanceDescription(
-  //   account?.current_balance || 0,
-  //   totalPendingDebt
-  // );
+  const debtBreakdown = account.debt_breakdown;
+  const salesPendingDebt = debtBreakdown?.sales.amount ?? account.sales_pending_debt ?? 0;
+  const salesPendingCount = debtBreakdown?.sales.count ?? 0;
+  const repairsPendingDebt = repairsEnabled
+    ? (debtBreakdown?.repairs.amount ?? account.repairs_pending_debt ?? Math.max(0, (debtBreakdown?.total ?? account.total_pending_debt ?? 0) - salesPendingDebt))
+    : 0;
+  const repairsPendingCount = repairsEnabled ? (debtBreakdown?.repairs.count ?? 0) : 0;
+  const totalPendingDebt = repairsEnabled
+    ? (debtBreakdown?.total ?? account.total_pending_debt ?? 0)
+    : salesPendingDebt;
+  const visiblePendingItems = repairsEnabled
+    ? pendingDebtItems
+    : pendingDebtItems.filter((item) => item.kind === 'sale');
+  const visiblePendingSales = visiblePendingItems.filter((item) => item.kind === 'sale');
 
   return (
     <div className="space-y-6">
@@ -326,12 +335,18 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
             <DollarSign className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${account?.total_pending_debt && account.total_pending_debt > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {CurrentAccountUtils.formatCurrency(account?.total_pending_debt || 0)}
+            <div className={`text-2xl font-bold ${totalPendingDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {CurrentAccountUtils.formatCurrency(totalPendingDebt)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Deuda Total (Ventas Pendientes)
+              {repairsEnabled ? 'Deuda total por ventas y reparaciones' : 'Deuda total por ventas'}
             </p>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p>Ventas pendientes: {CurrentAccountUtils.formatCurrency(salesPendingDebt)}</p>
+              {repairsEnabled && (
+                <p>Reparaciones pendientes: {CurrentAccountUtils.formatCurrency(repairsPendingDebt)}</p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -357,6 +372,35 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Origen de la Deuda</CardTitle>
+            <CreditCard className="h-4 w-4 text-indigo-600" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium">Ventas</p>
+                <p className="text-xs text-muted-foreground">{salesPendingCount} comprobantes pendientes</p>
+              </div>
+              <p className="text-sm font-semibold text-red-600">
+                {CurrentAccountUtils.formatCurrency(salesPendingDebt)}
+              </p>
+            </div>
+            {repairsEnabled && (
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Reparaciones</p>
+                  <p className="text-xs text-muted-foreground">{repairsPendingCount} órdenes pendientes</p>
+                </div>
+                <p className="text-sm font-semibold text-red-600">
+                  {CurrentAccountUtils.formatCurrency(repairsPendingDebt)}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
       </div>
 
       {/* Tabs */}
@@ -366,9 +410,9 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
           <TabsTrigger value="sales">
             <div className="flex items-center gap-2">
               Ventas Pendientes
-              {pendingSales.length > 0 && (
+              {visiblePendingItems.length > 0 && (
                 <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {pendingSales.length}
+                  {visiblePendingItems.length}
                 </Badge>
               )}
             </div>
@@ -447,8 +491,10 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
         <TabsContent value="sales">
           <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Ventas Pendientes de Pago</h3>
-              {pendingSales.length > 0 && (
+              <h3 className="text-lg font-semibold">
+                {repairsEnabled ? 'Ventas y reparaciones pendientes de pago' : 'Ventas Pendientes de Pago'}
+              </h3>
+              {visiblePendingSales.length > 0 && (
                 <Button
                   onClick={() => setShowBatchUpdateDialog(true)}
                   variant="outline"
@@ -459,8 +505,8 @@ export function CurrentAccountDetails({ accountId, onBack, onStatsRefresh }: Cur
                 </Button>
               )}
             </div>
-            <PendingSalesTable
-              sales={pendingSales}
+            <PendingDebtItemsTable
+              items={visiblePendingItems}
               accountId={accountId}
               onSuccess={handleSuccess}
             />

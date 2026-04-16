@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,16 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     Loader2,
     FileText,
@@ -47,10 +57,21 @@ import { useCustomerSearch, type CustomerOption as SearchCustomerOption } from "
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
+import {
+    type ChargeWithIvaMode,
+    resolvePaymentAmountByMode,
+    resolveRepairPricing,
+} from "@/utils/repairPricing";
 
 type UserOption = { id: number; name: string };
 type CategoryOption = { id: number; name: string };
-type PaymentMethodOption = { id: number; name: string };
+type PaymentMethodOption = {
+    id: number;
+    name: string;
+    affects_cash?: boolean;
+    is_customer_credit?: boolean;
+};
+type RepairPaymentRow = { payment_method_id: string; amount: string };
 
 const STATUS_COLORS: Record<RepairStatus, string> = {
     "Pendiente de recepción": "bg-slate-100 text-slate-800 border-slate-200",
@@ -113,8 +134,23 @@ function formatDateTime(dateString: string | null | undefined): string {
     }
 }
 
-function isFreeRepairPrice(salePrice: number | null | undefined): boolean {
-    return (salePrice ?? 0) <= 0.01;
+function resolveDefaultChargeMode(repair: Repair | null): ChargeWithIvaMode {
+    if (repair?.charge_with_iva === false) {
+        return "without_iva";
+    }
+
+    return "with_iva";
+}
+
+function isFreeRepairPrice(repair: Repair): boolean {
+    const pricing = resolveRepairPricing({
+        sale_price_without_iva: repair.sale_price_without_iva,
+        iva_percentage: repair.iva_percentage,
+        sale_price_with_iva: repair.sale_price_with_iva,
+        sale_price: repair.sale_price,
+    });
+
+    return pricing.sale_price_without_iva <= 0.01 && pricing.sale_price_with_iva <= 0.01;
 }
 
 function isoToDate(iso: string | null | undefined): Date | undefined {
@@ -158,6 +194,8 @@ export default function RepairDetailPanelV2({
     },
 }: RepairDetailPanelV2Props) {
     const { request } = useApi();
+    const [currentRepair, setCurrentRepair] = useState<Repair | null>(null);
+    const effectiveRepair = currentRepair ?? repair;
     const [editData, setEditData] = useState<
         Omit<Partial<Repair>, "device_age"> & {
             customer_id?: number;
@@ -176,30 +214,83 @@ export default function RepairDetailPanelV2({
     const [activeTab, setActiveTab] = useState<"details" | "financials" | "notes">(defaultTab);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
     const { branches } = useBranches();
-    const { markAsPaid } = useRepairs();
+    const { markAsPaid, markAsUnpaid } = useRepairs();
 
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [selectedBranchId, setSelectedBranchId] = useState<string>("");
-    const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>("");
-    const [paymentAmount, setPaymentAmount] = useState<string>("");
+    const [paymentRows, setPaymentRows] = useState<RepairPaymentRow[]>([{ payment_method_id: "", amount: "" }]);
+    const [chargeMode, setChargeMode] = useState<ChargeWithIvaMode>("with_iva");
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [isRevertingPayment, setIsRevertingPayment] = useState(false);
+    const [showRevertDialog, setShowRevertDialog] = useState(false);
+    const [paymentToRevertId, setPaymentToRevertId] = useState<number | null>(null);
     const [paymentError, setPaymentError] = useState<string | null>(null);
 
-    const sortedRepairNotes = (repair?.notes ?? [])
-        .slice()
-        .sort((a, b) => {
-            const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0;
-            const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0;
-            return bTime - aTime;
-        });
+    const pricing = resolveRepairPricing({
+        sale_price_without_iva:
+            "sale_price_without_iva" in editData
+                ? (editData.sale_price_without_iva as number | null | undefined)
+                : effectiveRepair?.sale_price_without_iva,
+        iva_percentage:
+            "iva_percentage" in editData
+                ? (editData.iva_percentage as number | null | undefined)
+                : effectiveRepair?.iva_percentage,
+        sale_price_with_iva:
+            "sale_price_with_iva" in editData
+                ? (editData.sale_price_with_iva as number | null | undefined)
+                : effectiveRepair?.sale_price_with_iva,
+        sale_price:
+            "sale_price" in editData
+                ? (editData.sale_price as number | null | undefined)
+                : effectiveRepair?.sale_price,
+    });
+
+    const sortedRepairNotes = useMemo(() => {
+        return (effectiveRepair?.notes ?? [])
+            .slice()
+            .sort((a, b) => {
+                const aTime = a?.created_at ? new Date(a.created_at).getTime() : 0;
+                const bTime = b?.created_at ? new Date(b.created_at).getTime() : 0;
+                return bTime - aTime;
+            });
+    }, [effectiveRepair?.notes]);
+
+    const sortedRepairPayments = useMemo(() => {
+        return (effectiveRepair?.payments ?? [])
+            .slice()
+            .sort((a, b) => {
+                const aTime = a?.paid_at ? new Date(a.paid_at).getTime() : 0;
+                const bTime = b?.paid_at ? new Date(b.paid_at).getTime() : 0;
+                return bTime - aTime;
+            });
+    }, [effectiveRepair?.payments]);
+
+    const activePaymentsCount = useMemo(() => {
+        return sortedRepairPayments.filter((payment) => !payment.is_reversed).length;
+    }, [sortedRepairPayments]);
+
+    const totalPaidForBalance = useMemo(() => {
+        return Number(effectiveRepair?.total_paid ?? effectiveRepair?.amount_paid ?? 0);
+    }, [effectiveRepair?.total_paid, effectiveRepair?.amount_paid]);
+
+    const resolvePendingAmountByMode = (mode: ChargeWithIvaMode): number => {
+        const targetTotal = resolvePaymentAmountByMode(pricing, mode);
+        return Math.max(0, Number((targetTotal - totalPaidForBalance).toFixed(2)));
+    };
+
+    useEffect(() => {
+        setCurrentRepair(repair ?? null);
+    }, [repair]);
 
     useEffect(() => {
         if (!open) return;
         setActiveTab(defaultTab);
         setShowPaymentForm(false);
         setSelectedBranchId("");
-        setSelectedPaymentMethodId("");
-        setPaymentAmount("");
+        setPaymentRows([{ payment_method_id: "", amount: "" }]);
+        setChargeMode(resolveDefaultChargeMode(repair));
+        setShowRevertDialog(false);
+        setPaymentToRevertId(null);
         setPaymentError(null);
 
         const fetchPaymentMethods = async () => {
@@ -211,20 +302,26 @@ export default function RepairDetailPanelV2({
                 });
                 const data: unknown[] = Array.isArray(resp?.data) ? resp.data : [];
                 const mapped: PaymentMethodOption[] = data
-                    .filter((item: unknown): item is { id: unknown; name: unknown } => {
+                    .filter((item: unknown): item is { id: unknown; name: unknown; affects_cash?: unknown; is_customer_credit?: unknown } => {
                         return typeof item === "object" && item !== null && "id" in item && "name" in item;
                     })
                     .map((item) => {
-                        const it = item as { id: unknown; name: unknown };
-                        return { id: Number(it.id), name: String(it.name) };
-                    });
+                        const it = item as { id: unknown; name: unknown; affects_cash?: unknown; is_customer_credit?: unknown };
+                        return {
+                            id: Number(it.id),
+                            name: String(it.name),
+                            affects_cash: Boolean(it.affects_cash),
+                            is_customer_credit: Boolean(it.is_customer_credit),
+                        };
+                    })
+                    .filter((method) => !method.is_customer_credit);
                 setPaymentMethods(mapped);
             } catch (error) {
                 console.error("Error fetching payment methods:", error);
             }
         };
         fetchPaymentMethods();
-    }, [open, defaultTab, request]);
+    }, [open, defaultTab, repair, request]);
 
     const {
         customerSearch,
@@ -296,6 +393,10 @@ export default function RepairDetailPanelV2({
                 diagnosis: repair.diagnosis,
                 cost: repair.cost,
                 sale_price: repair.sale_price,
+                sale_price_without_iva: repair.sale_price_without_iva,
+                iva_percentage: repair.iva_percentage,
+                sale_price_with_iva: repair.sale_price_with_iva,
+                charge_with_iva: repair.charge_with_iva,
                 customer_id: repair.customer?.id,
                 technician_id: repair.technician?.id,
                 category_id: repair.category?.id ?? repair.category_id ?? undefined,
@@ -388,6 +489,24 @@ export default function RepairDetailPanelV2({
             .finally(() => setAddingNote(false));
     };
 
+    const handleConfirmRevertPayment = async () => {
+        if (!currentRepair) return;
+
+        setIsRevertingPayment(true);
+        setPaymentError(null);
+        try {
+            const result = await markAsUnpaid(currentRepair.id, paymentToRevertId ?? undefined);
+            if (result) {
+                setCurrentRepair(result);
+                setShowRevertDialog(false);
+                setPaymentToRevertId(null);
+                onPaymentSuccess?.();
+            }
+        } finally {
+            setIsRevertingPayment(false);
+        }
+    };
+
     if (!open) return null;
 
     return (
@@ -396,24 +515,24 @@ export default function RepairDetailPanelV2({
                 <div className="flex flex-col gap-3">
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-xl">{repair?.code || "..."}</span>
-                            {repair && (
+                            <span className="font-mono text-xl">{currentRepair?.code || "..."}</span>
+                            {currentRepair && (
                                 <>
-                                    <Badge variant="outline" className={cn("text-xs", STATUS_COLORS[repair.status])}>
-                                        {repair.status}
+                                    <Badge variant="outline" className={cn("text-xs", STATUS_COLORS[currentRepair.status])}>
+                                        {currentRepair.status}
                                     </Badge>
-                                    <Badge variant="outline" className={cn("text-xs", PRIORITY_COLORS[repair.priority])}>
-                                        {repair.priority}
+                                    <Badge variant="outline" className={cn("text-xs", PRIORITY_COLORS[currentRepair.priority])}>
+                                        {currentRepair.priority}
                                     </Badge>
-                                    {repair.is_no_repair && (
+                                    {currentRepair.is_no_repair && (
                                         <Badge className="text-xs bg-rose-100 text-rose-800 border border-rose-300 hover:bg-rose-100">
                                             <AlertCircle className="h-3 w-3 mr-1" />
                                             Sin Reparación
                                         </Badge>
                                     )}
-                                    {repair.category && (
+                                    {currentRepair.category && (
                                         <Badge variant="secondary" className="text-xs">
-                                            {repair.category.name}
+                                            {currentRepair.category.name}
                                         </Badge>
                                     )}
                                 </>
@@ -421,8 +540,8 @@ export default function RepairDetailPanelV2({
                         </div>
 
                         {(onDownloadPdf ||
-                            (onDownloadNoRepairCertificate && repair?.is_no_repair) ||
-                            (onDownloadReceptionCertificate && repair?.is_siniestro)) && (
+                            (onDownloadNoRepairCertificate && currentRepair?.is_no_repair) ||
+                            (onDownloadReceptionCertificate && currentRepair?.is_siniestro)) && (
                                 <div className="flex flex-wrap items-center justify-end gap-2">
                                     {onDownloadPdf && (
                                         <Button
@@ -1085,7 +1204,7 @@ export default function RepairDetailPanelV2({
                                 <div className="space-y-4">
                                     <Card>
                                         <CardContent className="py-4">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                                 <div className="text-center p-4 rounded-lg bg-muted/50">
                                                     <Label className="text-xs text-muted-foreground">Costo</Label>
                                                     {editMode ? (
@@ -1108,30 +1227,41 @@ export default function RepairDetailPanelV2({
                                                     )}
                                                 </div>
                                                 <div className="text-center p-4 rounded-lg bg-muted/50">
-                                                    <Label className="text-xs text-muted-foreground">Precio Venta</Label>
+                                                    <Label className="text-xs text-muted-foreground">Precio base (sin IVA)</Label>
                                                     {editMode ? (
                                                         <Input
                                                             type="number"
                                                             step="0.01"
                                                             className="mt-2 text-center"
                                                             value={
-                                                                "sale_price" in editData
-                                                                    ? (editData.sale_price ?? "")
-                                                                    : repair.sale_price ?? ""
+                                                                "sale_price_without_iva" in editData
+                                                                    ? (editData.sale_price_without_iva ?? "")
+                                                                    : repair.sale_price_without_iva ?? ""
                                                             }
                                                             onChange={(e) =>
                                                                 setEditData((d) => ({
                                                                     ...d,
-                                                                    sale_price: e.target.value ? parseFloat(e.target.value) : null,
+                                                                    sale_price_without_iva: e.target.value ? parseFloat(e.target.value) : null,
                                                                 }))
                                                             }
                                                         />
                                                     ) : (
                                                         <p className="text-2xl font-bold mt-2 text-green-600">
-                                                            {formatCurrency(repair.sale_price)}
+                                                            {formatCurrency(pricing.sale_price_without_iva)}
                                                         </p>
                                                     )}
                                                 </div>
+                                                <div className="text-center p-4 rounded-lg bg-muted/50">
+                                                    <Label className="text-xs text-muted-foreground">IVA (%)</Label>
+                                                    <p className="text-2xl font-bold mt-2 text-amber-600">21%</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-6 text-center p-4 rounded-lg bg-emerald-50 border border-emerald-200">
+                                                <Label className="text-xs text-emerald-700">Precio con IVA (bruto)</Label>
+                                                <p className="text-2xl font-bold mt-2 text-emerald-700">
+                                                    {formatCurrency(pricing.sale_price_with_iva)}
+                                                </p>
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -1142,6 +1272,27 @@ export default function RepairDetailPanelV2({
                                             <span>Estado de Pago</span>
                                         </h3>
 
+                                        <Card className="border-slate-200 bg-slate-50/50">
+                                            <CardContent className="py-3">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs text-muted-foreground">Estado:</span>
+                                                        <Badge variant="outline">
+                                                            {repair.payment_status === "paid"
+                                                                ? "Pagada"
+                                                                : repair.payment_status === "partial"
+                                                                    ? "Parcial"
+                                                                    : "Pendiente"}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="text-xs text-muted-foreground flex items-center gap-3">
+                                                        <span>Total cobrado: {formatCurrency(repair.total_paid ?? repair.amount_paid ?? 0)}</span>
+                                                        <span>Pendiente: {formatCurrency(repair.pending_amount ?? 0)}</span>
+                                                    </div>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+
                                         {repair.status === "Cancelado" ? (
                                             <Card className="border-gray-200 bg-gray-50/50">
                                                 <CardContent className="py-4">
@@ -1149,7 +1300,7 @@ export default function RepairDetailPanelV2({
                                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-gray-100">
                                                             <Banknote className="h-5 w-5 text-gray-400" />
                                                         </div>
-                                                        <div className="space-y-1">
+                                                        <div className="space-y-1 flex-1">
                                                             <p className="font-semibold text-gray-600">Reparación cancelada</p>
                                                             {repair.is_paid ? (
                                                                 <div className="text-xs space-y-0.5">
@@ -1161,6 +1312,10 @@ export default function RepairDetailPanelV2({
                                                                     <p className="text-gray-500">
                                                                         <span className="font-medium">Método:</span>{" "}
                                                                         {repair.payment_method?.name || "—"}
+                                                                    </p>
+                                                                    <p className="text-gray-500">
+                                                                        <span className="font-medium">Modalidad:</span>{" "}
+                                                                        {repair.charge_with_iva === false ? "Sin IVA" : "Con IVA"}
                                                                     </p>
                                                                     {repair.paid_at && (
                                                                         <p className="text-gray-500">
@@ -1174,6 +1329,29 @@ export default function RepairDetailPanelV2({
                                                             )}
                                                         </div>
                                                     </div>
+
+                                                    {repair.is_paid && (
+                                                        <div className="mt-4 pt-3 border-t border-gray-200/70">
+                                                            <Button
+                                                                variant="outline"
+                                                                className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
+                                                                disabled={isRevertingPayment}
+                                                                onClick={() => {
+                                                                    setPaymentToRevertId(null);
+                                                                    setShowRevertDialog(true);
+                                                                }}
+                                                            >
+                                                                {isRevertingPayment ? (
+                                                                    <>
+                                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                        Revirtiendo...
+                                                                    </>
+                                                                ) : (
+                                                                    "Revertir cobro"
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </CardContent>
                                             </Card>
                                         ) : repair.is_paid ? (
@@ -1183,7 +1361,7 @@ export default function RepairDetailPanelV2({
                                                         <div className="flex items-center justify-center h-10 w-10 rounded-full bg-green-100">
                                                             <CheckCircle2 className="h-5 w-5 text-green-600" />
                                                         </div>
-                                                        <div className="space-y-1">
+                                                        <div className="space-y-1 flex-1">
                                                             <p className="font-semibold text-green-800">Cobrado</p>
                                                             <div className="text-xs space-y-0.5">
                                                                 <p className="text-green-700">
@@ -1194,6 +1372,10 @@ export default function RepairDetailPanelV2({
                                                                     <span className="font-medium">Método:</span>{" "}
                                                                     {repair.payment_method?.name || "—"}
                                                                 </p>
+                                                                <p className="text-green-700">
+                                                                    <span className="font-medium">Modalidad:</span>{" "}
+                                                                    {repair.charge_with_iva === false ? "Sin IVA" : "Con IVA"}
+                                                                </p>
                                                                 {repair.paid_at && (
                                                                     <p className="text-green-600">
                                                                         <span className="font-medium">Fecha:</span>{" "}
@@ -1203,9 +1385,30 @@ export default function RepairDetailPanelV2({
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    <div className="mt-4 pt-3 border-t border-green-200/70">
+                                                        <Button
+                                                            variant="outline"
+                                                            className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
+                                                            disabled={isRevertingPayment}
+                                                            onClick={() => {
+                                                                setPaymentToRevertId(null);
+                                                                setShowRevertDialog(true);
+                                                            }}
+                                                        >
+                                                            {isRevertingPayment ? (
+                                                                <>
+                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                    Revirtiendo...
+                                                                </>
+                                                            ) : (
+                                                                "Revertir cobro"
+                                                            )}
+                                                        </Button>
+                                                    </div>
                                                 </CardContent>
                                             </Card>
-                                        ) : isFreeRepairPrice(repair.sale_price) ? (
+                                        ) : isFreeRepairPrice(repair) ? (
                                             <Card className="border-slate-200 shadow-sm">
                                                 <CardContent className="py-4 space-y-4">
                                                     <div className="flex items-center justify-between">
@@ -1315,49 +1518,142 @@ export default function RepairDetailPanelV2({
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-medium">Método de Pago *</Label>
-                                                        <Select
-                                                            value={selectedPaymentMethodId}
-                                                            onValueChange={setSelectedPaymentMethodId}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Seleccionar método" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {paymentMethods.map((method) => (
-                                                                    <SelectItem key={method.id} value={String(method.id)}>
-                                                                        {method.name}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                        <div className="flex items-center justify-between">
+                                                            <Label className="text-xs font-medium">Métodos de Pago *</Label>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setPaymentRows((prev) => [...prev, { payment_method_id: "", amount: "" }]);
+                                                                }}
+                                                            >
+                                                                Agregar método
+                                                            </Button>
+                                                        </div>
+
+                                                        <div className="space-y-2">
+                                                            {paymentRows.map((row, index) => (
+                                                                <div key={`${index}-${row.payment_method_id}`} className="grid grid-cols-12 gap-2 items-center">
+                                                                    <div className="col-span-7">
+                                                                        <Select
+                                                                            value={row.payment_method_id}
+                                                                            onValueChange={(value) => {
+                                                                                setPaymentRows((prev) =>
+                                                                                    prev.map((entry, entryIndex) =>
+                                                                                        entryIndex === index
+                                                                                            ? { ...entry, payment_method_id: value }
+                                                                                            : entry
+                                                                                    )
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <SelectTrigger aria-label={`Método de pago ${index + 1}`}>
+                                                                                <SelectValue placeholder="Seleccionar método" />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                {paymentMethods.map((method) => (
+                                                                                    <SelectItem key={method.id} value={String(method.id)}>
+                                                                                        {method.name}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </div>
+                                                                    <div className="col-span-4">
+                                                                        <Input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            min="0"
+                                                                            placeholder="0.00"
+                                                                            value={row.amount}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setPaymentRows((prev) =>
+                                                                                    prev.map((entry, entryIndex) =>
+                                                                                        entryIndex === index ? { ...entry, amount: value } : entry
+                                                                                    )
+                                                                                );
+                                                                            }}
+                                                                            aria-label={`Monto método de pago ${index + 1}`}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="col-span-1 flex justify-end">
+                                                                        {paymentRows.length > 1 && (
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => {
+                                                                                    setPaymentRows((prev) => prev.filter((_, i) => i !== index));
+                                                                                }}
+                                                                                aria-label={`Eliminar método de pago ${index + 1}`}
+                                                                            >
+                                                                                ×
+                                                                            </Button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-medium">Monto a Cobrar *</Label>
-                                                        <Input
-                                                            type="number"
-                                                            step="0.01"
-                                                            min="0"
-                                                            placeholder="0.00"
-                                                            value={paymentAmount}
-                                                            onChange={(e) => setPaymentAmount(e.target.value)}
-                                                        />
-                                                        {paymentAmount && repair.sale_price && (() => {
-                                                            const diff = parseFloat(paymentAmount) - (repair.sale_price || 0);
-                                                            if (Math.abs(diff) > 0.01) {
-                                                                return (
-                                                                    <p
-                                                                        className={`text-xs ${diff > 0 ? "text-green-600" : "text-orange-600"
-                                                                            }`}
-                                                                    >
-                                                                        {diff > 0
-                                                                            ? `+${formatCurrency(diff)} (sobrepago)`
-                                                                            : `${formatCurrency(diff)} (parcial)`}
+                                                        <Label className="text-xs font-medium">Modalidad de Cobro *</Label>
+                                                        <Select
+                                                            value={chargeMode}
+                                                            onValueChange={(value) => {
+                                                                const mode = value as ChargeWithIvaMode;
+                                                                setChargeMode(mode);
+                                                            }}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Seleccionar modalidad" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="with_iva">
+                                                                    Cobrar con IVA ({formatCurrency(pricing.sale_price_with_iva)})
+                                                                </SelectItem>
+                                                                <SelectItem value="without_iva">
+                                                                    Cobrar sin IVA ({formatCurrency(pricing.sale_price_without_iva)})
+                                                                </SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Neto: {formatCurrency(pricing.sale_price_without_iva)} | IVA ({pricing.iva_percentage.toFixed(2)}%): {formatCurrency(pricing.sale_price_with_iva - pricing.sale_price_without_iva)} | Bruto: {formatCurrency(pricing.sale_price_with_iva)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="space-y-2 rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+                                                        <Label className="text-xs font-medium">Resumen</Label>
+                                                        {(() => {
+                                                            const expectedAmount = resolvePendingAmountByMode(chargeMode);
+                                                            const enteredAmount = paymentRows.reduce((acc, row) => {
+                                                                const parsed = parseFloat(row.amount);
+                                                                if (Number.isNaN(parsed) || parsed <= 0) return acc;
+                                                                return acc + parsed;
+                                                            }, 0);
+                                                            const diff = enteredAmount - expectedAmount;
+
+                                                            return (
+                                                                <div className="space-y-1 text-xs">
+                                                                    <p className="text-emerald-800">
+                                                                        <span className="font-semibold">Pendiente actual:</span> {formatCurrency(expectedAmount)}
                                                                     </p>
-                                                                );
-                                                            }
-                                                            return null;
+                                                                    <p className="text-emerald-800">
+                                                                        <span className="font-semibold">Ingresado:</span> {formatCurrency(enteredAmount)}
+                                                                    </p>
+                                                                    {Math.abs(diff) > 0.01 ? (
+                                                                        <p className={diff > 0 ? "text-red-700" : "text-orange-700"}>
+                                                                            {diff > 0
+                                                                                ? `Sobrepago: ${formatCurrency(diff)} (no permitido)`
+                                                                                : `Faltará luego del cobro: ${formatCurrency(Math.abs(diff))}`}
+                                                                        </p>
+                                                                    ) : (
+                                                                        <p className="text-green-700">Con este cobro queda en $0 para esta modalidad.</p>
+                                                                    )}
+                                                                </div>
+                                                            );
                                                         })()}
                                                     </div>
 
@@ -1365,22 +1661,43 @@ export default function RepairDetailPanelV2({
                                                         className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
                                                         disabled={
                                                             !selectedBranchId ||
-                                                            !selectedPaymentMethodId ||
-                                                            !paymentAmount ||
+                                                            paymentRows.some((row) => !row.payment_method_id || !row.amount || parseFloat(row.amount) <= 0) ||
+                                                            (() => {
+                                                                const expectedAmount = resolvePendingAmountByMode(chargeMode);
+                                                                const enteredAmount = paymentRows.reduce((acc, row) => {
+                                                                    const parsed = parseFloat(row.amount);
+                                                                    if (Number.isNaN(parsed) || parsed <= 0) return acc;
+                                                                    return acc + parsed;
+                                                                }, 0);
+                                                                return enteredAmount - expectedAmount > 0.01;
+                                                            })() ||
                                                             isProcessingPayment
                                                         }
                                                         onClick={async () => {
                                                             setIsProcessingPayment(true);
                                                             setPaymentError(null);
                                                             try {
+                                                                const normalizedPayments = paymentRows
+                                                                    .map((row) => ({
+                                                                        payment_method_id: parseInt(row.payment_method_id, 10),
+                                                                        amount: parseFloat(row.amount),
+                                                                    }))
+                                                                    .filter(
+                                                                        (row) =>
+                                                                            Number.isFinite(row.payment_method_id)
+                                                                            && row.payment_method_id > 0
+                                                                            && Number.isFinite(row.amount)
+                                                                            && row.amount > 0
+                                                                    );
+
                                                                 const result = await markAsPaid(repair.id, {
                                                                     branch_id: parseInt(selectedBranchId),
-                                                                    payment_method_id: parseInt(selectedPaymentMethodId),
-                                                                    amount_paid: parseFloat(paymentAmount),
+                                                                    payments: normalizedPayments,
+                                                                    charge_with_iva: chargeMode === "with_iva",
                                                                 });
                                                                 if (result) {
                                                                     sileo.success({
-                                                                        title: "Pago registrado exitosamente. Se actualizó la caja.",
+                                                                        title: `Pago registrado. Pendiente por cobrar: ${formatCurrency(result.pending_amount ?? 0)}.`,
                                                                     });
                                                                     setShowPaymentForm(false);
                                                                     onPaymentSuccess?.();
@@ -1424,7 +1741,14 @@ export default function RepairDetailPanelV2({
                                                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm h-12"
                                                 onClick={() => {
                                                     setShowPaymentForm(true);
-                                                    setPaymentAmount(String(repair.sale_price || ""));
+                                                    const defaultMode = resolveDefaultChargeMode(repair);
+                                                    setChargeMode(defaultMode);
+                                                    setPaymentRows([
+                                                        {
+                                                            payment_method_id: "",
+                                                            amount: String(resolvePendingAmountByMode(defaultMode)),
+                                                        },
+                                                    ]);
                                                     if (repair.branch?.id) setSelectedBranchId(String(repair.branch.id));
                                                 }}
                                             >
@@ -1433,6 +1757,60 @@ export default function RepairDetailPanelV2({
                                             </Button>
                                         )}
                                     </div>
+
+                                    <Card>
+                                        <CardContent className="py-4 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <h4 className="text-sm font-semibold">Historial de cobros</h4>
+                                                <Badge variant="outline">
+                                                    {sortedRepairPayments.length} registrados / {activePaymentsCount} activos
+                                                </Badge>
+                                            </div>
+
+                                            {sortedRepairPayments.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground">Todavía no hay cobros registrados para esta reparación.</p>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {sortedRepairPayments.map((payment) => (
+                                                        <div
+                                                            key={payment.id}
+                                                            className="rounded-lg border p-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between"
+                                                        >
+                                                            <div className="space-y-0.5">
+                                                                <p className="text-sm font-medium">
+                                                                    {payment.payment_method?.name || "Método no disponible"} - {formatCurrency(payment.amount)}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {payment.paid_at ? formatDateTime(payment.paid_at) : "Sin fecha"} | {payment.charge_with_iva ? "Con IVA" : "Sin IVA"}
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-2">
+                                                                <Badge variant={payment.is_reversed ? "secondary" : "default"}>
+                                                                    {payment.is_reversed ? "Revertido" : "Activo"}
+                                                                </Badge>
+                                                                {!payment.is_reversed && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="border-rose-200 text-rose-700 hover:bg-rose-50"
+                                                                        disabled={isRevertingPayment}
+                                                                        onClick={() => {
+                                                                            setPaymentToRevertId(payment.id);
+                                                                            setShowRevertDialog(true);
+                                                                        }}
+                                                                    >
+                                                                        Revertir este pago
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
                                 </div>
                             </TabsContent>
 
@@ -1496,6 +1874,44 @@ export default function RepairDetailPanelV2({
                         </Button>
                     </div>
                 )}
+
+                <AlertDialog
+                    open={showRevertDialog}
+                    onOpenChange={(openDialog) => {
+                        setShowRevertDialog(openDialog);
+                        if (!openDialog) {
+                            setPaymentToRevertId(null);
+                        }
+                    }}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>¿Seguro que querés revertir este cobro?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {paymentToRevertId
+                                    ? "Se anulará el pago seleccionado, su impacto en caja y en cuenta corriente."
+                                    : "Se anulará el último pago activo, su impacto en caja y en cuenta corriente."}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isRevertingPayment}>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={handleConfirmRevertPayment}
+                                disabled={isRevertingPayment}
+                                className="bg-rose-600 hover:bg-rose-700 text-white"
+                            >
+                                {isRevertingPayment ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Revirtiendo...
+                                    </>
+                                ) : (
+                                    "Revertir cobro"
+                                )}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </CardContent>
         </Card>
     );

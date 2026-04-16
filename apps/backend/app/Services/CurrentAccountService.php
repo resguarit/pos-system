@@ -9,6 +9,10 @@ use App\Models\CurrentAccount;
 use App\Models\CurrentAccountMovement;
 use App\Constants\CurrentAccountMovementTypes;
 use App\Models\Customer;
+use App\Models\RepairPayment;
+use App\Models\Repair;
+use App\Models\SaleHeader;
+use App\Models\Branch;
 use App\Models\MovementType;
 use App\Services\SearchService;
 use Illuminate\Http\Request;
@@ -766,6 +770,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
     public function getAccountStatistics(int $accountId): array
     {
         $account = CurrentAccount::findOrFail($accountId);
+        $debtBreakdown = $this->getCustomerDebtBreakdown($account->customer_id);
 
         $from = now()->subDays(30);
         $to = now();
@@ -776,12 +781,14 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         return [
             'account_id' => $accountId,
             'current_balance' => $account->current_balance,
+            'total_pending_debt' => $debtBreakdown['total'],
             'credit_limit' => $account->credit_limit,
             'available_credit' => $account->available_credit,
             'credit_usage_percentage' => $account->credit_usage_percentage,
             'status' => $account->status,
             'status_text' => $account->status_text,
             'last_movement_at' => $account->last_movement_at,
+            'debt_breakdown' => $debtBreakdown,
             'total_movements_30_days' => $account->movementsByDateRange($from, $to)->count(),
             'total_inflows_30_days' => $totalInflows,
             'total_outflows_30_days' => $totalOutflows,
@@ -809,24 +816,31 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         // Esto es consistente con CurrentAccountResource
         $allAccounts = CurrentAccount::with('customer.person')->get();
         $totalPendingDebt = 0;
+        $totalSalesPendingDebt = 0;
+        $totalRepairsPendingDebt = 0;
+        $totalSalesWithDebt = 0;
+        $totalRepairsWithDebt = 0;
         $customersWithDebt = 0;
         $clientWithHighestDebt = null;
         $highestDebtAmount = 0;
+        $accountDebtBreakdowns = [];
 
         foreach ($allAccounts as $account) {
-            $accountDebt = 0;
+            $accountDebtBreakdown = $this->getCustomerDebtBreakdown($account->customer_id);
+            $accountDebtBreakdowns[$account->id] = $accountDebtBreakdown;
 
-            if ($account->customer_id) {
-                $sales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                    ->validForDebt()
-                    ->pendingDebt()
-                    ->get();
+            $accountDebt = (float) $accountDebtBreakdown['total'];
+            $salesDebt = (float) $accountDebtBreakdown['sales']['amount'];
+            $repairsDebt = (float) $accountDebtBreakdown['repairs']['amount'];
 
-                foreach ($sales as $sale) {
-                    if ($sale->pending_amount > 0.01) {
-                        $accountDebt += $sale->pending_amount;
-                    }
-                }
+            if ($salesDebt > 0.01) {
+                $totalSalesWithDebt++;
+                $totalSalesPendingDebt += $salesDebt;
+            }
+
+            if ($repairsDebt > 0.01) {
+                $totalRepairsWithDebt++;
+                $totalRepairsPendingDebt += $repairsDebt;
             }
 
             if ($accountDebt > 0.01) {
@@ -850,18 +864,7 @@ class CurrentAccountService implements CurrentAccountServiceInterface
         } else {
             foreach ($allAccounts as $account) {
                 if ($account->credit_limit !== null) {
-                    $accountDebt = 0;
-                    if ($account->customer_id) {
-                        $sales = \App\Models\SaleHeader::where('customer_id', $account->customer_id)
-                            ->validForDebt()
-                            ->pendingDebt()
-                            ->get();
-                        foreach ($sales as $sale) {
-                            if ($sale->pending_amount > 0.01) {
-                                $accountDebt += $sale->pending_amount;
-                            }
-                        }
-                    }
+                    $accountDebt = (float) ($accountDebtBreakdowns[$account->id]['total'] ?? 0);
                     $totalAvailableCredit += max(0, (float) $account->credit_limit - $accountDebt);
                 }
             }
@@ -876,6 +879,17 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'at_limit_accounts' => $atLimitAccounts,
             'total_credit_limit' => $hasInfiniteLimit ? null : $totalCreditLimit,
             'total_current_balance' => $totalPendingDebt,
+            'debt_breakdown' => [
+                'total' => $totalPendingDebt,
+                'sales' => [
+                    'amount' => $totalSalesPendingDebt,
+                    'count' => $totalSalesWithDebt,
+                ],
+                'repairs' => [
+                    'amount' => $totalRepairsPendingDebt,
+                    'count' => $totalRepairsWithDebt,
+                ],
+            ],
             'total_available_credit' => $totalAvailableCredit,
             'average_credit_limit' => $hasInfiniteLimit ? null : ($totalAccounts > 0 ? $totalCreditLimit / $totalAccounts : 0),
             'average_current_balance' => $totalAccounts > 0 ? $totalPendingDebt / $totalAccounts : 0,
@@ -951,6 +965,178 @@ class CurrentAccountService implements CurrentAccountServiceInterface
             'net_movement' => $totalInflows - $totalOutflows,
             'average_daily_movement' => $movementsCount > 0 ? ($totalInflows - $totalOutflows) / $from->diffInDays($to) : 0,
         ];
+    }
+
+    /**
+     * Obtener el desglose de deuda de un cliente por origen.
+     */
+    public function getCustomerDebtBreakdown(?int $customerId): array
+    {
+        if (!$customerId) {
+            return [
+                'total' => 0.0,
+                'sales' => [
+                    'amount' => 0.0,
+                    'count' => 0,
+                ],
+                'repairs' => [
+                    'amount' => 0.0,
+                    'count' => 0,
+                ],
+            ];
+        }
+
+        $sales = SaleHeader::where('customer_id', $customerId)
+            ->validForDebt()
+            ->pendingDebt()
+            ->get();
+
+        $salesPendingAmount = 0.0;
+        $salesPendingCount = 0;
+        foreach ($sales as $sale) {
+            $pendingAmount = (float) ($sale->pending_amount ?? 0);
+            if ($pendingAmount > 0.01) {
+                $salesPendingAmount += $pendingAmount;
+                $salesPendingCount++;
+            }
+        }
+
+        $repairs = Repair::where('customer_id', $customerId)
+            ->with(['payments' => function ($query) {
+                $query->where('is_reversed', false);
+            }])
+            ->get();
+
+        $repairsPendingAmount = 0.0;
+        $repairsPendingCount = 0;
+        foreach ($repairs as $repair) {
+            $pendingAmount = (float) ($repair->pending_amount ?? 0);
+            if ($pendingAmount > 0.01) {
+                $repairsPendingAmount += $pendingAmount;
+                $repairsPendingCount++;
+            }
+        }
+
+        $salesPendingAmount = round($salesPendingAmount, 2);
+        $repairsPendingAmount = round($repairsPendingAmount, 2);
+
+        return [
+            'total' => round($salesPendingAmount + $repairsPendingAmount, 2),
+            'sales' => [
+                'amount' => $salesPendingAmount,
+                'count' => $salesPendingCount,
+            ],
+            'repairs' => [
+                'amount' => $repairsPendingAmount,
+                'count' => $repairsPendingCount,
+            ],
+        ];
+    }
+
+    /**
+     * Obtener deudas pendientes combinadas de ventas y reparaciones.
+     */
+    public function getPendingDebtItems(int $accountId): array
+    {
+        $account = CurrentAccount::with('customer')->findOrFail($accountId);
+
+        if (!$account->customer_id) {
+            return [];
+        }
+
+        $sales = SaleHeader::where('customer_id', $account->customer_id)
+            ->validForDebt()
+            ->pendingDebt()
+            ->with('branch')
+            ->withSum([
+                'currentAccountMovements as surcharge_total' => function ($query) {
+                    $query->whereHas('movementType', function ($movementTypeQuery) {
+                        $movementTypeQuery->where('name', 'Recargo');
+                    });
+                },
+            ], 'amount')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $repairs = Repair::where('customer_id', $account->customer_id)
+            ->with([
+                'branch',
+                'payments' => function ($query) {
+                    $query->where('is_reversed', false);
+                },
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $items = [];
+
+        foreach ($sales as $sale) {
+            $pendingAmount = (float) ($sale->pending_amount ?? 0);
+            if ($pendingAmount <= 0.01) {
+                continue;
+            }
+
+            $items[] = [
+                'kind' => 'sale',
+                'id' => $sale->id,
+                'code' => $sale->receipt_number,
+                'date' => $sale->created_at ? $sale->created_at->format('Y-m-d') : 'N/A',
+                'total' => (float) ($sale->total ?? 0) + (float) ($sale->surcharge_total ?? 0),
+                'paid_amount' => (float) ($sale->paid_amount ?? 0),
+                'pending_amount' => $pendingAmount,
+                'payment_status' => $sale->payment_status ?? 'pending',
+                'branch_id' => $sale->branch_id,
+                'branch' => $sale->branch ? [
+                    'id' => $sale->branch->id,
+                    'description' => $sale->branch->description ?? null,
+                    'color' => $sale->branch->color ?? null,
+                ] : null,
+                'source_label' => 'Venta',
+            ];
+        }
+
+        foreach ($repairs as $repair) {
+            $pendingAmount = (float) ($repair->pending_amount ?? 0);
+            if ($pendingAmount <= 0.01) {
+                continue;
+            }
+
+            $chargeAmount = (float) ($repair->charge_with_iva === false
+                ? ($repair->sale_price_without_iva ?? 0)
+                : ($repair->sale_price_with_iva ?? $repair->sale_price ?? 0)
+            );
+            
+            $paidAmount = $repair->relationLoaded('payments')
+                ? (float) $repair->payments->where('is_reversed', false)->sum('amount')
+                : (float) ($repair->total_paid ?? $repair->amount_paid ?? 0);
+
+            $items[] = [
+                'kind' => 'repair',
+                'id' => $repair->id,
+                'code' => $repair->code,
+                'date' => $repair->delivered_at?->format('Y-m-d')
+                    ?? $repair->intake_date?->format('Y-m-d')
+                    ?? $repair->created_at?->format('Y-m-d')
+                    ?? 'N/A',
+                'total' => $chargeAmount,
+                'paid_amount' => $paidAmount,
+                'pending_amount' => $pendingAmount,
+                'payment_status' => $pendingAmount > 0.01 ? 'pending' : 'paid',
+                'branch_id' => $repair->branch_id,
+                'branch' => $repair->branch ? [
+                    'id' => $repair->branch->id,
+                    'description' => $repair->branch->description ?? null,
+                    'color' => $repair->branch->color ?? null,
+                ] : null,
+                'source_label' => 'Reparación',
+            ];
+        }
+
+        usort($items, function (array $left, array $right): int {
+            return strcmp((string) $right['date'], (string) $left['date']);
+        });
+
+        return array_values($items);
     }
 
     /**

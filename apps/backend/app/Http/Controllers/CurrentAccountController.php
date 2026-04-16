@@ -670,6 +670,33 @@ class CurrentAccountController extends Controller
     }
 
     /**
+     * Obtener ventas y reparaciones pendientes de pago de una cuenta corriente
+     */
+    public function pendingItems(int $accountId): JsonResponse
+    {
+        try {
+            $pendingItems = $this->currentAccountService->getPendingDebtItems($accountId);
+
+            return response()->json([
+                'status' => 200,
+                'success' => true,
+                'data' => $pendingItems,
+            ], 200);
+        } catch (Exception $e) {
+            Log::error('Error al obtener pendientes combinados: ' . $e->getMessage(), [
+                'account_id' => $accountId,
+                'exception' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'status' => 500,
+                'success' => false,
+                'message' => 'Error al obtener pendientes combinados',
+            ], 500);
+        }
+    }
+
+    /**
      * Obtener ventas pendientes de pago de una cuenta corriente
      */
     public function pendingSales(int $accountId): JsonResponse

@@ -60,6 +60,7 @@ type UseRepairsReturn = {
     downloadReceptionCertificate: (id: number) => Promise<void>;
     downloadNoRepairCertificate: (id: number) => Promise<void>;
     markAsPaid: (id: number, paymentData: MarkAsPaidData) => Promise<Repair | null>;
+    markAsUnpaid: (id: number, paymentId?: number) => Promise<Repair | null>;
     markAsNoRepair: (id: number, data?: MarkAsNoRepairData) => Promise<Repair | null>;
     refresh: () => void;
 };
@@ -78,6 +79,10 @@ type CreateRepairData = {
     initial_notes?: string;
     cost?: number;
     sale_price?: number;
+    sale_price_without_iva?: number;
+    iva_percentage?: number;
+    sale_price_with_iva?: number;
+    charge_with_iva?: boolean;
 };
 
 type UpdateRepairData = Partial<CreateRepairData> & {
@@ -88,6 +93,11 @@ export type MarkAsPaidData = {
     payment_method_id?: number;
     amount_paid?: number;
     branch_id?: number;
+    charge_with_iva?: boolean;
+    payments?: Array<{
+        payment_method_id: number;
+        amount: number;
+    }>;
 };
 
 type MarkAsNoRepairData = {
@@ -366,6 +376,27 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         [request]
     );
 
+    const markAsUnpaid = useCallback(
+        async (id: number, paymentId?: number): Promise<Repair | null> => {
+            try {
+                const resp = await request({
+                    method: "POST",
+                    url: `/repairs/${id}/mark-as-unpaid`,
+                    data: paymentId ? { payment_id: paymentId } : undefined,
+                });
+                const repair = (resp as { data?: Repair })?.data || (resp as Repair);
+                sileo.success({ title: "Cobro revertido correctamente" });
+                return repair;
+            } catch (err) {
+                const error = err as { response?: { data?: { error?: string } } };
+                const errorMsg = error?.response?.data?.error || "No se pudo revertir el cobro";
+                sileo.error({ title: errorMsg });
+                return null;
+            }
+        },
+        [request]
+    );
+
     // Add note
     const addNote = useCallback(
         async (id: number, note: string): Promise<boolean> => {
@@ -567,6 +598,7 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         downloadReceptionCertificate,
         downloadNoRepairCertificate,
         markAsPaid,
+        markAsUnpaid,
         markAsNoRepair,
         refresh,
     };

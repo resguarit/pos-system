@@ -61,6 +61,10 @@ class RepairResource extends JsonResource
             'estimated_date' => optional($this->estimated_date)->format('Y-m-d'),
             'cost' => $this->cost,
             'sale_price' => $this->sale_price,
+            'sale_price_without_iva' => $this->sale_price_without_iva,
+            'iva_percentage' => $this->iva_percentage,
+            'sale_price_with_iva' => $this->sale_price_with_iva,
+            'charge_with_iva' => $this->charge_with_iva,
             'initial_notes' => $this->initial_notes,
             'delivered_at' => optional($this->delivered_at)?->toDateTimeString(),
             'created_at' => $this->created_at?->toDateTimeString(),
@@ -98,13 +102,33 @@ class RepairResource extends JsonResource
             }),
             // Payment fields
             'is_paid' => $this->is_paid,
+            'payment_status' => $this->payment_status ?? ($this->is_paid ? 'paid' : 'pending'),
             'amount_paid' => $this->amount_paid,
+            'total_paid' => $this->total_paid ?? $this->amount_paid,
+            'pending_amount' => $this->pending_amount,
             'paid_at' => $this->paid_at?->toDateTimeString(),
             'payment_method' => $this->whenLoaded('paymentMethod', function () {
                 return [
                     'id' => $this->paymentMethod?->id,
                     'name' => $this->paymentMethod?->name,
                 ];
+            }),
+            'payments' => $this->whenLoaded('payments', function () {
+                return $this->payments->map(function ($payment) {
+                    return [
+                        'id' => $payment->id,
+                        'amount' => $payment->amount,
+                        'charge_with_iva' => $payment->charge_with_iva,
+                        'paid_at' => $payment->paid_at?->toDateTimeString(),
+                        'is_reversed' => (bool) $payment->is_reversed,
+                        'reversed_at' => $payment->reversed_at?->toDateTimeString(),
+                        'payment_method' => [
+                            'id' => $payment->paymentMethod?->id,
+                            'name' => $payment->paymentMethod?->name,
+                        ],
+                        'cash_movement_id' => $payment->cash_movement_id,
+                    ];
+                })->values();
             }),
             'cash_movement_id' => $this->cash_movement_id,
         ];

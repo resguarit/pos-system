@@ -3,8 +3,16 @@
 namespace App\Services;
 
 use App\Interfaces\RepairServiceInterface;
+use App\Models\CashMovement;
+use App\Models\CashRegister;
+use App\Models\Branch;
+use App\Models\CurrentAccount;
+use App\Models\MovementType;
+use App\Models\PaymentMethod;
 use App\Models\Repair;
 use App\Models\RepairNote;
+use App\Models\RepairPayment;
+use App\Services\CurrentAccountService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +20,9 @@ use Illuminate\Support\Str;
 
 class RepairService implements RepairServiceInterface
 {
+    private const DEFAULT_IVA_PERCENTAGE = 21.0;
+    private const PAYMENT_TOLERANCE = 0.01;
+
     /**
      * List repairs with pagination
      */
@@ -36,7 +47,7 @@ class RepairService implements RepairServiceInterface
     private function buildQuery(array $filters = [])
     {
         $query = Repair::query()
-            ->with(['customer.person', 'branch', 'category', 'technician.person', 'sale', 'insurer', 'insuredCustomer.person'])
+            ->with(['customer.person', 'branch', 'category', 'technician.person', 'sale', 'insurer', 'insuredCustomer.person', 'payments.paymentMethod'])
             ->withCount('notes')
             ->addSelect([
                 'latest_note_at' => RepairNote::select('created_at')
@@ -138,7 +149,7 @@ class RepairService implements RepairServiceInterface
      */
     public function find(int $id): ?Repair
     {
-        return Repair::with(['customer.person', 'branch', 'category', 'technician.person', 'notes.user.person', 'sale', 'insurer', 'insuredCustomer.person', 'paymentMethod', 'cashMovement'])->find($id);
+        return Repair::with(['customer.person', 'branch', 'category', 'technician.person', 'notes.user.person', 'sale', 'insurer', 'insuredCustomer.person', 'paymentMethod', 'cashMovement', 'payments.paymentMethod'])->find($id);
     }
 
 
@@ -148,6 +159,7 @@ class RepairService implements RepairServiceInterface
             $data['code'] = $data['code'] ?? $this->generateCode();
             $data['status'] = $data['status'] ?? 'Pendiente de recepción';
             $data['intake_date'] = $data['intake_date'] ?? now()->toDateString();
+            $data = $this->normalizeRepairPricing($data);
 
             $repair = Repair::create($data);
 
@@ -166,6 +178,7 @@ class RepairService implements RepairServiceInterface
     public function update(int $id, array $data): Repair
     {
         $repair = Repair::findOrFail($id);
+        $data = $this->normalizeRepairPricing($data, $repair);
         $repair->update($data);
         return $repair;
     }
@@ -277,70 +290,252 @@ class RepairService implements RepairServiceInterface
     public function markAsPaid(int $id, array $data): Repair
     {
         return DB::transaction(function () use ($id, $data) {
-            $repair = Repair::findOrFail($id);
+            $repair = Repair::whereKey($id)->lockForUpdate()->firstOrFail();
 
-            if ($repair->is_paid) {
-                throw new \Exception('Esta reparación ya fue marcada como cobrada');
+            if (empty($repair->customer_id)) {
+                throw new \Exception('La reparación debe tener un cliente asociado para registrar cobros.');
             }
 
-            $salePrice = (float) ($repair->sale_price ?? 0);
-            if ($salePrice <= 0.01) {
+            $salePriceWithIva = (float) ($repair->sale_price_with_iva ?? $repair->sale_price ?? 0);
+            $salePriceWithoutIva = (float) ($repair->sale_price_without_iva ?? 0);
+            if ($salePriceWithIva <= 0.01 && $salePriceWithoutIva <= 0.01) {
                 return $this->markAsPaidWithoutCash($repair, $data);
             }
 
-            if (empty($data['payment_method_id']) || empty($data['branch_id'])) {
-                throw new \Exception('Se requieren el método de pago y la sucursal');
+            $chargeWithIva = array_key_exists('charge_with_iva', $data)
+                ? (bool) $data['charge_with_iva']
+                : (bool) ($repair->charge_with_iva ?? true);
+
+            if (
+                (float) ($repair->total_paid ?? 0) > self::PAYMENT_TOLERANCE
+                && array_key_exists('charge_with_iva', $data)
+                && (bool) $repair->charge_with_iva !== $chargeWithIva
+            ) {
+                throw new \Exception('No se puede cambiar la modalidad de cobro cuando ya existen pagos parciales registrados.');
             }
 
-            $amount = (float) ($data['amount_paid'] ?? $repair->sale_price ?? 0);
-            if ($amount <= 0) {
-                throw new \Exception('El monto a cobrar debe ser mayor a 0');
+            $expectedAmount = $this->resolveExpectedAmount($repair, $chargeWithIva);
+
+            $activePaid = (float) $repair->payments()
+                ->where('is_reversed', false)
+                ->sum('amount');
+            $pendingAmount = round(max(0, $expectedAmount - $activePaid), 2);
+
+            if ($pendingAmount <= self::PAYMENT_TOLERANCE) {
+                throw new \Exception('La reparación ya no tiene saldo pendiente.');
             }
 
-            $cashRegister = \App\Models\CashRegister::where('branch_id', $data['branch_id'])
-                ->where('status', 'open')
-                ->latest()
-                ->first();
+            $payments = $this->normalizePaymentEntries($data, $pendingAmount);
+            $paymentMethodIds = collect($payments)
+                ->pluck('payment_method_id')
+                ->unique()
+                ->values();
 
-            if (!$cashRegister) {
-                throw new \Exception('No se encontró una caja abierta en la sucursal seleccionada');
+            $paymentMethods = PaymentMethod::whereIn('id', $paymentMethodIds)->get()->keyBy('id');
+
+            if ($paymentMethods->count() !== $paymentMethodIds->count()) {
+                throw new \Exception('Uno o más métodos de pago no son válidos.');
             }
 
-            $movementType = \App\Models\MovementType::firstOrCreate(
-                ['name' => 'Pago de reparación'],
+            $this->assertAllowedRepairPaymentMethods($paymentMethods);
+
+            $requiresCashRegister = collect($payments)->contains(function (array $payment) use ($paymentMethods) {
+                $method = $paymentMethods->get($payment['payment_method_id']);
+                return $this->paymentMethodAffectsCash($method);
+            });
+
+            $cashRegister = null;
+            $cashMovementType = null;
+            $selectedBranchId = isset($data['branch_id']) ? (int) $data['branch_id'] : null;
+
+            if ($requiresCashRegister) {
+                if (empty($selectedBranchId)) {
+                    throw new \Exception('Se requiere una sucursal con caja abierta para registrar métodos que impactan en caja.');
+                }
+
+                $cashRegister = CashRegister::where('branch_id', $selectedBranchId)
+                    ->where('status', 'open')
+                    ->latest()
+                    ->first();
+
+                if (!$cashRegister) {
+                    throw new \Exception('No se encontró una caja abierta en la sucursal seleccionada');
+                }
+
+                $cashMovementType = MovementType::firstOrCreate(
+                    ['name' => 'Pago de reparación', 'operation_type' => 'entrada'],
+                    [
+                        'description' => 'Ingreso por pago de servicio de reparación',
+                        'is_cash_movement' => true,
+                        'is_current_account_movement' => false,
+                        'active' => true,
+                    ]
+                );
+            }
+
+            $currentAccount = CurrentAccount::firstOrCreate(
+                ['customer_id' => $repair->customer_id],
                 [
-                    'description' => 'Ingreso por pago de servicio de reparación',
-                    'operation_type' => 'entrada',
-                    'is_cash_movement' => true,
-                    'is_current_account_movement' => false,
-                    'active' => true,
+                    'credit_limit' => null,
+                    'current_balance' => 0,
+                    'status' => 'active',
+                    'opened_at' => now(),
                 ]
             );
 
+            $this->ensureRepairDebtRegistered($repair, $currentAccount, $expectedAmount, $chargeWithIva);
+
             $customerName = $repair->customer->person->full_name ?? 'Cliente';
-            $cashMovement = \App\Models\CashMovement::create([
-                'cash_register_id' => $cashRegister->id,
-                'movement_type_id' => $movementType->id,
-                'payment_method_id' => $data['payment_method_id'],
-                'amount' => $amount,
-                'description' => "Pago reparación #{$repair->code} - {$customerName}",
+
+            foreach ($payments as $payment) {
+                $paymentMethod = $paymentMethods->get($payment['payment_method_id']);
+                $cashMovementId = null;
+
+                if ($cashRegister && $this->paymentMethodAffectsCash($paymentMethod)) {
+                    $cashMovement = CashMovement::create([
+                        'cash_register_id' => $cashRegister->id,
+                        'movement_type_id' => $cashMovementType?->id,
+                        'payment_method_id' => $paymentMethod->id,
+                        'amount' => $payment['amount'],
+                        'description' => sprintf(
+                            'Pago reparación #%s - %s | Método: %s (%s)',
+                            $repair->code,
+                            $customerName,
+                            $paymentMethod->name,
+                            $chargeWithIva ? 'con IVA' : 'sin IVA'
+                        ),
+                        'user_id' => auth()->id(),
+                        'reference_type' => 'repair',
+                        'reference_id' => $repair->id,
+                    ]);
+
+                    $cashMovementId = $cashMovement->id;
+                }
+
+                $repairPayment = RepairPayment::create([
+                    'repair_id' => $repair->id,
+                    'payment_method_id' => $paymentMethod?->id,
+                    'cash_movement_id' => $cashMovementId,
+                    'amount' => $payment['amount'],
+                    'charge_with_iva' => $chargeWithIva,
+                    'paid_at' => now(),
+                    'user_id' => auth()->id(),
+                ]);
+
+                $this->registerCurrentAccountPayment(
+                    $currentAccount,
+                    $repair,
+                    $repairPayment,
+                    $paymentMethod,
+                    $payment['amount'],
+                    $selectedBranchId
+                );
+            }
+
+            $this->syncRepairPaymentSnapshot($repair, $expectedAmount, $chargeWithIva);
+
+            $paymentsSummary = collect($payments)
+                ->map(function (array $payment) use ($paymentMethods) {
+                    $methodName = $paymentMethods->get($payment['payment_method_id'])?->name ?? 'Método desconocido';
+                    return sprintf('%s: $%s', $methodName, number_format((float) $payment['amount'], 2, ',', '.'));
+                })
+                ->implode(' | ');
+
+            $repair->notes()->create([
                 'user_id' => auth()->id(),
-                'reference_type' => 'repair',
-                'reference_id' => $repair->id,
+                'note' => sprintf(
+                    'Cobro registrado (%s). Detalle: %s',
+                    $chargeWithIva ? 'con IVA' : 'sin IVA',
+                    $paymentsSummary
+                ),
             ]);
 
-            $repair->update([
-                'is_paid' => true,
-                'amount_paid' => $amount,
-                'sale_price' => $amount,
-                'payment_method_id' => $data['payment_method_id'],
-                'paid_at' => now(),
-                'cash_movement_id' => $cashMovement->id,
+            if ($cashRegister) {
+                $cashRegister->updateCalculatedFields();
+            }
+
+            return $repair->fresh()->load(['paymentMethod', 'cashMovement', 'payments.paymentMethod']);
+        });
+    }
+
+    /**
+     * Revert latest non-reversed repair payment.
+     */
+    public function markAsUnpaid(int $id, ?int $paymentId = null): Repair
+    {
+        return DB::transaction(function () use ($id, $paymentId) {
+            $repair = Repair::whereKey($id)->lockForUpdate()->firstOrFail();
+
+            $paymentQuery = $repair->payments()
+                ->where('is_reversed', false)
+                ->with(['paymentMethod', 'cashMovement.cashRegister']);
+
+            if ($paymentId !== null) {
+                $latestPayment = $paymentQuery
+                    ->where('id', $paymentId)
+                    ->first();
+            } else {
+                $latestPayment = $paymentQuery
+                    ->latest('id')
+                    ->first();
+            }
+
+            if (!$latestPayment) {
+                throw new \Exception($paymentId !== null
+                    ? 'No se encontró el pago seleccionado para esta reparación.'
+                    : 'La reparación no tiene un cobro registrado'
+                );
+            }
+
+            $previousAmount = (float) ($latestPayment->amount ?? 0);
+            $previousPaymentMethod = $latestPayment->paymentMethod?->name ?? 'No especificado';
+            $previousChargeMode = $latestPayment->charge_with_iva === false ? 'sin IVA' : 'con IVA';
+
+            $cashMovement = $latestPayment->cashMovement;
+            if ($cashMovement) {
+                if (!$cashMovement->affects_balance) {
+                    throw new \Exception('El cobro ya fue revertido previamente');
+                }
+
+                if (!$cashMovement->cashRegister || !$cashMovement->cashRegister->isOpen()) {
+                    throw new \Exception('No se puede revertir el cobro porque la caja asociada está cerrada');
+                }
+
+                $revertFlag = '[REVERTIDO COBRO REPARACION]';
+                $description = (string) ($cashMovement->description ?? '');
+                if (!Str::contains($description, $revertFlag)) {
+                    $description = trim($description . ' ' . $revertFlag);
+                }
+
+                $cashMovement->update([
+                    'affects_balance' => false,
+                    'description' => $description,
+                ]);
+
+                $cashMovement->cashRegister->updateCalculatedFields();
+            }
+
+            $this->registerCurrentAccountPaymentReversal($repair, $latestPayment, $previousPaymentMethod);
+
+            $latestPayment->update([
+                'is_reversed' => true,
+                'reversed_at' => now(),
             ]);
 
-            $cashRegister->updateCalculatedFields();
+            $expectedAmount = $this->resolveExpectedAmount($repair, (bool) ($repair->charge_with_iva ?? true));
+            $this->syncRepairPaymentSnapshot($repair, $expectedAmount, (bool) ($repair->charge_with_iva ?? true));
 
-            return $repair->load(['paymentMethod', 'cashMovement']);
+            $repair->notes()->create([
+                'user_id' => auth()->id(),
+                'note' => sprintf(
+                    'Cobro revertido. Monto revertido: $%s | Modalidad previa: %s | Método previo: %s',
+                    number_format($previousAmount, 2, ',', '.'),
+                    $previousChargeMode,
+                    $previousPaymentMethod
+                ),
+            ]);
+
+            return $repair->fresh()->load(['paymentMethod', 'cashMovement', 'payments.paymentMethod']);
         });
     }
 
@@ -351,7 +546,7 @@ class RepairService implements RepairServiceInterface
     {
         $paymentMethodId = isset($data['payment_method_id']) ? (int) $data['payment_method_id'] : null;
         if (!$paymentMethodId) {
-            $sinCargo = \App\Models\PaymentMethod::where('name', 'Sin cargo')->first();
+            $sinCargo = PaymentMethod::where('name', 'Sin cargo')->first();
             if (!$sinCargo) {
                 throw new \Exception('No está configurado el método de pago "Sin cargo". Ejecute los seeders o créelo en el sistema.');
             }
@@ -360,13 +555,367 @@ class RepairService implements RepairServiceInterface
 
         $repair->update([
             'is_paid' => true,
+            'payment_status' => 'paid',
             'amount_paid' => 0,
+            'total_paid' => 0,
             'payment_method_id' => $paymentMethodId,
             'paid_at' => now(),
             'cash_movement_id' => null,
+            'charge_with_iva' => array_key_exists('charge_with_iva', $data) ? (bool) $data['charge_with_iva'] : true,
         ]);
 
-        return $repair->load(['paymentMethod', 'cashMovement']);
+        $repair->notes()->create([
+            'user_id' => auth()->id(),
+            'note' => 'Cobro registrado sin impacto en caja (sin cargo).',
+        ]);
+
+        return $repair->load(['paymentMethod', 'cashMovement', 'payments.paymentMethod']);
+    }
+
+    private function normalizePaymentEntries(array $data, float $pendingAmount): array
+    {
+        $payments = [];
+
+        if (isset($data['payments']) && is_array($data['payments']) && count($data['payments']) > 0) {
+            foreach ($data['payments'] as $index => $payment) {
+                $paymentMethodId = (int) ($payment['payment_method_id'] ?? 0);
+                $amount = round((float) ($payment['amount'] ?? 0), 2);
+
+                if ($paymentMethodId <= 0) {
+                    throw new \Exception("El método de pago de la fila {$index} es obligatorio.");
+                }
+
+                if ($amount <= 0) {
+                    throw new \Exception("El monto de la fila {$index} debe ser mayor a 0.");
+                }
+
+                $payments[] = [
+                    'payment_method_id' => $paymentMethodId,
+                    'amount' => $amount,
+                ];
+            }
+        } else {
+            $paymentMethodId = (int) ($data['payment_method_id'] ?? 0);
+            if ($paymentMethodId <= 0) {
+                throw new \Exception('Se requiere al menos un método de pago válido.');
+            }
+
+            $amount = isset($data['amount_paid'])
+                ? round((float) $data['amount_paid'], 2)
+                : round($pendingAmount, 2);
+
+            if ($amount <= 0) {
+                throw new \Exception('El monto a cobrar debe ser mayor a 0.');
+            }
+
+            $payments[] = [
+                'payment_method_id' => $paymentMethodId,
+                'amount' => $amount,
+            ];
+        }
+
+        $totalIncoming = round((float) collect($payments)->sum('amount'), 2);
+        if ($totalIncoming > ($pendingAmount + self::PAYMENT_TOLERANCE)) {
+            throw new \Exception(sprintf(
+                'El monto ingresado ($%s) supera el saldo pendiente ($%s).',
+                number_format($totalIncoming, 2, ',', '.'),
+                number_format($pendingAmount, 2, ',', '.')
+            ));
+        }
+
+        return $payments;
+    }
+
+    private function assertAllowedRepairPaymentMethods(Collection $paymentMethods): void
+    {
+        $creditMethod = $paymentMethods->first(function (PaymentMethod $method) {
+            return $method->isSaleOnCustomerCredit();
+        });
+
+        if ($creditMethod) {
+            throw new \Exception('Cuenta Corriente no se puede usar como método de cobro en reparaciones.');
+        }
+    }
+
+    private function paymentMethodAffectsCash(?PaymentMethod $paymentMethod): bool
+    {
+        if (!$paymentMethod) {
+            return false;
+        }
+
+        // Regla de reparaciones: todos los métodos de cobro reales impactan en caja,
+        // excepto Cuenta Corriente, que está prohibido como método de cobro.
+        return !$paymentMethod->isSaleOnCustomerCredit();
+    }
+
+    private function resolveExpectedAmount(Repair $repair, bool $chargeWithIva): float
+    {
+        return $chargeWithIva
+            ? (float) ($repair->sale_price_with_iva ?? $repair->sale_price ?? 0)
+            : (float) ($repair->sale_price_without_iva ?? 0);
+    }
+
+    private function syncRepairPaymentSnapshot(Repair $repair, float $expectedAmount, bool $chargeWithIva): void
+    {
+        $activePayments = $repair->payments()
+            ->where('is_reversed', false)
+            ->with('paymentMethod')
+            ->get();
+
+        $totalPaid = round((float) $activePayments->sum('amount'), 2);
+        $pending = round(max(0, $expectedAmount - $totalPaid), 2);
+
+        $status = 'pending';
+        if ($pending <= self::PAYMENT_TOLERANCE) {
+            $status = 'paid';
+        } elseif ($totalPaid > self::PAYMENT_TOLERANCE) {
+            $status = 'partial';
+        }
+
+        $latestActivePayment = $activePayments->sortByDesc('id')->first();
+
+        $repair->update([
+            'is_paid' => $status === 'paid',
+            'payment_status' => $status,
+            'amount_paid' => $totalPaid > self::PAYMENT_TOLERANCE ? $totalPaid : null,
+            'total_paid' => $totalPaid,
+            'payment_method_id' => $latestActivePayment?->payment_method_id,
+            'paid_at' => $latestActivePayment?->paid_at,
+            'cash_movement_id' => $latestActivePayment?->cash_movement_id,
+            'charge_with_iva' => $chargeWithIva,
+        ]);
+    }
+
+    private function ensureRepairDebtRegistered(Repair $repair, CurrentAccount $currentAccount, float $expectedAmount, bool $chargeWithIva): void
+    {
+        $movementType = MovementType::firstOrCreate(
+            ['name' => 'Venta', 'operation_type' => 'salida'],
+            [
+                'description' => 'Débito por operación de venta o servicio en cuenta corriente',
+                'is_cash_movement' => false,
+                'is_current_account_movement' => true,
+                'active' => true,
+            ]
+        );
+
+        $alreadyRegistered = $currentAccount->movements()
+            ->where('movement_type_id', $movementType->id)
+            ->where('metadata->kind', 'repair_charge')
+            ->where('metadata->repair_id', $repair->id)
+            ->exists();
+
+        if ($alreadyRegistered) {
+            return;
+        }
+
+        /** @var CurrentAccountService $currentAccountService */
+        $currentAccountService = app(CurrentAccountService::class);
+        $currentAccountService->createMovement([
+            'current_account_id' => $currentAccount->id,
+            'movement_type_id' => $movementType->id,
+            'amount' => $expectedAmount,
+            'description' => sprintf('Reparación %s', $repair->code),
+            'reference' => $repair->code,
+            'metadata' => [
+                'kind' => 'repair_charge',
+                'repair_id' => $repair->id,
+                'repair_code' => $repair->code,
+                'charge_mode' => $chargeWithIva ? 'with_iva' : 'without_iva',
+            ],
+        ]);
+    }
+
+    private function registerCurrentAccountPayment(
+        CurrentAccount $currentAccount,
+        Repair $repair,
+        RepairPayment $repairPayment,
+        ?PaymentMethod $paymentMethod,
+        float $amount,
+        ?int $selectedBranchId
+    ): void {
+        $paymentTypeName = match ($paymentMethod?->name) {
+            'Tarjeta de crédito', 'Tarjeta de débito' => 'Pago con tarjeta',
+            'Transferencia' => 'Pago con transferencia',
+            default => 'Pago en efectivo',
+        };
+
+        $paymentMovementType = MovementType::firstOrCreate(
+            ['name' => $paymentTypeName, 'operation_type' => 'entrada'],
+            [
+                'description' => 'Ingreso por cancelación de saldo en cuenta corriente',
+                'is_cash_movement' => false,
+                'is_current_account_movement' => true,
+                'active' => true,
+            ]
+        );
+
+        $branch = $selectedBranchId ? Branch::find($selectedBranchId) : null;
+
+        /** @var CurrentAccountService $currentAccountService */
+        $currentAccountService = app(CurrentAccountService::class);
+        $currentAccountService->createMovement([
+            'current_account_id' => $currentAccount->id,
+            'movement_type_id' => $paymentMovementType->id,
+            'amount' => $amount,
+            'description' => sprintf('Pago de reparación %s - %s', $repair->code, $paymentMethod?->name ?? 'Método desconocido'),
+            'reference' => $repair->code,
+            'metadata' => [
+                'kind' => 'repair_payment',
+                'repair_id' => $repair->id,
+                'repair_code' => $repair->code,
+                'repair_payment_id' => $repairPayment->id,
+                'payment_method_id' => $repairPayment->payment_method_id,
+                'payment_method_name' => $paymentMethod?->name,
+                'payment_amount' => $amount,
+                'payment_branch_id' => $selectedBranchId,
+                'payment_branch_description' => $branch?->description,
+                'payment_branch_color' => $branch?->color,
+            ],
+            'payment_method_id' => $repairPayment->payment_method_id,
+        ]);
+    }
+
+    private function registerCurrentAccountPaymentReversal(Repair $repair, RepairPayment $repairPayment, string $paymentMethodName): void
+    {
+        if (empty($repair->customer_id)) {
+            return;
+        }
+
+        $currentAccount = CurrentAccount::where('customer_id', $repair->customer_id)->first();
+        if (!$currentAccount) {
+            return;
+        }
+
+        $movementType = MovementType::firstOrCreate(
+            ['name' => 'Venta', 'operation_type' => 'salida'],
+            [
+                'description' => 'Débito por operación de venta o servicio en cuenta corriente',
+                'is_cash_movement' => false,
+                'is_current_account_movement' => true,
+                'active' => true,
+            ]
+        );
+
+        /** @var CurrentAccountService $currentAccountService */
+        $currentAccountService = app(CurrentAccountService::class);
+        $currentAccountService->createMovement([
+            'current_account_id' => $currentAccount->id,
+            'movement_type_id' => $movementType->id,
+            'amount' => (float) $repairPayment->amount,
+            'description' => sprintf('Reversión de pago reparación %s - %s', $repair->code, $paymentMethodName),
+            'reference' => $repair->code,
+            'metadata' => [
+                'kind' => 'repair_payment_reversal',
+                'repair_id' => $repair->id,
+                'repair_code' => $repair->code,
+                'repair_payment_id' => $repairPayment->id,
+                'payment_method_name' => $paymentMethodName,
+            ],
+        ]);
+    }
+
+    private function normalizeRepairPricing(array $data, ?Repair $repair = null): array
+    {
+        $hasNetInput = array_key_exists('sale_price_without_iva', $data);
+        $hasIvaInput = array_key_exists('iva_percentage', $data);
+        $hasGrossInput = array_key_exists('sale_price_with_iva', $data);
+        $hasLegacyGrossInput = array_key_exists('sale_price', $data);
+
+        if (!$hasNetInput && !$hasIvaInput && !$hasGrossInput && !$hasLegacyGrossInput) {
+            if (!$repair && !array_key_exists('iva_percentage', $data)) {
+                $data['iva_percentage'] = self::DEFAULT_IVA_PERCENTAGE;
+            }
+            if (!$repair && !array_key_exists('charge_with_iva', $data)) {
+                $data['charge_with_iva'] = true;
+            }
+            return $data;
+        }
+
+        $currentNet = $repair?->sale_price_without_iva !== null ? (float) $repair->sale_price_without_iva : null;
+        $currentGross = $repair?->sale_price_with_iva !== null
+            ? (float) $repair->sale_price_with_iva
+            : ($repair?->sale_price !== null ? (float) $repair->sale_price : null);
+        $currentIva = $repair?->iva_percentage !== null ? (float) $repair->iva_percentage : self::DEFAULT_IVA_PERCENTAGE;
+
+        $ivaPercentage = $this->normalizeNullableFloat($data['iva_percentage'] ?? $currentIva) ?? self::DEFAULT_IVA_PERCENTAGE;
+        $netAmount = $hasNetInput
+            ? $this->normalizeNullableFloat($data['sale_price_without_iva'])
+            : null;
+        $grossAmount = $hasGrossInput
+            ? $this->normalizeNullableFloat($data['sale_price_with_iva'])
+            : ($hasLegacyGrossInput ? $this->normalizeNullableFloat($data['sale_price']) : null);
+
+        if ($hasNetInput && !$hasGrossInput) {
+            $grossAmount = $netAmount !== null
+                ? $this->calculateGrossFromNet($netAmount, $ivaPercentage)
+                : null;
+        }
+
+        if ($repair && $hasIvaInput && !$hasNetInput && !$hasGrossInput && !$hasLegacyGrossInput) {
+            $netAmount = $currentNet;
+            if ($netAmount === null && $currentGross !== null) {
+                $netAmount = $this->calculateNetFromGross($currentGross, $currentIva);
+            }
+            $grossAmount = $netAmount !== null ? $this->calculateGrossFromNet($netAmount, $ivaPercentage) : null;
+        }
+
+        if ($netAmount === null && $grossAmount === null && $repair) {
+            $netAmount = $currentNet;
+            $grossAmount = $currentGross;
+        }
+
+        if ($netAmount === null && $grossAmount !== null) {
+            $netAmount = $this->calculateNetFromGross($grossAmount, $ivaPercentage);
+        }
+
+        if ($grossAmount === null && $netAmount !== null) {
+            $grossAmount = $this->calculateGrossFromNet($netAmount, $ivaPercentage);
+        }
+
+        $data['sale_price_without_iva'] = $netAmount !== null ? $this->roundCurrency($netAmount) : null;
+        $data['sale_price_with_iva'] = $grossAmount !== null ? $this->roundCurrency($grossAmount) : null;
+        $data['sale_price'] = $data['sale_price_with_iva'];
+        $data['iva_percentage'] = $this->roundPercentage($ivaPercentage);
+
+        if (!$repair && !array_key_exists('charge_with_iva', $data)) {
+            $data['charge_with_iva'] = true;
+        }
+
+        return $data;
+    }
+
+    private function normalizeNullableFloat(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    private function calculateGrossFromNet(float $net, float $ivaPercentage): float
+    {
+        return $this->roundCurrency($net * (1 + ($ivaPercentage / 100)));
+    }
+
+    private function calculateNetFromGross(float $gross, float $ivaPercentage): float
+    {
+        $divisor = 1 + ($ivaPercentage / 100);
+        if ($divisor <= 0) {
+            return $this->roundCurrency($gross);
+        }
+
+        return $this->roundCurrency($gross / $divisor);
+    }
+
+    private function roundCurrency(float $value): float
+    {
+        return round($value, 2);
+    }
+
+    private function roundPercentage(float $value): float
+    {
+        return round($value, 2);
     }
 
     private function generateCode(): string

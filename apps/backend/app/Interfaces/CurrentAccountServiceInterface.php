@@ -18,6 +18,8 @@ interface CurrentAccountServiceInterface
      */
     public function createAccount(array $data): CurrentAccount;
 
+    public function getPendingDebtItems(int $accountId): array;
+
     /**
      * Obtener cuenta corriente por ID
      */

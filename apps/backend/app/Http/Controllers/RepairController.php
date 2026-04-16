@@ -296,16 +296,41 @@ class RepairController extends Controller
                     ? [
                         'payment_method_id' => 'nullable|integer|exists:payment_methods,id',
                         'amount_paid' => 'nullable|numeric|min:0|max:999999999.99',
+                        'payments' => 'nullable|array|min:1',
+                        'payments.*.payment_method_id' => 'required_with:payments|integer|exists:payment_methods,id',
+                        'payments.*.amount' => 'required_with:payments|numeric|min:0|max:999999999.99',
+                        'charge_with_iva' => 'nullable|boolean',
                         'branch_id' => 'nullable|integer|exists:branches,id',
                     ]
                     : [
-                        'payment_method_id' => 'required|integer|exists:payment_methods,id',
+                        'payment_method_id' => 'required_without:payments|integer|exists:payment_methods,id',
                         'amount_paid' => 'nullable|numeric|min:0.01|max:999999999.99',
+                        'payments' => 'nullable|array|min:1',
+                        'payments.*.payment_method_id' => 'required_with:payments|integer|exists:payment_methods,id',
+                        'payments.*.amount' => 'required_with:payments|numeric|min:0.01|max:999999999.99',
+                        'charge_with_iva' => 'nullable|boolean',
                         'branch_id' => 'required|integer|exists:branches,id',
                     ]
             );
 
             $repair = $this->repairs->markAsPaid($id, $validated);
+            return new RepairResource($repair);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Revert a repair payment and remove cash balance impact.
+     */
+    public function markAsUnpaid(Request $request, int $id): RepairResource|JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'payment_id' => 'nullable|integer|exists:repair_payments,id',
+            ]);
+
+            $repair = $this->repairs->markAsUnpaid($id, $validated['payment_id'] ?? null);
             return new RepairResource($repair);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);

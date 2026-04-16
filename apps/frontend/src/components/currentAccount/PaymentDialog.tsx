@@ -31,8 +31,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { sileo } from "sileo"
-import { DollarSign, CreditCard, Loader2, RefreshCw } from 'lucide-react';
+import { DollarSign, CreditCard, Loader2, RefreshCw, AlertCircle, Info } from 'lucide-react';
 import {
   PendingSale,
   SalePayment,
@@ -69,6 +70,7 @@ interface SalePaymentForm {
 
 export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onDataRefresh }: PaymentDialogProps) {
   const [pendingSales, setPendingSales] = useState<PendingSale[]>([]);
+  const [repairsDebtAmount, setRepairsDebtAmount] = useState<number>(0);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [salePayments, setSalePayments] = useState<SalePaymentForm>({});
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('');
@@ -78,7 +80,8 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
   const [updatingSaleId, setUpdatingSaleId] = useState<number | null>(null);
 
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isModuleEnabled } = usePermissions();
+  const repairsEnabled = isModuleEnabled('repairs');
   const { branches } = useAuth();
 
   const loadPaymentMethods = useCallback(async () => {
@@ -115,8 +118,21 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
   const loadPendingSales = useCallback(async () => {
     try {
       setLoadingSales(true);
-      const sales = await CurrentAccountService.getPendingSales(accountId);
+
+      // Cargar datos en paralelo cuando reparaciones está habilitado
+      const [sales, allPendingItems] = repairsEnabled
+        ? await Promise.all([
+          CurrentAccountService.getPendingSales(accountId),
+          CurrentAccountService.getPendingDebtItems(accountId),
+        ])
+        : [await CurrentAccountService.getPendingSales(accountId), []];
+
       setPendingSales(sales);
+
+      const repairDebt = allPendingItems
+        .filter(item => item.kind === 'repair')
+        .reduce((sum, item) => sum + (item.pending_amount || 0), 0);
+      setRepairsDebtAmount(repairsEnabled ? repairDebt : 0);
 
       // Inicializar formulario preservando selecciones previas si es posible
       setSalePayments(prev => {
@@ -144,7 +160,7 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
     } finally {
       setLoadingSales(false);
     }
-  }, [accountId]);
+  }, [accountId, repairsEnabled]);
 
 
   // Detectar si todas las ventas seleccionadas son de la misma sucursal
@@ -182,13 +198,17 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
 
   useEffect(() => {
     if (open) {
+      // Si reparaciones está deshabilitado, siempre establecer deuda de reparaciones a 0
+      if (!repairsEnabled) {
+        setRepairsDebtAmount(0);
+      }
       loadPendingSales();
       loadPaymentMethods();
       setSalePayments({});
       setSelectedPaymentMethod('');
       setSelectedBranchId('');
     }
-  }, [open, accountId, loadPendingSales, loadPaymentMethods]);
+  }, [open, loadPendingSales, loadPaymentMethods, repairsEnabled]);
 
   // Actualizar sucursal cuando cambian las ventas seleccionadas
   useEffect(() => {
@@ -296,9 +316,17 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
       } else {
         sileo.error({ title: result.message || 'Error al actualizar precio' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating sale price:', error);
-      sileo.error({ title: error?.response?.data?.message || 'Error al actualizar precio' });
+      const message =
+        typeof error === 'object' &&
+          error !== null &&
+          'response' in error &&
+          typeof (error as { response?: unknown }).response === 'object' &&
+          (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : 'Error al actualizar precio';
+      sileo.error({ title: message });
     } finally {
       setUpdatingSaleId(null);
     }
@@ -421,22 +449,92 @@ export function PaymentDialog({ open, onOpenChange, accountId, onSuccess, onData
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-muted p-4 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Total de Deudas Pendientes:</span>
-              <span className="font-bold text-lg text-red-600">
-                ${totalPendingDebt.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
+          {/* Resumen de Deudas con Desglose */}
+          <div className="space-y-3">
+            <div className="bg-muted p-4 rounded-lg">
+              <div className="space-y-2">
+                {/* Deuda de Ventas */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Deuda de Ventas:</span>
+                  <span className="font-semibold text-base">
+                    ${totalPendingDebt.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                {/* Deuda de Reparaciones (si está habilitado y hay deuda) */}
+                {repairsEnabled && repairsDebtAmount > 0.01 && (
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <span className="text-sm font-medium text-gray-700">Deuda de Reparaciones:</span>
+                    <span className="font-semibold text-base text-amber-600">
+                      ${repairsDebtAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+
+                {/* Total */}
+                {(totalPendingDebt > 0.01 || repairsDebtAmount > 0.01) && (
+                  <div className="flex items-center justify-between pt-2 border-t bg-red-50 -mx-4 -my-2 px-4 py-2 rounded">
+                    <span className="font-bold text-gray-900">Total Adeudado:</span>
+                    <span className="font-bold text-lg text-red-600">
+                      ${(totalPendingDebt + repairsDebtAmount).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Aviso cuando no hay deuda de ventas pero sí de reparaciones */}
+            {repairsEnabled && totalPendingDebt <= 0.01 && repairsDebtAmount > 0.01 && (
+              <Alert className="border-amber-200 bg-amber-50">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertTitle className="text-amber-900">Sin deuda de ventas</AlertTitle>
+                <AlertDescription className="text-amber-800 text-xs">
+                  Este cliente tiene deuda de reparaciones (${repairsDebtAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}) 
+                  pero no tiene ventas pendientes. Los pagos de reparaciones se registran desde el módulo de Reparaciones.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Aviso cuando no hay deuda en absoluto */}
+            {totalPendingDebt <= 0.01 && repairsDebtAmount <= 0.01 && (
+              <Alert className="border-green-200 bg-green-50">
+                <Info className="h-4 w-4 text-green-600" />
+                <AlertTitle className="text-green-900">Sin deuda pendiente</AlertTitle>
+                <AlertDescription className="text-green-800 text-xs">
+                  Este cliente no tiene deudas pendientes de pago.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Nota aclaratoria si hay reparaciones y ventas */}
+            {repairsEnabled && repairsDebtAmount > 0.01 && totalPendingDebt > 0.01 && (
+              <Alert className="border-blue-200 bg-blue-50">
+                <Info className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-900 text-sm">Nota</AlertTitle>
+                <AlertDescription className="text-blue-800 text-xs">
+                  Este formulario solo permite registrar pagos de <strong>VENTAS</strong>. 
+                  Los pagos de reparaciones se registran desde el módulo de Reparaciones.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
 
           {loadingSales ? (
             <div className="flex justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : pendingSales.length === 0 ? (
+          ) : pendingSales.length === 0 && (!repairsEnabled || repairsDebtAmount <= 0.01) ? (
             <div className="text-center py-8 text-muted-foreground">
               No hay deudas pendientes de pago
+            </div>
+          ) : pendingSales.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-muted-foreground mb-2">No hay ventas pendientes de pago</p>
+              {repairsEnabled && repairsDebtAmount > 0.01 && (
+                <p className="text-sm text-gray-600">
+                  Solo hay deuda de reparaciones (${repairsDebtAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })})
+                </p>
+              )}
             </div>
           ) : (
             <>

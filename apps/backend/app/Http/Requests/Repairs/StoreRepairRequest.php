@@ -4,10 +4,13 @@ namespace App\Http\Requests\Repairs;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 use App\Models\Category;
 
 class StoreRepairRequest extends FormRequest
 {
+    public const FIXED_IVA_PERCENTAGE = 21.0;
+
     /**
      * Valid repair statuses - centralized for consistency
      */
@@ -55,6 +58,10 @@ class StoreRepairRequest extends FormRequest
             'initial_notes' => ['nullable', 'string', 'max:2000'],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'sale_price' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'sale_price_without_iva' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'iva_percentage' => ['nullable', 'numeric'],
+            'sale_price_with_iva' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
+            'charge_with_iva' => ['nullable', 'boolean'],
             // Siniestro fields
             'is_siniestro' => ['nullable', 'boolean'],
             'insurer_id' => ['nullable', 'required_if:is_siniestro,true', 'integer', 'exists:insurers,id'],
@@ -133,6 +140,13 @@ class StoreRepairRequest extends FormRequest
             'sale_price.numeric' => 'El precio de venta debe ser un valor numérico (ej: 2000.00).',
             'sale_price.min' => 'El precio de venta no puede ser negativo.',
             'sale_price.max' => 'El precio de venta excede el máximo permitido.',
+            'sale_price_without_iva.numeric' => 'El precio sin IVA debe ser un valor numérico (ej: 1000.00).',
+            'sale_price_without_iva.min' => 'El precio sin IVA no puede ser negativo.',
+            'sale_price_without_iva.max' => 'El precio sin IVA excede el máximo permitido.',
+            'iva_percentage.numeric' => 'El porcentaje de IVA debe ser numérico (ej: 21).',
+            'sale_price_with_iva.numeric' => 'El precio con IVA debe ser un valor numérico (ej: 1210.00).',
+            'sale_price_with_iva.min' => 'El precio con IVA no puede ser negativo.',
+            'sale_price_with_iva.max' => 'El precio con IVA excede el máximo permitido.',
 
             // Siniestro fields
             'is_siniestro.boolean' => 'El campo siniestro debe ser verdadero o falso.',
@@ -167,10 +181,47 @@ class StoreRepairRequest extends FormRequest
             'initial_notes' => 'observaciones iniciales',
             'cost' => 'costo',
             'sale_price' => 'precio de venta',
+            'sale_price_without_iva' => 'precio sin IVA',
+            'iva_percentage' => 'porcentaje de IVA',
+            'sale_price_with_iva' => 'precio con IVA',
+            'charge_with_iva' => 'cobrar con IVA',
             'is_siniestro' => 'es siniestro',
             'insurer_id' => 'aseguradora',
             'siniestro_number' => 'número de siniestro',
             'insured_customer_id' => 'cliente asegurado',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator) {
+            $net = $this->input('sale_price_without_iva');
+            $gross = $this->input('sale_price_with_iva');
+            $iva = $this->input('iva_percentage', 21);
+
+            if ($iva !== null && abs(((float) $iva) - self::FIXED_IVA_PERCENTAGE) > 0.01) {
+                $validator->errors()->add(
+                    'iva_percentage',
+                    'El porcentaje de IVA es fijo en 21% para reparaciones.'
+                );
+                return;
+            }
+
+            if ($net === null || $gross === null || $iva === null) {
+                return;
+            }
+
+            $netValue = (float) $net;
+            $grossValue = (float) $gross;
+            $ivaValue = (float) $iva;
+            $expectedGross = round($netValue * (1 + ($ivaValue / 100)), 2);
+
+            if (abs($grossValue - $expectedGross) > 0.01) {
+                $validator->errors()->add(
+                    'sale_price_with_iva',
+                    'El precio con IVA no coincide con el cálculo esperado a partir del precio sin IVA y el porcentaje de IVA.'
+                );
+            }
+        });
     }
 }

@@ -23,7 +23,6 @@ import {
     Wrench,
     Clock,
     AlertTriangle,
-    AlertCircle,
     CheckCircle,
     Package,
     Truck,
@@ -232,11 +231,18 @@ function RepairCard({
                         <span className="text-gray-400 italic">Sin técnico</span>
                     )}
 
-                    {repair.sale_price && (
-                        <span className="font-medium text-gray-700">
-                            ${repair.sale_price.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
-                        </span>
-                    )}
+                    {(repair.sale_price_with_iva ?? repair.sale_price) ? (
+                        <div className="text-right">
+                            <span className="font-medium text-gray-700">
+                                ${(repair.sale_price_with_iva ?? repair.sale_price ?? 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                            </span>
+                            {repair.sale_price_without_iva !== undefined && repair.sale_price_without_iva !== null && (
+                                <p className="text-[10px] text-gray-500">
+                                    Neto: ${repair.sale_price_without_iva.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+                                </p>
+                            )}
+                        </div>
+                    ) : null}
                 </div>
 
                 {/* Quick status change buttons */}

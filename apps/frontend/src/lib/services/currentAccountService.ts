@@ -17,6 +17,7 @@ import type {
   PaginatedResponse,
   ExportData,
   PendingSale,
+  PendingDebtItem,
   ProcessPaymentBySaleData
 } from '@/types/currentAccount';
 
@@ -155,6 +156,22 @@ export class CurrentAccountService {
     return list.filter(
       (s): s is PendingSale =>
         s != null && typeof s === 'object' && 'id' in s && typeof (s as PendingSale).id === 'number'
+    );
+  }
+
+  static async getPendingDebtItems(accountId: number): Promise<PendingDebtItem[]> {
+    const response = await api.get(`${this.baseUrl}/${accountId}/pending-items`);
+    const raw = this.handleResponse(response);
+    const list = Array.isArray(raw) ? raw : [];
+
+    return list.filter(
+      (item): item is PendingDebtItem =>
+        item != null &&
+        typeof item === 'object' &&
+        'id' in item &&
+        typeof (item as PendingDebtItem).id === 'number' &&
+        'kind' in item &&
+        ((item as PendingDebtItem).kind === 'sale' || (item as PendingDebtItem).kind === 'repair')
     );
   }
 

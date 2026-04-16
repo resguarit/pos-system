@@ -25,6 +25,10 @@ export type Repair = {
   estimated_date?: string | null;
   cost?: number | null;
   sale_price?: number | null;
+  sale_price_without_iva?: number | null;
+  iva_percentage?: number | null;
+  sale_price_with_iva?: number | null;
+  charge_with_iva?: boolean;
   profit_margin?: number | null;
   initial_notes?: string | null;
   sale_id?: number | null;
@@ -49,12 +53,27 @@ export type Repair = {
   device_age?: number | null;
   // Payment fields
   is_paid?: boolean;
+  payment_status?: "pending" | "partial" | "paid";
   amount_paid?: number | null;
+  total_paid?: number | null;
+  pending_amount?: number | null;
   paid_at?: string | null;
   payment_method?: { id: number; name: string } | null;
   cash_movement_id?: number | null;
+  payments?: RepairPayment[];
   created_at?: string;
   updated_at?: string;
+};
+
+export type RepairPayment = {
+  id: number;
+  amount: number;
+  charge_with_iva: boolean;
+  paid_at: string | null;
+  is_reversed: boolean;
+  reversed_at: string | null;
+  payment_method?: { id: number; name: string | null } | null;
+  cash_movement_id?: number | null;
 };
 
 export type Insurer = {

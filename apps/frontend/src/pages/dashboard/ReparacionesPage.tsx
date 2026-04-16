@@ -42,7 +42,7 @@ import BranchRequiredWrapper from "@/components/layout/branch-required-wrapper";
 import RepairsStatusCard from "@/components/cards/RepairsStatusCard";
 import RepairKanbanView from "@/components/RepairKanbanView";
 import { useRepairs } from "@/hooks/useRepairs";
-import type { Repair, RepairStatus, RepairPriority } from "@/types/repairs";
+import type { Repair, RepairStatus } from "@/types/repairs";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { usePersistentDateRange } from "@/hooks/usePersistentDateRange";
@@ -58,12 +58,6 @@ const STATUS_BADGE_COLORS: Record<RepairStatus, string> = {
     Terminado: "bg-green-50 text-green-700 hover:bg-green-50",
     Entregado: "bg-gray-50 text-gray-700 hover:bg-gray-50",
     Cancelado: "bg-red-50 text-red-700 hover:bg-red-50",
-};
-
-const PRIORITY_BADGE_COLORS: Record<RepairPriority, string> = {
-    Alta: "bg-red-50 text-red-700 hover:bg-red-50",
-    Media: "bg-yellow-50 text-yellow-700 hover:bg-yellow-50",
-    Baja: "bg-green-50 text-green-700 hover:bg-green-50",
 };
 
 export default function ReparacionesPage() {
@@ -97,7 +91,6 @@ export default function ReparacionesPage() {
         { id: "customer", minWidth: 150, maxWidth: 300, defaultWidth: 200 },
         { id: "device", minWidth: 120, maxWidth: 250, defaultWidth: 180 },
         { id: "status", minWidth: 120, maxWidth: 180, defaultWidth: 150 },
-        { id: "priority", minWidth: 80, maxWidth: 120, defaultWidth: 100 },
         { id: "cost", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: "sale_price", minWidth: 100, maxWidth: 150, defaultWidth: 120 },
         { id: "payment", minWidth: 110, maxWidth: 160, defaultWidth: 130 },
@@ -419,13 +412,6 @@ export default function ReparacionesPage() {
                                                     Estado
                                                 </ResizableTableHeader>
                                                 <ResizableTableHeader
-                                                    columnId="priority"
-                                                    getResizeHandleProps={getResizeHandleProps}
-                                                    getColumnHeaderProps={getColumnHeaderProps}
-                                                >
-                                                    Prioridad
-                                                </ResizableTableHeader>
-                                                <ResizableTableHeader
                                                     columnId="cost"
                                                     getResizeHandleProps={getResizeHandleProps}
                                                     getColumnHeaderProps={getColumnHeaderProps}
@@ -437,7 +423,7 @@ export default function ReparacionesPage() {
                                                     getResizeHandleProps={getResizeHandleProps}
                                                     getColumnHeaderProps={getColumnHeaderProps}
                                                 >
-                                                    Precio Venta
+                                                    Precio (neto/bruto)
                                                 </ResizableTableHeader>
                                                 <ResizableTableHeader
                                                     columnId="payment"
@@ -498,17 +484,6 @@ export default function ReparacionesPage() {
                                                         </Badge>
                                                     </ResizableTableCell>
                                                     <ResizableTableCell
-                                                        columnId="priority"
-                                                        getColumnCellProps={getColumnCellProps}
-                                                    >
-                                                        <Badge
-                                                            variant="outline"
-                                                            className={PRIORITY_BADGE_COLORS[rep.priority]}
-                                                        >
-                                                            {rep.priority}
-                                                        </Badge>
-                                                    </ResizableTableCell>
-                                                    <ResizableTableCell
                                                         columnId="cost"
                                                         getColumnCellProps={getColumnCellProps}
                                                     >
@@ -518,7 +493,14 @@ export default function ReparacionesPage() {
                                                         columnId="sale_price"
                                                         getColumnCellProps={getColumnCellProps}
                                                     >
-                                                        {formatCurrency(rep.sale_price)}
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs text-muted-foreground">
+                                                                Neto: {formatCurrency(rep.sale_price_without_iva)}
+                                                            </span>
+                                                            <span className="font-medium">
+                                                                Bruto: {formatCurrency(rep.sale_price_with_iva ?? rep.sale_price)}
+                                                            </span>
+                                                        </div>
                                                     </ResizableTableCell>
                                                     <ResizableTableCell
                                                         columnId="payment"

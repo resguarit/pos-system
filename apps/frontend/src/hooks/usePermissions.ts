@@ -2,8 +2,14 @@ import { useAuth } from '@/context/AuthContext';
 import { PERMISSIONS_CONFIG } from '@/config/permissions';
 import features from '@/config/features';
 
+type PermissionConfig = {
+  feature: keyof typeof features;
+  permissions: string[];
+};
+
 export function usePermissions() {
   const { user } = useAuth();
+  const configEntries = Object.entries(PERMISSIONS_CONFIG) as [string, PermissionConfig][];
 
   // Helper para verificar si el usuario tiene permisos válidos
   const hasValidUserPermissions = (): boolean => {
@@ -37,20 +43,20 @@ export function usePermissions() {
   };
 
   // Verificación de features habilitadas
-  const isFeatureEnabled = (feature: keyof typeof FEATURES): boolean => {
-    return FEATURES[feature] === true;
+  const isFeatureEnabled = (feature: keyof typeof features): boolean => {
+    return features[feature] === true;
   };
 
   // Obtención de permisos activos basados en features
   const getActivePermissions = (): string[] => {
     const activePermissions: string[] = [];
-    
-    Object.entries(PERMISSIONS_CONFIG).forEach(([, config]) => {
-      if (isFeatureEnabled((config as any).feature as keyof typeof FEATURES)) {
-        activePermissions.push(...(config as any).permissions);
+
+    configEntries.forEach(([, config]) => {
+      if (isFeatureEnabled(config.feature)) {
+        activePermissions.push(...config.permissions);
       }
     });
-    
+
     return activePermissions;
   };
 
@@ -78,14 +84,14 @@ export function usePermissions() {
   // Verificación si un módulo está habilitado
   const isModuleEnabled = (module: string): boolean => {
     const moduleConfig = getModuleConfig(module);
-    return moduleConfig ? isFeatureEnabled(moduleConfig.feature as keyof typeof FEATURES) : false;
+    return moduleConfig ? isFeatureEnabled(moduleConfig.feature as keyof typeof features) : false;
   };
 
   // Obtención de módulos habilitados
   const getEnabledModules = (): string[] => {
-    return Object.entries(PERMISSIONS_CONFIG)
-      .filter(([_, config]) => isFeatureEnabled((config as any).feature as keyof typeof FEATURES))
-      .map(([module, _]) => module);
+    return configEntries
+      .filter(([, config]) => isFeatureEnabled(config.feature))
+      .map(([module]) => module);
   };
 
   // Verificación de acceso a módulo (combina permisos de usuario y features)
@@ -96,7 +102,7 @@ export function usePermissions() {
     }
 
     // Verificar que la feature esté habilitada Y que el usuario tenga permisos
-    return isFeatureEnabled(moduleConfig.feature as keyof typeof FEATURES) && 
+    return isFeatureEnabled(moduleConfig.feature as keyof typeof features) && 
            hasAnyPermission(moduleConfig.permissions);
   };
 

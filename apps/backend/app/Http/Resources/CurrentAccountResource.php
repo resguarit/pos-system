@@ -16,26 +16,7 @@ class CurrentAccountResource extends JsonResource
     {
         // Calcular total de ventas pendientes (saldo adeudado)
         $currentAccountService = app(\App\Services\CurrentAccountService::class);
-        // Usar pending_amount directamente del modelo SaleHeader
-        $totalPendingSales = 0;
-        if ($this->customer_id) {
-            // Incluir todas las ventas EXCEPTO rechazadas
-            // Las ventas anuladas que tengan saldo pendiente también se incluyen
-            $sales = \App\Models\SaleHeader::where('customer_id', $this->customer_id)
-                ->validForDebt()
-                ->pendingDebt()
-                ->get();
-
-            // Sumar el pending_amount de cada venta que tenga saldo pendiente
-            foreach ($sales as $sale) {
-                if ($sale->pending_amount > 0.01) {
-                    $totalPendingSales += $sale->pending_amount;
-                }
-            }
-        }
-
-        // El saldo adeudado total es solo las ventas pendientes
-        $totalPendingDebt = $totalPendingSales;
+            $debtBreakdown = $currentAccountService->getCustomerDebtBreakdown($this->customer_id);
 
         return [
             'id' => $this->id,
@@ -83,7 +64,10 @@ class CurrentAccountResource extends JsonResource
             ] : null,
             'credit_limit' => $this->credit_limit,
             'current_balance' => $this->current_balance,
-            'total_pending_debt' => $totalPendingDebt, // Total de deuda pendiente (ventas + cargos administrativos)
+            'total_pending_debt' => $debtBreakdown['total'],
+            'sales_pending_debt' => $debtBreakdown['sales']['amount'],
+            'repairs_pending_debt' => $debtBreakdown['repairs']['amount'],
+            'debt_breakdown' => $debtBreakdown,
             'available_credit' => $this->available_credit,
             'credit_usage_percentage' => $this->credit_usage_percentage,
             'status' => $this->status,
