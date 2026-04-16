@@ -84,59 +84,45 @@ class DashboardController extends Controller
     public function getStockAlerts(Request $request)
     {
         $branchIds = $request->query('branch_id', []); // Puede ser array o valor único
-        $limit = $request->query('limit', 10);
+        $limit = (int) $request->query('limit', 10);
+        if ($limit <= 0) {
+            $limit = 10;
+        }
+        $limit = min($limit, 100);
 
-        $query = Product::with(['stocks' => function($q) use ($branchIds) {
-            if (!empty($branchIds) && $branchIds !== 'all') {
-                if (is_array($branchIds)) {
-                    // Solo aplicar filtro si el array no está vacío
-                    if (count($branchIds) > 0) {
-                        $q->whereIn('branch_id', $branchIds);
-                    }
-                } else {
-                    $q->where('branch_id', $branchIds);
-                }
-            }
-        }])
-        ->whereHas('stocks', function($q) use ($branchIds) {
-            if (!empty($branchIds) && $branchIds !== 'all') {
-                if (is_array($branchIds)) {
-                    // Solo aplicar filtro si el array no está vacío
-                    if (count($branchIds) > 0) {
-                        $q->whereIn('branch_id', $branchIds);
-                    }
-                } else {
-                    $q->where('branch_id', $branchIds);
-                }
-            }
-        });
+        $query = Stock::with(['product:id,description', 'branch:id,description'])
+            ->whereColumn('current_stock', '<=', 'min_stock')
+            ->orderBy('current_stock', 'asc');
 
-        $products = $query->get();
-
-        $alerts = [];
-        foreach ($products as $product) {
-            foreach ($product->stocks as $stock) {
-                if ($stock->current_stock <= $stock->min_stock) {
-                    $status = $stock->current_stock <= 0 ? 'out_of_stock' : 'low_stock';
-                    $alerts[] = [
-                        'product_id' => $product->id,
-                        'product_name' => $product->description,
-                        'branch_id' => $stock->branch_id,
-                        'branch_name' => $stock->branch->description ?? 'Sin nombre',
-                        'current_quantity' => $stock->current_stock,
-                        'min_stock' => $stock->min_stock,
-                        'status' => $status
-                    ];
+        if (!empty($branchIds) && $branchIds !== 'all') {
+            if (is_array($branchIds)) {
+                if (count($branchIds) > 0) {
+                    $query->whereIn('branch_id', $branchIds);
                 }
+            } else {
+                $query->where('branch_id', $branchIds);
             }
         }
 
-        // Ordenar por cantidad actual (menor primero)
-        usort($alerts, function($a, $b) {
-            return $a['current_quantity'] <=> $b['current_quantity'];
-        });
+        $alerts = $query
+            ->limit($limit)
+            ->get()
+            ->map(function (Stock $stock) {
+                $status = $stock->current_stock <= 0 ? 'out_of_stock' : 'low_stock';
 
-        return response()->json(array_slice($alerts, 0, $limit));
+                return [
+                    'product_id' => $stock->product_id,
+                    'product_name' => $stock->product?->description ?? 'Producto sin nombre',
+                    'branch_id' => $stock->branch_id,
+                    'branch_name' => $stock->branch?->description ?? 'Sin nombre',
+                    'current_quantity' => $stock->current_stock,
+                    'min_stock' => $stock->min_stock,
+                    'status' => $status,
+                ];
+            })
+            ->values();
+
+        return response()->json($alerts);
     }
 
     /**

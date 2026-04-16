@@ -1238,6 +1238,11 @@ class SaleService implements SaleServiceInterface
         if ($to) {
             $query->where('date', '<=', Carbon::parse($to)->endOfDay()->setTimezone('UTC'));
         }
+        $limit = (int) $request->input('limit', 0);
+        if ($limit > 0) {
+            $query->limit(min($limit, 100));
+        }
+
         $sales = $query->orderByDesc('date')->get();
         return $sales->map(function ($sale) {
             $customerName = '';
