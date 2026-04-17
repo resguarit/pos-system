@@ -43,6 +43,18 @@ class ExpenseController extends Controller
             $query->where('category_id', $request->category_id);
         }
 
+        if ($request->has('employee_id') && $request->employee_id !== null && $request->employee_id !== '') {
+            $query->where('employee_id', (int) $request->employee_id);
+        }
+
+        if ($request->has('month') && $request->month !== null && $request->month !== '') {
+            $query->whereMonth('date', (int) $request->month);
+        }
+
+        if ($request->has('year') && $request->year !== null && $request->year !== '') {
+            $query->whereYear('date', (int) $request->year);
+        }
+
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }

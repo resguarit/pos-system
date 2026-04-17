@@ -130,6 +130,20 @@ class RepairResource extends JsonResource
                     ];
                 })->values();
             }),
+            'external_service' => $this->whenLoaded('subcontractedService', function () {
+                return [
+                    'id' => $this->subcontractedService?->id,
+                    'supplier_id' => $this->subcontractedService?->supplier_id,
+                    'supplier_name' => $this->subcontractedService?->supplier?->name,
+                    'agreed_cost' => (float) ($this->subcontractedService?->agreed_cost ?? 0),
+                    'paid_amount' => (float) ($this->subcontractedService?->paid_amount ?? 0),
+                    'pending_amount' => (float) ($this->subcontractedService?->pending_amount ?? 0),
+                    'payment_status' => $this->subcontractedService?->payment_status,
+                    'description' => $this->subcontractedService?->description,
+                    'notes' => $this->subcontractedService?->notes,
+                    'fully_paid_at' => $this->subcontractedService?->fully_paid_at?->toDateTimeString(),
+                ];
+            }),
             'cash_movement_id' => $this->cash_movement_id,
         ];
     }

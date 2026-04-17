@@ -61,6 +61,7 @@ export type Repair = {
   payment_method?: { id: number; name: string } | null;
   cash_movement_id?: number | null;
   payments?: RepairPayment[];
+  external_service?: ExternalRepairService | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -74,6 +75,36 @@ export type RepairPayment = {
   reversed_at: string | null;
   payment_method?: { id: number; name: string | null } | null;
   cash_movement_id?: number | null;
+};
+
+export type ExternalRepairServicePayment = {
+  id: number;
+  amount: number;
+  paid_at: string | null;
+  notes?: string | null;
+  payment_method?: { id: number; name: string | null } | null;
+  current_account_movement_id?: number | null;
+  user_id?: number | null;
+};
+
+export type ExternalRepairService = {
+  id: number;
+  repair_id: number;
+  repair_code?: string | null;
+  supplier_id: number;
+  supplier_name?: string | null;
+  current_account_id?: number | null;
+  description?: string | null;
+  notes?: string | null;
+  agreed_cost: number;
+  paid_amount: number;
+  pending_amount: number;
+  payment_status: "pending" | "partial" | "paid";
+  fully_paid_at?: string | null;
+  charge_movement_id?: number | null;
+  created_at?: string;
+  updated_at?: string;
+  payments?: ExternalRepairServicePayment[];
 };
 
 export type Insurer = {

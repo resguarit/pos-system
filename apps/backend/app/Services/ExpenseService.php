@@ -25,6 +25,7 @@ class ExpenseService
     {
         $data['user_id'] = Auth::id();
         $data['status'] = $data['status'] ?? 'pending';
+        $data['affects_cash_balance'] = $data['affects_cash_balance'] ?? true;
 
         return DB::transaction(function () use ($data) {
             $expense = Expense::create($data);
@@ -131,7 +132,7 @@ class ExpenseService
             'description' => 'Pago de gasto: ' . $expense->description,
             'user_id' => Auth::id(),
             'payment_method_id' => $expense->payment_method_id,
-            'affects_balance' => true,
+            'affects_balance' => $expense->affects_cash_balance,
             'reference_type' => 'expense',
             'reference_id' => $expense->id,
         ]);

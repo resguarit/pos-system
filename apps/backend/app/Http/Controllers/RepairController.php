@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Interfaces\RepairServiceInterface;
+use App\Http\Resources\SubcontractedServiceResource;
 use App\Http\Resources\RepairResource;
 use App\Http\Resources\RepairNoteResource;
 use App\Http\Requests\Repairs\StoreRepairRequest;
@@ -335,6 +336,67 @@ class RepairController extends Controller
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
+    }
+
+    /**
+     * Derive a repair to an external supplier and register the debt.
+     */
+    public function deriveToExternal(Request $request, int $id): RepairResource|JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'supplier_id' => 'required|integer|exists:suppliers,id',
+                'agreed_cost' => 'required|numeric|min:0.01|max:999999999.99',
+                'description' => 'nullable|string|max:500',
+                'notes' => 'nullable|string|max:2000',
+            ]);
+
+            $repair = $this->repairs->deriveToExternal($id, $validated);
+            return new RepairResource($repair);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * Register a partial payment for an external subcontracted repair service.
+     */
+    public function payExternalService(Request $request, int $id): RepairResource|JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'amount' => 'required|numeric|min:0.01|max:999999999.99',
+                'payment_method_id' => 'required|integer|exists:payment_methods,id',
+                'cash_register_id' => 'nullable|integer|exists:cash_registers,id',
+                'notes' => 'nullable|string|max:2000',
+            ]);
+
+            $repair = $this->repairs->payExternalService($id, $validated);
+            return new RepairResource($repair);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+    }
+
+    /**
+     * List external subcontracted repair debts for a supplier.
+     */
+    public function externalDebtsBySupplier(Request $request, int $supplierId): JsonResponse
+    {
+        $filters = $request->validate([
+            'payment_status' => 'nullable|in:pending,partial,paid',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date',
+        ]);
+
+        $services = $this->repairs->getExternalServicesBySupplier($supplierId, $filters);
+
+        return response()->json([
+            'status' => 200,
+            'success' => true,
+            'message' => 'Deuda de reparaciones externas obtenida correctamente',
+            'data' => SubcontractedServiceResource::collection($services),
+        ]);
     }
 }
 

@@ -13,6 +13,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\LogsActivityWithContext;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class CurrentAccount extends Model
 {
@@ -248,9 +249,17 @@ class CurrentAccount extends Model
      */
     public function updateBalance(float $amount): void
     {
-        $this->current_balance += $amount;
-        $this->last_movement_at = now();
-        $this->save();
+        $now = now();
+
+        $this->newQuery()
+            ->whereKey($this->id)
+            ->update([
+                'current_balance' => DB::raw('current_balance + ' . (float) $amount),
+                'last_movement_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+        $this->refresh();
     }
 
     /**

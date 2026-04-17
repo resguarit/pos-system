@@ -44,6 +44,8 @@ import {
     Banknote,
     CheckCircle2,
     ArrowLeft,
+    Handshake,
+    Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Repair, RepairNote, RepairPriority, RepairStatus, Insurer } from "@/types/repairs";
@@ -53,6 +55,9 @@ import useApi from "@/hooks/useApi";
 import { sileo } from "sileo";
 import { useBranches } from "@/hooks/useBranches";
 import { useRepairs } from "@/hooks/useRepairs";
+import { getSuppliers } from "@/lib/api/supplierService";
+import { SupplierSearchCombobox } from "@/components/suppliers/SupplierSearchCombobox";
+import type { Supplier } from "@/types/product";
 import { useCustomerSearch, type CustomerOption as SearchCustomerOption } from "@/hooks/useCustomerSearch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -214,7 +219,7 @@ export default function RepairDetailPanelV2({
     const [activeTab, setActiveTab] = useState<"details" | "financials" | "notes">(defaultTab);
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
     const { branches } = useBranches();
-    const { markAsPaid, markAsUnpaid } = useRepairs();
+    const { markAsPaid, markAsUnpaid, deriveToExternal, payExternalService } = useRepairs();
 
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [selectedBranchId, setSelectedBranchId] = useState<string>("");
@@ -225,6 +230,17 @@ export default function RepairDetailPanelV2({
     const [showRevertDialog, setShowRevertDialog] = useState(false);
     const [paymentToRevertId, setPaymentToRevertId] = useState<number | null>(null);
     const [paymentError, setPaymentError] = useState<string | null>(null);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [showExternalDeriveForm, setShowExternalDeriveForm] = useState(false);
+    const [externalSupplierId, setExternalSupplierId] = useState<string>("");
+    const [externalAgreedCost, setExternalAgreedCost] = useState<string>("");
+    const [externalDescription, setExternalDescription] = useState<string>("");
+    const [externalNotes, setExternalNotes] = useState<string>("");
+    const [externalPaymentMethodId, setExternalPaymentMethodId] = useState<string>("");
+    const [externalPaymentAmount, setExternalPaymentAmount] = useState<string>("");
+    const [externalPaymentNotes, setExternalPaymentNotes] = useState<string>("");
+    const [processingExternalAction, setProcessingExternalAction] = useState(false);
+    const [externalActionError, setExternalActionError] = useState<string | null>(null);
 
     const pricing = resolveRepairPricing({
         sale_price_without_iva:
@@ -265,9 +281,20 @@ export default function RepairDetailPanelV2({
             });
     }, [effectiveRepair?.payments]);
 
+    const hasPaymentsData = Array.isArray(effectiveRepair?.payments);
+
     const activePaymentsCount = useMemo(() => {
         return sortedRepairPayments.filter((payment) => !payment.is_reversed).length;
     }, [sortedRepairPayments]);
+
+    const canRevertGeneralPayment = hasPaymentsData
+        ? activePaymentsCount > 0
+        : Boolean(effectiveRepair?.is_paid);
+
+    const paymentStatusForDisplay =
+        hasPaymentsData && activePaymentsCount === 0
+            ? "pending"
+            : (effectiveRepair?.payment_status ?? (effectiveRepair?.is_paid ? "paid" : "pending"));
 
     const totalPaidForBalance = useMemo(() => {
         return Number(effectiveRepair?.total_paid ?? effectiveRepair?.amount_paid ?? 0);
@@ -292,6 +319,15 @@ export default function RepairDetailPanelV2({
         setShowRevertDialog(false);
         setPaymentToRevertId(null);
         setPaymentError(null);
+        setExternalActionError(null);
+        setShowExternalDeriveForm(false);
+        setExternalSupplierId("");
+        setExternalAgreedCost("");
+        setExternalDescription("");
+        setExternalNotes("");
+        setExternalPaymentMethodId("");
+        setExternalPaymentAmount("");
+        setExternalPaymentNotes("");
 
         const fetchPaymentMethods = async () => {
             try {
@@ -320,7 +356,18 @@ export default function RepairDetailPanelV2({
                 console.error("Error fetching payment methods:", error);
             }
         };
+
+        const fetchSuppliers = async () => {
+            try {
+                const supplierData = await getSuppliers();
+                setSuppliers(supplierData ?? []);
+            } catch (error) {
+                console.error("Error fetching suppliers:", error);
+            }
+        };
+
         fetchPaymentMethods();
+        fetchSuppliers();
     }, [open, defaultTab, repair, request]);
 
     const {
@@ -491,6 +538,10 @@ export default function RepairDetailPanelV2({
 
     const handleConfirmRevertPayment = async () => {
         if (!currentRepair) return;
+        if (!canRevertGeneralPayment && !paymentToRevertId) {
+            setPaymentError("No hay cobros activos para revertir.");
+            return;
+        }
 
         setIsRevertingPayment(true);
         setPaymentError(null);
@@ -501,10 +552,31 @@ export default function RepairDetailPanelV2({
                 setShowRevertDialog(false);
                 setPaymentToRevertId(null);
                 onPaymentSuccess?.();
+            } else {
+                setPaymentError("No se pudo revertir el cobro. Intentá nuevamente.");
             }
+        } catch {
+            setPaymentError("Ocurrió un error al revertir el cobro.");
         } finally {
             setIsRevertingPayment(false);
         }
+    };
+
+    const openGeneralRevertDialog = () => {
+        if (!canRevertGeneralPayment) {
+            setPaymentError("No hay cobros activos para revertir.");
+            return;
+        }
+
+        setPaymentError(null);
+        setPaymentToRevertId(null);
+        setShowRevertDialog(true);
+    };
+
+    const openItemRevertDialog = (paymentId: number) => {
+        setPaymentError(null);
+        setPaymentToRevertId(paymentId);
+        setShowRevertDialog(true);
     };
 
     if (!open) return null;
@@ -1272,28 +1344,295 @@ export default function RepairDetailPanelV2({
                                             <span>Estado de Pago</span>
                                         </h3>
 
+                                        <Card className="border-cyan-200 bg-cyan-50/60">
+                                            <CardContent className="py-4 space-y-3">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                                                        <Handshake className="h-4 w-4 text-cyan-700" />
+                                                        Servicio externo
+                                                    </h4>
+                                                    {effectiveRepair?.external_service ? (
+                                                        <Badge variant="outline" className="border-cyan-300 text-cyan-800">
+                                                            {effectiveRepair.external_service.payment_status === "paid"
+                                                                ? "Pagado"
+                                                                : effectiveRepair.external_service.payment_status === "partial"
+                                                                    ? "Pago parcial"
+                                                                    : "Pendiente"}
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline">Sin derivación</Badge>
+                                                    )}
+                                                </div>
+
+                                                {externalActionError && (
+                                                    <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                                                        <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                                                        <span>{externalActionError}</span>
+                                                    </div>
+                                                )}
+
+                                                {effectiveRepair?.external_service ? (
+                                                    <div className="space-y-3">
+                                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                                                            <div>
+                                                                <Label className="text-muted-foreground">Proveedor</Label>
+                                                                <p className="text-sm font-medium">
+                                                                    {effectiveRepair.external_service.supplier_name || "-"}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-muted-foreground">Costo acordado</Label>
+                                                                <p className="text-sm font-medium">
+                                                                    {formatCurrency(effectiveRepair.external_service.agreed_cost)}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-muted-foreground">Pagado</Label>
+                                                                <p className="text-sm font-medium text-green-700">
+                                                                    {formatCurrency(effectiveRepair.external_service.paid_amount)}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-muted-foreground">Pendiente</Label>
+                                                                <p className="text-sm font-medium text-amber-700">
+                                                                    {formatCurrency(effectiveRepair.external_service.pending_amount)}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {effectiveRepair.external_service.pending_amount > 0.01 && (
+                                                            <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end">
+                                                                <div className="md:col-span-4">
+                                                                    <Label className="text-xs font-medium">Método de pago *</Label>
+                                                                    <Select value={externalPaymentMethodId} onValueChange={setExternalPaymentMethodId}>
+                                                                        <SelectTrigger>
+                                                                            <SelectValue placeholder="Seleccionar método" />
+                                                                        </SelectTrigger>
+                                                                        <SelectContent>
+                                                                            {paymentMethods.map((method) => (
+                                                                                <SelectItem key={method.id} value={String(method.id)}>
+                                                                                    {method.name}
+                                                                                </SelectItem>
+                                                                            ))}
+                                                                        </SelectContent>
+                                                                    </Select>
+                                                                </div>
+                                                                <div className="md:col-span-3">
+                                                                    <Label className="text-xs font-medium">Monto *</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="0.01"
+                                                                        value={externalPaymentAmount || String(effectiveRepair.external_service.pending_amount ?? "")}
+                                                                        onChange={(e) => setExternalPaymentAmount(e.target.value)}
+                                                                    />
+                                                                </div>
+                                                                <div className="md:col-span-3">
+                                                                    <Label className="text-xs font-medium">Notas</Label>
+                                                                    <Input
+                                                                        value={externalPaymentNotes}
+                                                                        onChange={(e) => setExternalPaymentNotes(e.target.value)}
+                                                                        placeholder="Opcional"
+                                                                    />
+                                                                </div>
+                                                                <div className="md:col-span-2">
+                                                                    <Button
+                                                                        className="w-full"
+                                                                        disabled={
+                                                                            processingExternalAction ||
+                                                                            !externalPaymentMethodId ||
+                                                                            ((externalPaymentAmount ? parseFloat(externalPaymentAmount) : effectiveRepair.external_service.pending_amount) <= 0) ||
+                                                                            ((externalPaymentAmount ? parseFloat(externalPaymentAmount) : effectiveRepair.external_service.pending_amount) > effectiveRepair.external_service.pending_amount)
+                                                                        }
+                                                                        onClick={async () => {
+                                                                            if (!effectiveRepair?.id) return;
+
+                                                                            setProcessingExternalAction(true);
+                                                                            setExternalActionError(null);
+                                                                            try {
+                                                                                const resolvedAmount = externalPaymentAmount
+                                                                                    ? parseFloat(externalPaymentAmount)
+                                                                                    : effectiveRepair.external_service?.pending_amount ?? 0;
+
+                                                                                const result = await payExternalService(effectiveRepair.id, {
+                                                                                    amount: resolvedAmount,
+                                                                                    payment_method_id: parseInt(externalPaymentMethodId, 10),
+                                                                                    notes: externalPaymentNotes || undefined,
+                                                                                });
+
+                                                                                if (!result) {
+                                                                                    setExternalActionError("No se pudo registrar el pago externo.");
+                                                                                    return;
+                                                                                }
+
+                                                                                setCurrentRepair(result);
+                                                                                setExternalPaymentNotes("");
+                                                                                setExternalPaymentAmount(String(result.external_service?.pending_amount ?? ""));
+                                                                                sileo.success({ title: "Pago externo registrado" });
+                                                                                onPaymentSuccess?.();
+                                                                            } catch (error) {
+                                                                                const message = error instanceof Error ? error.message : "No se pudo registrar el pago externo";
+                                                                                setExternalActionError(message);
+                                                                            } finally {
+                                                                                setProcessingExternalAction(false);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {processingExternalAction ? (
+                                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                                        ) : (
+                                                                            <>
+                                                                                <Wallet className="mr-2 h-4 w-4" />
+                                                                                Pagar
+                                                                            </>
+                                                                        )}
+                                                                    </Button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : showExternalDeriveForm ? (
+                                                    <div className="space-y-3">
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            <div>
+                                                                <Label className="text-xs font-medium">Proveedor externo *</Label>
+                                                                <SupplierSearchCombobox
+                                                                    value={externalSupplierId}
+                                                                    onValueChange={setExternalSupplierId}
+                                                                    suppliers={suppliers}
+                                                                    placeholder="Escribí para buscar proveedor..."
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <Label className="text-xs font-medium">Costo acordado *</Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="0.01"
+                                                                    value={externalAgreedCost}
+                                                                    onChange={(e) => setExternalAgreedCost(e.target.value)}
+                                                                    placeholder="0.00"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-xs font-medium">Descripción</Label>
+                                                            <Input
+                                                                value={externalDescription}
+                                                                onChange={(e) => setExternalDescription(e.target.value)}
+                                                                placeholder="Ej: Derivación de placa principal"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <Label className="text-xs font-medium">Notas</Label>
+                                                            <Textarea
+                                                                value={externalNotes}
+                                                                onChange={(e) => setExternalNotes(e.target.value)}
+                                                                rows={2}
+                                                                placeholder="Opcional"
+                                                            />
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                variant="outline"
+                                                                className="flex-1"
+                                                                onClick={() => setShowExternalDeriveForm(false)}
+                                                                disabled={processingExternalAction}
+                                                            >
+                                                                Cancelar
+                                                            </Button>
+                                                            <Button
+                                                                className="flex-1"
+                                                                disabled={
+                                                                    processingExternalAction ||
+                                                                    !externalSupplierId ||
+                                                                    !externalAgreedCost ||
+                                                                    parseFloat(externalAgreedCost) <= 0
+                                                                }
+                                                                onClick={async () => {
+                                                                    if (!effectiveRepair?.id) return;
+
+                                                                    setProcessingExternalAction(true);
+                                                                    setExternalActionError(null);
+                                                                    try {
+                                                                        const result = await deriveToExternal(effectiveRepair.id, {
+                                                                            supplier_id: parseInt(externalSupplierId, 10),
+                                                                            agreed_cost: parseFloat(externalAgreedCost),
+                                                                            description: externalDescription || undefined,
+                                                                            notes: externalNotes || undefined,
+                                                                        });
+
+                                                                        if (!result) {
+                                                                            setExternalActionError("No se pudo derivar la reparación.");
+                                                                            return;
+                                                                        }
+
+                                                                        setCurrentRepair(result);
+                                                                        setShowExternalDeriveForm(false);
+                                                                        setExternalPaymentAmount(String(result.external_service?.pending_amount ?? ""));
+                                                                        sileo.success({ title: "Reparación derivada a externo" });
+                                                                        onPaymentSuccess?.();
+                                                                    } catch (error) {
+                                                                        const message = error instanceof Error ? error.message : "No se pudo derivar la reparación";
+                                                                        setExternalActionError(message);
+                                                                    } finally {
+                                                                        setProcessingExternalAction(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {processingExternalAction ? (
+                                                                    <>
+                                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                        Guardando...
+                                                                    </>
+                                                                ) : (
+                                                                    "Confirmar derivación"
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Esta reparación todavía no está derivada a un proveedor externo.
+                                                        </p>
+                                                        <Button
+                                                            variant="outline"
+                                                            onClick={() => {
+                                                                setShowExternalDeriveForm(true);
+                                                                setExternalAgreedCost(String(Math.max(0, Number(effectiveRepair?.cost ?? 0))));
+                                                            }}
+                                                        >
+                                                            <Handshake className="mr-2 h-4 w-4" />
+                                                            Derivar a externo
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+
                                         <Card className="border-slate-200 bg-slate-50/50">
                                             <CardContent className="py-3">
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-xs text-muted-foreground">Estado:</span>
                                                         <Badge variant="outline">
-                                                            {repair.payment_status === "paid"
+                                                            {paymentStatusForDisplay === "paid"
                                                                 ? "Pagada"
-                                                                : repair.payment_status === "partial"
+                                                                : paymentStatusForDisplay === "partial"
                                                                     ? "Parcial"
                                                                     : "Pendiente"}
                                                         </Badge>
                                                     </div>
                                                     <div className="text-xs text-muted-foreground flex items-center gap-3">
-                                                        <span>Total cobrado: {formatCurrency(repair.total_paid ?? repair.amount_paid ?? 0)}</span>
-                                                        <span>Pendiente: {formatCurrency(repair.pending_amount ?? 0)}</span>
+                                                        <span>Total cobrado: {formatCurrency(effectiveRepair?.total_paid ?? effectiveRepair?.amount_paid ?? 0)}</span>
+                                                        <span>Pendiente: {formatCurrency(effectiveRepair?.pending_amount ?? 0)}</span>
                                                     </div>
                                                 </div>
                                             </CardContent>
                                         </Card>
 
-                                        {repair.status === "Cancelado" ? (
+                                        {effectiveRepair?.status === "Cancelado" ? (
                                             <Card className="border-gray-200 bg-gray-50/50">
                                                 <CardContent className="py-4">
                                                     <div className="flex items-center gap-3">
@@ -1302,25 +1641,25 @@ export default function RepairDetailPanelV2({
                                                         </div>
                                                         <div className="space-y-1 flex-1">
                                                             <p className="font-semibold text-gray-600">Reparación cancelada</p>
-                                                            {repair.is_paid ? (
+                                                            {effectiveRepair?.is_paid ? (
                                                                 <div className="text-xs space-y-0.5">
                                                                     <p className="text-gray-600 font-medium">Cobrada previamente</p>
                                                                     <p className="text-gray-500">
                                                                         <span className="font-medium">Monto:</span>{" "}
-                                                                        {formatCurrency(repair.amount_paid)}
+                                                                        {formatCurrency(effectiveRepair?.amount_paid ?? 0)}
                                                                     </p>
                                                                     <p className="text-gray-500">
                                                                         <span className="font-medium">Método:</span>{" "}
-                                                                        {repair.payment_method?.name || "—"}
+                                                                        {effectiveRepair?.payment_method?.name || "—"}
                                                                     </p>
                                                                     <p className="text-gray-500">
                                                                         <span className="font-medium">Modalidad:</span>{" "}
-                                                                        {repair.charge_with_iva === false ? "Sin IVA" : "Con IVA"}
+                                                                        {effectiveRepair?.charge_with_iva === false ? "Sin IVA" : "Con IVA"}
                                                                     </p>
-                                                                    {repair.paid_at && (
+                                                                    {effectiveRepair?.paid_at && (
                                                                         <p className="text-gray-500">
                                                                             <span className="font-medium">Fecha:</span>{" "}
-                                                                            {formatDateTime(repair.paid_at)}
+                                                                            {formatDateTime(effectiveRepair.paid_at)}
                                                                         </p>
                                                                     )}
                                                                 </div>
@@ -1330,16 +1669,13 @@ export default function RepairDetailPanelV2({
                                                         </div>
                                                     </div>
 
-                                                    {repair.is_paid && (
+                                                    {canRevertGeneralPayment && (
                                                         <div className="mt-4 pt-3 border-t border-gray-200/70">
                                                             <Button
                                                                 variant="outline"
                                                                 className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
-                                                                disabled={isRevertingPayment}
-                                                                onClick={() => {
-                                                                    setPaymentToRevertId(null);
-                                                                    setShowRevertDialog(true);
-                                                                }}
+                                                                disabled={isRevertingPayment || !canRevertGeneralPayment}
+                                                                onClick={openGeneralRevertDialog}
                                                             >
                                                                 {isRevertingPayment ? (
                                                                     <>
@@ -1354,7 +1690,7 @@ export default function RepairDetailPanelV2({
                                                     )}
                                                 </CardContent>
                                             </Card>
-                                        ) : repair.is_paid ? (
+                                        ) : effectiveRepair?.is_paid ? (
                                             <Card className="border-green-200 bg-green-50/50 shadow-sm">
                                                 <CardContent className="py-4">
                                                     <div className="flex items-center gap-3">
@@ -1366,49 +1702,48 @@ export default function RepairDetailPanelV2({
                                                             <div className="text-xs space-y-0.5">
                                                                 <p className="text-green-700">
                                                                     <span className="font-medium">Monto:</span>{" "}
-                                                                    {formatCurrency(repair.amount_paid)}
+                                                                    {formatCurrency(effectiveRepair?.amount_paid ?? 0)}
                                                                 </p>
                                                                 <p className="text-green-700">
                                                                     <span className="font-medium">Método:</span>{" "}
-                                                                    {repair.payment_method?.name || "—"}
+                                                                    {effectiveRepair?.payment_method?.name || "—"}
                                                                 </p>
                                                                 <p className="text-green-700">
                                                                     <span className="font-medium">Modalidad:</span>{" "}
-                                                                    {repair.charge_with_iva === false ? "Sin IVA" : "Con IVA"}
+                                                                    {effectiveRepair?.charge_with_iva === false ? "Sin IVA" : "Con IVA"}
                                                                 </p>
-                                                                {repair.paid_at && (
+                                                                {effectiveRepair?.paid_at && (
                                                                     <p className="text-green-600">
                                                                         <span className="font-medium">Fecha:</span>{" "}
-                                                                        {formatDateTime(repair.paid_at)}
+                                                                        {formatDateTime(effectiveRepair.paid_at)}
                                                                     </p>
                                                                 )}
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="mt-4 pt-3 border-t border-green-200/70">
-                                                        <Button
-                                                            variant="outline"
-                                                            className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
-                                                            disabled={isRevertingPayment}
-                                                            onClick={() => {
-                                                                setPaymentToRevertId(null);
-                                                                setShowRevertDialog(true);
-                                                            }}
-                                                        >
-                                                            {isRevertingPayment ? (
-                                                                <>
-                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                                    Revirtiendo...
-                                                                </>
-                                                            ) : (
-                                                                "Revertir cobro"
-                                                            )}
-                                                        </Button>
-                                                    </div>
+                                                    {canRevertGeneralPayment && (
+                                                        <div className="mt-4 pt-3 border-t border-green-200/70">
+                                                            <Button
+                                                                variant="outline"
+                                                                className="w-full border-rose-200 text-rose-700 hover:bg-rose-50"
+                                                                disabled={isRevertingPayment || !canRevertGeneralPayment}
+                                                                onClick={openGeneralRevertDialog}
+                                                            >
+                                                                {isRevertingPayment ? (
+                                                                    <>
+                                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                        Revirtiendo...
+                                                                    </>
+                                                                ) : (
+                                                                    "Revertir cobro"
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    )}
                                                 </CardContent>
                                             </Card>
-                                        ) : isFreeRepairPrice(repair) ? (
+                                        ) : isFreeRepairPrice(effectiveRepair) ? (
                                             <Card className="border-slate-200 shadow-sm">
                                                 <CardContent className="py-4 space-y-4">
                                                     <div className="flex items-center justify-between">
@@ -1796,10 +2131,7 @@ export default function RepairDetailPanelV2({
                                                                         size="sm"
                                                                         className="border-rose-200 text-rose-700 hover:bg-rose-50"
                                                                         disabled={isRevertingPayment}
-                                                                        onClick={() => {
-                                                                            setPaymentToRevertId(payment.id);
-                                                                            setShowRevertDialog(true);
-                                                                        }}
+                                                                        onClick={() => openItemRevertDialog(payment.id)}
                                                                     >
                                                                         Revertir este pago
                                                                     </Button>
@@ -1881,6 +2213,7 @@ export default function RepairDetailPanelV2({
                         setShowRevertDialog(openDialog);
                         if (!openDialog) {
                             setPaymentToRevertId(null);
+                            setPaymentError(null);
                         }
                     }}
                 >
@@ -1893,11 +2226,16 @@ export default function RepairDetailPanelV2({
                                     : "Se anulará el último pago activo, su impacto en caja y en cuenta corriente."}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
+                        {paymentError && (
+                            <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                                {paymentError}
+                            </div>
+                        )}
                         <AlertDialogFooter>
                             <AlertDialogCancel disabled={isRevertingPayment}>Cancelar</AlertDialogCancel>
                             <AlertDialogAction
                                 onClick={handleConfirmRevertPayment}
-                                disabled={isRevertingPayment}
+                                disabled={isRevertingPayment || (!canRevertGeneralPayment && !paymentToRevertId)}
                                 className="bg-rose-600 hover:bg-rose-700 text-white"
                             >
                                 {isRevertingPayment ? (

@@ -48,7 +48,7 @@ class Employee extends Model
 
     public function branch()
     {
-        return $this->belongsTo(Branch::class);
+        return $this->belongsTo(Branch::class)->withTrashed();
     }
 
     /**
@@ -58,6 +58,7 @@ class Employee extends Model
     public function branches()
     {
         return $this->belongsToMany(Branch::class, 'employee_branch')
+            ->withTrashed()
             ->withTimestamps();
     }
 

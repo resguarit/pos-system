@@ -28,6 +28,7 @@ class Expense extends Model
         'date',
         'due_date',
         'status',
+        'affects_cash_balance',
         'is_recurring',
         'recurrence_interval',
     ];
@@ -44,6 +45,7 @@ class Expense extends Model
         'amount' => 'decimal:2',
         'date' => 'date',
         'due_date' => 'date',
+        'affects_cash_balance' => 'boolean',
         'is_recurring' => 'boolean',
     ];
 

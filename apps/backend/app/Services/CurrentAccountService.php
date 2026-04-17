@@ -1396,9 +1396,12 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                 'user_id' => auth()->id(),
                 'cash_register_id' => $cashRegisterId,
                 'payment_method_id' => $paymentMethodId,
-                'metadata' => [
-                    'notes' => $paymentData['notes'] ?? null
-                ]
+                'metadata' => array_merge(
+                    [
+                        'notes' => $paymentData['notes'] ?? null,
+                    ],
+                    (array) ($paymentData['metadata'] ?? [])
+                ),
             ]);
 
             // Crear movimiento de caja (Salida de dinero de nuestro negocio)
@@ -1414,15 +1417,33 @@ class CurrentAccountService implements CurrentAccountServiceInterface
                         ->first();
                 }
 
-                \App\Models\CashMovement::create([
+                if (!$cashMovementType) {
+                    $cashMovementType = MovementType::create([
+                        'name' => 'Pago a Proveedor',
+                        'description' => 'Salida de caja por pago a proveedor',
+                        'operation_type' => 'salida',
+                        'is_cash_movement' => true,
+                        'is_current_account_movement' => false,
+                        'active' => true,
+                    ]);
+                }
+
+                $cashMovement = \App\Models\CashMovement::create([
                     'cash_register_id' => $cashRegisterId,
                     'movement_type_id' => $cashMovementType->id,
                     'payment_method_id' => $paymentMethodId,
                     'amount' => $amount,
                     'description' => "Pago a proveedor: " . ($account->supplier->name ?? 'Desconocido'),
                     'user_id' => auth()->id(),
+                    'reference_type' => 'current_account_movement',
+                    'reference_id' => $movement->id,
                     'affects_balance' => true
                 ]);
+
+                $movementMetadata = (array) ($movement->metadata ?? []);
+                $movementMetadata['cash_movement_id'] = $cashMovement->id;
+                $movementMetadata['cash_register_id'] = (int) $cashRegisterId;
+                $movement->update(['metadata' => $movementMetadata]);
             }
 
             return $movement;

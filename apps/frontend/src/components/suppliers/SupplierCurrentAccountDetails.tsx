@@ -3,6 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Pagination from '@/components/ui/pagination';
 import { sileo } from "sileo"
 import {
@@ -14,14 +18,19 @@ import {
     Mail,
     Phone,
     MapPin,
-    Building // For Supplier
+    Building,
+    Handshake,
 } from 'lucide-react';
 import { CurrentAccount, CurrentAccountMovement, PaginatedResponse } from '@/types/currentAccount';
+import type { ExternalRepairService } from '@/types/repairs';
 import { CurrentAccountService, CurrentAccountUtils } from '@/lib/services/currentAccountService';
 import { useResizableColumns } from '@/hooks/useResizableColumns';
 import { ResizableTableHeader, ResizableTableCell } from '@/components/ui/resizable-table-header';
 import { CheckboxMultiSelect, type CheckboxOption } from '@/components/ui/checkbox-multi-select';
 import { SupplierPaymentDialog } from './SupplierPaymentDialog';
+import { useRepairs } from '@/hooks/useRepairs';
+import { usePermissions } from '@/hooks/usePermissions';
+import api from '@/lib/api';
 
 interface SupplierCurrentAccountDetailsProps {
     accountId: number;
@@ -29,6 +38,8 @@ interface SupplierCurrentAccountDetailsProps {
 }
 
 export function SupplierCurrentAccountDetails({ accountId, onBack }: SupplierCurrentAccountDetailsProps) {
+    const { isModuleEnabled } = usePermissions();
+    const repairsEnabled = isModuleEnabled('repairs');
     const [account, setAccount] = useState<CurrentAccount | null>(null);
     const [movements, setMovements] = useState<CurrentAccountMovement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -42,6 +53,21 @@ export function SupplierCurrentAccountDetails({ accountId, onBack }: SupplierCur
     const [showPaymentDialog, setShowPaymentDialog] = useState(false);
     const [movementTypeFilterUI, setMovementTypeFilterUI] = useState<string[]>([]);
     const [movementTypeOptions, setMovementTypeOptions] = useState<CheckboxOption[]>([]);
+    const [externalDebts, setExternalDebts] = useState<ExternalRepairService[]>([]);
+    const [loadingExternalDebts, setLoadingExternalDebts] = useState(false);
+    const [showExternalPaymentDialog, setShowExternalPaymentDialog] = useState(false);
+    const [selectedExternalDebt, setSelectedExternalDebt] = useState<ExternalRepairService | null>(null);
+    const [paymentMethods, setPaymentMethods] = useState<Array<{ id: number; name: string }>>([]);
+    const [loadingPaymentMethods, setLoadingPaymentMethods] = useState(false);
+    const [openCashRegisters, setOpenCashRegisters] = useState<Array<{ id: number; branch_id: number; opened_at?: string | null }>>([]);
+    const [loadingCashRegisters, setLoadingCashRegisters] = useState(false);
+    const [externalCashRegisterId, setExternalCashRegisterId] = useState<string>('');
+    const [externalPaymentMethodId, setExternalPaymentMethodId] = useState<string>('');
+    const [externalPaymentAmount, setExternalPaymentAmount] = useState<string>('');
+    const [externalPaymentNotes, setExternalPaymentNotes] = useState<string>('');
+    const [payingExternalDebt, setPayingExternalDebt] = useState(false);
+
+    const { getExternalDebtsBySupplier, payExternalService } = useRepairs({ autoFetch: false });
 
     const resizableColumns = useResizableColumns({
         columns: [
@@ -103,13 +129,114 @@ export function SupplierCurrentAccountDetails({ accountId, onBack }: SupplierCur
         }
     }, [accountId]);
 
+    const loadExternalDebts = React.useCallback(async (supplierId: number) => {
+        try {
+            setLoadingExternalDebts(true);
+            const debts = await getExternalDebtsBySupplier(supplierId, {
+                payment_status: 'pending',
+            });
+            setExternalDebts(debts);
+        } catch (error) {
+            console.error('Error loading external debts:', error);
+            sileo.error({ title: 'Error al cargar deuda de reparaciones externas' });
+        } finally {
+            setLoadingExternalDebts(false);
+        }
+    }, [getExternalDebtsBySupplier]);
+
+    const loadPaymentMethods = React.useCallback(async () => {
+        try {
+            setLoadingPaymentMethods(true);
+            const resp = await api.get('/payment-methods', { params: { limit: 100 } });
+            const data = Array.isArray(resp?.data?.data)
+                ? resp.data.data
+                : Array.isArray(resp?.data)
+                    ? resp.data
+                    : [];
+
+            const mapped = data
+                .filter((item): item is { id: unknown; name: unknown; is_customer_credit?: boolean; is_active?: boolean } => (
+                    typeof item === 'object' && item !== null && 'id' in item && 'name' in item
+                ))
+                .map((item) => ({
+                    id: Number(item.id),
+                    name: String(item.name),
+                    is_customer_credit: Boolean(item.is_customer_credit),
+                    is_active: typeof item.is_active === 'boolean' ? item.is_active : true,
+                }))
+                .filter((method) => method.is_active)
+                .filter((method) => {
+                    const nameLower = method.name.toLowerCase().trim();
+                    return !method.is_customer_credit && !nameLower.includes('cuenta corriente');
+                })
+                .map(({ id, name }) => ({ id, name }));
+            setPaymentMethods(mapped);
+        } catch (error) {
+            console.error('Error loading payment methods:', error);
+        } finally {
+            setLoadingPaymentMethods(false);
+        }
+    }, []);
+
+    const loadOpenCashRegisters = React.useCallback(async () => {
+        try {
+            setLoadingCashRegisters(true);
+
+            const userBranchesResp = await api.get('/my-branches');
+            const userBranches = userBranchesResp?.data?.data || userBranchesResp?.data || [];
+            const userBranchIds: number[] = (Array.isArray(userBranches) ? userBranches : [])
+                .map((b: { id?: unknown }) => Number(b.id))
+                .filter((id) => Number.isFinite(id) && id > 0);
+
+            const resp = await api.get('/cash-registers', { params: { status: 'open' } });
+            const allRegisters = resp?.data?.data || resp?.data || [];
+            const filtered = (Array.isArray(allRegisters) ? allRegisters : [])
+                .filter((reg: { id?: unknown; branch_id?: unknown }) => {
+                    const branchId = Number(reg.branch_id);
+                    return Number.isFinite(branchId) && userBranchIds.includes(branchId);
+                })
+                .map((reg: { id?: unknown; branch_id?: unknown; opened_at?: string | null }) => ({
+                    id: Number(reg.id),
+                    branch_id: Number(reg.branch_id),
+                    opened_at: reg.opened_at ?? null,
+                }))
+                .filter((reg) => Number.isFinite(reg.id) && reg.id > 0);
+
+            setOpenCashRegisters(filtered);
+
+            if (filtered.length > 0) {
+                setExternalCashRegisterId(String(filtered[0].id));
+            } else {
+                setExternalCashRegisterId('');
+            }
+        } catch (error) {
+            console.error('Error loading open cash registers:', error);
+            setOpenCashRegisters([]);
+            setExternalCashRegisterId('');
+        } finally {
+            setLoadingCashRegisters(false);
+        }
+    }, []);
+
 
     useEffect(() => {
         loadAccountDetails();
         loadFilters();
+        loadPaymentMethods();
+        loadOpenCashRegisters();
         setCurrentPage(1);
         scrollPositionRef.current = 0;
-    }, [accountId, loadAccountDetails, loadFilters]);
+    }, [accountId, loadAccountDetails, loadFilters, loadPaymentMethods, loadOpenCashRegisters]);
+
+    useEffect(() => {
+        if (!repairsEnabled) {
+            setExternalDebts([]);
+            return;
+        }
+
+        if (!account?.supplier_id) return;
+        loadExternalDebts(account.supplier_id);
+    }, [account?.supplier_id, loadExternalDebts, repairsEnabled]);
 
     useEffect(() => {
         if (accountId) {
@@ -127,6 +254,65 @@ export function SupplierCurrentAccountDetails({ accountId, onBack }: SupplierCur
     const handleSuccess = () => {
         loadAccountDetails();
         loadMovements();
+        if (account?.supplier_id) {
+            loadExternalDebts(account.supplier_id);
+        }
+    };
+
+    const openExternalPaymentDialog = (debt: ExternalRepairService) => {
+        setSelectedExternalDebt(debt);
+        setExternalPaymentMethodId('');
+        setExternalCashRegisterId((prev) => prev || (openCashRegisters.length > 0 ? String(openCashRegisters[0].id) : ''));
+        setExternalPaymentAmount(String(debt.pending_amount ?? ''));
+        setExternalPaymentNotes('');
+        setShowExternalPaymentDialog(true);
+    };
+
+    const handleExternalPayment = async () => {
+        if (!selectedExternalDebt) return;
+
+        const methodId = parseInt(externalPaymentMethodId, 10);
+        const cashRegisterId = parseInt(externalCashRegisterId, 10);
+        const amount = parseFloat(externalPaymentAmount);
+
+        if (!Number.isFinite(methodId) || methodId <= 0) {
+            sileo.error({ title: 'Seleccioná un método de pago' });
+            return;
+        }
+
+        if (!Number.isFinite(amount) || amount <= 0 || amount > selectedExternalDebt.pending_amount) {
+            sileo.error({ title: 'Monto inválido para el saldo pendiente' });
+            return;
+        }
+
+        if (!Number.isFinite(cashRegisterId) || cashRegisterId <= 0) {
+            sileo.error({ title: 'Seleccioná una caja abierta' });
+            return;
+        }
+
+        try {
+            setPayingExternalDebt(true);
+            const repair = await payExternalService(selectedExternalDebt.repair_id, {
+                amount,
+                payment_method_id: methodId,
+                cash_register_id: cashRegisterId,
+                notes: externalPaymentNotes || undefined,
+            });
+
+            if (!repair) {
+                sileo.error({ title: 'No se pudo registrar el pago' });
+                return;
+            }
+
+            sileo.success({ title: 'Pago por reparación registrado' });
+            setShowExternalPaymentDialog(false);
+            handleSuccess();
+        } catch (error) {
+            console.error('Error paying external debt:', error);
+            sileo.error({ title: 'No se pudo registrar el pago' });
+        } finally {
+            setPayingExternalDebt(false);
+        }
     };
 
     const getStatusBadge = (status: string) => {
@@ -239,10 +425,60 @@ export function SupplierCurrentAccountDetails({ accountId, onBack }: SupplierCur
 
             {/* Tabs */}
             <Tabs defaultValue="movements" className="space-y-4">
-                <TabsList>
+                <TabsList className="w-full justify-start overflow-x-auto whitespace-nowrap">
                     <TabsTrigger value="movements">Movimientos</TabsTrigger>
+                    {repairsEnabled && <TabsTrigger value="external-repairs">Reparaciones externas</TabsTrigger>}
                     <TabsTrigger value="info">Información</TabsTrigger>
                 </TabsList>
+
+                {repairsEnabled && (
+                    <TabsContent value="external-repairs">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Handshake className="h-4 w-4" />
+                                    Deuda por reparaciones derivadas
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {loadingExternalDebts ? (
+                                    <p className="text-sm text-muted-foreground">Cargando reparaciones externas...</p>
+                                ) : externalDebts.length === 0 ? (
+                                    <p className="text-sm text-muted-foreground">No hay deuda pendiente de reparaciones externas para este proveedor.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {externalDebts.map((debt) => (
+                                            <div key={debt.id} className="rounded-lg border p-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                                <div className="space-y-0.5">
+                                                    <p className="text-sm font-medium">
+                                                        Reparación {debt.repair_code || `#${debt.repair_id}`}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Costo: {CurrentAccountUtils.formatCurrency(debt.agreed_cost)} | Pagado: {CurrentAccountUtils.formatCurrency(debt.paid_amount)}
+                                                    </p>
+                                                    <p className="text-xs text-amber-700 font-medium">
+                                                        Pendiente: {CurrentAccountUtils.formatCurrency(debt.pending_amount)}
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="outline">
+                                                        {debt.payment_status === 'paid' ? 'Pagado' : debt.payment_status === 'partial' ? 'Parcial' : 'Pendiente'}
+                                                    </Badge>
+                                                    {debt.pending_amount > 0.01 && (
+                                                        <Button size="sm" onClick={() => openExternalPaymentDialog(debt)}>
+                                                            Pagar reparación
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )}
 
                 <TabsContent value="info">
                     <Card>
@@ -318,71 +554,6 @@ export function SupplierCurrentAccountDetails({ accountId, onBack }: SupplierCur
                                             movements
                                                 .filter(m => movementTypeFilterUI.length === 0 || movementTypeFilterUI.includes(m.movement_type.name))
                                                 .map((m) => {
-                                                    // For supplier:
-                                                    // Inflow (Payment to supplier) REDUCES debt (is_inflow=true? or is_outflow=false?).
-                                                    // Wait, backend:
-                                                    // Payment to Supplier = 'Pago a Proveedor' (Operation: 'salida'?).
-                                                    // If Operation is 'salida' it INCREASES balance if Customer logic?
-                                                    // Customer: Salida = Purchase (Increases Debt/Balance). Entrada = Payment (Reduces Debt/Balance).
-
-                                                    // For Supplier, "Pago a Proveedor" acts as payment, so it should REDUCE the balance (Debt).
-                                                    // In my Backend Logic edit, I used `MovementType::where('operation_type', 'salida')` logic fallback but the name 'Pago a Proveedor'.
-                                                    // I need to be careful with signage.
-                                                    // If `is_outflow` (salida) usually adds to balance.
-                                                    // If `is_inflow` (entrada) usually subtracts from balance.
-
-                                                    // For Customers:
-                                                    // Sale (Outflow) -> + Balance (Debt increases).
-                                                    // Payment (Inflow) -> - Balance (Debt decreases).
-
-                                                    // For Suppliers:
-                                                    // Purchase (Outflow from us, Inflow to them?) -> We owe them more. Should be + Balance.
-                                                    // Payment (Inflow to us? Outflow from us?) -> We owe them less. Should be - Balance.
-
-                                                    // `CurrentAccountService` calculates balance based on Type.
-                                                    // If `Pago a Proveedor` is configured as 'Inflow' (Entrada) equivalent (Reduces Balance), then it will work.
-                                                    // If 'Pago a Proveedor' is 'Salida', it will INCREASE balance.
-
-                                                    // I hardcoded: MovementType name 'Pago a Proveedor'.
-                                                    // If it doesn't exist, I fallback to 'salida'. 
-                                                    // If I use 'salida', it will INCREASE balance! (Because Salida = Debt for Customer logic).
-
-                                                    // Correction:
-                                                    // `CurrentAccountMovementRequest` validation logic etc.
-                                                    // BalanceCalculator:
-                                                    // public function calculateNewBalanceFromMovementType($balance, $amount, $type)
-                                                    // if ($type->operation_type === 'salida') return $balance + $amount;
-                                                    // if ($type->operation_type === 'entrada') return $balance - $amount;
-
-                                                    // So for Supplier:
-                                                    // Purchase (Increases Debt) -> Must be 'SALIDA'.
-                                                    // Payment (Reduces Debt) -> Must be 'ENTRADA'.
-
-                                                    // In `processPurchaseOrder` I assumed "Register Purchase Current Account Movement" adds debt.
-                                                    // `registerPurchaseCurrentAccountMovement` calls `createMovement`.
-                                                    // What type does it use? "Compra". Is Compra 'salida' or 'entrada'?
-                                                    // Usually Compra is Salida (Increases Debt).
-
-                                                    // So My Payment to Supplier MUST be 'ENTRADA' to reduce debt.
-
-                                                    // I must ensure 'Pago a Proveedor' is created as 'ENTRADA' or use generic 'ENTRADA' type.
-
-                                                    // In `CurrentAccountService.php` edit I used:
-                                                    // MovementType::where('name', 'Pago a Proveedor')... fallback to 'salida'.
-                                                    // THIS MIGHT BE WRONG if 'salida' increases balance. I want to REDUCE balance.
-                                                    // Validation:
-                                                    // If the backend defaults to 'salida', the payment will INCREASE the debt. WRONG.
-
-                                                    // Frontend logic for colors:
-                                                    // + Balance (Debt) = Red.
-                                                    // - Balance (Payment) = Green.
-
-                                                    // Let's assume my backend fix checks for 'entrada' if I change it.
-                                                    // I should verify `CurrentAccountService.php` logic I wrote.
-
-                                                    // Back to frontend columns:
-                                                    // If balance decreases, it's a payment.
-
                                                     return (
                                                         <tr key={m.id}>
                                                             <ResizableTableCell columnId="fecha" getColumnCellProps={resizableColumns.getColumnCellProps}>
@@ -435,6 +606,117 @@ export function SupplierCurrentAccountDetails({ accountId, onBack }: SupplierCur
                     onSuccess={handleSuccess}
                 />
             )}
+
+            <Dialog open={showExternalPaymentDialog} onOpenChange={setShowExternalPaymentDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Pagar reparación externa</DialogTitle>
+                        <DialogDescription>
+                            {selectedExternalDebt
+                                ? `Reparación ${selectedExternalDebt.repair_code || `#${selectedExternalDebt.repair_id}`} - Pendiente ${CurrentAccountUtils.formatCurrency(selectedExternalDebt.pending_amount)}`
+                                : 'Ingresá los datos del pago'}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        <div>
+                            <Label>Método de pago</Label>
+                            <Select value={externalPaymentMethodId} onValueChange={setExternalPaymentMethodId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar método" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {paymentMethods.length === 0 ? (
+                                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                                            No hay métodos de pago disponibles
+                                        </div>
+                                    ) : (
+                                        paymentMethods.map((method) => (
+                                            <SelectItem key={method.id} value={String(method.id)}>
+                                                {method.name}
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </SelectContent>
+                            </Select>
+                            {loadingPaymentMethods && (
+                                <p className="mt-1 text-xs text-muted-foreground">Cargando métodos de pago...</p>
+                            )}
+                            {paymentMethods.length === 0 && (
+                                <p className="mt-1 text-xs text-amber-700">
+                                    No se puede registrar el pago hasta que exista al menos un método de pago activo.
+                                </p>
+                            )}
+                        </div>
+                        <div>
+                            <Label>Caja abierta</Label>
+                            <Select value={externalCashRegisterId} onValueChange={setExternalCashRegisterId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar caja" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {openCashRegisters.length === 0 ? (
+                                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                                            No hay cajas abiertas disponibles
+                                        </div>
+                                    ) : (
+                                        openCashRegisters.map((register) => (
+                                            <SelectItem key={register.id} value={String(register.id)}>
+                                                Caja #{register.id} - Sucursal {register.branch_id}
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </SelectContent>
+                            </Select>
+                            {loadingCashRegisters && (
+                                <p className="mt-1 text-xs text-muted-foreground">Cargando cajas abiertas...</p>
+                            )}
+                            {openCashRegisters.length === 0 && (
+                                <p className="mt-1 text-xs text-amber-700">
+                                    No se puede registrar el pago hasta abrir una caja.
+                                </p>
+                            )}
+                        </div>
+                        <div>
+                            <Label>Monto</Label>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max={String(selectedExternalDebt?.pending_amount ?? '')}
+                                value={externalPaymentAmount}
+                                onChange={(e) => setExternalPaymentAmount(e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <Label>Notas</Label>
+                            <Input
+                                value={externalPaymentNotes}
+                                onChange={(e) => setExternalPaymentNotes(e.target.value)}
+                                placeholder="Opcional"
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowExternalPaymentDialog(false)} disabled={payingExternalDebt}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleExternalPayment}
+                            disabled={
+                                payingExternalDebt ||
+                                paymentMethods.length === 0 ||
+                                openCashRegisters.length === 0 ||
+                                !externalPaymentMethodId ||
+                                !externalCashRegisterId
+                            }
+                        >
+                            {payingExternalDebt ? 'Procesando...' : 'Confirmar pago'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

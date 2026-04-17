@@ -18,6 +18,9 @@ interface RepairServiceInterface
     public function assignTechnician(int $id, int $technicianId): Repair;
     public function addNote(int $id, int $userId, string $note): void;
     public function stats(array $filters = []): array;
+    public function deriveToExternal(int $id, array $data): Repair;
+    public function payExternalService(int $id, array $data): Repair;
+    public function getExternalServicesBySupplier(int $supplierId, array $filters = []): Collection;
     public function markAsPaid(int $id, array $data): Repair;
     public function markAsUnpaid(int $id, ?int $paymentId = null): Repair;
 }

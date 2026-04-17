@@ -42,6 +42,7 @@ class StoreExpenseRequest extends FormRequest
             'is_recurring' => 'boolean',
             'recurrence_interval' => 'nullable|string|in:daily,weekly,monthly,yearly',
             'status' => 'in:pending,approved,paid,cancelled',
+            'affects_cash_balance' => 'sometimes|boolean',
         ];
     }
 }

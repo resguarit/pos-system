@@ -9,7 +9,8 @@ import type {
     RepairStats,
     RepairStatus,
     RepairPriority,
-    KanbanColumn
+    KanbanColumn,
+    ExternalRepairService,
 } from "@/types/repairs";
 
 const REPAIR_STATUSES: RepairStatus[] = [
@@ -62,6 +63,9 @@ type UseRepairsReturn = {
     markAsPaid: (id: number, paymentData: MarkAsPaidData) => Promise<Repair | null>;
     markAsUnpaid: (id: number, paymentId?: number) => Promise<Repair | null>;
     markAsNoRepair: (id: number, data?: MarkAsNoRepairData) => Promise<Repair | null>;
+    deriveToExternal: (id: number, payload: DeriveToExternalData) => Promise<Repair | null>;
+    payExternalService: (id: number, payload: PayExternalServiceData) => Promise<Repair | null>;
+    getExternalDebtsBySupplier: (supplierId: number, filters?: ExternalDebtFilters) => Promise<ExternalRepairService[]>;
     refresh: () => void;
 };
 
@@ -102,6 +106,26 @@ export type MarkAsPaidData = {
 
 type MarkAsNoRepairData = {
     reason?: string | null;
+};
+
+type DeriveToExternalData = {
+    supplier_id: number;
+    agreed_cost: number;
+    description?: string;
+    notes?: string;
+};
+
+type PayExternalServiceData = {
+    amount: number;
+    payment_method_id: number;
+    cash_register_id?: number;
+    notes?: string;
+};
+
+type ExternalDebtFilters = {
+    payment_status?: "pending" | "partial" | "paid";
+    from_date?: string;
+    to_date?: string;
 };
 
 export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
@@ -397,6 +421,71 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         [request]
     );
 
+    const deriveToExternal = useCallback(
+        async (id: number, payload: DeriveToExternalData): Promise<Repair | null> => {
+            try {
+                const resp = await request({
+                    method: "POST",
+                    url: `/repairs/${id}/derive-to-external`,
+                    data: payload,
+                });
+                const repair = (resp as { data?: Repair })?.data || (resp as Repair);
+                sileo.success({ title: "Reparación derivada a externo" });
+                return repair;
+            } catch (err) {
+                const error = err as { response?: { data?: { error?: string } } };
+                const errorMsg = error?.response?.data?.error || "No se pudo derivar la reparación";
+                sileo.error({ title: errorMsg });
+                return null;
+            }
+        },
+        [request]
+    );
+
+    const payExternalService = useCallback(
+        async (id: number, payload: PayExternalServiceData): Promise<Repair | null> => {
+            try {
+                const resp = await request({
+                    method: "POST",
+                    url: `/repairs/${id}/external-service/payments`,
+                    data: payload,
+                });
+                const repair = (resp as { data?: Repair })?.data || (resp as Repair);
+                sileo.success({ title: "Pago externo registrado" });
+                return repair;
+            } catch (err) {
+                const error = err as { response?: { data?: { error?: string } } };
+                const errorMsg = error?.response?.data?.error || "No se pudo registrar el pago externo";
+                sileo.error({ title: errorMsg });
+                return null;
+            }
+        },
+        [request]
+    );
+
+    const getExternalDebtsBySupplier = useCallback(
+        async (supplierId: number, filters?: ExternalDebtFilters): Promise<ExternalRepairService[]> => {
+            try {
+                const resp = await request({
+                    method: "GET",
+                    url: `/repairs/external-debts/suppliers/${supplierId}`,
+                    params: filters,
+                });
+
+                const services =
+                    (resp as { data?: { data?: ExternalRepairService[] } })?.data?.data ||
+                    (resp as { data?: ExternalRepairService[] })?.data ||
+                    [];
+
+                return Array.isArray(services) ? services : [];
+            } catch {
+                sileo.error({ title: "No se pudo obtener la deuda externa del proveedor" });
+                return [];
+            }
+        },
+        [request]
+    );
+
     // Add note
     const addNote = useCallback(
         async (id: number, note: string): Promise<boolean> => {
@@ -600,6 +689,9 @@ export function useRepairs(options: UseRepairsOptions = {}): UseRepairsReturn {
         markAsPaid,
         markAsUnpaid,
         markAsNoRepair,
+        deriveToExternal,
+        payExternalService,
+        getExternalDebtsBySupplier,
         refresh,
     };
 }

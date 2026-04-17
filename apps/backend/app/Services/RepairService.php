@@ -7,15 +7,20 @@ use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\Branch;
 use App\Models\CurrentAccount;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\MovementType;
 use App\Models\PaymentMethod;
 use App\Models\Repair;
 use App\Models\RepairNote;
 use App\Models\RepairPayment;
+use App\Models\SubcontractedService;
+use App\Models\SubcontractedServicePayment;
 use App\Services\CurrentAccountService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class RepairService implements RepairServiceInterface
@@ -47,7 +52,7 @@ class RepairService implements RepairServiceInterface
     private function buildQuery(array $filters = [])
     {
         $query = Repair::query()
-            ->with(['customer.person', 'branch', 'category', 'technician.person', 'sale', 'insurer', 'insuredCustomer.person', 'payments.paymentMethod'])
+            ->with(['customer.person', 'branch', 'category', 'technician.person', 'sale', 'insurer', 'insuredCustomer.person', 'payments.paymentMethod', 'subcontractedService.supplier'])
             ->withCount('notes')
             ->addSelect([
                 'latest_note_at' => RepairNote::select('created_at')
@@ -149,7 +154,21 @@ class RepairService implements RepairServiceInterface
      */
     public function find(int $id): ?Repair
     {
-        return Repair::with(['customer.person', 'branch', 'category', 'technician.person', 'notes.user.person', 'sale', 'insurer', 'insuredCustomer.person', 'paymentMethod', 'cashMovement', 'payments.paymentMethod'])->find($id);
+        return Repair::with([
+            'customer.person',
+            'branch',
+            'category',
+            'technician.person',
+            'notes.user.person',
+            'sale',
+            'insurer',
+            'insuredCustomer.person',
+            'paymentMethod',
+            'cashMovement',
+            'payments.paymentMethod',
+            'subcontractedService.supplier',
+            'subcontractedService.payments.paymentMethod',
+        ])->find($id);
     }
 
 
@@ -277,6 +296,327 @@ class RepairService implements RepairServiceInterface
         $entregadas = (clone $base)->where('status', 'Entregado')->count();
 
         return compact('total', 'enProceso', 'terminadas', 'entregadas');
+    }
+
+    public function deriveToExternal(int $id, array $data): Repair
+    {
+        return DB::transaction(function () use ($id, $data) {
+            $repair = Repair::whereKey($id)
+                ->lockForUpdate()
+                ->with(['customer.person', 'subcontractedService'])
+                ->firstOrFail();
+
+            if ($repair->subcontractedService !== null) {
+                throw new \Exception('La reparación ya tiene una derivación externa asociada.');
+            }
+
+            $supplierId = (int) ($data['supplier_id'] ?? 0);
+            $agreedCost = round((float) ($data['agreed_cost'] ?? 0), 2);
+            if ($supplierId <= 0 || $agreedCost <= 0) {
+                throw new \Exception('Proveedor y costo acordado son obligatorios para derivar la reparación.');
+            }
+
+            $supplier = \App\Models\Supplier::findOrFail($supplierId);
+
+            $supplierAccount = CurrentAccount::firstOrCreate(
+                ['supplier_id' => $supplier->id],
+                [
+                    'credit_limit' => null,
+                    'current_balance' => 0,
+                    'status' => 'active',
+                    'opened_at' => now(),
+                ]
+            );
+
+            $subcontractedServicePayload = [
+                'repair_id' => $repair->id,
+                'supplier_id' => $supplier->id,
+                'current_account_id' => $supplierAccount->id,
+                'description' => $data['description'] ?? sprintf('Derivación externa reparación %s', $repair->code),
+                'notes' => $data['notes'] ?? null,
+                'agreed_cost' => $agreedCost,
+                'paid_amount' => 0,
+                'payment_status' => 'pending',
+            ];
+
+            // Compatibilidad con esquemas legados donde estas columnas siguen siendo obligatorias.
+            if (Schema::hasColumn('subcontracted_services', 'customer_id')) {
+                if (empty($repair->customer_id)) {
+                    throw new \Exception('La reparación debe tener cliente asociado para registrar servicio externo.');
+                }
+                $subcontractedServicePayload['customer_id'] = (int) $repair->customer_id;
+            }
+
+            if (Schema::hasColumn('subcontracted_services', 'provider_id')) {
+                $subcontractedServicePayload['provider_id'] = $supplier->id;
+            }
+
+            if (Schema::hasColumn('subcontracted_services', 'title')) {
+                $subcontractedServicePayload['title'] = $data['description'] ?? sprintf('Servicio externo %s', $repair->code);
+            }
+
+            if (Schema::hasColumn('subcontracted_services', 'branch_id')) {
+                $subcontractedServicePayload['branch_id'] = $repair->branch_id;
+            }
+
+            if (Schema::hasColumn('subcontracted_services', 'provider_cost')) {
+                $subcontractedServicePayload['provider_cost'] = $agreedCost;
+            }
+
+            if (Schema::hasColumn('subcontracted_services', 'customer_price')) {
+                $subcontractedServicePayload['customer_price'] = (float) ($repair->sale_price_with_iva ?? $repair->sale_price ?? 0);
+            }
+
+            if (Schema::hasColumn('subcontracted_services', 'is_provider_paid')) {
+                $subcontractedServicePayload['is_provider_paid'] = false;
+            }
+
+            if (Schema::hasColumn('subcontracted_services', 'is_customer_charged')) {
+                $subcontractedServicePayload['is_customer_charged'] = false;
+            }
+
+            $subcontractedService = SubcontractedService::create($subcontractedServicePayload);
+
+            $movementType = MovementType::firstOrCreate(
+                ['name' => 'Costo reparación externa', 'operation_type' => 'salida'],
+                [
+                    'description' => 'Débito por costo de reparación derivada a proveedor externo',
+                    'is_cash_movement' => false,
+                    'is_current_account_movement' => true,
+                    'active' => true,
+                ]
+            );
+
+            /** @var CurrentAccountService $currentAccountService */
+            $currentAccountService = app(CurrentAccountService::class);
+            $movement = $currentAccountService->createMovement([
+                'current_account_id' => $supplierAccount->id,
+                'movement_type_id' => $movementType->id,
+                'amount' => $agreedCost,
+                'description' => sprintf('Costo reparación externa %s - %s', $repair->code, $supplier->name),
+                'reference' => $repair->code,
+                'metadata' => [
+                    'kind' => 'repair_external_service_charge',
+                    'repair_id' => $repair->id,
+                    'repair_code' => $repair->code,
+                    'supplier_id' => $supplier->id,
+                    'subcontracted_service_id' => $subcontractedService->id,
+                    'agreed_cost' => $agreedCost,
+                ],
+            ]);
+
+            $movementReferences = [
+                'charge_movement_id' => $movement->id,
+            ];
+
+            if (Schema::hasColumn('subcontracted_services', 'provider_account_entry_id')) {
+                $movementReferences['provider_account_entry_id'] = $movement->id;
+            }
+
+            $subcontractedService->update($movementReferences);
+
+            if ($repair->status !== 'Reparación Externa') {
+                $repair->update(['status' => 'Reparación Externa']);
+            }
+
+            $repair->notes()->create([
+                'user_id' => auth()->id(),
+                'note' => sprintf(
+                    'Derivada a proveedor externo %s por $%s.',
+                    $supplier->name,
+                    number_format($agreedCost, 2, ',', '.')
+                ),
+            ]);
+
+            return $this->find($repair->id) ?? $repair;
+        });
+    }
+
+    public function payExternalService(int $id, array $data): Repair
+    {
+        return DB::transaction(function () use ($id, $data) {
+            $repair = Repair::whereKey($id)
+                ->lockForUpdate()
+                ->with(['subcontractedService'])
+                ->firstOrFail();
+
+            $subcontractedService = SubcontractedService::where('repair_id', $repair->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$subcontractedService) {
+                throw new \Exception('La reparación no tiene derivación externa para registrar pagos.');
+            }
+
+            $amount = round((float) ($data['amount'] ?? 0), 2);
+            $paymentMethodId = (int) ($data['payment_method_id'] ?? 0);
+            if ($amount <= 0 || $paymentMethodId <= 0) {
+                throw new \Exception('Monto y método de pago son obligatorios.');
+            }
+
+            $pendingAmount = (float) $subcontractedService->pending_amount;
+            if ($pendingAmount <= self::PAYMENT_TOLERANCE) {
+                throw new \Exception('La derivación externa ya está completamente pagada.');
+            }
+
+            if (($amount - $pendingAmount) > self::PAYMENT_TOLERANCE) {
+                throw new \Exception('El pago supera el saldo pendiente de la derivación externa.');
+            }
+
+            $cashRegisterId = isset($data['cash_register_id'])
+                ? (int) $data['cash_register_id']
+                : 0;
+
+            if ($cashRegisterId <= 0) {
+                $cashRegisterId = (int) (CashRegister::query()
+                    ->where('branch_id', $repair->branch_id)
+                    ->where('status', 'open')
+                    ->latest('id')
+                    ->value('id') ?? 0);
+            }
+
+            if ($cashRegisterId <= 0) {
+                throw new \Exception('Debe seleccionar una caja abierta para registrar el pago al proveedor externo.');
+            }
+
+            $supplierName = $subcontractedService->supplier?->name ?? 'Proveedor';
+
+            /** @var CurrentAccountService $currentAccountService */
+            $currentAccountService = app(CurrentAccountService::class);
+            $movement = $currentAccountService->processSupplierPayment(
+                (int) $subcontractedService->current_account_id,
+                [
+                    'amount' => $amount,
+                    'payment_method_id' => $paymentMethodId,
+                    'cash_register_id' => $cashRegisterId,
+                    'description' => sprintf('Pago reparación externa %s - %s', $repair->code, $supplierName),
+                    'notes' => $data['notes'] ?? null,
+                    'metadata' => [
+                        'kind' => 'repair_external_service_payment',
+                        'repair_id' => $repair->id,
+                        'repair_code' => $repair->code,
+                        'supplier_id' => $subcontractedService->supplier_id,
+                        'subcontracted_service_id' => $subcontractedService->id,
+                    ],
+                ]
+            );
+
+            $movementMetadata = (array) ($movement->metadata ?? []);
+            $cashMovementId = isset($movementMetadata['cash_movement_id'])
+                ? (int) $movementMetadata['cash_movement_id']
+                : null;
+
+            $expenseCategoryId = $this->resolveExternalSupplierExpenseCategoryId();
+            if ($expenseCategoryId === null) {
+                throw new \Exception('No hay una categoría de gastos activa para registrar pagos a proveedores externos.');
+            }
+
+            Expense::create([
+                'branch_id' => (int) $repair->branch_id,
+                'category_id' => $expenseCategoryId,
+                'user_id' => auth()->id(),
+                'payment_method_id' => $paymentMethodId,
+                'cash_movement_id' => $cashMovementId,
+                'description' => sprintf('Pago proveedor externo reparación %s - %s', $repair->code, $supplierName),
+                'amount' => $amount,
+                'date' => now()->toDateString(),
+                'status' => 'paid',
+                'affects_cash_balance' => true,
+                'is_recurring' => false,
+            ]);
+
+            SubcontractedServicePayment::create([
+                'subcontracted_service_id' => $subcontractedService->id,
+                'current_account_movement_id' => $movement->id,
+                'payment_method_id' => $paymentMethodId,
+                'amount' => $amount,
+                'notes' => $data['notes'] ?? null,
+                'paid_at' => now(),
+                'user_id' => auth()->id(),
+            ]);
+
+            $newPaidAmount = round((float) $subcontractedService->paid_amount + $amount, 2);
+            $remaining = max(0, round((float) $subcontractedService->agreed_cost - $newPaidAmount, 2));
+
+            $subcontractedService->update([
+                'paid_amount' => $newPaidAmount,
+                'payment_status' => $remaining <= self::PAYMENT_TOLERANCE ? 'paid' : 'partial',
+                'fully_paid_at' => $remaining <= self::PAYMENT_TOLERANCE ? now() : null,
+            ]);
+
+            $repair->notes()->create([
+                'user_id' => auth()->id(),
+                'note' => sprintf(
+                    'Pago a proveedor externo %s por $%s (pendiente: $%s).',
+                    $supplierName,
+                    number_format($amount, 2, ',', '.'),
+                    number_format($remaining, 2, ',', '.')
+                ),
+            ]);
+
+            return $this->find($repair->id) ?? $repair;
+        });
+    }
+
+    private function resolveExternalSupplierExpenseCategoryId(): ?int
+    {
+        $categories = ExpenseCategory::query()
+            ->where('active', true)
+            ->get(['id', 'name']);
+
+        if ($categories->isEmpty()) {
+            $created = ExpenseCategory::create([
+                'name' => 'Otros Gastos',
+                'description' => 'Categoría creada automáticamente para pagos a proveedores externos de reparaciones',
+                'active' => true,
+            ]);
+
+            return (int) $created->id;
+        }
+
+        $preferredNames = [
+            'Mantenimiento y Reparaciones',
+            'Servicios',
+            'Otros Gastos',
+        ];
+
+        foreach ($preferredNames as $name) {
+            $match = $categories->first(function (ExpenseCategory $category) use ($name) {
+                return mb_strtolower((string) $category->name) === mb_strtolower($name);
+            });
+
+            if ($match) {
+                return (int) $match->id;
+            }
+        }
+
+        return (int) $categories->first()->id;
+    }
+
+    public function getExternalServicesBySupplier(int $supplierId, array $filters = []): Collection
+    {
+        $query = SubcontractedService::query()
+            ->with([
+                'repair.customer.person',
+                'supplier',
+                'payments.paymentMethod',
+            ])
+            ->where('supplier_id', $supplierId)
+            ->orderByDesc('id');
+
+        if (!empty($filters['payment_status'])) {
+            $query->where('payment_status', $filters['payment_status']);
+        }
+
+        if (!empty($filters['from_date'])) {
+            $query->whereDate('created_at', '>=', $filters['from_date']);
+        }
+
+        if (!empty($filters['to_date'])) {
+            $query->whereDate('created_at', '<=', $filters['to_date']);
+        }
+
+        return $query->get();
     }
 
     /**

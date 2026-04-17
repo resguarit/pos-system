@@ -3,8 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\Branch;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\Person;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +16,21 @@ class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Employee::with(['person', 'branch', 'branches', 'user.person', 'user.role']);
+        $month = (int) $request->input('month', now()->month);
+        $year = (int) $request->input('year', now()->year);
+
+        $month = max(1, min(12, $month));
+        $year = max(2000, min(2100, $year));
+
+        $query = Employee::with(['person', 'branch', 'branches', 'user.person', 'user.role'])
+            ->withSum([
+                'expenses as monthly_settlement_amount' => function ($expenseQuery) use ($month, $year) {
+                    $expenseQuery
+                        ->whereYear('date', $year)
+                        ->whereMonth('date', $month)
+                        ->whereIn('status', ['pending', 'approved', 'paid']);
+                },
+            ], 'amount');
 
         // Search functionality
         if ($request->has('search') && $request->search) {
@@ -43,6 +61,11 @@ class EmployeeController extends Controller
             'last_page' => $employees->lastPage(),
             'per_page' => $employees->perPage(),
             'total' => $employees->total(),
+            'period' => [
+                'month' => $month,
+                'year' => $year,
+                'label' => Carbon::create($year, $month, 1)->locale('es')->isoFormat('MMMM YYYY'),
+            ],
         ]);
     }
 
@@ -250,6 +273,161 @@ class EmployeeController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Employee deleted successfully'
+        ]);
+    }
+
+    public function settleSalary(Request $request, Employee $employee)
+    {
+        $validated = $request->validate([
+            'month' => 'required|integer|min:1|max:12',
+            'year' => 'required|integer|min:2000|max:2100',
+            'amount' => 'nullable|numeric|min:0',
+            'branch_id' => 'required|exists:branches,id',
+            'payment_date' => 'required|date',
+            'due_date' => 'nullable|date',
+            'description' => 'nullable|string|max:255',
+            'payment_method_id' => 'nullable|exists:payment_methods,id',
+            'affects_cash_balance' => 'sometimes|boolean',
+        ]);
+
+        // Use only active, non-deleted branches assigned to the employee.
+        $activeBranches = $employee->branches()
+            ->whereNull('branches.deleted_at')
+            ->where('branches.status', true)
+            ->pluck('branches.id')
+            ->all();
+        
+        // Also check the legacy branch_id if it's active
+        if (!empty($employee->branch_id)) {
+            $primaryBranch = Branch::query()
+                ->whereNull('deleted_at')
+                ->where('status', true)
+                ->find($employee->branch_id);
+            if ($primaryBranch && !in_array((int) $employee->branch_id, $activeBranches, true)) {
+                $activeBranches[] = (int) $employee->branch_id;
+            }
+        }
+
+        $settlementBranchId = (int) $validated['branch_id'];
+
+        if (empty($activeBranches)) {
+            $selectedActiveBranch = Branch::query()
+                ->whereNull('deleted_at')
+                ->where('status', true)
+                ->whereKey($settlementBranchId)
+                ->exists();
+
+            if (!$selectedActiveBranch) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'La sucursal seleccionada no está activa.',
+                ], 422);
+            }
+
+            // Keep employee-branch relation consistent for future settlements.
+            $employee->branches()->syncWithoutDetaching([$settlementBranchId]);
+            if ((int) $employee->branch_id !== $settlementBranchId) {
+                $employee->branch_id = $settlementBranchId;
+                $employee->save();
+            }
+        } elseif (!in_array($settlementBranchId, $activeBranches, true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'La sucursal seleccionada no está activa o no está asignada al empleado.',
+                'available_branch_ids' => $activeBranches
+            ], 422);
+        }
+
+        $category = ExpenseCategory::query()
+            ->where('active', true)
+            ->where(function ($query) {
+                $query->where('name', 'like', '%Sueldo%')
+                    ->orWhere('name', 'like', '%Salario%');
+            })
+            ->orderByRaw("CASE WHEN name = 'Sueldos y Salarios' THEN 0 ELSE 1 END")
+            ->first();
+
+        if (!$category) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se encontró una categoría activa de sueldos/salarios para registrar la liquidación.'
+            ], 422);
+        }
+
+        $amount = array_key_exists('amount', $validated)
+            ? (float) $validated['amount']
+            : (float) $employee->salary;
+
+        $description = $validated['description']
+            ?? sprintf(
+                'Liquidación sueldo %02d/%d - %s %s',
+                $validated['month'],
+                $validated['year'],
+                $employee->person->first_name,
+                $employee->person->last_name
+            );
+
+        $expense = app(\App\Services\ExpenseService::class)->createExpense([
+            'branch_id' => $settlementBranchId,
+            'category_id' => $category->id,
+            'employee_id' => $employee->id,
+            'payment_method_id' => $validated['payment_method_id'] ?? null,
+            'description' => $description,
+            'amount' => $amount,
+            'date' => $validated['payment_date'],
+            'due_date' => $validated['due_date'] ?? $validated['payment_date'],
+            'status' => 'paid',
+            'affects_cash_balance' => $validated['affects_cash_balance'] ?? true,
+            'is_recurring' => false,
+            'recurrence_interval' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Liquidación registrada correctamente',
+            'data' => $expense->load(['category', 'employee.person', 'branch', 'paymentMethod', 'cashMovement'])
+        ], 201);
+    }
+
+    public function settlementsHistory(Request $request, Employee $employee)
+    {
+        $validated = $request->validate([
+            'month' => 'nullable|integer|min:1|max:12',
+            'year' => 'nullable|integer|min:2000|max:2100',
+            'per_page' => 'nullable|integer|min:1|max:100',
+        ]);
+
+        $query = Expense::query()
+            ->with(['category', 'paymentMethod', 'cashMovement'])
+            ->where('employee_id', $employee->id)
+            ->where(function ($q) {
+                $q->whereHas('category', function ($categoryQuery) {
+                    $categoryQuery
+                        ->where('name', 'like', '%Sueldo%')
+                        ->orWhere('name', 'like', '%Salario%');
+                })
+                    ->orWhere('description', 'like', '%Sueldo%')
+                    ->orWhere('description', 'like', '%Liquidación sueldo%');
+            });
+
+        if (!empty($validated['month'])) {
+            $query->whereMonth('date', $validated['month']);
+        }
+
+        if (!empty($validated['year'])) {
+            $query->whereYear('date', $validated['year']);
+        }
+
+        $perPage = $validated['per_page'] ?? 20;
+        $settlements = $query->latest('date')->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $settlements->items(),
+            'current_page' => $settlements->currentPage(),
+            'last_page' => $settlements->lastPage(),
+            'per_page' => $settlements->perPage(),
+            'total' => $settlements->total(),
         ]);
     }
 }

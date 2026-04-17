@@ -43,6 +43,14 @@ class Supplier extends Model
     }
 
     /**
+     * Get subcontracted repair services associated with this supplier.
+     */
+    public function subcontractedServices(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(SubcontractedService::class);
+    }
+
+    /**
      * Get all tax identities (CUITs) for this supplier.
      */
     public function taxIdentities()

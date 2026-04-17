@@ -45,6 +45,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseReminderController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\PushSubscriptionController;
 
@@ -669,6 +670,7 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             Route::get('/stats', [RepairController::class, 'stats']);
             Route::get('/options', [RepairController::class, 'options']);
             Route::get('/kanban', [RepairController::class, 'kanban']);
+            Route::get('/external-debts/suppliers/{supplierId}', [RepairController::class, 'externalDebtsBySupplier'])->whereNumber('supplierId');
             Route::get('/{id}', [RepairController::class, 'show'])->whereNumber('id');
             Route::get('/{id}/pdf', [RepairController::class, 'generatePdf'])->whereNumber('id');
             Route::get('/{id}/reception-certificate', [RepairController::class, 'receptionCertificate'])->whereNumber('id');
@@ -685,6 +687,8 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
             Route::post('/{id}/mark-as-paid', [RepairController::class, 'markAsPaid'])->whereNumber('id');
             Route::post('/{id}/mark-as-unpaid', [RepairController::class, 'markAsUnpaid'])->whereNumber('id');
             Route::post('/{id}/no-repair', [RepairController::class, 'markNoRepair'])->whereNumber('id');
+            Route::post('/{id}/derive-to-external', [RepairController::class, 'deriveToExternal'])->whereNumber('id');
+            Route::post('/{id}/external-service/payments', [RepairController::class, 'payExternalService'])->whereNumber('id');
         });
     });
 
@@ -794,13 +798,19 @@ Route::middleware(['auth:sanctum', 'schedule.check'])->group(function () {
         Route::middleware('has_permission:ver_empleados')->group(function () {
             Route::get('/', [EmployeeController::class, 'index']);
             Route::get('/{employee}', [EmployeeController::class, 'show']);
+            Route::get('/{employee}/settlements', [EmployeeController::class, 'settlementsHistory']);
             Route::get('/available-users', [EmployeeController::class, 'availableUsers']);
         });
         // Route::get('/available-users', [EmployeeController::class, 'availableUsers']); Moved inside
 
         Route::middleware('has_permission:crear_empleados')->post('/', [EmployeeController::class, 'store']);
+        Route::middleware('has_permission:crear_gastos')->post('/{employee}/settlements', [EmployeeController::class, 'settleSalary']);
         Route::middleware('has_permission:editar_empleados')->put('/{employee}', [EmployeeController::class, 'update']);
         Route::middleware('has_permission:eliminar_empleados')->delete('/{employee}', [EmployeeController::class, 'destroy']);
+    });
+
+    Route::prefix('payroll')->middleware('has_permission:crear_gastos')->group(function () {
+        Route::post('/generate', [PayrollController::class, 'store']);
     });
 
     Route::prefix('expense-categories')->group(function () {

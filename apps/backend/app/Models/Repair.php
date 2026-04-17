@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use App\Traits\LogsActivityWithContext;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Repair extends Model
 {
@@ -154,6 +155,11 @@ class Repair extends Model
     public function payments()
     {
         return $this->hasMany(RepairPayment::class)->latest('id');
+    }
+
+    public function subcontractedService(): HasOne
+    {
+        return $this->hasOne(SubcontractedService::class);
     }
 
     public function getPendingAmountAttribute(): float
